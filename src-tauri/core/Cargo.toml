@@ -1,0 +1,17 @@
+[package]
+name = "gilog-core"
+version = "0.1.0"
+description = "giLog의 저장과 암호화. 화면과 무관하게 따로 시험할 수 있어요."
+edition = "2021"
+
+[dependencies]
+rusqlite = { version = "0.32", features = ["bundled-sqlcipher-vendored-openssl"] }
+argon2 = "0.5"
+rand = "0.8"
+hex = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+
+[dev-dependencies]
+tempfile = "3"

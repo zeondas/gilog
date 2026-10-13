@@ -22,11 +22,17 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
+      # 암호화 저장(SQLCipher)에 들어가는 OpenSSL을 만들 때 필요해요.
+      - uses: ilammy/setup-nasm@v1
+
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
 
       - run: npm ci
+
+      - name: 저장·암호화 시험
+        run: cargo test --manifest-path src-tauri/core/Cargo.toml
 
       - run: npm run tauri build
 

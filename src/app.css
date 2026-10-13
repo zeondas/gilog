@@ -129,3 +129,118 @@ button:focus-visible {
 .muted {
   color: var(--muted);
 }
+
+.small {
+  font-size: 12px;
+}
+
+/* 잠금 화면 */
+.gate {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: var(--surface-side);
+}
+
+.gate-card {
+  width: 360px;
+  max-width: 100%;
+}
+
+.gate-card .brand {
+  padding: 0;
+}
+
+.gate-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.gate-body p,
+.pw-form p {
+  margin: 0;
+}
+
+.gate-lead {
+  font-weight: 600;
+}
+
+.gate-error {
+  min-height: 18px;
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.field > span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.field > input {
+  height: var(--size-ctrl);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+.field > input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.btn-primary {
+  height: var(--size-ctrl);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.pw-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 420px;
+}
+
+.pw-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+/* 본문이 길어지면 카드를 누르지 않고 스크롤해요. */
+.main > * {
+  flex: none;
+}
+
+.card-body p:last-child {
+  margin-bottom: 0;
+}
+
+.pw-form {
+  padding-bottom: var(--space-4);
+}
