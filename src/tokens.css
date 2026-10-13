@@ -1,0 +1,104 @@
+/* giLog 디자인 시스템의 토큰이에요. 값은 디자인 시스템(tokens.json)에서 옮겨 왔어요. 색은 여기 이름으로만 써요. */
+:root {
+  --accent: #0C447C;
+  --on-accent: #FFFFFF;
+  --accent-tint: #E3EEFB;
+  --accent-wash: #F5F9FE;
+  --accent-line: #9DB7D6;
+  --ink: #1B2430;
+  --ink-2: #3A4553;
+  --muted: #56616F;
+  --surface: #FFFFFF;
+  --surface-side: #F4F6F8;
+  --surface-band: #F1F4F7;
+  --line: #C9D3DE;
+  --line-soft: #E3E8EE;
+  --line-row: #EEF1F4;
+  --st-work-bg: #FDEBD3;
+  --st-work-fg: #8A4B00;
+  --st-done-bg: #E1F0E6;
+  --st-done-fg: #1F5E3A;
+  --st-hold-bg: #ECEEF1;
+  --st-hold-fg: #4A5563;
+  --danger: #8A1F2B;
+  --urgent: #B3261E;
+  --saturday: #1D4E9E;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+  --size-input: 28px;
+  --size-ctrl: 34px;
+  --size-row: 36px;
+  --size-badge: 62px;
+  --size-pillar: 88px;
+  --size-side: 200px;
+  --size-card-min: 280px;
+  --shadow-card: 0 1px 2px rgba(20,28,38,0.06), 0 6px 16px rgba(20,28,38,0.06);
+  --font-sans: Pretendard, "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+  --fs: 13px;
+  color-scheme: light;
+}
+
+/* 테마 '시스템': 윈도우가 어둡게일 때 */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --accent: #8DB8EA;
+    --on-accent: #0B1E33;
+    --accent-tint: #1B3350;
+    --accent-wash: #172230;
+    --accent-line: #3F5F85;
+    --ink: #E6EBF1;
+    --ink-2: #C3CCD6;
+    --muted: #9AA6B4;
+    --surface: #151A21;
+    --surface-side: #10141A;
+    --surface-band: #1D242D;
+    --line: #3A4553;
+    --line-soft: #2A323D;
+    --line-row: #232A33;
+    --st-work-bg: #40300F;
+    --st-work-fg: #F2C078;
+    --st-done-bg: #173524;
+    --st-done-fg: #8FD0A6;
+    --st-hold-bg: #2A313B;
+    --st-hold-fg: #B4BECA;
+    --danger: #F08A95;
+    --urgent: #F28B82;
+    --saturday: #8AB4F8;
+    color-scheme: dark;
+  }
+}
+
+/* 테마 '어둡게'를 직접 골랐을 때 */
+:root[data-theme="dark"] {
+  --accent: #8DB8EA;
+  --on-accent: #0B1E33;
+  --accent-tint: #1B3350;
+  --accent-wash: #172230;
+  --accent-line: #3F5F85;
+  --ink: #E6EBF1;
+  --ink-2: #C3CCD6;
+  --muted: #9AA6B4;
+  --surface: #151A21;
+  --surface-side: #10141A;
+  --surface-band: #1D242D;
+  --line: #3A4553;
+  --line-soft: #2A323D;
+  --line-row: #232A33;
+  --st-work-bg: #40300F;
+  --st-work-fg: #F2C078;
+  --st-done-bg: #173524;
+  --st-done-fg: #8FD0A6;
+  --st-hold-bg: #2A313B;
+  --st-hold-fg: #B4BECA;
+  --danger: #F08A95;
+  --urgent: #F28B82;
+  --saturday: #8AB4F8;
+  color-scheme: dark;
+}

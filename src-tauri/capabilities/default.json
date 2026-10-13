@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "기본 창에 허용하는 기능",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

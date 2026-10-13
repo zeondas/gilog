@@ -1,0 +1,39 @@
+# main에 코드가 올라올 때마다 윈도우 설치 파일을 만들어 Releases에 올려요.
+name: 윈도우 설치 파일 만들기
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      - run: npm run tauri build
+
+      - name: 설치 파일 올리기
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: giLog 설치 파일 ${{ github.run_number }}번
+          body: 아래 Assets에서 setup.exe 파일을 내려받아 실행하면 설치돼요.
+          files: src-tauri/target/release/bundle/nsis/*.exe
