@@ -34,7 +34,20 @@ jobs:
       - name: 저장·암호화 시험
         run: cargo test --manifest-path src-tauri/core/Cargo.toml
 
-      - run: npm run tauri build
+      - name: 설치 파일 만들기
+        id: build
+        shell: bash
+        run: npm run tauri build 2>&1 | tee build.log; exit ${PIPESTATUS[0]}
+
+      # 실패하면 오류 줄을 커밋 댓글로 남겨요. (이 작업 공간에서 실행 로그를 직접 못 읽어서예요)
+      - name: 실패 내용 남기기
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          { echo '빌드 실패 로그 (오류 부분)'; echo '```'; grep -nE "error(\[|:)|Error|npm ERR|panicked|failed" build.log | head -80; echo '---- 끝부분 ----'; tail -60 build.log; echo '```'; } > body.md
+          gh api repos/${{ github.repository }}/commits/${{ github.sha }}/comments -f body="$(cat body.md)" >/dev/null || true
 
       - name: 설치 파일 올리기
         uses: softprops/action-gh-release@v2
