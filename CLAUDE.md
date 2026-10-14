@@ -1,0 +1,49 @@
+# giLog 작업 안내 (Claude가 먼저 읽는 파일)
+
+도로관리과 담당자 전훈민 님이 혼자 쓰는 업무 기록 앱이에요. 사용자는 코딩을 모르니 설명은 기술 용어 없이 해요.
+
+## 말투와 형식
+- 모든 답은 **해요체**예요. 선택지는 **1안/2안** 형식으로 주고, 권하는 안과 이유를 한 줄 덧붙여요.
+- 한 단계가 끝나면 (1) 들어간 것, (2) 제가 확인한 것, (3) 윈도우에서만 확인할 수 있어 사용자가 시험해야 할 것을 번호로 적어요.
+- 사용자가 "통과"라고 하기 전에는 다음 단계를 시작하지 않아요.
+
+## 기준 문서 (이 순서로 우선해요)
+1. 개발 사양서: https://claude.ai/code/artifact/8a776f73-e26c-4e2c-9735-3dc7cd0885f4 (동작·저장·연동)
+2. 화면 시안(Claude Design 캔버스): https://claude.ai/artifact/JyghMiCyKE5BRDq2C8SmJm — 파일 `project/*.dc.html` (배치·칸 순서·문구)
+3. 디자인 시스템: https://claude.ai/artifact/GjMv4QEBfeZmmBLqoM7ASZ — `src/tokens.css`에 옮겨져 있어요. 화면 코드에 색 값을 직접 쓰지 않고 토큰만 써요.
+
+## 만드는 순서와 진행 상태
+| 단계 | 내용 | 상태 |
+| --- | --- | --- |
+| 1 | 빈 앱 + 설치 파일 자동 생성 | 완료, 사용자 확인 |
+| 2 | 암호화 저장(SQLCipher)과 잠금 | 완료, 사용자 확인 |
+| 3 | 설정 화면 | 완료, 사용자 확인 (0.3.0) |
+| 4 | 업무연락처 | 다음 |
+| 5 | 업무일지 | |
+| 6 | 민원대장 | 시작 전에 사용자에게 실제 민원유형 목록과 엑셀 견본을 받아야 해요 |
+| 7 | 할 일 목록 (민원대장 연동) | |
+| 8 | 캘린더 (공휴일 자동, 윈도우 알림) | |
+| 9 | 구글 캘린더 연동 | |
+
+## 구조
+- 화면: React + TypeScript (`src/`). `src/api.ts`가 Rust를 부르고, 브라우저에서 볼 때는 메모리 흉내를 써요.
+- 앱 틀: Tauri 2 (`src-tauri/`). 저장·암호화는 `src-tauri/core/` 크레이트에 두고 `cargo test`로 시험해요.
+- 자료: 한 파일 `문서\giLog\gilog.db`(암호화). 지금은 `kv` 표에 JSON으로 저장해요. 새 화면은 `core`에 표를 만들고 `migrate()`에 추가해요.
+- 앱 설정(암호 없이 읽는 것)은 AppData의 `prefs.json`, 내용 설정(상태 목록, 구분 등)은 암호화 파일 안 `settings` 키예요. `src/settingsStore.ts` 참고.
+- 파일 이름은 대소문자만 다른 것을 만들지 않아요 (윈도우에서 충돌해요).
+
+## 작업 방법
+- 작업 공간이 리눅스라 윈도우 설치 파일은 GitHub Actions가 만들어요. `main`에 올리면 자동으로 Releases에 `giLog_<버전>_x64-setup.exe`가 올라와요.
+- 올리기 전에: `npm run build`(TS 검사 포함), `cargo test --manifest-path src-tauri/core/Cargo.toml`, 가능하면 `cargo check --manifest-path src-tauri/Cargo.toml`(리눅스는 libwebkit2gtk-4.1-dev 필요).
+- 화면 확인은 `dist/`를 로컬 서버로 띄워 Playwright로 1920×1080 스크린샷을 찍어 봐요.
+- 단계마다 `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`의 버전을 0.N.0으로 올려요.
+- 빌드가 실패하면 오류가 커밋 댓글로 남아요: `gh api repos/zeondas/gilog/commits/<sha>/comments`.
+- `[skip ci]`를 커밋 메시지에 넣으면 빌드를 건너뛰어요 (문서만 고칠 때).
+
+## 사용자가 정한 규칙 (바꾸지 않아요)
+- 신규 입력란은 항상 켜져 있어요. Tab으로 다음 칸, 마지막 칸에서 Enter로 등록해요.
+- 기록을 누르면 그 자리에서 고치고, 바깥을 누르면 저장해요.
+- 업무일지: Tab=다음 말(화자 교대), Shift+Tab=같은 사람, Enter=등록, Esc=취소. 카드는 시간 기둥형. 구분은 초성 단축키.
+- 삭제는 바로 지우고 5초 동안 "되돌리기"를 띄워요. 휴지통은 저장·취소 버튼과 떨어뜨려요.
+- 민원인 이름·연락처는 어떤 경우에도 구글로 내보내지 않아요.
+- 기준 화면은 24인치 FHD(1920×1080) 전체 화면, 배율 100%예요. 가로 스크롤이 없어야 해요.
