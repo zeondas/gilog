@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, DEFAULT_PREFS, errorText, Prefs, Status } from "./api";
 import Gate from "./Gate";
-import SettingsScreen from "./Settings";
+import SettingsScreen from "./SettingsScreen";
 import { SCREENS, SETTINGS, ScreenId } from "./screens";
 
 const VERSION = "0.3.0";

@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { api, DEFAULT_PREFS, errorText, inApp, Prefs, Status } from "./api";
-import { DEFAULT_SETTINGS, Kind, loadSettings, saveSettings, Settings, STATUS_COLORS } from "./settings";
+import { DEFAULT_SETTINGS, Kind, loadSettings, saveSettings, Settings, STATUS_COLORS } from "./settingsStore";
 import { SCREENS } from "./screens";
 
 type Props = {
