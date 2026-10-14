@@ -12,6 +12,9 @@ use rand::RngCore;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
+mod contacts;
+pub use contacts::{Contact, ContactInput, ContactsData, Project, PROJECT_COLORS};
+
 const DB_FILE: &str = "gilog.db";
 const META_FILE: &str = "gilog.key.json";
 const META_NEW_FILE: &str = "gilog.key.new.json";
@@ -35,6 +38,8 @@ pub enum Error {
     Db(#[from] rusqlite::Error),
     #[error("열쇠 정보 파일을 읽지 못했어요: {0}")]
     Meta(String),
+    #[error("넣은 값이 맞지 않아요: {0}")]
+    Invalid(String),
 }
 
 impl Error {
@@ -48,6 +53,7 @@ impl Error {
             Error::Io(_) => "io",
             Error::Db(_) => "db",
             Error::Meta(_) => "meta",
+            Error::Invalid(_) => "invalid",
         }
     }
 }
@@ -185,6 +191,7 @@ impl Store {
                 value TEXT NOT NULL
             );",
         )?;
+        self.conn.execute_batch(contacts::SCHEMA)?;
         Ok(())
     }
 

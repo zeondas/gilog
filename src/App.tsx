@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, DEFAULT_PREFS, errorText, Prefs, Status } from "./api";
+import ContactsScreen from "./ContactsScreen";
 import Gate from "./Gate";
 import SettingsScreen from "./SettingsScreen";
 import { SCREENS, SETTINGS, ScreenId } from "./screens";
 
-const VERSION = "0.3.0";
+const VERSION = "0.4.0";
 
 export default function App() {
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
@@ -109,6 +110,8 @@ export default function App() {
       <main className="main">
         {current === SETTINGS.id ? (
           <SettingsScreen prefs={prefs} onPrefs={savePrefs} status={status} onLocked={refresh} />
+        ) : current === "contacts" ? (
+          <ContactsScreen />
         ) : (
           <>
             <h1 className="title">{screen.name}</h1>

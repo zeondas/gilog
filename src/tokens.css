@@ -25,6 +25,19 @@
   --danger: #8A1F2B;
   --urgent: #B3261E;
   --saturday: #1D4E9E;
+  /* 삭제를 한 번 더 묻는 띠의 바탕. 글자는 danger. */
+  --danger-wash: #FBE4EC;
+  /* 검색에 맞은 글자 형광 표시 */
+  --mark: #FFEC8A;
+  /* 연락처 프로젝트 배지 8색 (바탕, 글자). 디자인 시스템대로 두 테마에서 같은 색이에요. */
+  --pj-0-bg: #ECEEF1; --pj-0-fg: #4A5563;
+  --pj-1-bg: #E3EEFB; --pj-1-fg: #0C447C;
+  --pj-2-bg: #FDEBD3; --pj-2-fg: #8A4B00;
+  --pj-3-bg: #E1F0E6; --pj-3-fg: #1F5E3A;
+  --pj-4-bg: #ECE6F8; --pj-4-fg: #4B2E83;
+  --pj-5-bg: #DDF1F1; --pj-5-fg: #0F5458;
+  --pj-6-bg: #FBE4EC; --pj-6-fg: #8A1F4B;
+  --pj-7-bg: #F6EFC8; --pj-7-fg: #6B5300;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -76,6 +89,8 @@
   --st-new-fg: #C4B8F0;
   --danger: #F08A95;
     --urgent: #F28B82;
+    --danger-wash: #3A1D24;
+    --mark: #6B5A12;
     --saturday: #8AB4F8;
     color-scheme: dark;
   }
@@ -106,5 +121,7 @@
   --danger: #F08A95;
   --urgent: #F28B82;
   --saturday: #8AB4F8;
+  --danger-wash: #3A1D24;
+  --mark: #6B5A12;
   color-scheme: dark;
 }

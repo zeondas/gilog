@@ -2,7 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use gilog_core::Store;
+use gilog_core::{ContactInput, ContactsData, Store};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 
@@ -212,6 +212,76 @@ fn set_value(state: State<AppState>, key: String, value: String) -> Result<(), S
     store.set(&key, &value).map_err(code)
 }
 
+// ---------- 업무연락처 ----------
+// 바꾸는 명령은 모두 바뀐 뒤의 연락처·프로젝트 전체를 돌려줘요. 화면은 그것으로 다시 그려요.
+
+fn with_store<T>(state: &State<AppState>, f: impl FnOnce(&mut Store) -> gilog_core::Result<T>) -> Result<T, String> {
+    let mut guard = state.store.lock().map_err(io)?;
+    let store = guard.as_mut().ok_or_else(|| "locked".to_string())?;
+    f(store).map_err(code)
+}
+
+#[tauri::command]
+fn contacts_data(state: State<AppState>) -> Result<ContactsData, String> {
+    with_store(&state, |s| s.contacts_data())
+}
+
+#[tauri::command]
+fn add_contact(state: State<AppState>, contact: ContactInput) -> Result<ContactsData, String> {
+    with_store(&state, |s| {
+        s.add_contact(&contact)?;
+        s.contacts_data()
+    })
+}
+
+#[tauri::command]
+fn update_contact(state: State<AppState>, id: i64, contact: ContactInput) -> Result<ContactsData, String> {
+    with_store(&state, |s| {
+        s.update_contact(id, &contact)?;
+        s.contacts_data()
+    })
+}
+
+#[tauri::command]
+fn set_contact_memo(state: State<AppState>, id: i64, memo: String) -> Result<ContactsData, String> {
+    with_store(&state, |s| {
+        s.set_contact_memo(id, &memo)?;
+        s.contacts_data()
+    })
+}
+
+#[tauri::command]
+fn delete_contact(state: State<AppState>, id: i64) -> Result<ContactsData, String> {
+    with_store(&state, |s| {
+        s.delete_contact(id)?;
+        s.contacts_data()
+    })
+}
+
+#[tauri::command]
+fn add_project(state: State<AppState>, name: String) -> Result<ContactsData, String> {
+    with_store(&state, |s| {
+        s.add_project(&name)?;
+        s.contacts_data()
+    })
+}
+
+#[tauri::command]
+fn set_project_color(state: State<AppState>, id: i64, color: Option<i64>) -> Result<ContactsData, String> {
+    with_store(&state, |s| {
+        s.set_project_color(id, color)?;
+        s.contacts_data()
+    })
+}
+
+#[tauri::command]
+fn delete_project(state: State<AppState>, id: i64) -> Result<ContactsData, String> {
+    with_store(&state, |s| {
+        s.delete_project(id)?;
+        s.contacts_data()
+    })
+}
+
 // ---------- 백업과 저장 위치 ----------
 
 #[tauri::command]
@@ -269,7 +339,15 @@ pub fn run() {
             set_value,
             export_backup,
             import_backup,
-            move_data
+            move_data,
+            contacts_data,
+            add_contact,
+            update_contact,
+            set_contact_memo,
+            delete_contact,
+            add_project,
+            set_project_color,
+            delete_project
         ])
         .run(tauri::generate_context!())
         .expect("giLog를 시작하지 못했어요");
