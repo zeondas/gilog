@@ -20,6 +20,8 @@
   --st-done-fg: #1F5E3A;
   --st-hold-bg: #ECEEF1;
   --st-hold-fg: #4A5563;
+  --st-new-bg: #EEEAF7;
+  --st-new-fg: #4A3B8C;
   --danger: #8A1F2B;
   --urgent: #B3261E;
   --saturday: #1D4E9E;
@@ -68,7 +70,11 @@
     --st-done-fg: #8FD0A6;
     --st-hold-bg: #2A313B;
     --st-hold-fg: #B4BECA;
-    --danger: #F08A95;
+    --st-new-bg: #2E2A45;
+    --st-new-fg: #C4B8F0;
+    --st-new-bg: #2E2A45;
+  --st-new-fg: #C4B8F0;
+  --danger: #F08A95;
     --urgent: #F28B82;
     --saturday: #8AB4F8;
     color-scheme: dark;

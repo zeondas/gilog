@@ -1,35 +1,49 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { api, errorText, Status } from "./api";
+import { useCallback, useEffect, useState } from "react";
+import { api, DEFAULT_PREFS, errorText, Prefs, Status } from "./api";
 import Gate from "./Gate";
+import SettingsScreen from "./Settings";
+import { SCREENS, SETTINGS, ScreenId } from "./screens";
 
-// 화면 목록. 순서는 사양서의 사이드바 순서와 같아요.
-const SCREENS = [
-  { id: "journal", name: "업무일지", step: 5 },
-  { id: "complaints", name: "민원대장", step: 6 },
-  { id: "contacts", name: "업무연락처", step: 4 },
-  { id: "calendar", name: "캘린더", step: 8 },
-  { id: "todo", name: "할 일 목록", step: 7 },
-] as const;
-
-const SETTINGS = { id: "settings", name: "설정", step: 3 } as const;
-
-type ScreenId = (typeof SCREENS)[number]["id"] | typeof SETTINGS.id;
-
-const VERSION = "0.2.0";
-
-// 입력이 없으면 잠그기까지 걸리는 시간이에요. 3단계에서 설정으로 옮겨요.
-const AUTO_LOCK_MS = 10 * 60 * 1000;
+const VERSION = "0.3.0";
 
 export default function App() {
+  const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
   const [status, setStatus] = useState<Status | null>(null);
   const [fatal, setFatal] = useState("");
-  const [current, setCurrent] = useState<ScreenId>("journal");
+  const [current, setCurrent] = useState<ScreenId | null>(null);
 
   const refresh = useCallback(() => {
     api.status().then(setStatus, (e) => setFatal(errorText(e)));
   }, []);
 
-  useEffect(refresh, [refresh]);
+  // 처음 켤 때: 설정을 읽고, 암호 묻기가 꺼져 있으면 바로 열어요.
+  useEffect(() => {
+    (async () => {
+      try {
+        const p = await api.getPrefs();
+        setPrefs(p);
+        setCurrent(p.startScreen as ScreenId);
+        const st = await api.status();
+        if (st.exists && !st.unlocked) await api.autoUnlock();
+      } catch (e) {
+        setFatal(errorText(e));
+      }
+      refresh();
+    })();
+  }, [refresh]);
+
+  // 테마와 글자 크기를 화면 전체에 적용해요.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (prefs.theme === "system") root.removeAttribute("data-theme");
+    else root.setAttribute("data-theme", prefs.theme);
+    root.style.setProperty("--fs", prefs.fontSize + "px");
+  }, [prefs.theme, prefs.fontSize]);
+
+  const savePrefs = useCallback(async (p: Prefs) => {
+    await api.setPrefs(p);
+    setPrefs(await api.getPrefs());
+  }, []);
 
   const lockNow = useCallback(() => {
     api.lock().then(refresh, refresh);
@@ -38,11 +52,12 @@ export default function App() {
   // 자동 잠금: 마우스나 키보드 입력이 없으면 잠가요.
   const unlocked = status?.unlocked ?? false;
   useEffect(() => {
-    if (!unlocked) return;
-    let timer = window.setTimeout(lockNow, AUTO_LOCK_MS);
+    if (!unlocked || !prefs.autoLock) return;
+    const ms = prefs.autoLockMin * 60 * 1000;
+    let timer = window.setTimeout(lockNow, ms);
     const reset = () => {
       window.clearTimeout(timer);
-      timer = window.setTimeout(lockNow, AUTO_LOCK_MS);
+      timer = window.setTimeout(lockNow, ms);
     };
     const events = ["mousemove", "mousedown", "keydown", "wheel"] as const;
     events.forEach((ev) => window.addEventListener(ev, reset, { passive: true }));
@@ -50,15 +65,15 @@ export default function App() {
       window.clearTimeout(timer);
       events.forEach((ev) => window.removeEventListener(ev, reset));
     };
-  }, [unlocked, lockNow]);
+  }, [unlocked, prefs.autoLock, prefs.autoLockMin, lockNow]);
 
   if (fatal) return <div className="gate"><p className="gate-error">{fatal}</p></div>;
-  if (!status) return <div className="gate" />;
+  if (!status || current === null) return <div className="gate" />;
   if (!status.unlocked) {
     return <Gate mode={status.exists ? "unlock" : "setup"} folder={status.folder} onOpen={refresh} />;
   }
 
-  const screen = [...SCREENS, SETTINGS].find((s) => s.id === current)!;
+  const screen = [...SCREENS, SETTINGS].find((s) => s.id === current) ?? SCREENS[0];
 
   return (
     <div className="shell">
@@ -92,132 +107,20 @@ export default function App() {
         </div>
       </nav>
       <main className="main">
-        <h1 className="title">{screen.name}</h1>
-        <section className="card">
-          <div className="card-head">시험판 {VERSION}</div>
-          <div className="card-body">
-            <p>이 화면은 {screen.step}단계에서 만들어요.</p>
-          </div>
-        </section>
-        {current === SETTINGS.id && (
+        {current === SETTINGS.id ? (
+          <SettingsScreen prefs={prefs} onPrefs={savePrefs} status={status} onLocked={refresh} />
+        ) : (
           <>
-            <SaveTest />
-            <PasswordChange />
+            <h1 className="title">{screen.name}</h1>
             <section className="card">
-              <div className="card-head">저장 위치</div>
+              <div className="card-head">시험판 {VERSION}</div>
               <div className="card-body">
-                <p>{status.folder}</p>
-                <p className="muted">gilog.db 파일 하나에 암호화해서 저장해요. 10분 동안 입력이 없으면 자동으로 잠겨요.</p>
+                <p>이 화면은 {screen.step}단계에서 만들어요.</p>
               </div>
             </section>
           </>
         )}
       </main>
     </div>
-  );
-}
-
-/** 저장이 되는지 확인하는 임시 칸이에요. 3단계에서 없애요. */
-function SaveTest() {
-  const [text, setText] = useState("");
-  const [saved, setSaved] = useState("");
-  const loaded = useRef(false);
-
-  useEffect(() => {
-    api.get("test.note").then((v) => {
-      setText(v ?? "");
-      loaded.current = true;
-    });
-  }, []);
-
-  function save() {
-    if (!loaded.current) return;
-    api.set("test.note", text).then(
-      () => setSaved("저장했어요."),
-      (e) => setSaved(errorText(e)),
-    );
-  }
-
-  return (
-    <section className="card">
-      <div className="card-head">저장 시험</div>
-      <div className="card-body">
-        <label className="field">
-          <span>아무 글이나 적고 Enter를 눌러요. 앱을 껐다 켜도 남아 있어야 해요.</span>
-          <input
-            id="test-note"
-            value={text}
-            onChange={(e) => {
-              setText(e.target.value);
-              setSaved("");
-            }}
-            onKeyDown={(e) => e.key === "Enter" && save()}
-            onBlur={save}
-          />
-        </label>
-        <p className="muted small" role="status">
-          {saved}
-        </p>
-      </div>
-    </section>
-  );
-}
-
-function PasswordChange() {
-  const [oldPw, setOldPw] = useState("");
-  const [newPw, setNewPw] = useState("");
-  const [again, setAgain] = useState("");
-  const [msg, setMsg] = useState("");
-  const [ok, setOk] = useState(false);
-  const [busy, setBusy] = useState(false);
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (busy) return;
-    setOk(false);
-    if (newPw !== again) {
-      setMsg("새 암호 두 개가 서로 달라요.");
-      return;
-    }
-    setBusy(true);
-    try {
-      await api.changePassword(oldPw, newPw);
-      setOldPw("");
-      setNewPw("");
-      setAgain("");
-      setOk(true);
-      setMsg("암호를 바꿨어요.");
-    } catch (err) {
-      setMsg(err === "wrong_password" ? "지금 암호가 맞지 않아요." : errorText(err));
-    }
-    setBusy(false);
-  }
-
-  return (
-    <section className="card">
-      <div className="card-head">잠금 암호 바꾸기</div>
-      <form className="card-body pw-form" onSubmit={submit}>
-        <label className="field">
-          <span>지금 암호</span>
-          <input id="pw-old" type="password" value={oldPw} onChange={(e) => setOldPw(e.target.value)} />
-        </label>
-        <label className="field">
-          <span>새 암호</span>
-          <input id="pw-new" type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} />
-        </label>
-        <label className="field">
-          <span>새 암호 확인</span>
-          <input id="pw-again" type="password" value={again} onChange={(e) => setAgain(e.target.value)} />
-        </label>
-        <div className="pw-foot">
-          <p className={ok ? "muted small" : "gate-error"} role="status">
-            {msg}
-          </p>
-          <button type="submit" className="btn-primary" disabled={busy}>
-            {busy ? "바꾸는 중…" : "암호 바꾸기"}
-          </button>
-        </div>
-      </form>
-    </section>
   );
 }

@@ -225,6 +225,95 @@ impl Store {
     pub fn dir(&self) -> &Path {
         &self.dir
     }
+
+    /// 열쇠를 16진수 글자로 꺼내요. "앱을 열 때 암호 묻기"를 끌 때 윈도우 자격 증명 관리자에 맡기는 용도예요.
+    pub fn key_hex(&self) -> String {
+        hex::encode(self.key)
+    }
+
+    /// 암호 없이 열쇠로 바로 열어요. 자격 증명 관리자에서 열쇠를 돌려받았을 때 써요.
+    pub fn open_with_key_hex(dir: &Path, key_hex: &str) -> Result<Store> {
+        if !exists(dir) {
+            return Err(Error::NotFound);
+        }
+        let bytes = hex::decode(key_hex).map_err(|_| Error::WrongPassword)?;
+        let key: [u8; 32] = bytes.try_into().map_err(|_| Error::WrongPassword)?;
+        let conn = open_with_key(dir, &key)?;
+        let store = Store { conn, dir: dir.to_path_buf(), key };
+        store.migrate()?;
+        Ok(store)
+    }
+
+    /// 자료 파일과 열쇠 정보를 파일 하나로 내보내요. 내용은 암호화된 그대로예요.
+    pub fn export_backup(&self, to: &Path) -> Result<()> {
+        // 쓰다 만 내용이 없게 하고 파일을 복사해요.
+        self.conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")?;
+        let meta = fs::read_to_string(self.dir.join(META_FILE))?;
+        let db = fs::read(self.dir.join(DB_FILE))?;
+        let mut out = Vec::with_capacity(db.len() + meta.len() + 64);
+        out.extend_from_slice(BACKUP_MAGIC);
+        out.extend_from_slice(meta.replace('\n', "").as_bytes());
+        out.push(b'\n');
+        out.extend_from_slice(&db);
+        fs::write(to, out)?;
+        Ok(())
+    }
+}
+
+const BACKUP_MAGIC: &[u8] = b"giLog backup 1\n";
+
+/// 백업 파일을 그 파일의 암호로 열어 보고, 맞으면 지금 자료를 그것으로 바꿔요.
+/// 열려 있는 Store가 없을 때 불러야 해요.
+pub fn restore_backup(dir: &Path, from: &Path, password: &str) -> Result<()> {
+    let bytes = fs::read(from)?;
+    if !bytes.starts_with(BACKUP_MAGIC) {
+        return Err(Error::Meta("백업 파일이 아니에요".into()));
+    }
+    let rest = &bytes[BACKUP_MAGIC.len()..];
+    let nl = rest
+        .iter()
+        .position(|b| *b == b'\n')
+        .ok_or_else(|| Error::Meta("백업 파일이 깨졌어요".into()))?;
+    let meta = &rest[..nl];
+    let db = &rest[nl + 1..];
+
+    // 먼저 임시 폴더에 풀어 암호가 맞는지 확인해요.
+    let tmp = dir.join(".restore-tmp");
+    let _ = fs::remove_dir_all(&tmp);
+    fs::create_dir_all(&tmp)?;
+    fs::write(tmp.join(META_FILE), meta)?;
+    fs::write(tmp.join(DB_FILE), db)?;
+    match Store::open(&tmp, password) {
+        Ok(s) => drop(s),
+        Err(e) => {
+            let _ = fs::remove_dir_all(&tmp);
+            return Err(e);
+        }
+    }
+    // 맞으면 지금 파일을 바꿔요.
+    let _ = fs::remove_file(dir.join(META_NEW_FILE));
+    fs::rename(tmp.join(DB_FILE), dir.join(DB_FILE))?;
+    fs::rename(tmp.join(META_FILE), dir.join(META_FILE))?;
+    let _ = fs::remove_dir_all(&tmp);
+    Ok(())
+}
+
+/// 자료 폴더를 통째로 옮겨요. 열려 있는 Store가 없을 때 불러야 해요.
+pub fn move_data(from: &Path, to: &Path) -> Result<()> {
+    if exists(to) {
+        return Err(Error::AlreadyExists);
+    }
+    fs::create_dir_all(to)?;
+    for name in [DB_FILE, META_FILE] {
+        let src = from.join(name);
+        if src.is_file() {
+            fs::copy(&src, to.join(name))?;
+        }
+    }
+    for name in [DB_FILE, META_FILE, META_NEW_FILE] {
+        let _ = fs::remove_file(from.join(name));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -299,6 +388,53 @@ mod tests {
         assert_eq!(s.get("note").unwrap().as_deref(), Some("남아 있어야 해요"));
         assert_eq!(s.get("after").unwrap().as_deref(), Some("ok"));
         assert!(!tmp.path().join(META_NEW_FILE).exists());
+    }
+
+    #[test]
+    fn key_hex_opens_without_password() {
+        let tmp = tempfile::tempdir().unwrap();
+        let key = {
+            let s = Store::create(tmp.path(), "abcd1234").unwrap();
+            s.set("a", "b").unwrap();
+            s.key_hex()
+        };
+        let s = Store::open_with_key_hex(tmp.path(), &key).unwrap();
+        assert_eq!(s.get("a").unwrap().as_deref(), Some("b"));
+        assert_eq!(Store::open_with_key_hex(tmp.path(), "00ff").err().unwrap().code(), "wrong_password");
+    }
+
+    #[test]
+    fn backup_roundtrip_and_wrong_password() {
+        let tmp = tempfile::tempdir().unwrap();
+        let bak = tmp.path().join("b.gilogbak");
+        {
+            let mut s = Store::create(tmp.path(), "abcd1234").unwrap();
+            s.set("note", "백업 전").unwrap();
+            s.export_backup(&bak).unwrap();
+            s.set("note", "백업 뒤에 바뀐 것").unwrap();
+            s.change_password("abcd1234", "other-pw").unwrap();
+        }
+        // 백업 파일에도 글자가 그대로 보이면 안 돼요.
+        let bytes = fs::read(&bak).unwrap();
+        assert!(!bytes.windows(6).any(|w| w == "백업".as_bytes()));
+        assert_eq!(restore_backup(tmp.path(), &bak, "wrong").err().unwrap().code(), "wrong_password");
+        // 실패했으면 지금 자료는 그대로예요.
+        assert_eq!(Store::open(tmp.path(), "other-pw").unwrap().get("note").unwrap().as_deref(), Some("백업 뒤에 바뀐 것"));
+        restore_backup(tmp.path(), &bak, "abcd1234").unwrap();
+        let s = Store::open(tmp.path(), "abcd1234").unwrap();
+        assert_eq!(s.get("note").unwrap().as_deref(), Some("백업 전"));
+        assert!(!tmp.path().join(".restore-tmp").exists());
+    }
+
+    #[test]
+    fn move_data_keeps_everything() {
+        let tmp = tempfile::tempdir().unwrap();
+        let a = tmp.path().join("a");
+        let b = tmp.path().join("b");
+        drop(Store::create(&a, "abcd1234").unwrap());
+        move_data(&a, &b).unwrap();
+        assert!(!exists(&a));
+        Store::open(&b, "abcd1234").unwrap();
     }
 
     #[test]
