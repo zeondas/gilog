@@ -1,6 +1,7 @@
 // 업무연락처 화면이에요. 시안 Contacts.dc.html과 사양서의 "업무연락처" 절을 따라요.
 import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { koIndex } from "./journal";
+import { useJamoGuard } from "./koInput";
 import { PhoneInput } from "./PhoneInput";
 import { finalizePhone } from "./phone";
 import { api, Contact, ContactInput, ContactsData, errorText, Project } from "./api";
@@ -87,6 +88,8 @@ export async function copyText(value: string) {
 export default function ContactsScreen() {
   const [data, setData] = useState<ContactsData | null>(null);
   const [q, setQ] = useState("");
+  // 이름 초성으로 찾을 때 입력기가 자음을 묶지 않게 해요(ㄳ→ㄱㅅ, Shift 없이 친 ㅆ→ㅅㅅ).
+  const qGuard = useJamoGuard(setQ);
   const [sel, setSel] = useState<number | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
   const [memoId, setMemoId] = useState<number | null>(null);
@@ -153,7 +156,15 @@ export default function ContactsScreen() {
             <circle cx="11" cy="11" r="7" />
             <path d="M20 20l-3.5-3.5" />
           </svg>
-          <input type="search" aria-label="연락처 검색" placeholder="이름, 소속, 번호 검색" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input
+            type="search"
+            aria-label="연락처 검색"
+            placeholder="이름, 소속, 번호 검색"
+            value={q}
+            onKeyDown={qGuard.onKeyDown}
+            onChange={qGuard.onChange}
+            onCompositionEnd={qGuard.onCompositionEnd}
+          />
         </label>
         <button type="button" className="btn btn-ctrl" onClick={() => setProjOpen(true)}>
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

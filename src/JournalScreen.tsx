@@ -32,6 +32,7 @@ import {
   splitWho,
   todayStr,
 } from "./journal";
+import { useJamoGuard } from "./koInput";
 import { isEmptyMemo, MemoEditor, MemoView, sanitize } from "./RichMemo";
 import { DEFAULT_SETTINGS, Kind, loadSettings } from "./settingsStore";
 
@@ -467,6 +468,9 @@ function WhoInput({
 }) {
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(-1);
+  // 이름 초성: Shift 없이 같은 자음을 두 번 쳐서 묶인 된소리(ㅆ)는 ㅅㅅ으로 풀어요.
+  const guard = useJamoGuard(onChange);
+  guard.follow(value);
   const segs = value.split(",");
   const last = segs[segs.length - 1].trim();
   const lastLc = last.toLowerCase();
@@ -514,10 +518,11 @@ function WhoInput({
         aria-expanded={show}
         aria-autocomplete="list"
         onChange={(e) => {
-          onChange(e.target.value);
+          guard.onChange(e);
           setOpen(true);
           setHi(-1);
         }}
+        onCompositionEnd={guard.onCompositionEnd}
         onFocus={() => setOpen(true)}
         onBlur={() => {
           setOpen(false);
@@ -525,6 +530,7 @@ function WhoInput({
           expand();
         }}
         onKeyDown={(e) => {
+          guard.onKeyDown(e);
           if (isComposing(e) || !show) return;
           if (e.key === "ArrowDown") {
             e.preventDefault();
@@ -612,6 +618,7 @@ function NewCard({ date, ctx, onAdd }: { date: string; ctx: Ctx; onAdd: (e: Entr
   const timeRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<HTMLDivElement | null>(null);
   const memo = isMemo(expandKind(kind, ctx.kinds));
+  const kindGuard = useJamoGuard(setKind);
 
   // 구분이 메모로 바뀌는 사이 커서를 잃었으면 편집기로 옮겨요.
   useEffect(() => {
@@ -653,6 +660,7 @@ function NewCard({ date, ctx, onAdd }: { date: string; ctx: Ctx; onAdd: (e: Entr
 
   function reset() {
     setKind("");
+    kindGuard.sync("");
     setWho("");
     setTel("");
     setTelAuto(true);
@@ -779,8 +787,9 @@ function NewCard({ date, ctx, onAdd }: { date: string; ctx: Ctx; onAdd: (e: Entr
           className="cell-input"
           title={"초성 단축키: " + ctx.kinds.slice(0, 4).map((k) => `${k.key} ${k.name}`).join(", ") + " …"}
           value={kind}
-          onChange={(e) => setKind((e.nativeEvent as InputEvent).isComposing ? e.target.value : splitJamo(e.target.value))}
-          onCompositionEnd={(e) => setKind(splitJamo(e.currentTarget.value))}
+          onKeyDown={kindGuard.onKeyDown}
+          onChange={kindGuard.onChange}
+          onCompositionEnd={kindGuard.onCompositionEnd}
           onBlur={() => {
             const k = expandKind(kind, ctx.kinds);
             if (k !== kind) setKind(k);
@@ -1084,6 +1093,7 @@ function EditCard({
   const [time, setTime] = useState(e.time);
   const [badTime, setBadTime] = useState(false);
   const [kind, setKind] = useState(e.kind);
+  const editKindGuard = useJamoGuard(setKind);
   const [who, setWho] = useState(e.who);
   const [tel, setTel] = useState(e.contact);
   const [project, setProject] = useState(e.project);
@@ -1260,8 +1270,9 @@ function EditCard({
           autoComplete="off"
           className="cell-input"
           value={kind}
-          onChange={(ev) => setKind((ev.nativeEvent as InputEvent).isComposing ? ev.target.value : splitJamo(ev.target.value))}
-          onCompositionEnd={(ev) => setKind(splitJamo(ev.currentTarget.value))}
+          onKeyDown={editKindGuard.onKeyDown}
+          onChange={editKindGuard.onChange}
+          onCompositionEnd={editKindGuard.onCompositionEnd}
           onBlur={() => {
             const k = expandKind(kind, ctx.kinds);
             if (k !== kind) setKind(k);
