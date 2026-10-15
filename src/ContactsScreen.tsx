@@ -1,5 +1,5 @@
 // 업무연락처 화면이에요. 시안 Contacts.dc.html과 사양서의 "업무연락처" 절을 따라요.
-import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { KeyboardEvent, RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { koIndex } from "./journal";
 import { useJamoGuard } from "./koInput";
 import { PhoneInput } from "./PhoneInput";
@@ -22,7 +22,7 @@ export function parseMemo(memo: string): MemoLine[] {
   return memo.split("\n").map((t) => ({ t }));
 }
 
-function memoText(lines: MemoLine[]): string {
+export function memoText(lines: MemoLine[]): string {
   const kept = lines.filter((l) => l.t.trim());
   return kept.length ? JSON.stringify(kept) : "";
 }
@@ -734,7 +734,18 @@ function EditCard({
 
 // ---------- 메모 편집 ----------
 
-function MemoEditor({ initial, onCancel, onSave }: { initial: MemoLine[]; onCancel: () => void; onSave: (l: MemoLine[]) => void }) {
+/** 메모 편집기. 바깥을 누르면 저장해요. boundary를 주면 그 상자 안을 누르는 것은 바깥으로 치지 않아요(메모 창). */
+export function MemoEditor({
+  initial,
+  onCancel,
+  onSave,
+  boundary,
+}: {
+  initial: MemoLine[];
+  onCancel: () => void;
+  onSave: (l: MemoLine[]) => void;
+  boundary?: RefObject<HTMLElement>;
+}) {
   const [lines, setLines] = useState<MemoLine[]>(initial.length ? initial.map((l) => ({ ...l })) : [{ t: "" }]);
   const [focus, setFocus] = useState(Math.max(0, initial.length - 1));
   const box = useRef<HTMLDivElement>(null);
@@ -763,7 +774,8 @@ function MemoEditor({ initial, onCancel, onSave }: { initial: MemoLine[]; onCanc
   // 바깥을 누르면 저장해요.
   useEffect(() => {
     const down = (e: MouseEvent) => {
-      if (box.current && !box.current.contains(e.target as Node)) latest.current.onSave(latest.current.lines);
+      const inside = boundary?.current ?? box.current;
+      if (inside && !inside.contains(e.target as Node)) latest.current.onSave(latest.current.lines);
     };
     document.addEventListener("mousedown", down);
     return () => document.removeEventListener("mousedown", down);

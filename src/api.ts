@@ -95,6 +95,40 @@ export type DayInfo = { date: string; arrive: string; transport: string; weather
 
 export type JournalData = { days: DayInfo[]; entries: Entry[] };
 
+// ---------- 민원대장 ----------
+
+export type ComplaintInput = {
+  /** 접수유형 */
+  intake: string;
+  /** 접수일 2026-10-15 */
+  received: string;
+  /** 민원유형 */
+  ctype: string;
+  /** 지역 */
+  area: string;
+  /** 위치 */
+  place: string;
+  /** 민원인 */
+  person: string;
+  /** 연락처 */
+  phone: string;
+  /** 내용 (여러 줄, 줄바꿈으로 나눠요) */
+  body: string;
+  /** 조치내용 (여러 줄) */
+  action: string;
+  /** 마감일. 비어 있으면 마감이 없어요. */
+  due: string;
+  status: string;
+};
+
+export type Complaint = ComplaintInput & {
+  id: number;
+  /** 연번 */
+  no: number;
+  /** 메모(JSON 글자). 비어 있으면 메모가 없어요. */
+  memo: string;
+};
+
 export const inApp = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 const fake = {
@@ -109,7 +143,65 @@ const fake = {
   days: [] as DayInfo[],
   entries: [] as Entry[],
   nextEntryId: 1,
+  complaints: [] as Complaint[],
+  nextComplaintId: 1,
 };
+
+// 브라우저 미리 보기용 민원대장 흉내예요. 저장 쪽(core/complaints.rs)과 같은 규칙을 따라요.
+function fakeComplaints(cmd: string, a: Record<string, unknown>): unknown {
+  const isDate = (d: string) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
+    const [y, m, dd] = d.split("-").map(Number);
+    const t = new Date(y, m - 1, dd);
+    return t.getFullYear() === y && t.getMonth() === m - 1 && t.getDate() === dd;
+  };
+  const lines = (s: string) => s.split("\n").map((l) => l.trim()).filter(Boolean).join("\n");
+  const clean = (c: ComplaintInput): ComplaintInput => {
+    const body = lines(c.body);
+    const received = c.received.trim();
+    const due = c.due.trim();
+    if (!body || !isDate(received) || (due && !isDate(due))) throw "invalid";
+    const t = (s: string) => s.trim();
+    return {
+      intake: t(c.intake), received, ctype: t(c.ctype), area: t(c.area), place: t(c.place),
+      person: t(c.person), phone: t(c.phone), body, action: lines(c.action), due, status: t(c.status) || "접수",
+    };
+  };
+  const find = () => {
+    const c = fake.complaints.find((x) => x.id === a.id);
+    if (!c) throw "not_found";
+    return c;
+  };
+  switch (cmd) {
+    case "complaints":
+      return structuredClone([...fake.complaints].sort((x, y) => y.no - x.no || y.id - x.id));
+    case "add_complaint": {
+      const no = fake.complaints.reduce((m, x) => Math.max(m, x.no), 0) + 1;
+      const c = { id: fake.nextComplaintId++, no, memo: "", ...clean(a.complaint as ComplaintInput) };
+      fake.complaints.push(c);
+      return structuredClone(c);
+    }
+    case "update_complaint": {
+      const c = find();
+      Object.assign(c, clean(a.complaint as ComplaintInput));
+      return structuredClone(c);
+    }
+    case "set_complaint_status": {
+      const c = find();
+      c.status = (a.status as string).trim() || "접수";
+      return structuredClone(c);
+    }
+    case "set_complaint_memo": {
+      const c = find();
+      c.memo = a.memo as string;
+      return structuredClone(c);
+    }
+    case "delete_complaint":
+      fake.complaints = fake.complaints.filter((x) => x.id !== a.id);
+      return null;
+  }
+  return undefined;
+}
 
 // 브라우저 미리 보기용 업무일지 흉내예요. 저장 쪽(core/journal.rs)과 같은 규칙을 따라요.
 function fakeJournal(cmd: string, a: Record<string, unknown>): unknown {
@@ -230,6 +322,11 @@ function fakeCall(cmd: string, args: Record<string, unknown>): unknown {
     const r = fakeContacts(cmd, args);
     if (r) return r;
   }
+  if (cmd.includes("complaint")) {
+    if (!fake.unlocked) throw "locked";
+    const r = fakeComplaints(cmd, args);
+    if (r !== undefined) return r;
+  }
   if (cmd.includes("journal")) {
     if (!fake.unlocked) throw "locked";
     const r = fakeJournal(cmd, args);
@@ -324,6 +421,13 @@ export const api = {
   updateEntry: (id: number, entry: EntryInput) => call<Entry>("update_journal_entry", { id, entry }),
   deleteEntry: (id: number) => call<null>("delete_journal_entry", { id }),
   setDay: (day: DayInfo) => call<DayInfo>("set_journal_day", { day }),
+
+  complaints: () => call<Complaint[]>("complaints"),
+  addComplaint: (complaint: ComplaintInput) => call<Complaint>("add_complaint", { complaint }),
+  updateComplaint: (id: number, complaint: ComplaintInput) => call<Complaint>("update_complaint", { id, complaint }),
+  setComplaintStatus: (id: number, status: string) => call<Complaint>("set_complaint_status", { id, status }),
+  setComplaintMemo: (id: number, memo: string) => call<Complaint>("set_complaint_memo", { id, memo }),
+  deleteComplaint: (id: number) => call<null>("delete_complaint", { id }),
 
   /** 윈도우 입력기를 한글(true) 또는 영문(false) 상태로 바꿔요. 앱 밖에서는 아무 일도 안 해요. */
   setIme: (korean: boolean) => (inApp ? invoke<null>("set_ime", { korean }) : Promise.resolve(null)),

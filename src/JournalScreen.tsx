@@ -1,7 +1,8 @@
 // 업무일지 화면이에요. 시안 Journal.dc.html과 사양서의 "업무일지" 절을 따라요.
 // 누가 언제 무슨 말을 했는지 남기는 곳이라, 손을 키보드에서 떼지 않고 한 건을 끝낼 수 있게 만들었어요.
 import { KeyboardEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, Contact, ContactsData, DayInfo, Entry, EntryInput, errorText, JournalData, Project } from "./api";
+import { api, Complaint, Contact, ContactsData, DayInfo, Entry, EntryInput, errorText, JournalData, Project } from "./api";
+import { daysLeft, ddayText, dueSoon, isUrgent } from "./complaints";
 import { copyText, Hl, projectColor } from "./ContactsScreen";
 import { PhoneInput } from "./PhoneInput";
 import { finalizePhone } from "./phone";
@@ -61,7 +62,7 @@ type Ctx = {
 
 // ---------- 화면 ----------
 
-export default function JournalScreen() {
+export default function JournalScreen({ urgentDays = 2, onOpenComplaint }: { urgentDays?: number; onOpenComplaint?: (id: number) => void }) {
   const [data, setData] = useState<JournalData | null>(null);
   const [cdata, setCdata] = useState<ContactsData>({ contacts: [], projects: [] });
   const [myName, setMyName] = useState(DEFAULT_SETTINGS.myName);
@@ -73,9 +74,11 @@ export default function JournalScreen() {
   const [editId, setEditId] = useState<number | null>(null);
   const [menuId, setMenuId] = useState<number | null>(null);
   const [note, setNote] = useState("");
+  const [complaints, setComplaints] = useState<Complaint[]>([]);
 
   useEffect(() => {
     api.journalData().then(setData, (e) => setNote(errorText(e)));
+    api.complaints().then(setComplaints, () => {});
     api.contactsData().then(setCdata, () => {});
     loadSettings().then(
       (s) => {
@@ -279,8 +282,34 @@ export default function JournalScreen() {
           <span className="jn-aside-title">챙길 일</span>
           <span className="muted small">마감 7일 이내</span>
         </div>
-        <p className="jn-aside-empty muted small">민원대장과 할 일 목록을 만들면 마감이 가까운 일이 여기에 보여요.</p>
+        <DueList list={dueSoon(complaints, today)} today={today} urgentDays={urgentDays} onOpen={onOpenComplaint} />
       </aside>
+    </div>
+  );
+}
+
+// ---------- 챙길 일 ----------
+
+/** 마감 7일 안(지난 것 포함)이고 완료가 아닌 민원. 누르면 민원대장의 그 줄로 가요. 할 일은 7단계에서 더해요. */
+function DueList({ list, today, urgentDays, onOpen }: { list: Complaint[]; today: string; urgentDays: number; onOpen?: (id: number) => void }) {
+  if (!list.length) return <p className="jn-aside-empty muted small">마감이 7일 안으로 다가온 민원이 없어요.</p>;
+  return (
+    <div className="jn-due">
+      {list.map((c) => {
+        const n = daysLeft(c, today) ?? 0;
+        const title = [c.ctype, [c.area, c.place].filter(Boolean).join(" ")].filter(Boolean).join(" · ") || c.body.split("\n")[0];
+        return (
+          <button key={c.id} type="button" className="jn-due-item" title="민원대장에서 보기" onClick={() => onOpen?.(c.id)}>
+            <span className={"jn-due-d" + (isUrgent(n, urgentDays) ? " urgent" : "")}>{ddayText(n)}</span>
+            <span className="jn-due-t">
+              민원 {c.no}번 · {title}
+            </span>
+            <span className="jn-due-s">
+              {c.due} 마감 · {c.status}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }

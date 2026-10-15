@@ -12,8 +12,10 @@ use rand::RngCore;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
+mod complaints;
 mod contacts;
 mod journal;
+pub use complaints::{Complaint, ComplaintInput, DEFAULT_STATUS};
 pub use contacts::{Contact, ContactInput, ContactsData, Project, PROJECT_COLORS};
 pub use journal::{DayInfo, Entry, EntryInput, JournalData, JournalLine};
 
@@ -196,6 +198,7 @@ impl Store {
         self.conn.execute_batch(contacts::SCHEMA)?;
         self.conn.execute_batch(journal::SCHEMA)?;
         journal::upgrade(&self.conn)?;
+        self.conn.execute_batch(complaints::SCHEMA)?;
         Ok(())
     }
 

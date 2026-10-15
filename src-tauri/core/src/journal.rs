@@ -131,7 +131,7 @@ fn bad(msg: &str) -> Error {
 }
 
 /// 2026-10-15 모양인지, 있는 날짜인지 봐요.
-fn valid_date(s: &str) -> bool {
+pub(crate) fn valid_date(s: &str) -> bool {
     let b = s.as_bytes();
     if b.len() != 10 || b[4] != b'-' || b[7] != b'-' {
         return false;

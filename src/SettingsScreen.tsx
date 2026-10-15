@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { api, DEFAULT_PREFS, errorText, inApp, Prefs, Status } from "./api";
 import { splitJamo } from "./journal";
-import { DEFAULT_SETTINGS, Kind, loadSettings, MEMO_KIND, saveSettings, Settings, STATUS_COLORS } from "./settingsStore";
+import { DEFAULT_SETTINGS, DONE_STATUS, Kind, loadSettings, MEMO_KIND, saveSettings, Settings, STATUS_COLORS } from "./settingsStore";
 import { SCREENS } from "./screens";
 
 type Props = {
@@ -11,7 +11,8 @@ type Props = {
   onLocked: () => void;
 };
 
-const KEEP_STATUS = "완료";
+/** 지울 수 없는 상태예요. 마감 계산과 할 일 연동이 이것을 기준으로 해요. */
+export const KEEP_STATUS = DONE_STATUS;
 
 export default function SettingsScreen({ prefs, onPrefs, status, onLocked }: Props) {
   const [s, setS] = useState<Settings | null>(null);
@@ -270,7 +271,7 @@ function Toggle({
   );
 }
 
-function ListGroup({
+export function ListGroup({
   title,
   desc,
   items,
@@ -326,7 +327,7 @@ function ListGroup({
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
+              if (e.key === "Enter" && !e.nativeEvent.isComposing) {
                 e.preventDefault();
                 add();
               }

@@ -1,18 +1,26 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, DEFAULT_PREFS, errorText, Prefs, Status } from "./api";
+import ComplaintsScreen from "./ComplaintsScreen";
 import ContactsScreen from "./ContactsScreen";
 import Gate from "./Gate";
 import JournalScreen from "./JournalScreen";
 import SettingsScreen from "./SettingsScreen";
 import { SCREENS, SETTINGS, ScreenId } from "./screens";
 
-const VERSION = "0.5.0";
+const VERSION = "0.6.0";
 
 export default function App() {
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
   const [status, setStatus] = useState<Status | null>(null);
   const [fatal, setFatal] = useState("");
   const [current, setCurrent] = useState<ScreenId | null>(null);
+  // 업무일지 "챙길 일"에서 누른 민원. 민원대장이 그 줄로 가면 비워요.
+  const [focusComplaint, setFocusComplaint] = useState<number | null>(null);
+  const clearFocus = useCallback(() => setFocusComplaint(null), []);
+  const openComplaint = useCallback((id: number) => {
+    setFocusComplaint(id);
+    setCurrent("complaints");
+  }, []);
 
   const refresh = useCallback(() => {
     api.status().then(setStatus, (e) => setFatal(errorText(e)));
@@ -114,7 +122,9 @@ export default function App() {
         ) : current === "contacts" ? (
           <ContactsScreen />
         ) : current === "journal" ? (
-          <JournalScreen />
+          <JournalScreen urgentDays={prefs.urgentDays} onOpenComplaint={openComplaint} />
+        ) : current === "complaints" ? (
+          <ComplaintsScreen urgentDays={prefs.urgentDays} focusId={focusComplaint} onFocused={clearFocus} />
         ) : (
           <>
             <h1 className="title">{screen.name}</h1>

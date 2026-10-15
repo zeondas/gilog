@@ -2374,3 +2374,423 @@ mark {
 .rte-view td > p {
   margin: 0;
 }
+
+/* ---------- 민원대장 ---------- */
+/* 열 너비는 화면이 --cm-cols로 정해요(끌어서 바꾼 값 저장). 고르기 목록이 잘리지 않게 넘침은 숨기지 않아요. */
+.cm {
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-md);
+}
+
+.cm-row {
+  display: grid;
+  grid-template-columns: var(--cm-cols);
+}
+
+.cm-head {
+  position: sticky;
+  top: calc(var(--space-6) * -1);
+  z-index: 2;
+  align-items: center;
+  height: calc(var(--size-row) + 4px);
+  border-radius: calc(var(--radius-md) - 1px) calc(var(--radius-md) - 1px) 0 0;
+  background: var(--surface-side);
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  user-select: none;
+}
+
+.cm-hcell {
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.cm-hcell.right {
+  justify-content: flex-end;
+}
+
+.cm-grip {
+  position: absolute;
+  top: 0;
+  right: -5px;
+  z-index: 1;
+  width: 10px;
+  height: 100%;
+  cursor: col-resize;
+}
+
+.cm-grip::after {
+  content: "";
+  position: absolute;
+  top: 25%;
+  left: 4px;
+  width: 2px;
+  height: 50%;
+  border-radius: 1px;
+  background: transparent;
+}
+
+.cm-head:hover .cm-grip::after {
+  background: var(--line);
+}
+
+.cm-grip:hover::after,
+body.col-dragging .cm-grip::after {
+  background: var(--accent);
+}
+
+body.col-dragging,
+body.col-dragging * {
+  cursor: col-resize !important;
+  user-select: none;
+}
+
+.cm-c {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  overflow-wrap: anywhere;
+}
+
+/* 신규 줄과 고치는 줄은 칸 안에 입력 상자가 있어요 */
+.cm-new,
+.cm-edit {
+  align-items: start;
+}
+
+.cm-new > .cm-c,
+.cm-edit > .cm-c {
+  padding: 5px var(--space-1);
+  min-height: calc(var(--size-row) + 6px);
+}
+
+.cm-new {
+  background: var(--accent-wash);
+  border-bottom: 1px solid var(--line);
+}
+
+.cm-new-tag {
+  justify-content: flex-end;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.cm-new > .cm-new-tag {
+  padding: 0 10px;
+}
+
+.cm-select {
+  padding: 0 2px;
+}
+
+.cm-area {
+  display: block;
+  min-height: var(--size-input);
+  padding: 4px 6px;
+  resize: none;
+  overflow: hidden;
+  line-height: 1.45;
+}
+
+.cm-center {
+  justify-content: center;
+}
+
+/* 보기 줄 */
+.cm-view {
+  align-items: stretch;
+  min-height: var(--size-row);
+  border-bottom: 1px solid var(--line-row);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.cm-view.alt {
+  background: var(--row-alt);
+}
+
+.cm-view:hover {
+  background: var(--accent-wash);
+}
+
+.cm-view:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.cm-view.flash {
+  background: var(--flash);
+  transition: background 0.6s;
+}
+
+.cm-view:last-child,
+.cm-edit:last-child {
+  border-bottom: 0;
+  border-radius: 0 0 calc(var(--radius-md) - 1px) calc(var(--radius-md) - 1px);
+}
+
+.cm-no {
+  justify-content: flex-end;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.cm-strong {
+  font-weight: 500;
+}
+
+.cm-num {
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.cm-new .cell-input.num,
+.cm-edit .cell-input.num {
+  padding: 0 5px;
+}
+
+.cm-ink2 {
+  color: var(--ink-2);
+}
+
+.cm-multi {
+  padding-top: var(--space-2);
+  padding-bottom: var(--space-2);
+}
+
+.cm-bullets {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.cm-bullet {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+}
+
+.cm-dot {
+  flex: none;
+  width: 4px;
+  height: 4px;
+  margin-top: 0.62em;
+  border-radius: 50%;
+  corner-shape: round;
+  background: var(--muted);
+}
+
+.cm-bt {
+  line-height: 1.5;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.cm-due {
+  gap: 14px;
+  white-space: nowrap;
+}
+
+.cm-dday {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--st-work-fg);
+}
+
+.cm-dday.urgent {
+  color: var(--urgent);
+}
+
+.cm-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: var(--radius-sm);
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.cm-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  corner-shape: round;
+  background: currentColor;
+}
+
+.cm-memo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+}
+
+.cm-memo.has {
+  color: var(--accent);
+}
+
+.cm-memo:hover {
+  background: var(--accent-tint);
+  color: var(--accent);
+}
+
+/* 고치는 줄 */
+.cm-edit {
+  position: relative;
+  background: var(--accent-wash);
+  border-bottom: 1px solid var(--line-row);
+  outline: 1.5px solid var(--accent);
+  outline-offset: -1.5px;
+  z-index: 1;
+}
+
+.cm-edit-foot {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 2px var(--space-3) var(--space-2) 10px;
+}
+
+.cm-edit-hint {
+  flex: 1;
+  min-width: 0;
+  margin-left: var(--space-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cm-ask {
+  margin: 0;
+}
+
+.cm-empty {
+  padding: var(--space-4) 14px;
+}
+
+.cm-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.cm-foot-sum {
+  margin-right: auto;
+}
+
+/* 메모 창 */
+.cm-memo-dialog {
+  width: 520px;
+}
+
+.cm-memo-head {
+  flex-direction: row;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.cm-memo-body {
+  padding-bottom: var(--space-4);
+}
+
+.cm-memo-body .memo-lines {
+  min-height: 160px;
+  align-content: start;
+}
+
+.cm-memo-body .memo-row input {
+  font-size: 14px;
+  height: 32px;
+}
+
+.cm-cats {
+  width: 620px;
+}
+
+.cm-cats-hint {
+  padding: var(--space-3) 0 var(--space-1);
+}
+
+/* 업무일지 "챙길 일"의 민원 */
+.jn-due {
+  display: flex;
+  flex-direction: column;
+}
+
+.jn-due-item {
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  gap: 2px 10px;
+  align-items: baseline;
+  padding: 9px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--line-row);
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+}
+
+.jn-due-item:last-child {
+  border-bottom: 0;
+}
+
+.jn-due-item:hover {
+  background: var(--accent-wash);
+}
+
+.jn-due-d {
+  grid-row: span 2;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--st-work-fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.jn-due-d.urgent {
+  color: var(--urgent);
+}
+
+.jn-due-t {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jn-due-s {
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cm-c > .pin {
+  flex: 1;
+}
+
+.cm-edit-foot > .tool-box {
+  margin-left: 0;
+}

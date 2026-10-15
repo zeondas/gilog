@@ -32,6 +32,10 @@
   /* 업무일지 검색 결과 위 띠 (시안 Journal) */
   --search-bg: #FFF8E1;
   --search-line: #E8D9A8;
+  /* 민원대장 표의 줄무늬(한 줄 걸러) */
+  --row-alt: #FAFBFC;
+  /* 업무일지 "챙길 일"에서 눌러 온 민원 줄을 잠깐 칠하는 색 */
+  --flash: #FFF3BF;
   /* 연락처 프로젝트 배지 8색 (바탕, 글자). 디자인 시스템대로 두 테마에서 같은 색이에요. */
   --pj-0-bg: #ECEEF1; --pj-0-fg: #4A5563;
   --pj-1-bg: #E3EEFB; --pj-1-fg: #0C447C;
@@ -97,6 +101,8 @@
     --search-bg: #2A2615;
     --search-line: #5A4E22;
     --saturday: #8AB4F8;
+    --row-alt: #181E26;
+    --flash: #3A3416;
     color-scheme: dark;
   }
 }
@@ -130,5 +136,9 @@
   --mark: #6B5A12;
   --search-bg: #2A2615;
   --search-line: #5A4E22;
+  --st-new-bg: #2E2A45;
+  --st-new-fg: #C4B8F0;
+  --row-alt: #181E26;
+  --flash: #3A3416;
   color-scheme: dark;
 }

@@ -4,7 +4,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use gilog_core::{ContactInput, ContactsData, DayInfo, Entry, EntryInput, JournalData, Store};
+use gilog_core::{Complaint, ComplaintInput, ContactInput, ContactsData, DayInfo, Entry, EntryInput, JournalData, Store};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 
@@ -320,6 +320,39 @@ fn set_journal_day(state: State<AppState>, day: DayInfo) -> Result<DayInfo, Stri
     with_store(&state, |s| s.set_day(&day))
 }
 
+// ---------- 민원대장 ----------
+// 처음에 전체를 읽고, 바꾸는 명령은 바뀐 민원 하나만 돌려줘요.
+
+#[tauri::command]
+fn complaints(state: State<AppState>) -> Result<Vec<Complaint>, String> {
+    with_store(&state, |s| s.complaints())
+}
+
+#[tauri::command]
+fn add_complaint(state: State<AppState>, complaint: ComplaintInput) -> Result<Complaint, String> {
+    with_store(&state, |s| s.add_complaint(&complaint))
+}
+
+#[tauri::command]
+fn update_complaint(state: State<AppState>, id: i64, complaint: ComplaintInput) -> Result<Complaint, String> {
+    with_store(&state, |s| s.update_complaint(id, &complaint))
+}
+
+#[tauri::command]
+fn set_complaint_status(state: State<AppState>, id: i64, status: String) -> Result<Complaint, String> {
+    with_store(&state, |s| s.set_complaint_status(id, &status))
+}
+
+#[tauri::command]
+fn set_complaint_memo(state: State<AppState>, id: i64, memo: String) -> Result<Complaint, String> {
+    with_store(&state, |s| s.set_complaint_memo(id, &memo))
+}
+
+#[tauri::command]
+fn delete_complaint(state: State<AppState>, id: i64) -> Result<(), String> {
+    with_store(&state, |s| s.delete_complaint(id))
+}
+
 // ---------- 백업과 저장 위치 ----------
 
 #[tauri::command]
@@ -391,6 +424,12 @@ pub fn run() {
             update_journal_entry,
             delete_journal_entry,
             set_journal_day,
+            complaints,
+            add_complaint,
+            update_complaint,
+            set_complaint_status,
+            set_complaint_memo,
+            delete_complaint,
             set_ime
         ])
         .run(tauri::generate_context!())

@@ -24,6 +24,9 @@ export const DEFAULT_SETTINGS: Settings = {
   ].map(([name, key]) => ({ name, key })),
 };
 
+/** 지울 수 없는 상태예요. 마감 계산(남은 날 숨김)과 할 일 연동이 이것을 기준으로 해요. */
+export const DONE_STATUS = "완료";
+
 /** 상태 배지 색이에요. 여기 없는 상태는 연보라예요. */
 export const STATUS_COLORS: Record<string, [string, string]> = {
   접수: ["var(--accent-tint)", "var(--accent)"],
@@ -31,6 +34,9 @@ export const STATUS_COLORS: Record<string, [string, string]> = {
   완료: ["var(--st-done-bg)", "var(--st-done-fg)"],
   보류: ["var(--st-hold-bg)", "var(--st-hold-fg)"],
 };
+
+/** 상태 배지 [바탕, 글자] 색 */
+export const statusColor = (name: string): [string, string] => STATUS_COLORS[name] ?? ["var(--st-new-bg)", "var(--st-new-fg)"];
 
 const KEY = "settings";
 
