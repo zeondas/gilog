@@ -1,3 +1,5 @@
+mod ime;
+
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -282,6 +284,14 @@ fn delete_project(state: State<AppState>, id: i64) -> Result<ContactsData, Strin
     })
 }
 
+// ---------- 한글 입력 ----------
+
+/// 입력 칸에 들어갈 때 화면이 불러요. 메일 칸은 영문, 나머지는 한글이에요.
+#[tauri::command]
+fn set_ime(korean: bool) {
+    ime::set_korean(korean);
+}
+
 // ---------- 업무일지 ----------
 // 처음에 전체를 한 번 읽고, 바꾸는 명령은 바뀐 기록 하나(또는 머리 줄)만 돌려줘요.
 
@@ -380,7 +390,8 @@ pub fn run() {
             add_journal_entry,
             update_journal_entry,
             delete_journal_entry,
-            set_journal_day
+            set_journal_day,
+            set_ime
         ])
         .run(tauri::generate_context!())
         .expect("giLog를 시작하지 못했어요");

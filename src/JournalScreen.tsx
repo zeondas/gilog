@@ -14,7 +14,12 @@ import {
   expandKind,
   findContact,
   firstContact,
+  initials,
+  isChosung,
+  isMemo,
+  koIndex,
   matchEntry,
+  parseDate,
   normTime,
   nowHM,
   resolveDraft,
@@ -26,6 +31,7 @@ import {
   splitWho,
   todayStr,
 } from "./journal";
+import { isEmptyMemo, MemoEditor, MemoView, sanitize } from "./RichMemo";
 import { DEFAULT_SETTINGS, Kind, loadSettings } from "./settingsStore";
 
 const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
@@ -185,6 +191,12 @@ export default function JournalScreen() {
       <div className="jn-body">
         <div className="jn-head">
           <h1 className="title">{dayTitle(day)}</h1>
+          <DateJump onGo={go} />
+          {day !== today && (
+            <button type="button" className="btn btn-ctrl" onClick={() => go(today)}>
+              오늘
+            </button>
+          )}
           <label className="search jn-search">
             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <circle cx="11" cy="11" r="7" />
@@ -268,6 +280,50 @@ export default function JournalScreen() {
         <p className="jn-aside-empty muted small">민원대장과 할 일 목록을 만들면 마감이 가까운 일이 여기에 보여요.</p>
       </aside>
     </div>
+  );
+}
+
+// ---------- 날짜로 가기 ----------
+
+/** 기록 없는 날로도 가는 칸. "1014"(올해), "10/14", "2026-10-14"를 받아요. 읽을 수 없으면 빨간 테두리예요. */
+function DateJump({ onGo }: { onGo: (d: string) => void }) {
+  const [v, setV] = useState("");
+  const [bad, setBad] = useState(false);
+  function go() {
+    if (!v.trim()) return;
+    const d = parseDate(v);
+    if (!d) return setBad(true);
+    setV("");
+    setBad(false);
+    onGo(d);
+  }
+  return (
+    <label className={"jjump" + (bad ? " invalid" : "")} title="1014처럼 숫자 네 자리만 쳐도 올해 그 날로 가요. 10/14, 2026-10-14도 돼요.">
+      <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="5" width="18" height="16" rx="2" />
+        <path d="M3 10h18M8 3v4M16 3v4" />
+      </svg>
+      <input
+        aria-label="날짜로 가기"
+        aria-invalid={bad || undefined}
+        placeholder="날짜로 가기 (1014)"
+        inputMode="numeric"
+        value={v}
+        onChange={(e) => {
+          setV(e.target.value);
+          setBad(false);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !isComposing(e)) {
+            e.preventDefault();
+            go();
+          } else if (e.key === "Escape") {
+            setV("");
+            setBad(false);
+          }
+        }}
+      />
+    </label>
   );
 }
 
@@ -413,10 +469,12 @@ function WhoInput({
   const segs = value.split(",");
   const last = segs[segs.length - 1].trim();
   const lastLc = last.toLowerCase();
+  // 이름은 초성으로도 찾아요("ㅂㅈㅎ", "박ㅈ"). 소속·직위는 글자 그대로 찾아요.
+  const nameAt = (c: Contact) => koIndex(c.name, last);
   const options = lastLc
     ? contacts
-        .filter((c) => contactLabel(c) !== last && [c.name, c.org, c.role].some((s) => s.toLowerCase().includes(lastLc)))
-        .sort((a, b) => Number(b.name.startsWith(last)) - Number(a.name.startsWith(last)))
+        .filter((c) => contactLabel(c) !== last && (nameAt(c) >= 0 || (!isChosung(last) && [c.org, c.role].some((s) => s.toLowerCase().includes(lastLc)))))
+        .sort((a, b) => Number(nameAt(b) === 0) - Number(nameAt(a) === 0) || Number(initials(a.name) !== last) - Number(initials(b.name) !== last))
         .slice(0, 8)
     : [];
   const show = open && options.length > 0;
@@ -545,9 +603,19 @@ function NewCard({ date, ctx, onAdd }: { date: string; ctx: Ctx; onAdd: (e: Entr
   const [telAuto, setTelAuto] = useState(true);
   const [lines, setLines] = useState<DraftLine[]>([{ sp: null, t: "" }]);
   const [focus, setFocus] = useState<number | null>(null);
+  const [body, setBody] = useState("");
+  const [memoKey, setMemoKey] = useState(0);
   const box = useRef<HTMLDivElement>(null);
   const kindRef = useRef<HTMLInputElement>(null);
   const timeRef = useRef<HTMLInputElement>(null);
+  const editorRef = useRef<HTMLDivElement | null>(null);
+  const memo = isMemo(expandKind(kind, ctx.kinds));
+
+  // 구분이 메모로 바뀌는 사이 커서를 잃었으면 편집기로 옮겨요.
+  useEffect(() => {
+    const a = document.activeElement;
+    if (memo && (!a || a === document.body)) editorRef.current?.focus();
+  }, [memo]);
 
   // 화면을 열면 구분 칸에 커서가 가 있어요. (시간은 지금 시각으로 채워져 있어요)
   useEffect(() => kindRef.current?.focus(), []);
@@ -588,6 +656,8 @@ function NewCard({ date, ctx, onAdd }: { date: string; ctx: Ctx; onAdd: (e: Entr
     setTelAuto(true);
     setLines([{ sp: null, t: "" }]);
     setFocus(null);
+    setBody("");
+    setMemoKey((n) => n + 1);
     setBadTime(false);
     setTimeTouched(false);
     setTime(nowHM());
@@ -601,12 +671,19 @@ function NewCard({ date, ctx, onAdd }: { date: string; ctx: Ctx; onAdd: (e: Entr
       timeRef.current?.focus();
       return;
     }
+    const k = expandKind(kind, ctx.kinds);
+    if (memo) {
+      // 메모는 상대·연락처·프로젝트 없이 본문만 저장해요.
+      if (isEmptyMemo(body)) return editorRef.current?.focus();
+      const ok = await onAdd({ date, time: t, kind: k, who: "", contact: "", project: null, lines: [], body: sanitize(body) });
+      if (ok) reset();
+      return;
+    }
     if (!lines.some((l) => l.t.trim())) {
       setFocus(0);
       box.current?.querySelector<HTMLInputElement>('[data-uline="0"]')?.focus();
       return;
     }
-    const k = expandKind(kind, ctx.kinds);
     const c = firstContact(who, ctx.contacts);
     const ok = await onAdd({
       date,
@@ -617,6 +694,7 @@ function NewCard({ date, ctx, onAdd }: { date: string; ctx: Ctx; onAdd: (e: Entr
       // 프로젝트는 상대 연락처의 첫 프로젝트가 자동으로 붙어요. 등록한 뒤 바꿀 수 있어요.
       project: c?.projects[0] ?? null,
       lines: lines.map((l, i) => ({ ...S.list[resolved[i]], text: l.t })),
+      body: "",
     });
     if (ok) reset();
   }
@@ -671,7 +749,7 @@ function NewCard({ date, ctx, onAdd }: { date: string; ctx: Ctx; onAdd: (e: Entr
   }
 
   return (
-    <div ref={box} className="jcard jcard-new" role="group" aria-label="새 기록 입력" onKeyDown={onKeyDown}>
+    <div ref={box} className={"jcard jcard-new" + (memo ? " jcard-memo" : "")} role="group" aria-label="새 기록 입력" onKeyDown={onKeyDown}>
       <div className="jpillar">
         <input
           ref={timeRef}
@@ -713,10 +791,34 @@ function NewCard({ date, ctx, onAdd }: { date: string; ctx: Ctx; onAdd: (e: Entr
             </option>
           ))}
         </datalist>
-        <span className="jpillar-note" title="프로젝트는 상대의 연락처에서 자동으로 붙어요. 등록한 뒤 눌러서 바꿀 수 있어요.">
-          프로젝트 자동
-        </span>
+        {!memo && (
+          <span className="jpillar-note" title="프로젝트는 상대의 연락처에서 자동으로 붙어요. 등록한 뒤 눌러서 바꿀 수 있어요.">
+            프로젝트 자동
+          </span>
+        )}
       </div>
+      {memo ? (
+        <div className="jnew-main">
+          <MemoEditor
+            key={memoKey}
+            initial={body}
+            editorRef={editorRef}
+            placeholder="메모를 적어요. 위 단추로 제목·목록·표를 넣을 수 있어요."
+            onChange={setBody}
+            onSubmit={submit}
+            onCancel={reset}
+          />
+          <div className="jmemo-foot">
+            <span className="hint">Enter 등록 · Shift+Enter 새 줄 · 표 안에서 Tab 다음 칸 · Esc 취소</span>
+            <button type="button" className="btn-primary jbtn-add" onClick={submit}>
+              <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              등록
+            </button>
+          </div>
+        </div>
+      ) : (
       <div className="jnew-main">
         <div className="jnew-top">
           <WhoInput
@@ -733,6 +835,7 @@ function NewCard({ date, ctx, onAdd }: { date: string; ctx: Ctx; onAdd: (e: Entr
           <PhoneInput
             aria-label="연락처"
             placeholder="연락처 자동 입력"
+            data-ime={expandKind(kind, ctx.kinds).includes("메일") ? "en" : undefined}
             className="cell-input num jnew-tel"
             value={tel}
             onChange={(v) => {
@@ -784,6 +887,7 @@ function NewCard({ date, ctx, onAdd }: { date: string; ctx: Ctx; onAdd: (e: Entr
           </button>
         </div>
       </div>
+      )}
     </div>
   );
 }
@@ -896,10 +1000,11 @@ function ViewCard({
 }) {
   const { name, rest } = splitWho(e.who);
   const p = e.project !== null ? ctx.byId.get(e.project) : undefined;
+  const memo = isMemo(e.kind) && (!!e.body || !e.lines.length);
   return (
     <article
-      className="jcard"
-      style={stripe(e, ctx)}
+      className={"jcard" + (memo ? " jcard-memo" : "")}
+      style={memo ? undefined : stripe(e, ctx)}
       title="눌러서 수정"
       tabIndex={0}
       aria-label={`${e.time} ${e.kind} ${e.who}`}
@@ -914,8 +1019,13 @@ function ViewCard({
       <div className="jpillar">
         <span className="jtime">{e.time}</span>
         <span className="jkind">{e.kind}</span>
-        {e.contact && <PillarTel value={e.contact} />}
+        {e.contact && !memo && <PillarTel value={e.contact} />}
       </div>
+      {memo ? (
+        <div className="jmain jmemo-main">
+          <MemoView html={e.body} />
+        </div>
+      ) : (
       <div className="jmain">
         <div className="jhead">
           <span className="jname">{name || "상대 없음"}</span>
@@ -939,8 +1049,16 @@ function ViewCard({
         </div>
         <Lines entry={e} />
       </div>
+      )}
     </article>
   );
+}
+
+/** 예전에 말 줄로 적은 메모를 편집기 본문으로 옮겨요. */
+function linesToBody(e: Entry): string {
+  if (e.body) return e.body;
+  const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return e.lines.map((l) => `<p>${esc(l.me ? l.text : `${l.who}: ${l.text}`)}</p>`).join("");
 }
 
 // ---------- 고치는 카드 ----------
@@ -968,10 +1086,30 @@ function EditCard({
   const [project, setProject] = useState(e.project);
   const [menu, setMenu] = useState(false);
   const [asking, setAsking] = useState(false);
-  const [lines, setLines] = useState<EditLine[]>(e.lines.map((l) => ({ who: l.who, me: l.me, t: l.text })));
+  const [lines, setLines] = useState<EditLine[]>(() => {
+    if (e.lines.length) return e.lines.map((l) => ({ who: l.who, me: l.me, t: l.text }));
+    const S = speakers(e.who, e.kind, ctx.myName);
+    return [{ ...S.list[S.first], t: "" }];
+  });
   const [focus, setFocus] = useState(Math.max(0, e.lines.length - 1));
+  const [body, setBody] = useState(() => (isMemo(e.kind) ? linesToBody(e) : e.body));
   const ref = useRef<HTMLDivElement>(null);
   const timeRef = useRef<HTMLInputElement>(null);
+  const editorRef = useRef<HTMLDivElement | null>(null);
+  const memo = isMemo(expandKind(kind, ctx.kinds));
+
+  // 메모를 열면 본문 끝에 커서를 둬요.
+  useEffect(() => {
+    const el = editorRef.current;
+    if (!memo || !el) return;
+    el.focus();
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    r.collapse(false);
+    document.getSelection()?.removeAllRanges();
+    document.getSelection()?.addRange(r);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [memo]);
 
   // 말할 수 있는 사람들: 상대 칸의 사람들, 나, 그리고 이미 적힌 줄의 사람들
   const names: Speaker[] = speakers(who, kind, ctx.myName).list;
@@ -983,6 +1121,10 @@ function EditCard({
   function build(): EntryInput | null {
     const t = normTime(time);
     if (!t) return null;
+    if (memo) {
+      if (isEmptyMemo(body)) return null;
+      return { date: e.date, time: t, kind: expandKind(kind, ctx.kinds), who: "", contact: "", project: null, lines: [], body: sanitize(body) };
+    }
     const kept = lines.filter((l) => l.t.trim());
     if (!kept.length) return null;
     return {
@@ -993,6 +1135,7 @@ function EditCard({
       contact: finalizePhone(tel),
       project,
       lines: kept.map((l) => ({ who: l.me ? ctx.myName : l.who, me: l.me, text: l.t })),
+      body: "",
     };
   }
 
@@ -1004,19 +1147,23 @@ function EditCard({
       if (!normTime(time)) {
         setBadTime(true);
         timeRef.current?.focus();
-      } else setFocus(0);
+      } else if (memo) editorRef.current?.focus();
+      else setFocus(0);
       return;
     }
     onSave(input);
   }
 
-  const latest = useRef({ save, asking });
-  latest.current = { save, asking };
+  const latest = useRef({ save });
+  latest.current = { save };
 
-  // 바깥을 누르면 저장해요.
+  // 바깥(다른 카드, 빈 곳)을 누르면 저장해요. "지울까요?"가 펼쳐져 있었으면 지우지 않고 접혀요.
   useEffect(() => {
     const down = (ev: MouseEvent) => {
-      if (ref.current && !ref.current.contains(ev.target as Node) && !latest.current.asking) latest.current.save(true);
+      if (ref.current && !ref.current.contains(ev.target as Node)) {
+        setAsking(false);
+        latest.current.save(true);
+      }
     };
     document.addEventListener("mousedown", down);
     return () => document.removeEventListener("mousedown", down);
@@ -1087,7 +1234,7 @@ function EditCard({
   const p = project !== null ? ctx.byId.get(project) : undefined;
 
   return (
-    <div ref={ref} className="jcard jcard-edit" role="group" aria-label="기록 고치기" onKeyDown={onKeyDown}>
+    <div ref={ref} className={"jcard jcard-edit" + (memo ? " jcard-memo" : "")} role="group" aria-label="기록 고치기" onKeyDown={onKeyDown}>
       <div className="jpillar">
         <input
           ref={timeRef}
@@ -1123,6 +1270,7 @@ function EditCard({
             </option>
           ))}
         </datalist>
+        {!memo && (
         <span className="jproj-wrap jproj-pillar">
           <button
             type="button"
@@ -1147,8 +1295,13 @@ function EditCard({
             />
           )}
         </span>
+        )}
       </div>
       <div className="jnew-main">
+        {memo ? (
+          <MemoEditor initial={body} editorRef={editorRef} placeholder="메모 내용" onChange={setBody} onSubmit={() => save()} onCancel={onCancel} />
+        ) : (
+        <>
         <div className="jnew-top">
           <WhoInput
             className="cell-input"
@@ -1161,7 +1314,14 @@ function EditCard({
               fill(v, kind);
             }}
           />
-          <PhoneInput aria-label="연락처" placeholder="연락처" className="cell-input num jedit-tel" value={tel} onChange={setTel} />
+          <PhoneInput
+            aria-label="연락처"
+            placeholder="연락처"
+            data-ime={expandKind(kind, ctx.kinds).includes("메일") ? "en" : undefined}
+            className="cell-input num jedit-tel"
+            value={tel}
+            onChange={setTel}
+          />
         </div>
         <div className="jlines-in">
           {lines.map((l, i) => (
@@ -1191,6 +1351,8 @@ function EditCard({
             </div>
           ))}
         </div>
+        </>
+        )}
         {asking ? (
           <div
             className="ask-band jask"
@@ -1214,9 +1376,13 @@ function EditCard({
           </div>
         ) : (
           <div className="jedit-foot">
-            <span className="hint" title="Tab 다음 말 · Shift+Tab 같은 사람 · Enter 저장 · Esc 취소">
-              Tab 다음 말 · Shift+Tab 같은 사람 · Enter 저장 · Esc 취소
-            </span>
+            {memo ? (
+              <span className="hint">Enter 저장 · Shift+Enter 새 줄 · Esc 취소</span>
+            ) : (
+              <span className="hint" title="Tab 다음 말 · Shift+Tab 같은 사람 · Enter 저장 · Esc 취소">
+                Tab 다음 말 · Shift+Tab 같은 사람 · Enter 저장 · Esc 취소
+              </span>
+            )}
             <button type="button" className="btn btn-xs" onClick={onCancel}>
               취소
             </button>
@@ -1282,12 +1448,18 @@ function SearchResults({
           {g.items.map(({ e, m }) => {
             const { name, rest } = splitWho(e.who);
             const anyLine = m.some(Boolean);
+            const memo = isMemo(e.kind) && (!!e.body || !e.lines.length);
             return (
-              <article key={e.id} className="jcard jcard-static" style={stripe(e, ctx)}>
+              <article key={e.id} className={"jcard jcard-static" + (memo ? " jcard-memo" : "")} style={memo ? undefined : stripe(e, ctx)}>
                 <div className="jpillar">
                   <span className="jtime">{e.time}</span>
                   <span className="jkind">{e.kind}</span>
                 </div>
+                {memo ? (
+                  <div className="jmain jmemo-main">
+                    <MemoView html={e.body} q={q} />
+                  </div>
+                ) : (
                 <div className="jmain">
                   <div className="jhead">
                     <span className="jname">
@@ -1306,6 +1478,7 @@ function SearchResults({
                   </div>
                   <Lines entry={e} q={q} show={onlyHits && anyLine ? m : undefined} dim={!onlyHits && anyLine ? m.map((x) => !x) : undefined} />
                 </div>
+                )}
               </article>
             );
           })}

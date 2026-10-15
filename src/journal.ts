@@ -44,10 +44,66 @@ export function dayLabel(date: string): string {
   return `${p.d}일(${p.w})`;
 }
 
+/**
+ * 날짜 칸에 친 것을 날짜로 바꿔요. "1016"(올해), "10/16", "10.16", "2026-10-16", "2026.10.16", "20261016"을 받아요.
+ * 읽을 수 없거나 없는 날이면 null이에요.
+ */
+export function parseDate(v: string, year = new Date().getFullYear()): string | null {
+  const s = v.trim();
+  let y = year;
+  let m: number;
+  let d: number;
+  let r: RegExpExecArray | null;
+  if ((r = /^(\d{4})[-./](\d{1,2})[-./](\d{1,2})$/.exec(s)) || (r = /^(\d{4})(\d{2})(\d{2})$/.exec(s))) {
+    [y, m, d] = [Number(r[1]), Number(r[2]), Number(r[3])];
+  } else if ((r = /^(\d{1,2})[-./](\d{1,2})$/.exec(s)) || (r = /^(\d{2})(\d{2})$/.exec(s))) {
+    [m, d] = [Number(r[1]), Number(r[2])];
+  } else return null;
+  const t = new Date(y, m - 1, d);
+  if (t.getFullYear() !== y || t.getMonth() !== m - 1 || t.getDate() !== d) return null;
+  return todayStr(t);
+}
+
 /** 초성 단축키를 구분 이름으로 바꿔요. 맞는 것이 없으면 적은 그대로예요. */
 export function expandKind(v: string, kinds: Kind[]): string {
   const s = v.trim();
   return kinds.find((k) => k.key && k.key === s)?.name ?? s;
+}
+
+// ---------- 초성 ----------
+
+const CHO = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
+
+/** 글자의 초성. 한글 음절이 아니면 그 글자 그대로예요. */
+function cho(ch: string): string {
+  const c = ch.charCodeAt(0) - 0xac00;
+  return c >= 0 && c < 11172 ? CHO[Math.floor(c / 588)] : ch;
+}
+
+export const isChosung = (s: string) => /^[ㄱ-ㅎ]+$/.test(s);
+
+/** 이름 전체의 초성 ("박지훈" → "ㅂㅈㅎ") */
+export const initials = (s: string) => [...s].map(cho).join("");
+
+/**
+ * 한글 이름 찾기. 초성으로 쳐도 맞아요("ㅂㅈ", "박ㅈ", "ㅂ지" 모두 "박지훈"에 맞아요).
+ * 찾은 자리를 돌려주고, 맞지 않으면 -1이에요.
+ */
+export function koIndex(text: string, q: string): number {
+  const t = [...text];
+  const p = [...q];
+  if (!p.length) return 0;
+  outer: for (let i = 0; i + p.length <= t.length; i++) {
+    for (let j = 0; j < p.length; j++) {
+      const a = t[i + j];
+      const b = p[j];
+      if (a === b || a.toLowerCase() === b.toLowerCase()) continue;
+      if (isChosung(b) && cho(a) === b) continue;
+      continue outer;
+    }
+    return i;
+  }
+  return -1;
 }
 
 // ---------- 상대 ----------
@@ -82,7 +138,13 @@ export function findContact(segment: string, contacts: Contact[]): Contact | nul
   const byLabel = contacts.find((c) => contactLabel(c) === s);
   if (byLabel) return byLabel;
   const byName = contacts.filter((c) => c.name === s);
-  return byName.length === 1 ? byName[0] : null;
+  if (byName.length === 1) return byName[0];
+  // 초성만 쳤으면 이름 초성이 똑같은 사람이 한 명일 때 그 사람이에요.
+  if (isChosung(s)) {
+    const byCho = contacts.filter((c) => initials(c.name) === s);
+    if (byCho.length === 1) return byCho[0];
+  }
+  return null;
 }
 
 /** 상대 칸의 사람들 가운데 업무연락처에 있는 첫 사람 */
@@ -148,11 +210,24 @@ export function speakerColor(name: string): number {
 
 // ---------- 검색 ----------
 
+// ---------- 메모 ----------
+
+/** "메모" 구분은 말 줄 대신 편집기로 적어요. */
+export const isMemo = (kind: string) => kind.trim() === "메모";
+
+/** HTML에서 글자만 꺼내요. */
+export function htmlText(html: string): string {
+  if (!html) return "";
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  doc.querySelectorAll("p,h3,li,blockquote,tr,br").forEach((el) => el.append(" "));
+  return (doc.body.textContent ?? "").replace(/\s+/g, " ").trim();
+}
+
 /** 기록이 검색어에 맞는지, 맞은 말 줄은 어느 것인지 */
 export function matchEntry(e: Entry, q: string): { hit: boolean; lines: boolean[] } {
   const lc = (s: string) => s.toLowerCase();
   const lines = e.lines.map((l: JournalLine) => lc(l.text).includes(q) || (!l.me && lc(l.who).includes(q)));
-  const head = [e.who, e.contact, e.kind].some((s) => lc(s).includes(q));
+  const head = [e.who, e.contact, e.kind, htmlText(e.body)].some((s) => lc(s).includes(q));
   return { hit: head || lines.some(Boolean), lines };
 }
 

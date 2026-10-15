@@ -3,6 +3,7 @@
 //! - 기록의 상대와 연락처는 적은 글자 그대로 복사해 둬요. 나중에 업무연락처를 고쳐도 지난 일지는 바뀌지 않아요.
 //! - 대화 줄은 순서대로 JSON 글자 하나에 담아요. 줄마다 말한 사람 이름과 "나"인지 여부, 말이 들어가요.
 //! - 프로젝트는 업무연락처의 프로젝트 번호예요. 프로젝트를 지우면 기록에서 빠져요.
+//! - 구분이 "메모"인 기록은 말 줄 대신 본문(편집기 HTML) 하나를 담아요.
 
 use rusqlite::{params, OptionalExtension, Row};
 use serde::{Deserialize, Serialize};
@@ -36,6 +37,8 @@ pub struct EntryInput {
     pub contact: String,
     pub project: Option<i64>,
     pub lines: Vec<JournalLine>,
+    /// 메모 본문(편집기 HTML). 메모 기록은 말 줄 대신 이것을 써요.
+    pub body: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -49,6 +52,7 @@ pub struct Entry {
     pub contact: String,
     pub project: Option<i64>,
     pub lines: Vec<JournalLine>,
+    pub body: String,
 }
 
 /// 날짜마다 하나 있는 머리 줄이에요.
@@ -90,10 +94,37 @@ pub(crate) const SCHEMA: &str = "
         who        TEXT NOT NULL DEFAULT '',
         contact    TEXT NOT NULL DEFAULT '',
         project_id INTEGER,
-        lines      TEXT NOT NULL DEFAULT '[]'
+        lines      TEXT NOT NULL DEFAULT '[]',
+        body       TEXT NOT NULL DEFAULT ''
     );
     CREATE INDEX IF NOT EXISTS journal_entries_date ON journal_entries (date);
 ";
+
+/// 0.5.0에서 만든 표에는 body 칸이 없어서 더해요.
+pub(crate) fn upgrade(conn: &rusqlite::Connection) -> Result<()> {
+    let has: bool = conn
+        .prepare("SELECT 1 FROM pragma_table_info('journal_entries') WHERE name = 'body'")?
+        .exists([])?;
+    if !has {
+        conn.execute_batch("ALTER TABLE journal_entries ADD COLUMN body TEXT NOT NULL DEFAULT '';")?;
+    }
+    Ok(())
+}
+
+/// HTML에서 태그를 빼고 글자가 남는지 봐요.
+fn has_text(html: &str) -> bool {
+    let mut in_tag = false;
+    let mut text = String::new();
+    for ch in html.chars() {
+        match ch {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            c if !in_tag => text.push(c),
+            _ => {}
+        }
+    }
+    !text.replace("&nbsp;", " ").trim().is_empty()
+}
 
 fn bad(msg: &str) -> Error {
     Error::Invalid(msg.into())
@@ -148,7 +179,8 @@ fn clean(input: &EntryInput) -> Result<EntryInput> {
         .map(|l| JournalLine { who: l.who.trim().to_string(), me: l.me, text: l.text.trim().to_string() })
         .filter(|l| !l.text.is_empty())
         .collect();
-    if lines.is_empty() {
+    let body = if has_text(&input.body) || input.body.contains("<table") { input.body.trim().to_string() } else { String::new() };
+    if lines.is_empty() && body.is_empty() {
         return Err(bad("말이 하나도 없어요"));
     }
     let kind = input.kind.trim();
@@ -160,11 +192,13 @@ fn clean(input: &EntryInput) -> Result<EntryInput> {
         contact: input.contact.trim().to_string(),
         project: input.project,
         lines,
+        body,
     })
 }
 
 fn read_entry(r: &Row) -> rusqlite::Result<Entry> {
     let lines: String = r.get(7)?;
+    let body: String = r.get(8)?;
     Ok(Entry {
         id: r.get(0)?,
         date: r.get(1)?,
@@ -174,10 +208,11 @@ fn read_entry(r: &Row) -> rusqlite::Result<Entry> {
         contact: r.get(5)?,
         project: r.get(6)?,
         lines: serde_json::from_str(&lines).unwrap_or_default(),
+        body,
     })
 }
 
-const ENTRY_COLS: &str = "id, date, time, kind, who, contact, project_id, lines";
+const ENTRY_COLS: &str = "id, date, time, kind, who, contact, project_id, lines, body";
 
 impl Store {
     /// 없는 프로젝트 번호는 빼요.
@@ -225,9 +260,9 @@ impl Store {
         let project = self.known_project(e.project)?;
         let lines = serde_json::to_string(&e.lines).map_err(|x| bad(&x.to_string()))?;
         self.conn.execute(
-            "INSERT INTO journal_entries (date, time, kind, who, contact, project_id, lines)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![e.date, e.time, e.kind, e.who, e.contact, project, lines],
+            "INSERT INTO journal_entries (date, time, kind, who, contact, project_id, lines, body)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![e.date, e.time, e.kind, e.who, e.contact, project, lines, e.body],
         )?;
         self.entry(self.conn.last_insert_rowid())
     }
@@ -238,9 +273,9 @@ impl Store {
         let project = self.known_project(e.project)?;
         let lines = serde_json::to_string(&e.lines).map_err(|x| bad(&x.to_string()))?;
         let n = self.conn.execute(
-            "UPDATE journal_entries SET date = ?2, time = ?3, kind = ?4, who = ?5, contact = ?6, project_id = ?7, lines = ?8
+            "UPDATE journal_entries SET date = ?2, time = ?3, kind = ?4, who = ?5, contact = ?6, project_id = ?7, lines = ?8, body = ?9
              WHERE id = ?1",
-            params![id, e.date, e.time, e.kind, e.who, e.contact, project, lines],
+            params![id, e.date, e.time, e.kind, e.who, e.contact, project, lines, e.body],
         )?;
         if n == 0 {
             return Err(Error::NotFound);
@@ -297,6 +332,7 @@ mod tests {
             who: "이○○ 현장대리인 · ○○건설(주)".into(),
             contact: "010-0000-0102".into(),
             project: None,
+            body: String::new(),
             lines: vec![line("이○○", false, " 교통통제 일정을 문의 "), line("전훈민", true, "10/20 회신하겠다고 답함"), line("이○○", false, "  ")],
         }
     }
@@ -376,6 +412,48 @@ mod tests {
         s.update_contact(cid, &ContactInput { name: "이○○".into(), mobile: "010-9999-9999".into(), ..Default::default() })
             .unwrap();
         assert_eq!(s.journal_data().unwrap().entries[0].contact, "010-0000-0102");
+    }
+
+    #[test]
+    fn memo_keeps_body_without_lines() {
+        let tmp = tempfile::tempdir().unwrap();
+        let s = Store::create(tmp.path(), "abcd1234").unwrap();
+        let mut i = input("2026-10-15", "11:00");
+        i.kind = "메모".into();
+        i.lines = vec![];
+        i.body = "<p><br></p>".into();
+        // 글자 없는 본문은 등록하지 않아요.
+        assert_eq!(s.add_entry(&i).err().unwrap().code(), "invalid");
+        i.body = "<h3>현장 메모</h3><ul><li>포트홀 4개소</li></ul><table><tbody><tr><td></td></tr></tbody></table>".into();
+        let e = s.add_entry(&i).unwrap();
+        assert!(e.lines.is_empty());
+        assert_eq!(e.body, i.body);
+        // 빈 표만 있어도 받아요.
+        i.body = "<table><tbody><tr><td><br></td></tr></tbody></table>".into();
+        s.update_entry(e.id, &i).unwrap();
+        assert_eq!(s.journal_data().unwrap().entries[0].body, i.body);
+    }
+
+    #[test]
+    fn old_table_gets_body_column() {
+        let tmp = tempfile::tempdir().unwrap();
+        {
+            let s = Store::create(tmp.path(), "abcd1234").unwrap();
+            // 0.5.0 모양의 표로 되돌려요.
+            s.conn
+                .execute_batch(
+                    "DROP TABLE journal_entries;
+                     CREATE TABLE journal_entries (id INTEGER PRIMARY KEY, date TEXT NOT NULL, time TEXT NOT NULL,
+                        kind TEXT NOT NULL DEFAULT '', who TEXT NOT NULL DEFAULT '', contact TEXT NOT NULL DEFAULT '',
+                        project_id INTEGER, lines TEXT NOT NULL DEFAULT '[]');
+                     INSERT INTO journal_entries (date, time, kind, lines) VALUES ('2026-10-15', '09:00', '메모', '[{\"who\":\"전훈민\",\"me\":true,\"text\":\"예전 기록\"}]');",
+                )
+                .unwrap();
+        }
+        let s = Store::open(tmp.path(), "abcd1234").unwrap();
+        let d = s.journal_data().unwrap();
+        assert_eq!(d.entries[0].lines[0].text, "예전 기록");
+        assert_eq!(d.entries[0].body, "");
     }
 
     #[test]

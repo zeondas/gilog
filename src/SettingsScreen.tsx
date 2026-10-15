@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { api, DEFAULT_PREFS, errorText, inApp, Prefs, Status } from "./api";
-import { DEFAULT_SETTINGS, Kind, loadSettings, saveSettings, Settings, STATUS_COLORS } from "./settingsStore";
+import { DEFAULT_SETTINGS, Kind, loadSettings, MEMO_KIND, saveSettings, Settings, STATUS_COLORS } from "./settingsStore";
 import { SCREENS } from "./screens";
 
 type Props = {
@@ -361,9 +361,13 @@ function KindsGroup({ kinds, onChange }: { kinds: Kind[]; onChange: (k: Kind[]) 
           <span key={k.name} className="kind">
             <span className="kind-name">{k.name}</span>
             {k.key && <span className="kind-key">{k.key}</span>}
-            <button type="button" className="chip-x" aria-label={`${k.name} 삭제`} onClick={() => onChange(kinds.filter((x) => x.name !== k.name))}>
-              <X />
-            </button>
+            {k.name === MEMO_KIND.name ? (
+              <span className="kind-fixed" title="메모는 고정 구분이라 지울 수 없어요. 고르면 편집기로 적어요.">고정</span>
+            ) : (
+              <button type="button" className="chip-x" aria-label={`${k.name} 삭제`} onClick={() => onChange(kinds.filter((x) => x.name !== k.name))}>
+                <X />
+              </button>
+            )}
           </span>
         ))}
       </div>

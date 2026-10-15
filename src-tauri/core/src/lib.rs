@@ -195,6 +195,7 @@ impl Store {
         )?;
         self.conn.execute_batch(contacts::SCHEMA)?;
         self.conn.execute_batch(journal::SCHEMA)?;
+        journal::upgrade(&self.conn)?;
         Ok(())
     }
 

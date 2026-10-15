@@ -2102,3 +2102,259 @@ mark {
 .jpillar input[list]::-webkit-calendar-picker-indicator {
   display: none !important;
 }
+
+/* ---------- 업무일지 0.5.1: 날짜로 가기, 메모 편집기 ---------- */
+.jn-head .title {
+  margin-right: var(--space-2);
+}
+
+.jn-search {
+  margin-left: auto;
+}
+
+.jjump {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 170px;
+  height: var(--size-ctrl);
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.jjump:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.jjump.invalid {
+  border-color: var(--urgent);
+  outline: 2px solid var(--urgent);
+  outline-offset: -1px;
+}
+
+.jjump input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 설정: 고정 구분 표시 */
+.kind-fixed {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* 메모 카드: 머리글 없이 본문만 */
+.jmemo-main {
+  padding: var(--space-3) var(--space-4) 14px;
+}
+
+.jcard-memo .jnew-main {
+  gap: var(--space-2);
+}
+
+.jmemo-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.jmemo-foot .hint {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 편집기 */
+.rte {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.rte:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.rte-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--surface-side);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+.tb-wide {
+  width: auto;
+  padding: 0 7px;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.rte-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 3px;
+  background: var(--line);
+}
+
+.rte-grid-wrap {
+  position: relative;
+}
+
+.rte-grid {
+  position: absolute;
+  z-index: 7;
+  top: calc(100% + 4px);
+  left: 0;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.rte-grid-cells {
+  display: grid;
+  grid-template-columns: repeat(8, 16px);
+  gap: 3px;
+}
+
+.rte-grid-cell {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--surface);
+}
+
+.rte-grid-cell[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+}
+
+.rte-grid-size {
+  margin-top: 4px;
+  text-align: center;
+}
+
+.rte-area {
+  position: relative;
+  min-height: 96px;
+  max-height: 520px;
+  overflow: auto;
+  padding: 8px 10px;
+  color: var(--ink);
+  outline: 0;
+  cursor: text;
+  line-height: 1.55;
+}
+
+.rte-area.is-empty::before {
+  content: attr(data-placeholder);
+  position: absolute;
+  color: var(--muted);
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+/* 편집기와 보기의 글 모양을 같게 해요 */
+.rte-area,
+.rte-view {
+  overflow-wrap: anywhere;
+}
+
+.rte-area > :first-child,
+.rte-view > :first-child {
+  margin-top: 0;
+}
+
+.rte-area > :last-child,
+.rte-view > :last-child {
+  margin-bottom: 0;
+}
+
+.rte-area p,
+.rte-view p {
+  margin: 0 0 4px;
+}
+
+.rte-area h3,
+.rte-view h3 {
+  margin: 6px 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.rte-area blockquote,
+.rte-view blockquote {
+  margin: 4px 0;
+  padding: 2px 0 2px 10px;
+  border-left: 3px solid var(--accent-line);
+  color: var(--ink-2);
+}
+
+.rte-area ul,
+.rte-area ol,
+.rte-view ul,
+.rte-view ol {
+  margin: 2px 0 4px;
+  padding-left: 22px;
+}
+
+.rte-area li,
+.rte-view li {
+  margin: 1px 0;
+}
+
+.rte-area table,
+.rte-view table {
+  width: 100%;
+  margin: 4px 0 6px;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+.rte-area td,
+.rte-view td {
+  min-width: 48px;
+  padding: 4px 7px;
+  border: 1px solid var(--line);
+  vertical-align: top;
+}
+
+/* 표 첫 줄은 머리줄처럼 옅게 칠해요 */
+.rte-area tr:first-child td,
+.rte-view tr:first-child td {
+  background: var(--surface-band);
+  font-weight: 600;
+}
+
+.rte-view {
+  line-height: 1.55;
+  overflow-x: auto;
+}
+
+.rte-area > div {
+  margin: 0 0 4px;
+}

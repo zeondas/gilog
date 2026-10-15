@@ -84,6 +84,8 @@ export type EntryInput = {
   /** 업무연락처의 프로젝트 번호 */
   project: number | null;
   lines: JournalLine[];
+  /** 메모 본문(편집기 HTML). 구분이 "메모"인 기록은 말 줄 대신 이것을 써요. */
+  body: string;
 };
 
 export type Entry = EntryInput & { id: number };
@@ -114,9 +116,11 @@ function fakeJournal(cmd: string, a: Record<string, unknown>): unknown {
   const clean = (e: EntryInput): EntryInput => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(e.date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(e.time.trim())) throw "invalid";
     const lines = e.lines.map((l) => ({ who: l.who.trim(), me: l.me, text: l.text.trim() })).filter((l) => l.text);
-    if (!lines.length) throw "invalid";
+    const text = (e.body ?? "").replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim();
+    const body = text || (e.body ?? "").includes("<table") ? (e.body ?? "").trim() : "";
+    if (!lines.length && !body) throw "invalid";
     const project = e.project !== null && fake.projects.some((p) => p.id === e.project) ? e.project : null;
-    return { ...e, time: e.time.trim(), kind: e.kind.trim() || "메모", who: e.who.trim(), contact: e.contact.trim(), project, lines };
+    return { ...e, time: e.time.trim(), kind: e.kind.trim() || "메모", who: e.who.trim(), contact: e.contact.trim(), project, lines, body };
   };
   switch (cmd) {
     case "journal_data": {
@@ -320,6 +324,9 @@ export const api = {
   updateEntry: (id: number, entry: EntryInput) => call<Entry>("update_journal_entry", { id, entry }),
   deleteEntry: (id: number) => call<null>("delete_journal_entry", { id }),
   setDay: (day: DayInfo) => call<DayInfo>("set_journal_day", { day }),
+
+  /** 윈도우 입력기를 한글(true) 또는 영문(false) 상태로 바꿔요. 앱 밖에서는 아무 일도 안 해요. */
+  setIme: (korean: boolean) => (inApp ? invoke<null>("set_ime", { korean }) : Promise.resolve(null)),
 };
 
 /** 실패 이름을 화면에 보여 줄 문장으로 바꿔요. */

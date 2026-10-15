@@ -34,11 +34,19 @@ export const STATUS_COLORS: Record<string, [string, string]> = {
 
 const KEY = "settings";
 
+/** 업무일지의 고정 구분이에요. 지울 수 없고, 고르면 편집기로 적어요. */
+export const MEMO_KIND: Kind = { name: "메모", key: "ㅁㅁ" };
+
+/** 메모 구분이 없으면 맨 끝에 다시 넣어요. */
+function withMemo(s: Settings): Settings {
+  return s.kinds.some((k) => k.name === MEMO_KIND.name) ? s : { ...s, kinds: [...s.kinds, { ...MEMO_KIND }] };
+}
+
 export async function loadSettings(): Promise<Settings> {
   const raw = await api.get(KEY);
   if (!raw) return structuredClone(DEFAULT_SETTINGS);
   try {
-    return { ...structuredClone(DEFAULT_SETTINGS), ...(JSON.parse(raw) as Partial<Settings>) };
+    return withMemo({ ...structuredClone(DEFAULT_SETTINGS), ...(JSON.parse(raw) as Partial<Settings>) });
   } catch {
     return structuredClone(DEFAULT_SETTINGS);
   }

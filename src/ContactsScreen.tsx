@@ -1,5 +1,6 @@
 // 업무연락처 화면이에요. 시안 Contacts.dc.html과 사양서의 "업무연락처" 절을 따라요.
 import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { koIndex } from "./journal";
 import { PhoneInput } from "./PhoneInput";
 import { finalizePhone } from "./phone";
 import { api, Contact, ContactInput, ContactsData, errorText, Project } from "./api";
@@ -127,6 +128,8 @@ export default function ContactsScreen() {
       .join("\n")
       .toLowerCase();
     if (hay.includes(query)) return true;
+    // 이름은 초성으로도 찾아요("ㅂㅈㅎ", "박ㅈ").
+    if (/[ㄱ-ㅎ]/.test(query) && koIndex(c.name, query) >= 0) return true;
     // 번호는 줄표 없이 쳐도 찾아요.
     const digits = query.replace(/[^0-9]/g, "");
     return digits.length >= 3 && digits === query.replace(/[-\s]/g, "") && [c.mobile, c.tel].some((n) => n.replace(/[^0-9]/g, "").includes(digits));
