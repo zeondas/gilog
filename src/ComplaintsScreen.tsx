@@ -30,7 +30,7 @@ import {
   readWidths,
 } from "./complaints";
 import { parseLines, plainOf, stringifyLines } from "./bullets";
-import { BulletEditor, BulletView } from "./Bullets";
+import { BulletEditor, BulletView } from "./BulletParts";
 import { Hl, MemoEditor, memoText, parseMemo } from "./ContactsScreen";
 import { koIndex, parseDate, todayStr } from "./journal";
 import { useJamoGuard } from "./koInput";

@@ -61,7 +61,7 @@
 
 ## 공통 입력 규칙 (2026-10-16 사용자가 정함, 0.6.1에 들어감 — 모든 화면·새 칸에 적용, 사양서 "공통 규칙"에도 적음)
 
-어디에 있나: 머릿기호 `src/bullets.ts`(규칙·저장·복사·크기 재기) + `src/Bullets.tsx`(Mark·BulletView·BulletEditor), 저장 쪽 `complaints.rs`의 `lines()`가 줄 목록 JSON을 정리해요. 법정동 `src/paju.ts`(표) + `src/PlaceInputs.tsx`(지역·위치 칸). 자동입력 `src/autofill.ts` + `tauri.conf.json`의 `generalAutofillEnabled: false`. 한글 `src/ime.ts`(첫 글자 지키기) + `src-tauri/src/ime.rs`(앞 창 확인·재시도·키 다시 보내기). 날짜 `journal.ts`의 `parseDate`.
+어디에 있나: 머릿기호 `src/bullets.ts`(규칙·저장·복사·크기 재기) + `src/BulletParts.tsx`(Mark·BulletView·BulletEditor), 저장 쪽 `complaints.rs`의 `lines()`가 줄 목록 JSON을 정리해요. 법정동 `src/paju.ts`(표) + `src/PlaceInputs.tsx`(지역·위치 칸). 자동입력 `src/autofill.ts` + `tauri.conf.json`의 `generalAutofillEnabled: false`. 한글 `src/ime.ts`(첫 글자 지키기) + `src-tauri/src/ime.rs`(앞 창 확인·재시도·키 다시 보내기). 날짜 `journal.ts`의 `parseDate`.
 
 ### 한글 기본 규칙
 - 모든 입력 칸의 기본은 한글이에요. 영어가 기본이어야 하는 칸(이메일, 암호, `data-ime="en"`)만 영어예요.

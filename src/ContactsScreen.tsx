@@ -1,7 +1,7 @@
 // 업무연락처 화면이에요. 시안 Contacts.dc.html과 사양서의 "업무연락처" 절을 따라요.
 import { KeyboardEvent, RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BLine, CYCLE, kindOf, nextLine, parseLines, stringifyLines, TRIGGERS, withKind } from "./bullets";
-import { BulletView, Mark } from "./Bullets";
+import { BulletView, Mark } from "./BulletParts";
 import { koIndex } from "./journal";
 import { useJamoGuard } from "./koInput";
 import { PhoneInput } from "./PhoneInput";
