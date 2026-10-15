@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, DEFAULT_PREFS, errorText, Prefs, Status } from "./api";
+import { measureBullets } from "./bullets";
 import ComplaintsScreen from "./ComplaintsScreen";
 import ContactsScreen from "./ContactsScreen";
 import Gate from "./Gate";
@@ -7,7 +8,7 @@ import JournalScreen from "./JournalScreen";
 import SettingsScreen from "./SettingsScreen";
 import { SCREENS, SETTINGS, ScreenId } from "./screens";
 
-const VERSION = "0.6.0";
+const VERSION = "0.6.1";
 
 export default function App() {
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
@@ -48,6 +49,9 @@ export default function App() {
     if (prefs.theme === "system") root.removeAttribute("data-theme");
     else root.setAttribute("data-theme", prefs.theme);
     root.style.setProperty("--fs", prefs.fontSize + "px");
+    // 머릿기호를 한글 글자 정중앙에, 들여쓰기를 띄어쓰기 두 칸에 맞추려고 그 PC 글꼴로 재요(글꼴을 다 읽은 뒤 한 번 더).
+    measureBullets(prefs.fontSize);
+    document.fonts?.ready.then(() => measureBullets(prefs.fontSize));
   }, [prefs.theme, prefs.fontSize]);
 
   const savePrefs = useCallback(async (p: Prefs) => {

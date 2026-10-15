@@ -292,6 +292,12 @@ fn set_ime(korean: bool) {
     ime::set_korean(korean);
 }
 
+/// 한글 칸에 영문 상태로 첫 글자가 들어오려 할 때 화면이 불러요. 한글로 바꾸고 그 키를 다시 보내요.
+#[tauri::command]
+fn ime_retype(vk: u16) {
+    ime::retype_korean(vk);
+}
+
 // ---------- 업무일지 ----------
 // 처음에 전체를 한 번 읽고, 바꾸는 명령은 바뀐 기록 하나(또는 머리 줄)만 돌려줘요.
 
@@ -430,7 +436,8 @@ pub fn run() {
             set_complaint_status,
             set_complaint_memo,
             delete_complaint,
-            set_ime
+            set_ime,
+            ime_retype
         ])
         .run(tauri::generate_context!())
         .expect("giLog를 시작하지 못했어요");

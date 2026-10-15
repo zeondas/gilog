@@ -155,7 +155,28 @@ function fakeComplaints(cmd: string, a: Record<string, unknown>): unknown {
     const t = new Date(y, m - 1, dd);
     return t.getFullYear() === y && t.getMonth() === m - 1 && t.getDate() === dd;
   };
-  const lines = (s: string) => s.split("\n").map((l) => l.trim()).filter(Boolean).join("\n");
+  // 저장 쪽 lines()와 같아요: 줄 목록(JSON)이면 줄마다 정리, 아니면 줄바꿈 글자.
+  const lines = (s: string) => {
+    const t = s.trim();
+    if (t.startsWith("[")) {
+      try {
+        const v = JSON.parse(t);
+        if (Array.isArray(v)) {
+          const kept = v
+            .filter((x) => x && typeof x.t === "string" && x.t.trim())
+            .map((x) => {
+              const o: Record<string, unknown> = { t: x.t.trim() };
+              for (const k of ["k", "lv", "b", "s"]) if (x[k] !== undefined) o[k] = x[k];
+              return o;
+            });
+          return kept.length ? JSON.stringify(kept) : "";
+        }
+      } catch {
+        /* 글자로 받아요 */
+      }
+    }
+    return s.split("\n").map((l) => l.trim()).filter(Boolean).join("\n");
+  };
   const clean = (c: ComplaintInput): ComplaintInput => {
     const body = lines(c.body);
     const received = c.received.trim();
@@ -431,6 +452,8 @@ export const api = {
 
   /** 윈도우 입력기를 한글(true) 또는 영문(false) 상태로 바꿔요. 앱 밖에서는 아무 일도 안 해요. */
   setIme: (korean: boolean) => (inApp ? invoke<null>("set_ime", { korean }) : Promise.resolve(null)),
+  /** 한글 칸에 영문으로 들어오려던 키(vk: A~Z 글자 번호)를 한글로 바꿔 다시 보내요. */
+  imeRetype: (vk: number) => (inApp ? invoke<null>("ime_retype", { vk }) : Promise.resolve(null)),
 };
 
 /** 실패 이름을 화면에 보여 줄 문장으로 바꿔요. */

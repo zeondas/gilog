@@ -1,5 +1,6 @@
 // 민원대장 화면이 쓰는 규칙들이에요. 화면 그리기와 떼어 두어 업무일지 "챙길 일"에서도 같이 써요.
 import type { Complaint } from "./api";
+import { plainOf } from "./bullets";
 import { parseMemo } from "./ContactsScreen";
 import { initials, isChosung, koIndex, splitJamo } from "./journal";
 import { DONE_STATUS } from "./settingsStore";
@@ -37,14 +38,12 @@ export function dueSoon(list: Complaint[], today: string, within = 7): Complaint
     .sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : a.no - b.no));
 }
 
-/** 여러 줄 글자를 줄 목록으로 */
-export const linesOf = (s: string) => s.split("\n").map((l) => l.trim()).filter(Boolean);
 
 /** 검색에 맞는지. 모든 칸과 메모를 보고, 민원인은 초성으로도, 번호는 줄표 없이도 찾아요. */
 export function matches(c: Complaint, q: string): boolean {
   if (!q) return true;
   const memo = parseMemo(c.memo).map((l) => l.t).join(" ");
-  const hay = [String(c.no), c.intake, c.received, c.ctype, c.area, c.place, c.person, c.phone, c.body, c.action, c.due, c.status, memo]
+  const hay = [String(c.no), c.intake, c.received, c.ctype, c.area, c.place, c.person, c.phone, plainOf(c.body), plainOf(c.action), c.due, c.status, memo]
     .join("\n")
     .toLowerCase();
   if (hay.includes(q)) return true;

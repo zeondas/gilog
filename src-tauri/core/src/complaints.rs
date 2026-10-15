@@ -89,7 +89,30 @@ fn bad(msg: &str) -> Error {
 }
 
 /// 여러 줄 글자를 정리해요. 줄마다 앞뒤 빈칸을 지우고 빈 줄은 빼요.
+///
+/// 0.6.1부터 화면은 머릿기호 규칙에 따라 줄 목록을 JSON으로 보내요: `[{"t":"글","k":"sq"}, ...]`
+/// (k: 머릿기호 종류, lv: 머릿기호 없는 줄의 단계, b·s: 굵게·취소선). 그 모양이면 줄마다 정리해 다시 써요.
+/// 예전 모양(줄바꿈으로 나눈 글자)도 그대로 받아요.
 fn lines(s: &str) -> String {
+    let trimmed = s.trim();
+    if trimmed.starts_with('[') {
+        if let Ok(serde_json::Value::Array(items)) = serde_json::from_str::<serde_json::Value>(trimmed) {
+            let kept: Vec<serde_json::Value> = items
+                .into_iter()
+                .filter_map(|v| {
+                    let mut o = v.as_object()?.clone();
+                    let t = o.get("t")?.as_str()?.trim().to_string();
+                    if t.is_empty() {
+                        return None;
+                    }
+                    o.insert("t".into(), serde_json::Value::String(t));
+                    o.retain(|k, _| matches!(k.as_str(), "t" | "k" | "lv" | "b" | "s"));
+                    Some(serde_json::Value::Object(o))
+                })
+                .collect();
+            return if kept.is_empty() { String::new() } else { serde_json::Value::Array(kept).to_string() };
+        }
+    }
     s.lines().map(str::trim).filter(|l| !l.is_empty()).collect::<Vec<_>>().join("\n")
 }
 
@@ -260,6 +283,21 @@ mod tests {
         assert_eq!(c.body, "포트홀 여러 개\n야간에 잘 안 보임");
         assert_eq!(c.action, "10/12 현장 확인\n10/14 긴급보수");
         assert!(s.complaints().unwrap().len() == 1);
+    }
+
+    #[test]
+    fn bullet_lines_are_cleaned() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut s = Store::create(tmp.path(), "abcd1234").unwrap();
+        let mut i = input(r#"[{"t":" 포트홀 ","k":"sq"},{"t":"  "},{"t":"야간","k":"ci","x":1},{"t":"이어 씀","k":"none","lv":1}]"#);
+        i.action = r#"[{"t":""}]"#.into();
+        let c = s.add_complaint(&i).unwrap();
+        assert_eq!(c.body, r#"[{"k":"sq","t":"포트홀"},{"k":"ci","t":"야간"},{"k":"none","lv":1,"t":"이어 씀"}]"#);
+        assert_eq!(c.action, "");
+        // 빈 줄만 있으면 내용이 없는 것이에요.
+        assert_eq!(s.add_complaint(&input(r#"[{"t":" "}]"#)).err().unwrap().code(), "invalid");
+        // JSON처럼 보여도 줄 목록이 아니면 글자로 받아요.
+        assert_eq!(s.add_complaint(&input("[참고] 현장 확인")).unwrap().body, "[참고] 현장 확인");
     }
 
     #[test]

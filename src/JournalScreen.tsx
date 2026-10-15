@@ -2,6 +2,7 @@
 // 누가 언제 무슨 말을 했는지 남기는 곳이라, 손을 키보드에서 떼지 않고 한 건을 끝낼 수 있게 만들었어요.
 import { KeyboardEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, Complaint, Contact, ContactsData, DayInfo, Entry, EntryInput, errorText, JournalData, Project } from "./api";
+import { firstLineOf } from "./bullets";
 import { daysLeft, ddayText, dueSoon, isUrgent } from "./complaints";
 import { copyText, Hl, projectColor } from "./ContactsScreen";
 import { PhoneInput } from "./PhoneInput";
@@ -297,7 +298,7 @@ function DueList({ list, today, urgentDays, onOpen }: { list: Complaint[]; today
     <div className="jn-due">
       {list.map((c) => {
         const n = daysLeft(c, today) ?? 0;
-        const title = [c.ctype, [c.area, c.place].filter(Boolean).join(" ")].filter(Boolean).join(" · ") || c.body.split("\n")[0];
+        const title = [c.ctype, [c.area, c.place].filter(Boolean).join(" ")].filter(Boolean).join(" · ") || firstLineOf(c.body);
         return (
           <button key={c.id} type="button" className="jn-due-item" title="민원대장에서 보기" onClick={() => onOpen?.(c.id)}>
             <span className={"jn-due-d" + (isUrgent(n, urgentDays) ? " urgent" : "")}>{ddayText(n)}</span>
@@ -329,7 +330,7 @@ function DateJump({ onGo }: { onGo: (d: string) => void }) {
     onGo(d);
   }
   return (
-    <label className={"jjump" + (bad ? " invalid" : "")} title="1014처럼 숫자 네 자리만 쳐도 올해 그 날로 가요. 10/14, 2026-10-14도 돼요.">
+    <label className={"jjump" + (bad ? " invalid" : "")} title="1014처럼 숫자 네 자리만 쳐도 올해 그 날로 가요. 261014, 10/14, 2026-10-14도 돼요.">
       <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="5" width="18" height="16" rx="2" />
         <path d="M3 10h18M8 3v4M16 3v4" />

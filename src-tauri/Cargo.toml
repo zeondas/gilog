@@ -1,6 +1,6 @@
 [package]
 name = "gilog"
-version = "0.6.0"
+version = "0.6.1"
 description = "giLog"
 edition = "2021"
 
@@ -21,4 +21,4 @@ keyring = { version = "3", features = ["windows-native"] }
 
 # 입력 칸에 들어갈 때 한글 입력기를 한글 상태로 바꾸는 데 써요.
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_UI_Input_Ime", "Win32_UI_WindowsAndMessaging"] }
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_UI_Input_Ime", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_WindowsAndMessaging"] }

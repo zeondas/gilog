@@ -45,7 +45,8 @@ export function dayLabel(date: string): string {
 }
 
 /**
- * 날짜 칸에 친 것을 날짜로 바꿔요. "1016"(올해), "10/16", "10.16", "2026-10-16", "2026.10.16", "20261016"을 받아요.
+ * 날짜 칸에 친 것을 날짜로 바꿔요. "1016"(올해), "10/16", "10.16", "2026-10-16", "2026.10.16", "20261016",
+ * 연도 앞 두 자리를 뺀 "261016", "26-10-16", "26.10.16", "26/10/16"을 받아요.
  * 읽을 수 없거나 없는 날이면 null이에요.
  */
 export function parseDate(v: string, year = new Date().getFullYear()): string | null {
@@ -56,6 +57,9 @@ export function parseDate(v: string, year = new Date().getFullYear()): string | 
   let r: RegExpExecArray | null;
   if ((r = /^(\d{4})[-./](\d{1,2})[-./](\d{1,2})$/.exec(s)) || (r = /^(\d{4})(\d{2})(\d{2})$/.exec(s))) {
     [y, m, d] = [Number(r[1]), Number(r[2]), Number(r[3])];
+  } else if ((r = /^(\d{2})[-./](\d{1,2})[-./](\d{1,2})$/.exec(s)) || (r = /^(\d{2})(\d{2})(\d{2})$/.exec(s))) {
+    // 연도 앞 두 자리를 뺀 것(261015, 26-10-15)은 2000년대로 읽어요.
+    [y, m, d] = [2000 + Number(r[1]), Number(r[2]), Number(r[3])];
   } else if ((r = /^(\d{1,2})[-./](\d{1,2})$/.exec(s)) || (r = /^(\d{2})(\d{2})$/.exec(s))) {
     [m, d] = [Number(r[1]), Number(r[2])];
   } else return null;

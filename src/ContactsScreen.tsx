@@ -1,5 +1,7 @@
 // 업무연락처 화면이에요. 시안 Contacts.dc.html과 사양서의 "업무연락처" 절을 따라요.
 import { KeyboardEvent, RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { BLine, CYCLE, kindOf, nextLine, parseLines, stringifyLines, TRIGGERS, withKind } from "./bullets";
+import { BulletView, Mark } from "./Bullets";
 import { koIndex } from "./journal";
 import { useJamoGuard } from "./koInput";
 import { PhoneInput } from "./PhoneInput";
@@ -7,25 +9,14 @@ import { finalizePhone } from "./phone";
 import { api, Contact, ContactInput, ContactsData, errorText, Project } from "./api";
 
 // ---------- 메모 ----------
+// 메모 한 줄은 머릿기호 규칙(bullets.ts)의 줄 모양이에요. b 굵게, s 취소선, k 머릿기호 종류.
 
-/** 메모 한 줄. b 굵게, s 취소선, nb 글머리 기호 없음. */
-export type MemoLine = { t: string; b?: boolean; s?: boolean; nb?: boolean };
+export type MemoLine = BLine;
 
-export function parseMemo(memo: string): MemoLine[] {
-  if (!memo) return [];
-  try {
-    const v = JSON.parse(memo);
-    if (Array.isArray(v)) return v.filter((l) => l && typeof l.t === "string");
-  } catch {
-    /* 예전 모양이면 줄마다 나눠요 */
-  }
-  return memo.split("\n").map((t) => ({ t }));
-}
+/** 저장된 메모를 줄 목록으로. 예전 모양(nb, 줄바꿈 글자)도 읽어요. */
+export const parseMemo = (memo: string): MemoLine[] => parseLines(memo);
 
-export function memoText(lines: MemoLine[]): string {
-  const kept = lines.filter((l) => l.t.trim());
-  return kept.length ? JSON.stringify(kept) : "";
-}
+export const memoText = (lines: MemoLine[]): string => stringifyLines(lines);
 
 // ---------- 프로젝트 색 ----------
 
@@ -598,14 +589,7 @@ function ViewCard({ contact: c, byId, q, asking, memoOpen, onEdit, onAsk, onRemo
           <MemoEditor initial={memo} onCancel={onMemoClose} onSave={onMemoSave} />
         ) : memo.length ? (
           <button type="button" className="memo-view" title="눌러서 메모 편집" onClick={onMemoOpen}>
-            {memo.map((m, i) => (
-              <span key={i} className="memo-line">
-                <span className="memo-dot" aria-hidden="true" style={{ visibility: m.nb ? "hidden" : undefined }} />
-                <span style={{ fontWeight: m.b ? 700 : undefined, textDecoration: m.s ? "line-through" : undefined }}>
-                  <Hl text={m.t} q={q} />
-                </span>
-              </span>
-            ))}
+            <BulletView lines={memo} render={(m) => <Hl text={m.t} q={q} />} />
           </button>
         ) : (
           <button type="button" className="memo-add" onClick={onMemoOpen}>
@@ -790,7 +774,9 @@ export function MemoEditor({
     setFocus(Math.max(0, Math.min(next.length - 1, f)));
   }
 
-  const toggle = (k: "b" | "s" | "nb") => edit((ls, i) => ((ls[i][k] = !ls[i][k]), ls));
+  const toggle = (k: "b" | "s") => edit((ls, i) => ((ls[i][k] = !ls[i][k]), ls));
+  /** 머릿기호 단추: 점 → 네모 → 동그라미 → 작대기 → 없음 */
+  const cycle = () => edit((ls, i) => ((ls[i] = withKind(ls[i], CYCLE[(CYCLE.indexOf(kindOf(ls[i])) + 1) % CYCLE.length])), ls));
   const swap = (d: -1 | 1) =>
     edit(
       (ls, i) => {
@@ -822,13 +808,23 @@ export function MemoEditor({
         (ls, i) => {
           const rest = ls[i].t.slice(at);
           ls[i].t = ls[i].t.slice(0, at);
-          ls.splice(i + 1, 0, { t: rest, nb: ls[i].nb });
+          ls.splice(i + 1, 0, nextLine(ls[i], rest));
           return ls;
         },
         (i) => i + 1,
       );
+    } else if (e.key === "Backspace" && inLine && input.selectionStart === 0 && input.selectionEnd === 0 && kindOf(cur) !== "none") {
+      // 머릿기호 규칙: 줄 맨 앞 Backspace는 먼저 머릿기호만 지워요.
+      e.preventDefault();
+      caret.current = 0;
+      edit((ls, i) => ((ls[i] = withKind(ls[i], "none")), ls));
+    } else if (e.key === " " && inLine && input.selectionStart === 1 && input.selectionEnd === 1 && TRIGGERS[cur.t[0]]) {
+      // 줄 맨 앞 "] " ") " "- " → 네모·동그라미·작대기
+      e.preventDefault();
+      caret.current = 0;
+      edit((ls, i) => ((ls[i] = { ...withKind(ls[i], TRIGGERS[ls[i].t[0]]), t: ls[i].t.slice(1) }), ls));
     } else if (e.key === "Backspace" && inLine && input.selectionStart === 0 && input.selectionEnd === 0 && focus > 0) {
-      // 줄 맨 앞에서 지우면 윗줄과 합쳐요.
+      // 머릿기호 없는 줄 맨 앞에서 한 번 더 지우면 윗줄과 합쳐요.
       e.preventDefault();
       caret.current = lines[focus - 1].t.length;
       edit(
@@ -860,7 +856,7 @@ export function MemoEditor({
         <button type="button" className="tb" aria-label="취소선" aria-pressed={!!cur.s} onClick={() => toggle("s")}>
           <s>가</s>
         </button>
-        <button type="button" className="tb" aria-label="글머리 기호" aria-pressed={!cur.nb} onClick={() => toggle("nb")}>
+        <button type="button" className="tb" aria-label="머릿기호 바꾸기 (점 → 네모 → 동그라미 → 작대기 → 없음)" title="머릿기호 바꾸기: 점 → 네모 → 동그라미 → 작대기 → 없음" aria-pressed={kindOf(cur) !== "none"} onClick={cycle}>
           <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <circle cx="5" cy="7" r="1.4" fill="currentColor" />
             <circle cx="5" cy="17" r="1.4" fill="currentColor" />
@@ -894,7 +890,7 @@ export function MemoEditor({
       <div className="memo-lines">
         {lines.map((l, i) => (
           <div key={i} className={"memo-row" + (i === focus ? " on" : "")}>
-            <span className="memo-dot" aria-hidden="true" style={{ visibility: l.nb ? "hidden" : undefined }} />
+            <Mark line={l} />
             <input
               data-line={i}
               aria-label={`메모 ${i + 1}번째 줄`}
@@ -912,7 +908,7 @@ export function MemoEditor({
         ))}
       </div>
       <div className="memo-foot">
-        <span className="hint">Enter 저장 · Ctrl+Enter 새 줄</span>
+        <span className="hint">Enter 저장 · Ctrl+Enter 새 줄 · 줄 맨 앞 ] ) - 와 스페이스로 머릿기호</span>
         <button type="button" className="btn btn-xs" onClick={onCancel}>
           취소
         </button>

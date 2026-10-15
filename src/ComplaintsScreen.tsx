@@ -9,10 +9,8 @@ import {
   KeyboardEvent,
   MouseEvent as ReactMouseEvent,
   ReactNode,
-  TextareaHTMLAttributes,
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -27,15 +25,17 @@ import {
   expandType,
   gridTemplate,
   isUrgent,
-  linesOf,
   matches,
   minWidth,
   readWidths,
 } from "./complaints";
+import { parseLines, plainOf, stringifyLines } from "./bullets";
+import { BulletEditor, BulletView } from "./Bullets";
 import { Hl, MemoEditor, memoText, parseMemo } from "./ContactsScreen";
 import { koIndex, parseDate, todayStr } from "./journal";
 import { useJamoGuard } from "./koInput";
 import { PhoneInput } from "./PhoneInput";
+import { AreaInput, PlaceInput } from "./PlaceInputs";
 import { finalizePhone } from "./phone";
 import { KEEP_STATUS, ListGroup } from "./SettingsScreen";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, Settings, statusColor } from "./settingsStore";
@@ -360,7 +360,7 @@ function normDates(d: Draft): { d: Draft; bad: Bad } {
   if (!r) bad.received = true;
   const due = d.due.trim() ? parseDate(d.due) : "";
   if (due === null) bad.due = true;
-  if (!linesOf(d.body).length) bad.body = true;
+  if (!plainOf(d.body).trim()) bad.body = true;
   return { d: { ...d, received: r ?? d.received, due: due ?? d.due }, bad };
 }
 
@@ -469,42 +469,6 @@ function TypeInput({ value, options, onChange }: { value: string; options: strin
   );
 }
 
-/** 여러 줄 칸. 글 길이에 맞춰 높이가 늘어요. Ctrl+Enter도 새 줄이에요(Shift+Enter는 원래 새 줄). */
-function Area({ value, onChange, className, ...rest }: Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "value" | "onChange"> & { value: string; onChange: (v: string) => void }) {
-  const ref = useRef<HTMLTextAreaElement>(null);
-  // Ctrl+Enter로 넣은 새 줄 뒤에 둘 커서 자리. 값이 바뀌어 그려지는 바로 그때 옮겨요(다음 글자보다 먼저).
-  const caret = useRef<number | null>(null);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.style.height = "0px";
-    el.style.height = el.scrollHeight + 2 + "px";
-    if (caret.current !== null) {
-      el.setSelectionRange(caret.current, caret.current);
-      caret.current = null;
-    }
-  }, [value]);
-  return (
-    <textarea
-      ref={ref}
-      rows={1}
-      {...rest}
-      className={"cell-input cm-area " + (className ?? "")}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !isComposing(e)) {
-          e.preventDefault();
-          const a = e.currentTarget.selectionStart;
-          const b = e.currentTarget.selectionEnd;
-          caret.current = a + 1;
-          onChange(value.slice(0, a) + "\n" + value.slice(b));
-        }
-      }}
-    />
-  );
-}
-
 /** 신규 줄과 고치는 줄이 함께 쓰는 칸 묶음 (사양서 순서, 연번과 메모 칸 빼고) */
 function Cells({
   d,
@@ -550,10 +514,10 @@ function Cells({
         <TypeInput value={d.ctype} options={lists.ctype} onChange={(ctype) => set({ ctype })} />
       </div>
       <div role="cell" className="cm-c">
-        <input name="area" aria-label="지역" placeholder="지역" className="cell-input" value={d.area} onChange={(e) => set({ area: e.target.value })} />
+        <AreaInput value={d.area} onChange={(area) => set({ area })} />
       </div>
       <div role="cell" className="cm-c">
-        <input name="place" aria-label="위치" placeholder="위치" className="cell-input" value={d.place} onChange={(e) => set({ place: e.target.value })} />
+        <PlaceInput value={d.place} onChange={(place) => set({ place })} onArea={(area) => set({ area })} />
       </div>
       <div role="cell" className="cm-c">
         <input name="person" aria-label="민원인" placeholder="민원인" className="cell-input" value={d.person} onChange={(e) => set({ person: e.target.value })} />
@@ -562,18 +526,17 @@ function Cells({
         <PhoneInput name="phone" aria-label="연락처" placeholder="연락처" className="cell-input num" value={d.phone} onChange={(phone) => set({ phone })} />
       </div>
       <div role="cell" className="cm-c">
-        <Area
+        <BulletEditor
           name="body"
-          aria-label="내용"
-          aria-invalid={bad.body || undefined}
-          className={bad.body ? "invalid" : ""}
+          label="내용"
+          invalid={bad.body}
           placeholder="민원 내용을 입력하고 Enter"
-          value={d.body}
-          onChange={(body) => set({ body })}
+          lines={parseLines(d.body)}
+          onChange={(ls) => set({ body: JSON.stringify(ls) })}
         />
       </div>
       <div role="cell" className="cm-c">
-        <Area name="action" aria-label="조치내용" placeholder="조치내용" value={d.action} onChange={(action) => set({ action })} />
+        <BulletEditor name="action" label="조치내용" placeholder="조치내용" lines={parseLines(d.action)} onChange={(ls) => set({ action: JSON.stringify(ls) })} />
       </div>
       <div role="cell" className="cm-c">
         <input
@@ -626,7 +589,7 @@ function useDraft(init: () => Draft) {
     setBad(b);
     const first = (["received", "body", "due"] as const).find((k) => b[k]);
     if (first) return { input: null, first };
-    return { input: { ...n, phone: finalizePhone(n.phone) } };
+    return { input: { ...n, phone: finalizePhone(n.phone), body: stringifyLines(parseLines(n.body)), action: stringifyLines(parseLines(n.action)) } };
   };
   return { d, setD, bad, setBad, set, onDateBlur, check };
 }
@@ -745,7 +708,8 @@ function EditRow({
 
   // 처음에 내용 칸에 커서를 둬요.
   useEffect(() => {
-    const el = ref.current?.querySelector<HTMLTextAreaElement>('[name="body"]');
+    const all = ref.current?.querySelectorAll<HTMLTextAreaElement>(".bl-ed")[0]?.querySelectorAll("textarea");
+    const el = all?.[all.length - 1];
     if (el) {
       el.focus();
       el.setSelectionRange(el.value.length, el.value.length);
@@ -806,7 +770,7 @@ function EditRow({
             <Trash />
           </button>
         )}
-        <span className="hint cm-edit-hint">Tab 다음 칸 · Enter 저장 · Shift+Enter 새 줄 · Esc 취소 · 바깥을 누르면 저장</span>
+        <span className="hint cm-edit-hint">Tab 다음 칸 · Enter 저장 · Shift+Enter 새 줄 · 줄 맨 앞 ] ) - 와 스페이스로 머릿기호 · Esc 취소 · 바깥을 누르면 저장</span>
         <button type="button" className="btn btn-xs" onClick={onCancel}>
           취소
         </button>
@@ -821,20 +785,7 @@ function EditRow({
 // ---------- 보기 줄 ----------
 
 function Bullets({ text, q }: { text: string; q: string }) {
-  const ls = linesOf(text);
-  if (!ls.length) return null;
-  return (
-    <div className="cm-bullets">
-      {ls.map((t, i) => (
-        <div key={i} className="cm-bullet">
-          <span className="cm-dot" aria-hidden="true" />
-          <span className="cm-bt">
-            <Hl text={t} q={q} />
-          </span>
-        </div>
-      ))}
-    </div>
-  );
+  return <BulletView className="cm-bullets" lines={parseLines(text)} render={(l) => <Hl text={l.t} q={q} />} />;
 }
 
 function ViewRow({
