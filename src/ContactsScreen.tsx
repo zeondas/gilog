@@ -1,5 +1,7 @@
 // 업무연락처 화면이에요. 시안 Contacts.dc.html과 사양서의 "업무연락처" 절을 따라요.
 import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { PhoneInput } from "./PhoneInput";
+import { finalizePhone } from "./phone";
 import { api, Contact, ContactInput, ContactsData, errorText, Project } from "./api";
 
 // ---------- 메모 ----------
@@ -265,7 +267,7 @@ function NewRow({ projects, onAdd }: { projects: Project[]; onAdd: (c: ContactIn
       return;
     }
     const { proj, ...rest } = v;
-    if (await onAdd({ ...rest, projects: splitProjects(proj) })) {
+    if (await onAdd({ ...rest, mobile: finalizePhone(rest.mobile), tel: finalizePhone(rest.tel), projects: splitProjects(proj) })) {
       setV({ ...EMPTY, proj: "" });
       setWarn(false);
       nameRef.current?.focus();
@@ -301,6 +303,16 @@ function NewRow({ projects, onAdd }: { projects: Project[]; onAdd: (c: ContactIn
           </div>
           {FIELDS.map((f) => (
             <div role="cell" key={f.key}>
+              {f.num ? (
+                <PhoneInput
+                  name={f.key}
+                  aria-label={f.label}
+                  placeholder={f.ph}
+                  className="cell-input num"
+                  value={v[f.key]}
+                  onChange={(x) => setV((old) => ({ ...old, [f.key]: x }))}
+                />
+              ) : (
               <input
                 ref={f.key === "name" ? nameRef : undefined}
                 name={f.key}
@@ -314,6 +326,7 @@ function NewRow({ projects, onAdd }: { projects: Project[]; onAdd: (c: ContactIn
                   setV({ ...v, [f.key]: e.target.value });
                 }}
               />
+              )}
             </div>
           ))}
           <div role="cell">
@@ -445,6 +458,22 @@ function ViewCard({ contact: c, byId, q, asking, memoOpen, onEdit, onAsk, onRemo
   const timer = useRef<number>();
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
+  // "이 연락처를 지울까요?"가 펼쳐진 동안 그 줄 바깥(다른 카드, 빈 곳 등)을 누르면 접어요.
+  const askRef = useRef<HTMLDivElement>(null);
+  const trashRef = useRef<HTMLButtonElement>(null);
+  const onAskRef = useRef(onAsk);
+  onAskRef.current = onAsk;
+  useEffect(() => {
+    if (!asking) return;
+    const down = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (askRef.current?.contains(t) || trashRef.current?.contains(t)) return;
+      onAskRef.current(false);
+    };
+    document.addEventListener("mousedown", down);
+    return () => document.removeEventListener("mousedown", down);
+  }, [asking]);
+
   const memo = parseMemo(c.memo);
   const lines = (
     [
@@ -480,7 +509,7 @@ function ViewCard({ contact: c, byId, q, asking, memoOpen, onEdit, onAsk, onRemo
             <button type="button" className="tool" aria-label={`${c.name} 고치기`} title="이 연락처 고치기" onClick={onEdit}>
               <Pencil />
             </button>
-            <button type="button" className="tool tool-danger" aria-label={`${c.name} 지우기`} title="이 연락처 지우기" onClick={() => onAsk(true)}>
+            <button type="button" className="tool tool-danger" aria-label={`${c.name} 지우기`} title="이 연락처 지우기" ref={trashRef} onClick={() => onAsk(!asking)}>
               <Trash />
             </button>
           </span>
@@ -491,7 +520,18 @@ function ViewCard({ contact: c, byId, q, asking, memoOpen, onEdit, onAsk, onRemo
           </div>
         )}
         {asking && (
-          <div className="ask-band" role="alertdialog" aria-label="연락처 지우기 확인">
+          <div
+            ref={askRef}
+            className="ask-band"
+            role="alertdialog"
+            aria-label="연락처 지우기 확인"
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                e.preventDefault();
+                onAsk(false);
+              }
+            }}
+          >
             <span>이 연락처를 지울까요?</span>
             <button type="button" className="btn btn-xs" autoFocus onClick={() => onAsk(false)}>
               취소
@@ -608,7 +648,7 @@ function EditCard({
       return;
     }
     const { proj, ...rest } = v;
-    onSave({ ...rest, projects: splitProjects(proj) });
+    onSave({ ...rest, mobile: finalizePhone(rest.mobile), tel: finalizePhone(rest.tel), projects: splitProjects(proj) });
   }
 
   // 바깥을 누르면 저장해요.
@@ -657,9 +697,9 @@ function EditCard({
       {field("org", "소속", "소속")}
       <div className="edit-grid">
         <span>무선</span>
-        {field("mobile", "무선", "010-", "num")}
+        <PhoneInput name="mobile" aria-label="무선" placeholder="010-" className="cell-input num" value={v.mobile} onChange={(x) => setV((old) => ({ ...old, mobile: x }))} />
         <span>유선</span>
-        {field("tel", "유선", "031-", "num")}
+        <PhoneInput name="tel" aria-label="유선" placeholder="031-" className="cell-input num" value={v.tel} onChange={(x) => setV((old) => ({ ...old, tel: x }))} />
         <span>메일</span>
         {field("email", "이메일", "이메일")}
         <span>프로젝트</span>
