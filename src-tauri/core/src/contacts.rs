@@ -246,10 +246,12 @@ impl Store {
         Ok(())
     }
 
-    /// 프로젝트를 지워요. 붙어 있던 사람은 남고 배지만 빠져요.
+    /// 프로젝트를 지워요. 붙어 있던 사람과 일지 기록은 남고 배지만 빠져요.
     pub fn delete_project(&mut self, id: i64) -> Result<()> {
         let tx = self.conn.transaction()?;
         tx.execute("DELETE FROM contact_projects WHERE project_id = ?1", params![id])?;
+        // 업무일지 기록에서도 그 프로젝트만 빠져요.
+        tx.execute("UPDATE journal_entries SET project_id = NULL WHERE project_id = ?1", params![id])?;
         tx.execute("DELETE FROM projects WHERE id = ?1", params![id])?;
         tx.commit()?;
         Ok(())

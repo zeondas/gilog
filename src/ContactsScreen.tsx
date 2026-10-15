@@ -48,7 +48,7 @@ const EMPTY: ContactInput = { name: "", org: "", role: "", mobile: "", tel: "", 
 const splitProjects = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
 
 /** 검색에 맞은 글자를 형광으로 칠해요. */
-function Hl({ text, q }: { text: string; q: string }) {
+export function Hl({ text, q }: { text: string; q: string }) {
   if (!q) return <>{text}</>;
   const lower = text.toLowerCase();
   const parts: React.ReactNode[] = [];
@@ -64,7 +64,7 @@ function Hl({ text, q }: { text: string; q: string }) {
   return <>{parts}</>;
 }
 
-async function copyText(value: string) {
+export async function copyText(value: string) {
   try {
     await navigator.clipboard.writeText(value);
     return;

@@ -66,6 +66,33 @@ export type Project = { id: number; name: string; color: number | null };
 
 export type ContactsData = { contacts: Contact[]; projects: Project[] };
 
+// ---------- 업무일지 ----------
+
+/** 대화 한 줄. me가 참이면 내가 한 말이에요. */
+export type JournalLine = { who: string; me: boolean; text: string };
+
+export type EntryInput = {
+  /** 2026-10-15 */
+  date: string;
+  /** 09:10 */
+  time: string;
+  kind: string;
+  /** 상대 (적은 글자 그대로, 여러 명은 쉼표) */
+  who: string;
+  /** 연락처 (번호나 메일) */
+  contact: string;
+  /** 업무연락처의 프로젝트 번호 */
+  project: number | null;
+  lines: JournalLine[];
+};
+
+export type Entry = EntryInput & { id: number };
+
+/** 날짜마다 하나 있는 머리 줄 */
+export type DayInfo = { date: string; arrive: string; transport: string; weather: string; note: string };
+
+export type JournalData = { days: DayInfo[]; entries: Entry[] };
+
 export const inApp = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 const fake = {
@@ -77,7 +104,51 @@ const fake = {
   projects: [] as Project[],
   nextId: 1,
   nextProjectId: 1,
+  days: [] as DayInfo[],
+  entries: [] as Entry[],
+  nextEntryId: 1,
 };
+
+// 브라우저 미리 보기용 업무일지 흉내예요. 저장 쪽(core/journal.rs)과 같은 규칙을 따라요.
+function fakeJournal(cmd: string, a: Record<string, unknown>): unknown {
+  const clean = (e: EntryInput): EntryInput => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(e.date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(e.time.trim())) throw "invalid";
+    const lines = e.lines.map((l) => ({ who: l.who.trim(), me: l.me, text: l.text.trim() })).filter((l) => l.text);
+    if (!lines.length) throw "invalid";
+    const project = e.project !== null && fake.projects.some((p) => p.id === e.project) ? e.project : null;
+    return { ...e, time: e.time.trim(), kind: e.kind.trim() || "메모", who: e.who.trim(), contact: e.contact.trim(), project, lines };
+  };
+  switch (cmd) {
+    case "journal_data": {
+      const entries = [...fake.entries].sort((x, y) =>
+        x.date !== y.date ? (x.date < y.date ? 1 : -1) : x.time !== y.time ? (x.time < y.time ? 1 : -1) : y.id - x.id,
+      );
+      return { days: fake.days.map((d) => ({ ...d })), entries: structuredClone(entries) };
+    }
+    case "add_journal_entry": {
+      const e = { id: fake.nextEntryId++, ...clean(a.entry as EntryInput) };
+      fake.entries.push(e);
+      return structuredClone(e);
+    }
+    case "update_journal_entry": {
+      const i = fake.entries.findIndex((x) => x.id === a.id);
+      if (i < 0) throw "not_found";
+      fake.entries[i] = { id: a.id as number, ...clean(a.entry as EntryInput) };
+      return structuredClone(fake.entries[i]);
+    }
+    case "delete_journal_entry":
+      fake.entries = fake.entries.filter((x) => x.id !== a.id);
+      return null;
+    case "set_journal_day": {
+      const d = a.day as DayInfo;
+      const t: DayInfo = { date: d.date, arrive: d.arrive.trim(), transport: d.transport.trim(), weather: d.weather.trim(), note: d.note.trim() };
+      fake.days = fake.days.filter((x) => x.date !== t.date);
+      if (t.arrive || t.transport || t.weather || t.note) fake.days.push(t);
+      return t;
+    }
+  }
+  return undefined;
+}
 
 // 브라우저 미리 보기용 연락처 흉내예요. 저장 쪽(core/contacts.rs)과 같은 규칙을 따라요.
 function fakeContacts(cmd: string, a: Record<string, unknown>): ContactsData | null {
@@ -141,6 +212,7 @@ function fakeContacts(cmd: string, a: Record<string, unknown>): ContactsData | n
     }
     case "delete_project":
       fake.projects = fake.projects.filter((x) => x.id !== a.id);
+      fake.entries.forEach((e) => e.project === a.id && (e.project = null));
       fake.contacts.forEach((c) => (c.projects = c.projects.filter((id) => id !== a.id)));
       return data();
   }
@@ -153,6 +225,11 @@ function fakeCall(cmd: string, args: Record<string, unknown>): unknown {
     if (!fake.unlocked) throw "locked";
     const r = fakeContacts(cmd, args);
     if (r) return r;
+  }
+  if (cmd.includes("journal")) {
+    if (!fake.unlocked) throw "locked";
+    const r = fakeJournal(cmd, args);
+    if (r !== undefined) return r;
   }
   switch (cmd) {
     case "get_prefs":
@@ -237,6 +314,12 @@ export const api = {
   addProject: (name: string) => call<ContactsData>("add_project", { name }),
   setProjectColor: (id: number, color: number | null) => call<ContactsData>("set_project_color", { id, color }),
   deleteProject: (id: number) => call<ContactsData>("delete_project", { id }),
+
+  journalData: () => call<JournalData>("journal_data"),
+  addEntry: (entry: EntryInput) => call<Entry>("add_journal_entry", { entry }),
+  updateEntry: (id: number, entry: EntryInput) => call<Entry>("update_journal_entry", { id, entry }),
+  deleteEntry: (id: number) => call<null>("delete_journal_entry", { id }),
+  setDay: (day: DayInfo) => call<DayInfo>("set_journal_day", { day }),
 };
 
 /** 실패 이름을 화면에 보여 줄 문장으로 바꿔요. */

@@ -13,7 +13,9 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
 mod contacts;
+mod journal;
 pub use contacts::{Contact, ContactInput, ContactsData, Project, PROJECT_COLORS};
+pub use journal::{DayInfo, Entry, EntryInput, JournalData, JournalLine};
 
 const DB_FILE: &str = "gilog.db";
 const META_FILE: &str = "gilog.key.json";
@@ -192,6 +194,7 @@ impl Store {
             );",
         )?;
         self.conn.execute_batch(contacts::SCHEMA)?;
+        self.conn.execute_batch(journal::SCHEMA)?;
         Ok(())
     }
 

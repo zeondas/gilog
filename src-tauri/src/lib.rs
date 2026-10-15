@@ -2,7 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use gilog_core::{ContactInput, ContactsData, Store};
+use gilog_core::{ContactInput, ContactsData, DayInfo, Entry, EntryInput, JournalData, Store};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 
@@ -282,6 +282,34 @@ fn delete_project(state: State<AppState>, id: i64) -> Result<ContactsData, Strin
     })
 }
 
+// ---------- 업무일지 ----------
+// 처음에 전체를 한 번 읽고, 바꾸는 명령은 바뀐 기록 하나(또는 머리 줄)만 돌려줘요.
+
+#[tauri::command]
+fn journal_data(state: State<AppState>) -> Result<JournalData, String> {
+    with_store(&state, |s| s.journal_data())
+}
+
+#[tauri::command]
+fn add_journal_entry(state: State<AppState>, entry: EntryInput) -> Result<Entry, String> {
+    with_store(&state, |s| s.add_entry(&entry))
+}
+
+#[tauri::command]
+fn update_journal_entry(state: State<AppState>, id: i64, entry: EntryInput) -> Result<Entry, String> {
+    with_store(&state, |s| s.update_entry(id, &entry))
+}
+
+#[tauri::command]
+fn delete_journal_entry(state: State<AppState>, id: i64) -> Result<(), String> {
+    with_store(&state, |s| s.delete_entry(id))
+}
+
+#[tauri::command]
+fn set_journal_day(state: State<AppState>, day: DayInfo) -> Result<DayInfo, String> {
+    with_store(&state, |s| s.set_day(&day))
+}
+
 // ---------- 백업과 저장 위치 ----------
 
 #[tauri::command]
@@ -347,7 +375,12 @@ pub fn run() {
             delete_contact,
             add_project,
             set_project_color,
-            delete_project
+            delete_project,
+            journal_data,
+            add_journal_entry,
+            update_journal_entry,
+            delete_journal_entry,
+            set_journal_day
         ])
         .run(tauri::generate_context!())
         .expect("giLog를 시작하지 못했어요");
