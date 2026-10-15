@@ -2358,3 +2358,19 @@ mark {
 .rte-area > div {
   margin: 0 0 4px;
 }
+
+/* 메모 정렬 (가운데 · 오른쪽). 표 칸에도 같은 이름을 써요. */
+.rte-area .al-c,
+.rte-view .al-c {
+  text-align: center;
+}
+
+.rte-area .al-r,
+.rte-view .al-r {
+  text-align: right;
+}
+
+.rte-area td > :is(div, p),
+.rte-view td > p {
+  margin: 0;
+}

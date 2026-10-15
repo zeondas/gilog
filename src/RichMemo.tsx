@@ -12,6 +12,7 @@ const KEEP: Record<string, string> = {
   UL: "ul", OL: "ol", LI: "li", BLOCKQUOTE: "blockquote", BR: "br",
   TABLE: "table", TBODY: "tbody", THEAD: "tbody", TFOOT: "tbody", TR: "tr", TD: "td", TH: "td",
 };
+const ALIGNABLE = new Set(["p", "h3", "li", "blockquote", "td"]);
 const DROP = new Set(["SCRIPT", "STYLE", "META", "LINK", "TITLE", "HEAD", "IMG", "SVG", "IFRAME", "OBJECT", "COLGROUP", "COL"]);
 
 function clean(node: Node, out: Node, doc: Document) {
@@ -26,6 +27,13 @@ function clean(node: Node, out: Node, doc: Document) {
     const tag = KEEP[el.tagName];
     if (!tag) return clean(el, out, doc);
     const copy = doc.createElement(tag);
+    // 정렬만 남겨요(가운데 al-c, 오른쪽 al-r). 속성에 적힌 정렬이 붙은 이름보다 먼저예요.
+    if (ALIGNABLE.has(tag)) {
+      const st = (el as HTMLElement).style?.textAlign || el.getAttribute("align") || "";
+      const a = st ? st : el.classList.contains("al-c") ? "center" : el.classList.contains("al-r") ? "right" : "";
+      if (a === "center") copy.className = "al-c";
+      else if (a === "right" || a === "end") copy.className = "al-r";
+    }
     out.appendChild(copy);
     clean(el, copy, doc);
   });
@@ -91,7 +99,7 @@ const BLOCKS = new Set(["DIV", "P", "H3", "UL", "OL", "BLOCKQUOTE", "TABLE"]);
 /** 저장된 HTML을 편집기 모양으로 바꿔요. */
 function toEditing(html: string): string {
   const s = sanitize(html);
-  return s ? s.replace(/<p>/g, "<div>").replace(/<\/p>/g, "</div>") : EMPTY;
+  return s ? s.replace(/<p([\s>])/g, "<div$1").replace(/<\/p>/g, "</div>") : EMPTY;
 }
 
 /**
@@ -131,8 +139,9 @@ function normalize(root: HTMLElement) {
   }
 }
 
-type Fmt = { b: boolean; i: boolean; u: boolean; s: boolean; block: string; ul: boolean; ol: boolean; inTable: boolean };
-const NO_FMT: Fmt = { b: false, i: false, u: false, s: false, block: "p", ul: false, ol: false, inTable: false };
+type Align = "left" | "center" | "right";
+type Fmt = { b: boolean; i: boolean; u: boolean; s: boolean; block: string; ul: boolean; ol: boolean; inTable: boolean; align: Align };
+const NO_FMT: Fmt = { b: false, i: false, u: false, s: false, block: "p", ul: false, ol: false, inTable: false, align: "left" };
 
 const cmd = (name: string, value?: string) => document.execCommand(name, false, value);
 
@@ -179,6 +188,10 @@ export function MemoEditor({
         ul: !!el.closest("ul"),
         ol: !!el.closest("ol"),
         inTable: !!el.closest("td"),
+        align: ((): Align => {
+          const a = getComputedStyle(blockEl ?? el).textAlign;
+          return a === "center" ? "center" : a === "right" || a === "end" ? "right" : "left";
+        })(),
       });
     };
     document.addEventListener("selectionchange", update);
@@ -198,6 +211,30 @@ export function MemoEditor({
     cmd(name, value);
     changed();
   };
+
+  /**
+   * 정렬. 표 안이면 커서가 있는 칸(여러 칸을 골랐으면 그 칸들 모두)에 적용해요. 그 밖에는 고른 문단에 적용해요.
+   */
+  function align(a: Align) {
+    const root = area.current;
+    if (!root) return;
+    const sel = document.getSelection();
+    const cells = [...root.querySelectorAll("td")].filter((td) => sel?.containsNode(td, true));
+    if (cells.length) {
+      root.focus();
+      for (const td of cells) {
+        // 칸 안 문단에 따로 붙은 정렬은 지우고 칸에 맞춰요.
+        td.querySelectorAll<HTMLElement>("[style]").forEach((x) => x.style.removeProperty("text-align"));
+        td.querySelectorAll(".al-c, .al-r").forEach((x) => x.classList.remove("al-c", "al-r"));
+        td.style.textAlign = a === "left" ? "" : a;
+        if (!td.getAttribute("style")) td.removeAttribute("style");
+      }
+      changed();
+      setFmt((f) => ({ ...f, align: a }));
+      return;
+    }
+    run(a === "center" ? "justifyCenter" : a === "right" ? "justifyRight" : "justifyLeft");
+  }
 
   /** 문단 모양: 같은 것을 다시 누르면 본문으로 돌아가요. */
   const block = (tag: "p" | "h3" | "blockquote") => {
@@ -381,6 +418,22 @@ export function MemoEditor({
         <B label="내어쓰기 (목록에서 Shift+Tab)" onClick={() => run("outdent")}>
           <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M10 6h10M10 12h10M10 18h10M6 9l-3 3 3 3" />
+          </svg>
+        </B>
+        <span className="rte-sep" />
+        <B label="왼쪽 정렬" on={fmt.align === "left"} onClick={() => align("left")}>
+          <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M4 6h16M4 10h10M4 14h16M4 18h10" />
+          </svg>
+        </B>
+        <B label="가운데 정렬" on={fmt.align === "center"} onClick={() => align("center")}>
+          <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M4 6h16M7 10h10M4 14h16M7 18h10" />
+          </svg>
+        </B>
+        <B label="오른쪽 정렬" on={fmt.align === "right"} onClick={() => align("right")}>
+          <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M4 6h16M10 10h10M4 14h16M10 18h10" />
           </svg>
         </B>
         <span className="rte-sep" />

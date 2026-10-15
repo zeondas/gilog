@@ -64,10 +64,19 @@ export function parseDate(v: string, year = new Date().getFullYear()): string | 
   return todayStr(t);
 }
 
+/**
+ * 한글 입력기가 자음 둘을 겹자음으로 묶은 것을 풀어요("ㄳ" → "ㄱㅅ", "ㅄ" → "ㅂㅅ").
+ * 초성 단축키(ㄱㅅ 구두수신)와 초성 찾기가 입력기 때문에 어긋나지 않게 해요. 된소리(ㄲ 등)는 그대로예요.
+ */
+const SPLIT: Record<string, string> = {
+  ㄳ: "ㄱㅅ", ㄵ: "ㄴㅈ", ㄶ: "ㄴㅎ", ㄺ: "ㄹㄱ", ㄻ: "ㄹㅁ", ㄼ: "ㄹㅂ", ㄽ: "ㄹㅅ", ㄾ: "ㄹㅌ", ㄿ: "ㄹㅍ", ㅀ: "ㄹㅎ", ㅄ: "ㅂㅅ",
+};
+export const splitJamo = (s: string) => s.replace(/[ㄳㄵㄶㄺㄻㄼㄽㄾㄿㅀㅄ]/g, (c) => SPLIT[c]);
+
 /** 초성 단축키를 구분 이름으로 바꿔요. 맞는 것이 없으면 적은 그대로예요. */
 export function expandKind(v: string, kinds: Kind[]): string {
-  const s = v.trim();
-  return kinds.find((k) => k.key && k.key === s)?.name ?? s;
+  const s = splitJamo(v.trim());
+  return kinds.find((k) => k.key && splitJamo(k.key) === s)?.name ?? s;
 }
 
 // ---------- 초성 ----------
@@ -81,6 +90,7 @@ function cho(ch: string): string {
 }
 
 export const isChosung = (s: string) => /^[ㄱ-ㅎ]+$/.test(s);
+// (겹자음은 splitJamo로 풀어서 봐요)
 
 /** 이름 전체의 초성 ("박지훈" → "ㅂㅈㅎ") */
 export const initials = (s: string) => [...s].map(cho).join("");
@@ -91,7 +101,7 @@ export const initials = (s: string) => [...s].map(cho).join("");
  */
 export function koIndex(text: string, q: string): number {
   const t = [...text];
-  const p = [...q];
+  const p = [...splitJamo(q)];
   if (!p.length) return 0;
   outer: for (let i = 0; i + p.length <= t.length; i++) {
     for (let j = 0; j < p.length; j++) {
@@ -140,8 +150,8 @@ export function findContact(segment: string, contacts: Contact[]): Contact | nul
   const byName = contacts.filter((c) => c.name === s);
   if (byName.length === 1) return byName[0];
   // 초성만 쳤으면 이름 초성이 똑같은 사람이 한 명일 때 그 사람이에요.
-  if (isChosung(s)) {
-    const byCho = contacts.filter((c) => initials(c.name) === s);
+  if (isChosung(splitJamo(s))) {
+    const byCho = contacts.filter((c) => initials(c.name) === splitJamo(s));
     if (byCho.length === 1) return byCho[0];
   }
   return null;

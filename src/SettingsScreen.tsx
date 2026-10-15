@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { api, DEFAULT_PREFS, errorText, inApp, Prefs, Status } from "./api";
+import { splitJamo } from "./journal";
 import { DEFAULT_SETTINGS, Kind, loadSettings, MEMO_KIND, saveSettings, Settings, STATUS_COLORS } from "./settingsStore";
 import { SCREENS } from "./screens";
 
@@ -346,7 +347,8 @@ function KindsGroup({ kinds, onChange }: { kinds: Kind[]; onChange: (k: Kind[]) 
   function add() {
     const n = name.trim();
     if (!n || kinds.some((k) => k.name === n)) return;
-    onChange([...kinds, { name: n, key: key.trim() }]);
+    // 초성은 겹자음(ㄳ)으로 묶이지 않게 풀어서 저장해요.
+    onChange([...kinds, { name: n, key: splitJamo(key.trim()) }]);
     setName("");
     setKey("");
   }

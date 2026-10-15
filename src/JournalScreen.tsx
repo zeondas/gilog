@@ -23,6 +23,7 @@ import {
   normTime,
   nowHM,
   resolveDraft,
+  splitJamo,
   sameSpeaker,
   sortEntries,
   Speaker,
@@ -469,12 +470,13 @@ function WhoInput({
   const segs = value.split(",");
   const last = segs[segs.length - 1].trim();
   const lastLc = last.toLowerCase();
-  // 이름은 초성으로도 찾아요("ㅂㅈㅎ", "박ㅈ"). 소속·직위는 글자 그대로 찾아요.
+  // 이름은 초성으로도 찾아요("ㅂㅈㅎ", "박ㅈ"). 소속·직위는 글자 그대로 찾아요. 겹자음(ㅄ)은 풀어서 봐요.
   const nameAt = (c: Contact) => koIndex(c.name, last);
+  const lastCho = splitJamo(last);
   const options = lastLc
     ? contacts
-        .filter((c) => contactLabel(c) !== last && (nameAt(c) >= 0 || (!isChosung(last) && [c.org, c.role].some((s) => s.toLowerCase().includes(lastLc)))))
-        .sort((a, b) => Number(nameAt(b) === 0) - Number(nameAt(a) === 0) || Number(initials(a.name) !== last) - Number(initials(b.name) !== last))
+        .filter((c) => contactLabel(c) !== last && (nameAt(c) >= 0 || (!isChosung(lastCho) && [c.org, c.role].some((s) => s.toLowerCase().includes(lastLc)))))
+        .sort((a, b) => Number(nameAt(b) === 0) - Number(nameAt(a) === 0) || Number(initials(a.name) !== lastCho) - Number(initials(b.name) !== lastCho))
         .slice(0, 8)
     : [];
   const show = open && options.length > 0;
@@ -777,7 +779,8 @@ function NewCard({ date, ctx, onAdd }: { date: string; ctx: Ctx; onAdd: (e: Entr
           className="cell-input"
           title={"초성 단축키: " + ctx.kinds.slice(0, 4).map((k) => `${k.key} ${k.name}`).join(", ") + " …"}
           value={kind}
-          onChange={(e) => setKind(e.target.value)}
+          onChange={(e) => setKind((e.nativeEvent as InputEvent).isComposing ? e.target.value : splitJamo(e.target.value))}
+          onCompositionEnd={(e) => setKind(splitJamo(e.currentTarget.value))}
           onBlur={() => {
             const k = expandKind(kind, ctx.kinds);
             if (k !== kind) setKind(k);
@@ -1257,7 +1260,8 @@ function EditCard({
           autoComplete="off"
           className="cell-input"
           value={kind}
-          onChange={(ev) => setKind(ev.target.value)}
+          onChange={(ev) => setKind((ev.nativeEvent as InputEvent).isComposing ? ev.target.value : splitJamo(ev.target.value))}
+          onCompositionEnd={(ev) => setKind(splitJamo(ev.currentTarget.value))}
           onBlur={() => {
             const k = expandKind(kind, ctx.kinds);
             if (k !== kind) setKind(k);
