@@ -698,20 +698,20 @@ mark {
 }
 
 /* 신규 입력 줄 */
-/* 고르기 목록이 잘리지 않게 넘침을 숨기지 않아요. 좁은 창에서는 본문이 옆으로 밀려요. */
+/* 고르기 목록이 잘리지 않게 넘침을 숨기지 않아요. 칸 폭은 창 폭에 맞춰 늘고 줄어요. */
 .ct-new {
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
 }
 
 .ct-new-in {
-  min-width: 1150px;
+  min-width: 0;
 }
 
 .ct-new-head,
 .ct-new-row {
   display: grid;
-  grid-template-columns: 52px 110px minmax(140px, 1fr) 100px 150px 150px minmax(180px, 1fr) 170px 48px;
+  grid-template-columns: 44px minmax(64px, 1.1fr) minmax(80px, 2.2fr) minmax(56px, 0.9fr) minmax(112px, 1.4fr) minmax(112px, 1.4fr) minmax(88px, 2.4fr) minmax(96px, 1.6fr) 40px;
   align-items: center;
 }
 
