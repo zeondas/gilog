@@ -783,11 +783,12 @@ function MemoEditor({ initial, onCancel, onSave }: { initial: MemoLine[]; onCanc
     if (e.key === "Escape") {
       e.preventDefault();
       onCancel();
-    } else if (e.key === "Enter" && mod) {
+    } else if (e.key === "Enter" && inLine && !mod && !e.shiftKey) {
+      // Enter는 저장이에요 (사용자가 정함: Enter 저장, Ctrl+Enter 새 줄).
       e.preventDefault();
       onSave(lines);
     } else if (e.key === "Enter" && inLine) {
-      // 커서 뒤의 글은 새 줄로 넘겨요.
+      // Ctrl+Enter(또는 Shift+Enter)는 새 줄. 커서 뒤의 글은 새 줄로 넘겨요.
       e.preventDefault();
       const at = input.selectionStart ?? input.value.length;
       caret.current = 0;
@@ -885,7 +886,7 @@ function MemoEditor({ initial, onCancel, onSave }: { initial: MemoLine[]; onCanc
         ))}
       </div>
       <div className="memo-foot">
-        <span className="hint">Enter 새 줄 · Ctrl+Enter 저장</span>
+        <span className="hint">Enter 저장 · Ctrl+Enter 새 줄</span>
         <button type="button" className="btn btn-xs" onClick={onCancel}>
           취소
         </button>
