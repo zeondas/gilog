@@ -26,9 +26,9 @@ export function projectColor(p: Project): number {
   return p.color ?? (p.id - 1) % COLOR_NAMES.length;
 }
 
-function pjStyle(p: Project) {
+export function pjStyle(p: Project) {
   const k = projectColor(p);
-  return { background: `var(--pj-${k}-bg)`, color: `var(--pj-${k}-fg)` };
+  return { background: `var(--pj-${k}-bg)`, color: `var(--pj-${k}-fg)`, boxShadow: `inset 0 0 0 1px var(--pj-${k}-line)` };
 }
 
 // ---------- 공통 ----------
@@ -174,7 +174,7 @@ export default function ContactsScreen() {
         </button>
         {projects.map((p) => (
           <button key={p.id} type="button" className="pchip" aria-pressed={sel === p.id} onClick={() => setSel(p.id)}>
-            <span className="pchip-dot" aria-hidden="true" style={{ background: sel === p.id ? undefined : `var(--pj-${projectColor(p)}-fg)` }} />
+            <span className="pchip-dot" aria-hidden="true" style={{ background: sel === p.id ? undefined : `var(--pj-${projectColor(p)}-line)` }} />
             <span>{p.name}</span>
             <span className="pchip-n">{all.filter((c) => c.projects.includes(p.id)).length}</span>
           </button>
@@ -588,7 +588,7 @@ function ViewCard({ contact: c, byId, q, asking, memoOpen, onEdit, onAsk, onRemo
         {memoOpen ? (
           <MemoEditor initial={memo} onCancel={onMemoClose} onSave={onMemoSave} />
         ) : memo.length ? (
-          <button type="button" className="memo-view" title="눌러서 메모 편집" onClick={onMemoOpen}>
+          <button type="button" className="memo-view" title="두 번 눌러서 메모 편집" onDoubleClick={onMemoOpen} onKeyDown={(e) => e.key === "Enter" && onMemoOpen()}>
             <BulletView lines={memo} render={(m) => <Hl text={m.t} q={q} />} />
           </button>
         ) : (
@@ -775,7 +775,7 @@ export function MemoEditor({
   }
 
   const toggle = (k: "b" | "s") => edit((ls, i) => ((ls[i][k] = !ls[i][k]), ls));
-  /** 머릿기호 단추: 점 → 네모 → 동그라미 → 작대기 → 없음 */
+  /** 머릿기호 단추: 네모 → 동그라미 → 작대기 → 없음 */
   const cycle = () => edit((ls, i) => ((ls[i] = withKind(ls[i], CYCLE[(CYCLE.indexOf(kindOf(ls[i])) + 1) % CYCLE.length])), ls));
   const swap = (d: -1 | 1) =>
     edit(
@@ -856,7 +856,7 @@ export function MemoEditor({
         <button type="button" className="tb" aria-label="취소선" aria-pressed={!!cur.s} onClick={() => toggle("s")}>
           <s>가</s>
         </button>
-        <button type="button" className="tb" aria-label="머릿기호 바꾸기 (점 → 네모 → 동그라미 → 작대기 → 없음)" title="머릿기호 바꾸기: 점 → 네모 → 동그라미 → 작대기 → 없음" aria-pressed={kindOf(cur) !== "none"} onClick={cycle}>
+        <button type="button" className="tb" aria-label="머릿기호 바꾸기 (네모 → 동그라미 → 작대기 → 없음)" title="머릿기호 바꾸기: 네모 → 동그라미 → 작대기 → 없음" aria-pressed={kindOf(cur) !== "none"} onClick={cycle}>
           <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <circle cx="5" cy="7" r="1.4" fill="currentColor" />
             <circle cx="5" cy="17" r="1.4" fill="currentColor" />
@@ -980,23 +980,12 @@ function ProjectDialog({
                     {p.name}
                   </span>
                 </div>
-                <div className="swatches" role="radiogroup" aria-label={`${p.name} 색`}>
-                  {COLOR_NAMES.map((cn, j) => (
-                    <button
-                      key={j}
-                      type="button"
-                      role="radio"
-                      className="swatch"
-                      aria-label={`${p.name} 색: ${cn}`}
-                      aria-checked={j === k}
-                      style={{ background: `var(--pj-${j}-fg)`, color: `var(--pj-${j}-fg)` }}
-                      onClick={() => run(api.setProjectColor(p.id, j))}
-                    />
-                  ))}
-                </div>
-                <button type="button" className="btn btn-xs" aria-pressed={p.color === null} onClick={() => run(api.setProjectColor(p.id, null))}>
-                  자동
-                </button>
+                <ColorPick
+                  name={p.name}
+                  current={k}
+                  auto={p.color === null}
+                  onPick={(c) => run(api.setProjectColor(p.id, c))}
+                />
                 <button type="button" className="tool-box" aria-label={`${p.name} 지우기`} title="이 프로젝트 지우기" onClick={() => setAsk(p.id)}>
                   <Trash />
                 </button>
@@ -1049,6 +1038,75 @@ function ProjectDialog({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ---------- 색 고르기 ----------
+
+/** 색 단추. 누르면 8색과 "자동"이 펼쳐져요(0.6.2, 사용자가 정함). Esc나 바깥을 누르면 닫혀요. */
+function ColorPick({ name, current, auto, onPick }: { name: string; current: number; auto: boolean; onPick: (c: number | null) => void }) {
+  const [open, setOpen] = useState(false);
+  // 관리 창 안이 스크롤되는 상자라 목록이 잘리지 않게 화면 기준 자리에 띄워요.
+  const [at, setAt] = useState<{ top: number; left: number } | null>(null);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const r = box.current?.getBoundingClientRect();
+    if (r) setAt({ top: r.bottom + 4, left: r.left });
+    const down = (e: MouseEvent) => {
+      if (!box.current?.contains(e.target as Node)) setOpen(false);
+    };
+    // 창 전체의 Esc(관리 창 닫기)보다 먼저 받아서 펼친 목록만 닫아요.
+    const key = (e: globalThis.KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", down);
+    window.addEventListener("keydown", key, true);
+    return () => {
+      document.removeEventListener("mousedown", down);
+      window.removeEventListener("keydown", key, true);
+    };
+  }, [open]);
+  const pick = (c: number | null) => {
+    setOpen(false);
+    onPick(c);
+  };
+  return (
+    <div className="cpick" ref={box}>
+      <button type="button" className="btn btn-xs cpick-btn" aria-haspopup="true" aria-expanded={open} aria-label={`${name} 색 고르기`} onClick={() => setOpen(!open)}>
+        <span className="cpick-dot" style={{ background: `var(--pj-${current}-line)` }} aria-hidden="true" />
+        {auto ? "자동" : COLOR_NAMES[current]}
+        <svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {open && (
+        <div className="cpick-pop" role="radiogroup" aria-label={`${name} 색`} style={at ? { top: at.top, left: at.left } : { visibility: "hidden" }}>
+          <div className="cpick-grid">
+            {COLOR_NAMES.map((cn, j) => (
+              <button
+                key={j}
+                type="button"
+                role="radio"
+                className="swatch"
+                aria-label={`${name} 색: ${cn}`}
+                aria-checked={!auto && j === current}
+                title={cn}
+                style={{ background: `var(--pj-${j}-line)`, color: `var(--pj-${j}-line)` }}
+                onClick={() => pick(j)}
+              />
+            ))}
+          </div>
+          <button type="button" className="btn btn-xs cpick-auto" aria-pressed={auto} onClick={() => pick(null)}>
+            자동 (번호 순서대로)
+          </button>
+        </div>
+      )}
     </div>
   );
 }

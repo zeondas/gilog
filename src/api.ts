@@ -256,6 +256,14 @@ function fakeJournal(cmd: string, a: Record<string, unknown>): unknown {
     case "delete_journal_entry":
       fake.entries = fake.entries.filter((x) => x.id !== a.id);
       return null;
+    case "delete_journal_day": {
+      const date = a.date as string;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw "invalid";
+      const n = fake.entries.filter((x) => x.date === date).length;
+      fake.entries = fake.entries.filter((x) => x.date !== date);
+      fake.days = fake.days.filter((x) => x.date !== date);
+      return n;
+    }
     case "set_journal_day": {
       const d = a.day as DayInfo;
       const t: DayInfo = { date: d.date, arrive: d.arrive.trim(), transport: d.transport.trim(), weather: d.weather.trim(), note: d.note.trim() };
@@ -442,6 +450,8 @@ export const api = {
   updateEntry: (id: number, entry: EntryInput) => call<Entry>("update_journal_entry", { id, entry }),
   deleteEntry: (id: number) => call<null>("delete_journal_entry", { id }),
   setDay: (day: DayInfo) => call<DayInfo>("set_journal_day", { day }),
+  /** 그 날의 기록과 머리 줄을 모두 지워요. 지운 기록 수를 돌려줘요. */
+  deleteDay: (date: string) => call<number>("delete_journal_day", { date }),
 
   complaints: () => call<Complaint[]>("complaints"),
   addComplaint: (complaint: ComplaintInput) => call<Complaint>("add_complaint", { complaint }),
@@ -452,8 +462,6 @@ export const api = {
 
   /** 윈도우 입력기를 한글(true) 또는 영문(false) 상태로 바꿔요. 앱 밖에서는 아무 일도 안 해요. */
   setIme: (korean: boolean) => (inApp ? invoke<null>("set_ime", { korean }) : Promise.resolve(null)),
-  /** 한글 칸에 영문으로 들어오려던 키(vk: A~Z 글자 번호)를 한글로 바꿔 다시 보내요. */
-  imeRetype: (vk: number) => (inApp ? invoke<null>("ime_retype", { vk }) : Promise.resolve(null)),
 };
 
 /** 실패 이름을 화면에 보여 줄 문장으로 바꿔요. */

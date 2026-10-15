@@ -73,6 +73,8 @@ export default function JournalScreen({ urgentDays = 2, onOpenComplaint }: { urg
   const [q, setQ] = useState("");
   const [onlyHits, setOnlyHits] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
+  // 한 번 누른 카드(골라 둔 카드). 두 번 누르거나 Enter를 누르면 고쳐요(0.6.2, 모든 화면 같은 규칙).
+  const [selId, setSelId] = useState<number | null>(null);
   const [menuId, setMenuId] = useState<number | null>(null);
   const [note, setNote] = useState("");
   const [complaints, setComplaints] = useState<Complaint[]>([]);
@@ -176,6 +178,32 @@ export default function JournalScreen({ urgentDays = 2, onOpenComplaint }: { urg
     setMenuId(null);
   }, []);
 
+  /** 날짜 우클릭 → "이 날 일지 지우기". 지운 날을 보고 있었으면 가장 가까운 날로 가요(오늘이면 오늘에 남아요). */
+  const removeDay = useCallback(
+    async (date: string) => {
+      try {
+        await api.deleteDay(date);
+        setNote("");
+      } catch (e) {
+        setNote(errorText(e));
+        return;
+      }
+      setEditId(null);
+      setData((d) => {
+        if (!d) return d;
+        const next = { days: d.days.filter((x) => x.date !== date), entries: d.entries.filter((x) => x.date !== date) };
+        setDay((cur) => {
+          if (cur !== date || date === today) return cur;
+          const left = [...new Set([today, ...next.entries.map((e) => e.date), ...next.days.map((x) => x.date)])];
+          const dist = (x: string) => Math.abs(new Date(x).getTime() - new Date(date).getTime());
+          return left.sort((a, b) => dist(a) - dist(b))[0] ?? today;
+        });
+        return next;
+      });
+    },
+    [today],
+  );
+
   if (!data) {
     return (
       <>
@@ -192,7 +220,14 @@ export default function JournalScreen({ urgentDays = 2, onOpenComplaint }: { urg
 
   return (
     <div className="jn">
-      <DateTree dates={[...dates].sort().reverse()} day={day} onPick={go} />
+      <DateTree
+        dates={[...dates].sort().reverse()}
+        day={day}
+        onPick={go}
+        countOf={(d) => data.entries.filter((e) => e.date === d).length}
+        hasHead={(d) => data.days.some((x) => x.date === d)}
+        onDelete={removeDay}
+      />
 
       <div className="jn-body">
         <div className="jn-head">
@@ -233,38 +268,47 @@ export default function JournalScreen({ urgentDays = 2, onOpenComplaint }: { urg
         ) : (
           <>
             <NewCard key={day} date={day} ctx={ctx} onAdd={add} />
+            {/* 왼쪽 단부터 채워요(사용자가 정함): 최근 것부터 앞의 절반은 왼쪽, 나머지는 오른쪽, 위에서 아래로.
+                개수로만 나누니 카드 길이가 바뀌어도 단 사이를 옮겨 다니지 않아요. */}
             <div className="jn-cols">
-              {entries.map((e) =>
-                editId === e.id ? (
-                  <EditCard
-                    key={e.id}
-                    entry={e}
-                    ctx={ctx}
-                    onCancel={() => setEditId((cur) => (cur === e.id ? null : cur))}
-                    onSave={(input) => {
-                      setEditId((cur) => (cur === e.id ? null : cur));
-                      return update(e.id, input);
-                    }}
-                    onRemove={() => remove(e.id)}
-                  />
-                ) : (
-                  <ViewCard
-                    key={e.id}
-                    entry={e}
-                    ctx={ctx}
-                    menuOpen={menuId === e.id}
-                    onMenu={(on) => setMenuId(on ? e.id : null)}
-                    onProject={(project) => {
-                      setMenuId(null);
-                      if (project !== e.project) update(e.id, { ...e, project });
-                    }}
-                    onOpen={() => {
-                      setMenuId(null);
-                      setEditId(e.id);
-                    }}
-                  />
-                ),
-              )}
+              {[entries.slice(0, Math.ceil(entries.length / 2)), entries.slice(Math.ceil(entries.length / 2))].map((col, ci) => (
+                <div key={ci} className="jn-col">
+                  {col.map((e) =>
+                    editId === e.id ? (
+                      <EditCard
+                        key={e.id}
+                        entry={e}
+                        ctx={ctx}
+                        onCancel={() => setEditId((cur) => (cur === e.id ? null : cur))}
+                        onSave={(input) => {
+                          setEditId((cur) => (cur === e.id ? null : cur));
+                          return update(e.id, input);
+                        }}
+                        onRemove={() => remove(e.id)}
+                      />
+                    ) : (
+                      <ViewCard
+                        key={e.id}
+                        entry={e}
+                        ctx={ctx}
+                        menuOpen={menuId === e.id}
+                        onMenu={(on) => setMenuId(on ? e.id : null)}
+                        onProject={(project) => {
+                          setMenuId(null);
+                          if (project !== e.project) update(e.id, { ...e, project });
+                        }}
+                        selected={selId === e.id}
+                        onSelect={() => setSelId(e.id)}
+                        onOpen={() => {
+                          setMenuId(null);
+                          setSelId(e.id);
+                          setEditId(e.id);
+                        }}
+                      />
+                    ),
+                  )}
+                </div>
+              ))}
             </div>
             {entries.length === 0 && (
               <p className="muted small">
@@ -361,8 +405,24 @@ function DateJump({ onGo }: { onGo: (d: string) => void }) {
 
 // ---------- 날짜 목록 (연 → 월 → 일) ----------
 
-function DateTree({ dates, day, onPick }: { dates: string[]; day: string; onPick: (d: string) => void }) {
+function DateTree({
+  dates,
+  day,
+  onPick,
+  countOf,
+  hasHead,
+  onDelete,
+}: {
+  dates: string[];
+  day: string;
+  onPick: (d: string) => void;
+  countOf: (d: string) => number;
+  hasHead: (d: string) => boolean;
+  onDelete: (d: string) => void;
+}) {
   const [open, setOpen] = useState<Set<string>>(() => new Set([day.slice(0, 7)]));
+  /** 우클릭 메뉴: 어느 날, 화면 어디, 지울까요를 묻는 중인지 */
+  const [menu, setMenu] = useState<{ date: string; x: number; y: number; ask: boolean } | null>(null);
   useEffect(() => setOpen((s) => (s.has(day.slice(0, 7)) ? s : new Set(s).add(day.slice(0, 7)))), [day]);
 
   const years = new Map<string, Map<string, string[]>>();
@@ -401,7 +461,22 @@ function DateTree({ dates, day, onPick }: { dates: string[]; day: string; onPick
                 </button>
                 {on &&
                   days.map((d) => (
-                    <button key={d} type="button" className="jtree-d" aria-pressed={d === day} onClick={() => onPick(d)}>
+                    <button
+                      key={d}
+                      type="button"
+                      className="jtree-d"
+                      aria-pressed={d === day}
+                      aria-haspopup="menu"
+                      onClick={() => onPick(d)}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        const r = e.currentTarget.getBoundingClientRect();
+                        // 마우스면 누른 자리, 키보드(메뉴 키)면 날짜 칸 오른쪽에 띄워요.
+                        const x = e.clientX || r.right;
+                        const y = e.clientY || r.top;
+                        setMenu({ date: d, x, y, ask: false });
+                      }}
+                    >
                       {dayLabel(d)}
                     </button>
                   ))}
@@ -410,7 +485,106 @@ function DateTree({ dates, day, onPick }: { dates: string[]; day: string; onPick
           })}
         </div>
       ))}
+      {menu && (
+        <DayMenu
+          {...menu}
+          count={countOf(menu.date)}
+          head={hasHead(menu.date)}
+          onClose={() => setMenu(null)}
+          onOpen={() => {
+            setMenu(null);
+            onPick(menu.date);
+          }}
+          onAsk={() => setMenu({ ...menu, ask: true })}
+          onDelete={() => {
+            setMenu(null);
+            onDelete(menu.date);
+          }}
+        />
+      )}
     </nav>
+  );
+}
+
+/** 날짜 우클릭 메뉴. 지우기는 한 번 더 물어요(삭제 규칙). Esc나 바깥을 누르면 지우지 않고 닫혀요. */
+function DayMenu({
+  date,
+  x,
+  y,
+  ask,
+  count,
+  head,
+  onClose,
+  onOpen,
+  onAsk,
+  onDelete,
+}: {
+  date: string;
+  x: number;
+  y: number;
+  ask: boolean;
+  count: number;
+  head: boolean;
+  onClose: () => void;
+  onOpen: () => void;
+  onAsk: () => void;
+  onDelete: () => void;
+}) {
+  const box = useRef<HTMLDivElement>(null);
+  const close = useRef(onClose);
+  close.current = onClose;
+  useEffect(() => {
+    const down = (e: MouseEvent) => {
+      if (!box.current?.contains(e.target as Node)) close.current();
+    };
+    const key = (e: globalThis.KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        close.current();
+      }
+    };
+    document.addEventListener("mousedown", down);
+    window.addEventListener("keydown", key);
+    window.addEventListener("blur", close.current);
+    return () => {
+      document.removeEventListener("mousedown", down);
+      window.removeEventListener("keydown", key);
+      window.removeEventListener("blur", close.current);
+    };
+  }, []);
+  // 메뉴가 열리면 첫 항목(묻는 중이면 취소)에 커서를 둬요.
+  useEffect(() => {
+    box.current?.querySelector<HTMLButtonElement>(ask ? ".dmenu-ask .btn" : ".dmenu-item")?.focus();
+  }, [ask]);
+
+  const [, m, d] = date.split("-").map(Number);
+  const what = [count ? `기록 ${count}건` : "", head ? "출근·교통·날씨·비고" : ""].filter(Boolean).join("과 ");
+  const style = { left: Math.min(x, window.innerWidth - 300), top: Math.min(y, window.innerHeight - 160) };
+  return (
+    <div ref={box} className="dmenu" role="menu" aria-label={`${m}월 ${d}일 메뉴`} style={style}>
+      {!ask ? (
+        <>
+          <button type="button" role="menuitem" className="dmenu-item" onClick={onOpen}>
+            이 날 열기
+          </button>
+          <button type="button" role="menuitem" className="dmenu-item danger" onClick={onAsk} disabled={!count && !head}>
+            이 날 일지 지우기
+          </button>
+        </>
+      ) : (
+        <div className="ask-band dmenu-ask" role="alertdialog" aria-label="이 날 일지 지우기 확인">
+          <span>
+            {m}월 {d}일 {what || "일지"}{head || !what ? "를" : "을"} 모두 지울까요? 되돌릴 수 없어요.
+          </span>
+          <button type="button" className="btn btn-xs" onClick={onClose}>
+            취소
+          </button>
+          <button type="button" className="btn btn-xs btn-danger" onClick={onDelete}>
+            지우기
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -938,7 +1112,7 @@ function NewCard({ date, ctx, onAdd }: { date: string; ctx: Ctx; onAdd: (e: Entr
 
 function stripe(e: Entry, ctx: Ctx) {
   const p = e.project !== null ? ctx.byId.get(e.project) : undefined;
-  return p ? { borderLeft: `4px solid var(--pj-${projectColor(p)}-fg)` } : undefined;
+  return p ? { borderLeft: `4px solid var(--pj-${projectColor(p)}-line)` } : undefined;
 }
 
 /** 대화 줄들. q가 있으면 맞은 글자를 칠하고, dim에 든 줄은 흐리게 보여요. */
@@ -1016,7 +1190,7 @@ function ProjectMenu({ ctx, current, onPick, onClose }: { ctx: Ctx; current: num
     <div ref={ref} className="jmenu" role="menu" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
       {opts.map((p) => (
         <button key={p?.id ?? 0} type="button" role="menuitemradio" className="jmenu-opt" aria-pressed={(p?.id ?? null) === current} onClick={() => onPick(p?.id ?? null)}>
-          <span className="jmenu-dot" aria-hidden="true" style={{ background: p ? `var(--pj-${projectColor(p)}-fg)` : "var(--line)" }} />
+          <span className="jmenu-dot" aria-hidden="true" style={{ background: p ? `var(--pj-${projectColor(p)}-line)` : "var(--line)" }} />
           {p?.name ?? "없음"}
         </button>
       ))}
@@ -1032,6 +1206,8 @@ function ViewCard({
   onMenu,
   onProject,
   onOpen,
+  selected,
+  onSelect,
 }: {
   entry: Entry;
   ctx: Ctx;
@@ -1039,18 +1215,27 @@ function ViewCard({
   onMenu: (on: boolean) => void;
   onProject: (id: number | null) => void;
   onOpen: () => void;
+  selected: boolean;
+  onSelect: () => void;
 }) {
   const { name, rest } = splitWho(e.who);
   const p = e.project !== null ? ctx.byId.get(e.project) : undefined;
   const memo = isMemo(e.kind) && (!!e.body || !e.lines.length);
   return (
     <article
-      className={"jcard" + (memo ? " jcard-memo" : "")}
+      className={"jcard" + (memo ? " jcard-memo" : "") + (selected ? " sel" : "")}
       style={memo ? undefined : stripe(e, ctx)}
-      title="눌러서 수정"
+      title="두 번 눌러서 수정"
       tabIndex={0}
       aria-label={`${e.time} ${e.kind} ${e.who}`}
-      onClick={onOpen}
+      aria-selected={selected}
+      onClick={onSelect}
+      onDoubleClick={(ev) => {
+        // 카드 안의 단추(연락처 복사, 프로젝트 고르기)를 두 번 누른 것은 수정이 아니에요.
+        if ((ev.target as Element).closest("button") ) return;
+        window.getSelection()?.removeAllRanges();
+        onOpen();
+      }}
       onKeyDown={(ev) => {
         if (ev.target === ev.currentTarget && ev.key === "Enter") {
           ev.preventDefault();
@@ -1320,7 +1505,7 @@ function EditCard({
           <button
             type="button"
             className="jproj-badge"
-            style={p ? { background: `var(--pj-${projectColor(p)}-bg)`, color: `var(--pj-${projectColor(p)}-fg)`, borderColor: "transparent" } : undefined}
+            style={p ? { background: `var(--pj-${projectColor(p)}-bg)`, color: `var(--pj-${projectColor(p)}-fg)`, borderColor: `var(--pj-${projectColor(p)}-line)` } : undefined}
             title="눌러서 프로젝트 바꾸기"
             aria-label={`프로젝트: ${p?.name ?? "없음"}`}
             aria-expanded={menu}
@@ -1490,7 +1675,9 @@ function SearchResults({
           <span className="muted small">{g.items.length}건</span>
         </div>
         <div className="jn-cols">
-          {g.items.map(({ e, m }) => {
+          {[g.items.slice(0, Math.ceil(g.items.length / 2)), g.items.slice(Math.ceil(g.items.length / 2))].map((col, ci) => (
+          <div key={ci} className="jn-col">
+          {col.map(({ e, m }) => {
             const { name, rest } = splitWho(e.who);
             const anyLine = m.some(Boolean);
             const memo = isMemo(e.kind) && (!!e.body || !e.lines.length);
@@ -1527,6 +1714,8 @@ function SearchResults({
               </article>
             );
           })}
+          </div>
+          ))}
         </div>
       </section>
     ));

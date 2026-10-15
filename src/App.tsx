@@ -8,7 +8,7 @@ import JournalScreen from "./JournalScreen";
 import SettingsScreen from "./SettingsScreen";
 import { SCREENS, SETTINGS, ScreenId } from "./screens";
 
-const VERSION = "0.6.1";
+const VERSION = "0.6.2";
 
 export default function App() {
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);

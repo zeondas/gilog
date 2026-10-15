@@ -288,6 +288,20 @@ impl Store {
         Ok(())
     }
 
+    /// 그 날의 일지를 통째로 지워요: 기록 전부와 머리 줄(출근·교통·날씨·비고). 지운 기록 수를 돌려줘요.
+    /// 날짜 목록에서 우클릭 → "이 날 일지 지우기"(사용자가 정함, 날짜만 — 월·연도 묶음 지우기는 없어요).
+    pub fn delete_day(&mut self, date: &str) -> Result<usize> {
+        let date = date.trim();
+        if !valid_date(date) {
+            return Err(bad("날짜가 맞지 않아요"));
+        }
+        let tx = self.conn.transaction()?;
+        let n = tx.execute("DELETE FROM journal_entries WHERE date = ?1", params![date])?;
+        tx.execute("DELETE FROM journal_days WHERE date = ?1", params![date])?;
+        tx.commit()?;
+        Ok(n)
+    }
+
     /// 날짜의 머리 줄을 저장해요. 모두 비우면 그 줄을 지워요.
     pub fn set_day(&self, day: &DayInfo) -> Result<DayInfo> {
         let t = |s: &str| s.trim().to_string();
@@ -485,5 +499,26 @@ mod tests {
         assert!(!bytes.windows(14).any(|w| w == b"JOURNAL-MARKER"));
         let s = Store::open(tmp.path(), "abcd1234").unwrap();
         assert_eq!(s.journal_data().unwrap().entries[0].lines[0].text, "JOURNAL-MARKER");
+    }
+
+    #[test]
+    fn delete_day_removes_entries_and_head_only_for_that_date() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut s = Store::create(tmp.path(), "abcd1234").unwrap();
+        let line = |t: &str| JournalLine { who: "나".into(), me: true, text: t.into() };
+        let e = |date: &str, t: &str| EntryInput { date: date.into(), time: "09:00".into(), kind: "회의".into(), lines: vec![line(t)], ..Default::default() };
+        s.add_entry(&e("2026-10-15", "하나")).unwrap();
+        s.add_entry(&e("2026-10-15", "둘")).unwrap();
+        s.add_entry(&e("2026-10-16", "다른 날")).unwrap();
+        s.set_day(&DayInfo { date: "2026-10-15".into(), weather: "맑음".into(), ..Default::default() }).unwrap();
+        s.set_day(&DayInfo { date: "2026-10-16".into(), weather: "비".into(), ..Default::default() }).unwrap();
+        assert_eq!(s.delete_day("2026-10-15").unwrap(), 2);
+        let d = s.journal_data().unwrap();
+        assert_eq!(d.entries.len(), 1);
+        assert_eq!(d.entries[0].date, "2026-10-16");
+        assert_eq!(d.days.len(), 1);
+        assert_eq!(d.days[0].date, "2026-10-16");
+        assert_eq!(s.delete_day("1015").err().unwrap().code(), "invalid");
+        assert_eq!(s.delete_day("2026-01-01").unwrap(), 0);
     }
 }

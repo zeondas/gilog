@@ -36,15 +36,16 @@
   --row-alt: #FAFBFC;
   /* 업무일지 "챙길 일"에서 눌러 온 민원 줄을 잠깐 칠하는 색 */
   --flash: #FFF3BF;
-  /* 연락처 프로젝트 배지 8색 (바탕, 글자). 디자인 시스템대로 두 테마에서 같은 색이에요. */
-  --pj-0-bg: #ECEEF1; --pj-0-fg: #4A5563;
-  --pj-1-bg: #E3EEFB; --pj-1-fg: #0C447C;
-  --pj-2-bg: #FDEBD3; --pj-2-fg: #8A4B00;
-  --pj-3-bg: #E1F0E6; --pj-3-fg: #1F5E3A;
-  --pj-4-bg: #ECE6F8; --pj-4-fg: #4B2E83;
-  --pj-5-bg: #DDF1F1; --pj-5-fg: #0F5458;
-  --pj-6-bg: #FBE4EC; --pj-6-fg: #8A1F4B;
-  --pj-7-bg: #F6EFC8; --pj-7-fg: #6B5300;
+  /* 프로젝트 배지 8색 (바탕, 글자, 테두리·점). 0.6.2에 사용자가 고른 "연한 바탕 + 쨍한 글자·테두리"(2안).
+     디자인 시스템대로 두 테마에서 같은 색이에요. 순서: 회색, 파랑, 주황, 초록, 보라, 청록, 분홍, 노랑 */
+  --pj-0-bg: #EEF0F3; --pj-0-fg: #374151; --pj-0-line: #9CA3AF;
+  --pj-1-bg: #E6F0FF; --pj-1-fg: #1D6FE8; --pj-1-line: #1D6FE8;
+  --pj-2-bg: #FFF0E5; --pj-2-fg: #D45A0C; --pj-2-line: #F2711C;
+  --pj-3-bg: #E5F7EC; --pj-3-fg: #138A3E; --pj-3-line: #16A34A;
+  --pj-4-bg: #F3EAFF; --pj-4-fg: #7A2FD0; --pj-4-line: #8B3FD9;
+  --pj-5-bg: #E2F7F6; --pj-5-fg: #0B8580; --pj-5-line: #0E9F9A;
+  --pj-6-bg: #FFE8F3; --pj-6-fg: #C72A77; --pj-6-line: #E0368A;
+  --pj-7-bg: #FFF6D6; --pj-7-fg: #8A6400; --pj-7-line: #E0A800;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;

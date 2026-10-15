@@ -11,9 +11,10 @@ const KEEP: Record<string, string> = {
   P: "p", DIV: "p", H1: "h3", H2: "h3", H3: "h3", H4: "h3", H5: "h3", H6: "h3",
   UL: "ul", OL: "ol", LI: "li", BLOCKQUOTE: "blockquote", BR: "br",
   TABLE: "table", TBODY: "tbody", THEAD: "tbody", TFOOT: "tbody", TR: "tr", TD: "td", TH: "td",
+  COLGROUP: "colgroup", COL: "col",
 };
 const ALIGNABLE = new Set(["p", "h3", "li", "blockquote", "td"]);
-const DROP = new Set(["SCRIPT", "STYLE", "META", "LINK", "TITLE", "HEAD", "IMG", "SVG", "IFRAME", "OBJECT", "COLGROUP", "COL"]);
+const DROP = new Set(["SCRIPT", "STYLE", "META", "LINK", "TITLE", "HEAD", "IMG", "SVG", "IFRAME", "OBJECT"]);
 
 function clean(node: Node, out: Node, doc: Document) {
   node.childNodes.forEach((ch) => {
@@ -34,8 +35,19 @@ function clean(node: Node, out: Node, doc: Document) {
       if (a === "center") copy.className = "al-c";
       else if (a === "right" || a === "end") copy.className = "al-r";
     }
+    // 표 칸 폭(사용자가 끌어 정한 것)은 %로만 남겨요. 다른 곳에서 붙여 넣은 표의 폭은 버려요(같은 폭으로 시작).
+    if (tag === "col") {
+      const w = (el as HTMLElement).style?.width ?? "";
+      if (/^\d+(\.\d+)?%$/.test(w)) copy.setAttribute("style", `width: ${w}`);
+    }
+    // 머릿기호를 지운 목록 줄(머릿기호 규칙)
+    if (tag === "li" && el.classList.contains("nb")) copy.className = (copy.className ? copy.className + " " : "") + "nb";
     out.appendChild(copy);
-    clean(el, copy, doc);
+    if (tag !== "col") clean(el, copy, doc);
+  });
+  // 폭이 없는 colgroup은 남길 까닭이 없어요.
+  out.childNodes.forEach((c) => {
+    if (c.nodeName === "COLGROUP" && ![...(c as Element).children].some((x) => x.getAttribute("style"))) c.remove();
   });
 }
 
@@ -136,6 +148,35 @@ function normalize(root: HTMLElement) {
     } catch {
       /* 커서를 못 돌리면 그대로 둬요 */
     }
+  }
+}
+
+// ---------- 표 칸 폭 ----------
+// 표 폭은 카드 폭에 고정이고(글이 많으면 칸 안에서 줄을 바꿔요), 칸 폭은 사용자가 경계선을 끌어 정해요(0.6.2, 사용자가 정함).
+// 칸 폭은 <colgroup><col style="width: N%">로 기록과 함께 저장해요. 폭이 없는 표는 같은 폭으로 나눠 보여요.
+
+/** 표의 칸 폭(%)들. 적힌 것이 없거나 칸 수와 다르면 같은 폭이에요. */
+function colWidths(table: HTMLTableElement): number[] {
+  const n = Math.max(...[...table.rows].map((r) => r.cells.length), 1);
+  const cols = [...table.querySelectorAll(":scope > colgroup > col")] as HTMLElement[];
+  const ws = cols.map((c) => parseFloat(c.style.width));
+  if (ws.length === n && ws.every((w) => w > 0)) return ws;
+  return Array(n).fill(100 / n);
+}
+
+/** 칸 폭을 적어요(합이 100%가 되게 맞춰요). */
+function setColWidths(table: HTMLTableElement, ws: number[]) {
+  const sum = ws.reduce((a, b) => a + b, 0) || 1;
+  let cg = table.querySelector(":scope > colgroup");
+  if (!cg) {
+    cg = document.createElement("colgroup");
+    table.prepend(cg);
+  }
+  cg.innerHTML = "";
+  for (const w of ws) {
+    const col = document.createElement("col");
+    col.style.width = ((w / sum) * 100).toFixed(2) + "%";
+    cg.appendChild(col);
   }
 }
 
@@ -275,6 +316,7 @@ export function MemoEditor({
     if (!root) return;
     root.focus();
     const table = document.createElement("table");
+    setColWidths(table, Array(cols).fill(100 / cols));
     const tbody = table.appendChild(document.createElement("tbody"));
     for (let r = 0; r < rows; r++) {
       const tr = tbody.appendChild(document.createElement("tr"));
@@ -306,6 +348,10 @@ export function MemoEditor({
       tr.after(n);
       focus = n.cells[idx];
     } else if (op === "col") {
+      // 새 칸은 지금 칸들의 평균 폭으로 들어가고, 나머지는 비율대로 줄어요.
+      const ws = colWidths(table);
+      ws.splice(idx + 1, 0, 100 / ws.length);
+      setColWidths(table, ws);
       rows.forEach((r) => {
         const c = document.createElement("td");
         c.innerHTML = "<br>";
@@ -319,6 +365,9 @@ export function MemoEditor({
       tr.remove();
     } else if (op === "delCol") {
       if (tr.cells.length <= 1) return tableOp("delTable");
+      const ws = colWidths(table);
+      ws.splice(idx, 1);
+      setColWidths(table, ws);
       rows.forEach((r) => r.cells[idx]?.remove());
       focus = tr.cells[Math.max(0, idx - 1)];
     } else {
@@ -347,6 +396,106 @@ export function MemoEditor({
     return true;
   }
 
+  // ---------- 머릿기호 규칙 (글머리 목록) ----------
+  // 목록 1단계 □, 2단계 점, 3단계 작대기(모양은 CSS가 그려요). 줄 맨 앞 "] " ") " "- "로 그 단계 목록을 시작하거나 바꾸고,
+  // 목록 줄 맨 앞 Backspace는 머릿기호만 지워요(li.nb). 한 번 더 누르면 보통처럼 윗줄과 합쳐요.
+
+  /** 커서가 있는 목록 줄과, 커서 앞 글자(그 줄 안) */
+  function caretLine(): { li: HTMLLIElement | null; block: Element | null; before: string } | null {
+    const sel = document.getSelection();
+    if (!sel || !sel.isCollapsed || !sel.rangeCount || !area.current) return null;
+    const r = sel.getRangeAt(0);
+    const n = r.startContainer;
+    const el = (n.nodeType === Node.ELEMENT_NODE ? n : n.parentElement) as Element | null;
+    if (!el || !area.current.contains(el) || el.closest("td")) return null;
+    const li = el.closest("li") as HTMLLIElement | null;
+    const block = li ?? topBlock();
+    if (!block) return null;
+    const pre = document.createRange();
+    pre.selectNodeContents(block);
+    pre.setEnd(r.startContainer, r.startOffset);
+    // 목록 줄 안에 든 아래 단계 목록 글자는 빼요.
+    return { li, block, before: pre.toString() };
+  }
+
+  /** 목록 단계(1부터). 목록 밖이면 0 */
+  const depthOf = (li: Element | null) => {
+    let d = 0;
+    for (let n: Element | null = li; n && n !== area.current; n = n.parentElement) if (n.tagName === "UL") d++;
+    return d;
+  };
+
+  function bulletTrigger(): boolean {
+    const at = caretLine();
+    if (!at || at.before.length !== 1 || !"])-".includes(at.before)) return false;
+    if (at.li && at.li.closest("ol")) return false;
+    const want = at.before === "]" ? 1 : at.before === ")" ? 2 : 3;
+    cmd("delete");
+    if (!at.li) cmd("insertUnorderedList");
+    // 지금 줄의 목록 단계를 원하는 단계로 맞춰요.
+    for (let i = 0; i < 4; i++) {
+      const sel = document.getSelection();
+      const n = sel?.anchorNode;
+      const li = (n && (n.nodeType === Node.ELEMENT_NODE ? (n as Element) : n.parentElement))?.closest("li") ?? null;
+      if (li) li.classList.remove("nb");
+      const d = depthOf(li);
+      if (!li || d === want) break;
+      cmd(d < want ? "indent" : "outdent");
+    }
+    changed();
+    return true;
+  }
+
+  function bulletBackspace(): boolean {
+    const at = caretLine();
+    if (!at || !at.li || at.before !== "" || at.li.closest("ol")) return false;
+    if (at.li.classList.contains("nb")) return false; // 이미 지웠으면 보통처럼(윗줄과 합치기)
+    at.li.classList.add("nb");
+    changed();
+    return true;
+  }
+
+  // ---------- 표 칸 폭 끌기 ----------
+
+  /** 마우스가 표 칸의 오른쪽 경계(4px 안)에 있으면 그 칸 */
+  function edgeCell(e: React.MouseEvent): HTMLTableCellElement | null {
+    const td = (e.target as Element).closest?.("td") as HTMLTableCellElement | null;
+    if (!td || !area.current?.contains(td)) return null;
+    const r = td.getBoundingClientRect();
+    if (Math.abs(e.clientX - r.right) <= 4 && td.cellIndex < (td.parentElement as HTMLTableRowElement).cells.length - 1) return td;
+    return null;
+  }
+
+  function startColDrag(e: React.MouseEvent) {
+    const td = edgeCell(e);
+    if (!td) return;
+    e.preventDefault();
+    const table = td.closest("table") as HTMLTableElement;
+    const i = td.cellIndex;
+    const tw = table.getBoundingClientRect().width;
+    const start = colWidths(table);
+    const x0 = e.clientX;
+    const min = Math.max(4, (40 / tw) * 100);
+    const move = (ev: MouseEvent) => {
+      // 경계 양쪽 두 칸만 바뀌고 표 폭은 그대로예요.
+      const dx = ((ev.clientX - x0) / tw) * 100;
+      const a = Math.min(Math.max(start[i] + dx, min), start[i] + start[i + 1] - min);
+      const ws = start.slice();
+      ws[i] = a;
+      ws[i + 1] = start[i] + start[i + 1] - a;
+      setColWidths(table, ws);
+    };
+    const up = () => {
+      document.removeEventListener("mousemove", move);
+      document.removeEventListener("mouseup", up);
+      document.body.classList.remove("col-dragging");
+      changed();
+    };
+    document.body.classList.add("col-dragging");
+    document.addEventListener("mousemove", move);
+    document.addEventListener("mouseup", up);
+  }
+
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     const composing = e.nativeEvent.isComposing || e.keyCode === 229;
     const isTab = e.key === "Tab" || e.nativeEvent.code === "Tab";
@@ -364,6 +513,14 @@ export function MemoEditor({
       return; // 그 밖에는 보통처럼 다음 칸으로 가요.
     }
     if (composing) return;
+    if (e.key === " " && bulletTrigger()) {
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "Backspace" && bulletBackspace()) {
+      e.preventDefault();
+      return;
+    }
     if (e.key === "Escape") {
       e.preventDefault();
       e.stopPropagation();
@@ -398,7 +555,7 @@ export function MemoEditor({
           인용
         </B>
         <span className="rte-sep" />
-        <B label="글머리 목록" on={fmt.ul} onClick={() => run("insertUnorderedList")}>
+        <B label="글머리 목록 (줄 맨 앞 ] ) - 와 스페이스로도 돼요)" on={fmt.ul} onClick={() => run("insertUnorderedList")}>
           <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <circle cx="5" cy="7" r="1.4" fill="currentColor" />
             <circle cx="5" cy="17" r="1.4" fill="currentColor" />
@@ -494,6 +651,10 @@ export function MemoEditor({
         aria-label="메모 내용"
         onInput={changed}
         onKeyDown={onKeyDown}
+        onMouseMove={(e) => {
+          if (!document.body.classList.contains("col-dragging")) (e.currentTarget as HTMLElement).style.cursor = edgeCell(e) ? "col-resize" : "";
+        }}
+        onMouseDown={startColDrag}
         onFocus={() => cmd("defaultParagraphSeparator", "div")}
         onPaste={(e) => {
           // 붙여 넣는 글은 정해진 모양만 남겨요(엑셀·한글의 표도 표로 들어와요).

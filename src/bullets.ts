@@ -1,18 +1,18 @@
 // 머릿기호 규칙 (2026-10-16 사용자가 정함, CLAUDE.md "공통 입력 규칙")
 //
-// 여러 줄 칸은 줄마다 머릿기호가 있어요. 종류와 단계는 이래요.
-//   dot 점(기본, 들여쓰기 없음) · sq 네모 □(1단계, 들여쓰기 없음) · ci 동그라미(2단계, 띄어쓰기 두 칸, 모양은 점)
+// 여러 줄 칸은 줄마다 머릿기호가 있어요. 0.6.2부터 기본은 네모예요(사용자가 정함: 기본 점과 ") " 점이 같은 모양인데 단계가 달라 헷갈렸어요).
+//   sq 네모 □(1단계·기본, 들여쓰기 없음) · ci 동그라미(2단계, 띄어쓰기 두 칸, 모양은 채운 점)
 //   da 작대기(3단계, 띄어쓰기 네 칸) · none 머릿기호 없음(줄 맨 앞 Backspace로 지운 줄, 단계는 그대로)
 // 줄 맨 앞에서 "] " → 네모, ") " → 동그라미, "- " → 작대기 (기호 + 스페이스일 때만)
 //
-// 저장 모양: [{"t":"글","k":"sq"}, ...] (k가 없으면 점, none이면 lv에 단계). 메모는 b(굵게)·s(취소선)도 써요.
-// 예전에 글자만 저장한 것은 모든 줄이 점인 것으로 읽어요.
+// 저장 모양: [{"t":"글","k":"sq"}, ...] (k가 없으면 네모, none이면 lv에 단계). 메모는 b(굵게)·s(취소선)도 써요.
+// 예전에 글자만 저장한 것과 0.6.1의 기본 점 줄(k 없음)은 네모로 읽어요.
 
-export type BKind = "dot" | "sq" | "ci" | "da" | "none";
+export type BKind = "sq" | "ci" | "da" | "none";
 
 export type BLine = {
   t: string;
-  /** 머릿기호 종류. 없으면 점이에요. */
+  /** 머릿기호 종류. 없으면 네모(기본)예요. */
   k?: BKind;
   /** 머릿기호 없는 줄의 단계(0~2) */
   lv?: number;
@@ -26,9 +26,9 @@ export type BLine = {
 export const TRIGGERS: Record<string, BKind> = { "]": "sq", ")": "ci", "-": "da" };
 
 /** 메모 창 머릿기호 단추를 누를 때마다 바뀌는 순서 */
-export const CYCLE: BKind[] = ["dot", "sq", "ci", "da", "none"];
+export const CYCLE: BKind[] = ["sq", "ci", "da", "none"];
 
-export const kindOf = (l: BLine): BKind => l.k ?? "dot";
+export const kindOf = (l: BLine): BKind => l.k ?? "sq";
 
 /** 들여쓰기 단계 (띄어쓰기 두 칸 단위) */
 export function levelOf(l: BLine): number {
@@ -54,7 +54,7 @@ export function withKind(l: BLine, k: BKind): BLine {
     else delete n.lv;
   } else {
     delete n.lv;
-    if (k === "dot") delete n.k;
+    if (k === "sq") delete n.k;
     else n.k = k;
   }
   return n;
@@ -71,7 +71,8 @@ export function nextLine(l: BLine, t = ""): BLine {
 function clean(l: Partial<BLine>): BLine | null {
   if (!l || typeof l.t !== "string") return null;
   const n: BLine = { t: l.t };
-  if (l.k && l.k !== "dot" && (CYCLE as string[]).includes(l.k)) n.k = l.k;
+  // 기본(네모)은 적지 않아요. 0.6.1의 "dot"(기본 점)도 기본으로 읽어요.
+  if (l.k && l.k !== "sq" && (CYCLE as string[]).includes(l.k)) n.k = l.k;
   if (n.k === "none" && typeof l.lv === "number" && l.lv > 0) n.lv = Math.min(2, Math.round(l.lv));
   if (l.b) n.b = true;
   if (l.s) n.s = true;
@@ -116,7 +117,7 @@ export const firstLineOf = (raw: string) => parseLines(raw).find((l) => l.t.trim
 
 // ---------- 복사·붙여 넣기 ----------
 
-const SYMBOL: Record<BKind, string> = { dot: "•", sq: "□", ci: "○", da: "-", none: "" };
+const SYMBOL: Record<BKind, string> = { sq: "□", ci: "○", da: "-", none: "" };
 
 /** 복사할 때의 한 줄: 들여쓰기는 띄어쓰기 두 칸씩, 기호는 문서에서 쓰는 글자 */
 export function lineToText(l: BLine): string {

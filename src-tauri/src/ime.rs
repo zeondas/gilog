@@ -4,6 +4,7 @@
 //! 0.6.0까지는 한 번만 바꿨는데, 다른 앱에서 돌아오는 순간에는 윈도우가 창 전환을 끝내기 전이라 빗나가거나
 //! 윈도우가 그 뒤에 예전 상태(영문)를 되살려 영어로 입력되는 일이 있었어요(사용자 신고).
 //! 그래서 giLog 창이 실제로 앞에 와 있을 때만 바꾸고, 조금씩 시간을 두고 몇 번 더 맞춰요.
+//! 그래도 안 될 때를 위해 0.6.2부터 화면(ime.ts)이 영문 키를 받아 직접 한글을 조립해요.
 
 /// 한 번 맞추는 사이 간격(밀리초). 바로, 그리고 창 전환이 끝날 만한 때까지 몇 번 더 맞춰요.
 #[cfg(windows)]
@@ -14,7 +15,6 @@ mod win {
     use std::mem::{size_of, zeroed};
     use windows_sys::Win32::Foundation::HWND;
     use windows_sys::Win32::UI::Input::Ime::ImmGetDefaultIMEWnd;
-    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{SendInput, INPUT, INPUT_KEYBOARD, KEYEVENTF_KEYUP};
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         GetForegroundWindow, GetGUIThreadInfo, GetWindowThreadProcessId, SendMessageW, GUITHREADINFO,
     };
@@ -68,18 +68,6 @@ mod win {
         }
     }
 
-    /// 키 하나를 다시 누른 것처럼 보내요. 입력기가 한글로 바뀐 뒤라 한글 자모로 들어가요.
-    pub fn press(vk: u16) {
-        unsafe {
-            let mut inputs: [INPUT; 2] = zeroed();
-            for (i, up) in [false, true].into_iter().enumerate() {
-                inputs[i].r#type = INPUT_KEYBOARD;
-                inputs[i].Anonymous.ki.wVk = vk;
-                inputs[i].Anonymous.ki.dwFlags = if up { KEYEVENTF_KEYUP } else { 0 };
-            }
-            SendInput(2, inputs.as_ptr(), size_of::<INPUT>() as i32);
-        }
-    }
 }
 
 /// 입력기를 한글(true) 또는 영문(false)으로 맞춰요. giLog 창이 앞에 올 때까지 기다렸다가, 몇 번 더 맞춰요.
@@ -106,21 +94,6 @@ pub fn set_korean(korean: bool) {
     });
 }
 
-/// 한글 칸인데 영문 상태로 글자가 들어오려 할 때: 한글로 바꾸고 그 키를 다시 보내 한글 자모로 들어가게 해요.
-/// vk는 그 키의 윈도우 키 번호예요(A~Z는 대문자 글자 번호).
-#[cfg(windows)]
-pub fn retype_korean(vk: u16) {
-    if !win::ours_in_front() {
-        return;
-    }
-    win::set_mode(true);
-    win::press(vk);
-    // 그 뒤에 윈도우가 상태를 되돌리지 않게 한 번 더 맞춰요.
-    set_korean(true);
-}
-
 #[cfg(not(windows))]
 pub fn set_korean(_korean: bool) {}
 
-#[cfg(not(windows))]
-pub fn retype_korean(_vk: u16) {}

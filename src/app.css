@@ -1505,8 +1505,28 @@ mark {
 
 /* 카드 2열: 왼쪽 위가 가장 최근, 오른쪽 아래가 가장 오래된 기록 */
 .jn-cols {
-  columns: 2 400px;
-  column-gap: var(--space-3);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--space-3);
+}
+
+.jn-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .jn-cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* 한 번 누른(골라 둔) 카드 */
+.jcard.sel {
+  outline: 2px solid var(--accent-line);
+  outline-offset: -1px;
 }
 
 /* 시간 기둥형 카드 */
@@ -2314,9 +2334,7 @@ mark {
   color: var(--ink-2);
 }
 
-.rte-area ul,
 .rte-area ol,
-.rte-view ul,
 .rte-view ol {
   margin: 2px 0 4px;
   padding-left: 22px;
@@ -2327,20 +2345,87 @@ mark {
   margin: 1px 0;
 }
 
+/* 글머리 목록 = 머릿기호 규칙: 1단계 □, 2단계 점, 3단계 작대기. 앱이 그려요(윈도우 글자 □를 쓰지 않아요).
+   기호와 글 사이 6px, 단계마다 띄어쓰기 두 칸(--bl-indent), 기호는 한글 글자 높이 정중앙(--bl-shift). */
+.rte-area ul,
+.rte-view ul {
+  margin: 2px 0 4px;
+  padding-left: 0;
+  list-style: none;
+}
+
+/* 아래 단계 목록: 브라우저는 목록 바로 안에(ul > ul), 붙여 넣은 글은 줄 안에(li > ul) 넣어요. 둘 다 띄어쓰기 두 칸만 들여요. */
+.rte-area ul > ul,
+.rte-view ul > ul {
+  margin: 0 0 0 var(--bl-indent, 6.5px);
+}
+
+.rte-area li > ul,
+.rte-view li > ul {
+  margin: 0 0 0 calc(var(--bl-indent, 6.5px) - 13px);
+}
+
+.rte-area ul > li,
+.rte-view ul > li {
+  position: relative;
+  padding-left: 13px;
+}
+
+.rte-area ul > li::before,
+.rte-view ul > li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: calc(var(--fs) * 0.775 + var(--bl-shift, 0px) - 3.5px);
+  width: 7px;
+  height: 7px;
+  box-sizing: border-box;
+  border: 1.4px solid var(--muted);
+  border-radius: 1px;
+}
+
+.rte-area ul ul > li::before,
+.rte-view ul ul > li::before {
+  left: 1.5px;
+  top: calc(var(--fs) * 0.775 + var(--bl-shift, 0px) - 2px);
+  width: 4px;
+  height: 4px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.rte-area ul ul ul > li::before,
+.rte-view ul ul ul > li::before {
+  left: 1px;
+  top: calc(var(--fs) * 0.775 + var(--bl-shift, 0px) - 0.75px);
+  width: 5px;
+  height: 1.5px;
+  border-radius: 1px;
+}
+
+/* 머릿기호를 지운 목록 줄 (줄 맨 앞 Backspace) */
+.rte-area ul > li.nb::before,
+.rte-view ul > li.nb::before {
+  display: none;
+}
+
+/* 표 폭은 카드 폭에 고정이고, 글이 많으면 칸 안에서 줄을 바꿔요. 칸 폭은 경계선을 끌어 정해요(colgroup %). */
 .rte-area table,
 .rte-view table {
   width: 100%;
   margin: 4px 0 6px;
   border-collapse: collapse;
-  table-layout: auto;
+  table-layout: fixed;
 }
 
 .rte-area td,
 .rte-view td {
-  min-width: 48px;
   padding: 4px 7px;
   border: 1px solid var(--line);
   vertical-align: top;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* 표 첫 줄은 머리줄처럼 옅게 칠해요 */
@@ -2818,7 +2903,7 @@ body.col-dragging * {
   justify-content: center;
   width: 7px;
   height: calc(var(--fs) * 1.5);
-  margin-right: 5px;
+  margin-right: 6px;
   transform: translateY(var(--bl-shift, 0px));
 }
 
@@ -2827,7 +2912,6 @@ body.col-dragging * {
   background: var(--muted);
 }
 
-.bl-dot,
 .bl-ci {
   width: 4px;
   height: 4px;
@@ -2928,4 +3012,195 @@ body.col-dragging * {
   border-top: 1px solid var(--line-row);
   font-size: 11px;
   color: var(--muted);
+}
+
+/* 민원대장 보기 줄: 연락처 복사, 상태 바로 바꾸기 (0.6.2) */
+.cm-copy {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 100%;
+  padding: 2px 4px;
+  margin: 0 -4px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: copy;
+}
+
+.cm-copy:hover {
+  background: var(--accent-tint);
+  color: var(--accent);
+}
+
+.cm-copy.copied {
+  background: var(--st-done-bg);
+  color: var(--st-done-fg);
+}
+
+.cm-copy-note {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.cm-copy-note:empty {
+  display: none;
+}
+
+.cm-spick {
+  position: relative;
+  display: inline-flex;
+}
+
+.cm-status-btn {
+  border: 0;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.cm-status-btn:hover {
+  box-shadow: 0 0 0 1.5px currentColor;
+}
+
+.cm-spick-list {
+  position: absolute;
+  z-index: 6;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 130px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.cm-spick-opt {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 30px;
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.cm-spick-opt.hi {
+  background: var(--surface-band);
+}
+
+.cm-spick-now {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* 한 번 누른(골라 둔) 민원 줄 */
+.cm-view.sel {
+  background: var(--accent-wash);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.cm-view {
+  cursor: default;
+}
+
+/* 지울 수 없는 항목(완료)은 × 자리가 없으니 오른쪽 여백을 왼쪽과 같게 해요 */
+.chip.chip-keep {
+  padding-right: 10px;
+}
+
+/* 프로젝트 색 고르기 (색 단추를 누르면 펼쳐져요) */
+.cpick {
+  position: relative;
+}
+
+.cpick-btn {
+  gap: 6px;
+}
+
+.cpick-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  corner-shape: round;
+}
+
+.cpick-pop {
+  position: fixed;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.cpick-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 22px);
+  gap: 8px;
+}
+
+.cpick-grid .swatch {
+  width: 22px;
+  height: 22px;
+}
+
+.cpick-auto {
+  justify-content: center;
+}
+
+/* 업무일지 날짜 우클릭 메뉴 */
+.dmenu {
+  position: fixed;
+  z-index: 30;
+  min-width: 160px;
+  max-width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.dmenu-item {
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+}
+
+.dmenu-item:hover,
+.dmenu-item:focus-visible {
+  background: var(--surface-band);
+  outline: 0;
+}
+
+.dmenu-item.danger {
+  color: var(--danger);
+}
+
+.dmenu-item:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.dmenu-ask {
+  margin: 0;
 }

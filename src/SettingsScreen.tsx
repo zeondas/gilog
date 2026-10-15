@@ -307,7 +307,7 @@ export function ListGroup({
           return (
             <span
               key={name}
-              className={"chip" + (c ? " chip-colored" : "")}
+              className={"chip" + (c ? " chip-colored" : "") + (name === keep ? " chip-keep" : "")}
               style={c ? { background: c[0], color: c[1] } : undefined}
             >
               {name}

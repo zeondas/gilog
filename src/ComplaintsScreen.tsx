@@ -31,11 +31,11 @@ import {
 } from "./complaints";
 import { parseLines, plainOf, stringifyLines } from "./bullets";
 import { BulletEditor, BulletView } from "./BulletParts";
-import { Hl, MemoEditor, memoText, parseMemo } from "./ContactsScreen";
+import { copyText, Hl, MemoEditor, memoText, parseMemo } from "./ContactsScreen";
 import { koIndex, parseDate, todayStr } from "./journal";
 import { useJamoGuard } from "./koInput";
 import { PhoneInput } from "./PhoneInput";
-import { AreaInput, PlaceInput } from "./PlaceInputs";
+import { AreaInput, ChoiceInput, PlaceInput } from "./PlaceInputs";
 import { finalizePhone } from "./phone";
 import { KEEP_STATUS, ListGroup } from "./SettingsScreen";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, Settings, statusColor } from "./settingsStore";
@@ -58,6 +58,8 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
   const qGuard = useJamoGuard(setQ);
   const [filter, setFilter] = useState<string | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
+  // 한 번 누른 줄(골라 둔 줄). 두 번 누르거나 Enter를 누르면 고쳐요.
+  const [selId, setSelId] = useState<number | null>(null);
   const [memoId, setMemoId] = useState<number | null>(null);
   const [catsOpen, setCatsOpen] = useState(false);
   const [flash, setFlash] = useState<number | null>(null);
@@ -235,11 +237,20 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
               today={today}
               urgentDays={urgentDays}
               flash={flash === c.id}
+              selected={selId === c.id}
+              statuses={statuses}
+              onSelect={() => setSelId(c.id)}
               onEdit={() => {
                 setMemoId(null);
+                setSelId(c.id);
                 setEditId(c.id);
               }}
               onMemo={() => setMemoId(c.id)}
+              onStatus={async (status) => {
+                if (status === c.status) return;
+                const r = await run(api.setComplaintStatus(c.id, status));
+                if (r) put(r);
+              }}
             />
           ),
         )}
@@ -351,7 +362,7 @@ const emptyDraft = (lists: Lists): Draft => ({
   status: lists.status[0] ?? "",
 });
 
-type Bad = { received?: boolean; due?: boolean; body?: boolean };
+type Bad = { received?: boolean; due?: boolean; body?: boolean; intake?: boolean; status?: boolean };
 
 /** 날짜 칸을 떠날 때 "1016" 같은 것을 2026-10-16으로 바꿔요. 읽을 수 없으면 빨간 테두리예요. */
 function normDates(d: Draft): { d: Draft; bad: Bad } {
@@ -362,21 +373,6 @@ function normDates(d: Draft): { d: Draft; bad: Bad } {
   if (due === null) bad.due = true;
   if (!plainOf(d.body).trim()) bad.body = true;
   return { d: { ...d, received: r ?? d.received, due: due ?? d.due }, bad };
-}
-
-/** 고르기 목록. 기록에 지금 목록에 없는 값이 있으면 그것도 보여 줘요. */
-function Choose({ name, label, value, options, onChange }: { name: string; label: string; value: string; options: string[]; onChange: (v: string) => void }) {
-  const opts = value && !options.includes(value) ? [...options, value] : options;
-  return (
-    <select name={name} aria-label={label} className="cell-input cm-select" value={value} onChange={(e) => onChange(e.target.value)}>
-      {!value && <option value="" />}
-      {opts.map((o) => (
-        <option key={o} value={o}>
-          {o}
-        </option>
-      ))}
-    </select>
-  );
 }
 
 /**
@@ -477,26 +473,30 @@ function Cells({
   lists,
   firstRef,
   onDateBlur,
+  orig,
 }: {
   d: Draft;
   set: (patch: Partial<Draft>) => void;
   bad: Bad;
   lists: Lists;
-  firstRef?: React.Ref<HTMLSelectElement>;
+  firstRef?: React.Ref<HTMLInputElement>;
   onDateBlur: (k: "received" | "due") => void;
+  /** 고치는 줄이면 고치기 전 값. 지금 목록에서 빠진 접수유형·상태도 그대로 받아 줘요. */
+  orig?: Draft;
 }) {
-  const intakeOpts = d.intake && !lists.intake.includes(d.intake) ? [...lists.intake, d.intake] : lists.intake;
   return (
     <>
       <div role="cell" className="cm-c">
-        <select ref={firstRef} name="intake" aria-label="접수유형" className="cell-input cm-select" value={d.intake} onChange={(e) => set({ intake: e.target.value })}>
-          {!d.intake && <option value="" />}
-          {intakeOpts.map((o) => (
-            <option key={o} value={o}>
-              {o}
-            </option>
-          ))}
-        </select>
+        <ChoiceInput
+          inputRef={firstRef}
+          name="intake"
+          label="접수유형"
+          value={d.intake}
+          options={lists.intake}
+          allow={orig?.intake}
+          invalid={bad.intake}
+          onChange={(intake) => set({ intake })}
+        />
       </div>
       <div role="cell" className="cm-c">
         <input
@@ -552,7 +552,16 @@ function Cells({
         />
       </div>
       <div role="cell" className="cm-c">
-        <Choose name="status" label="상태" value={d.status} options={lists.status} onChange={(status) => set({ status })} />
+        <ChoiceInput
+          name="status"
+          label="상태"
+          value={d.status}
+          options={lists.status}
+          allow={orig?.status}
+          invalid={bad.status}
+          stayOnTab
+          onChange={(status) => set({ status })}
+        />
       </div>
     </>
   );
@@ -583,11 +592,17 @@ function useDraft(init: () => Draft) {
     else setBad((b) => ({ ...b, [k]: true }));
   };
   /** 등록·저장할 값. 틀린 칸이 있으면 null이고 그 칸 이름을 돌려줘요. */
-  const check = (): { input: Draft | null; first?: string } => {
+  const check = (lists: Lists, orig?: Draft): { input: Draft | null; first?: string } => {
     const { d: n, bad: b } = normDates(d);
+    // 접수유형·상태는 목록에 있는 값만 받아요(고치는 줄은 고치기 전 값도). 접수유형은 비워도 돼요.
+    const ok = (v: string, list: string[], was?: string) => list.includes(v.trim()) || (!!was && v.trim() === was);
+    n.intake = n.intake.trim();
+    n.status = n.status.trim();
+    if (n.intake && !ok(n.intake, lists.intake, orig?.intake)) b.intake = true;
+    if (!ok(n.status, lists.status, orig?.status)) b.status = true;
     setD(n);
     setBad(b);
-    const first = (["received", "body", "due"] as const).find((k) => b[k]);
+    const first = (["intake", "received", "body", "due", "status"] as const).find((k) => b[k]);
     if (first) return { input: null, first };
     return { input: { ...n, phone: finalizePhone(n.phone), body: stringifyLines(parseLines(n.body)), action: stringifyLines(parseLines(n.action)) } };
   };
@@ -606,7 +621,7 @@ function isSubmitEnter(e: KeyboardEvent) {
 function NewRow({ lists, onAdd }: { lists: Lists; onAdd: (c: ComplaintInput) => Promise<boolean> }) {
   const f = useDraft(() => emptyDraft(lists));
   const rowRef = useRef<HTMLDivElement>(null);
-  const firstRef = useRef<HTMLSelectElement>(null);
+  const firstRef = useRef<HTMLInputElement>(null);
 
   // 화면을 열면 첫 칸에 커서가 가 있어요.
   useEffect(() => firstRef.current?.focus(), []);
@@ -622,7 +637,7 @@ function NewRow({ lists, onAdd }: { lists: Lists; onAdd: (c: ComplaintInput) => 
   }, [lists.intake, lists.status]);
 
   async function submit() {
-    const { input, first } = f.check();
+    const { input, first } = f.check(lists);
     if (!input) return focusField(rowRef.current, first!);
     if (await onAdd(input)) {
       // 접수일은 그대로 두어 같은 날 여러 건을 잇달아 적기 쉽게 해요.
@@ -694,7 +709,7 @@ function EditRow({
   const trashRef = useRef<HTMLButtonElement>(null);
 
   function save(fromOutside = false) {
-    const { input, first } = f.check();
+    const { input, first } = f.check(lists, { ...c });
     if (!input) {
       // 바깥을 눌렀는데 저장할 수 없으면 고치기 전으로 돌아가요.
       if (fromOutside) return onCancel();
@@ -750,7 +765,7 @@ function EditRow({
       <div role="cell" className="cm-c cm-no">
         {c.no}
       </div>
-      <Cells d={f.d} set={f.set} bad={f.bad} lists={lists} onDateBlur={f.onDateBlur} />
+      <Cells d={f.d} set={f.set} bad={f.bad} lists={lists} onDateBlur={f.onDateBlur} orig={c} />
       <div role="cell" className="cm-c cm-center">
         <MemoButton has={hasMemo} memo={c.memo} onClick={onMemo} />
       </div>
@@ -795,8 +810,12 @@ function ViewRow({
   today,
   urgentDays,
   flash,
+  selected,
+  statuses,
+  onSelect,
   onEdit,
   onMemo,
+  onStatus,
 }: {
   c: Complaint;
   alt: boolean;
@@ -804,8 +823,12 @@ function ViewRow({
   today: string;
   urgentDays: number;
   flash: boolean;
+  selected: boolean;
+  statuses: string[];
+  onSelect: () => void;
   onEdit: () => void;
   onMemo: () => void;
+  onStatus: (status: string) => void;
 }) {
   const n = daysLeft(c, today);
   const [bg, fg] = statusColor(c.status);
@@ -816,9 +839,16 @@ function ViewRow({
       role="row"
       tabIndex={0}
       data-cid={c.id}
-      className={"cm-row cm-view" + (alt ? " alt" : "") + (flash ? " flash" : "")}
-      title="눌러서 고치기"
-      onClick={onEdit}
+      aria-selected={selected}
+      className={"cm-row cm-view" + (alt ? " alt" : "") + (flash ? " flash" : "") + (selected ? " sel" : "")}
+      title="두 번 눌러서 고치기 (상태 배지는 바로 바꾸기, 연락처·위치는 복사)"
+      onClick={onSelect}
+      onDoubleClick={(e) => {
+        // 두 번 누를 때 글자가 골라지는 것을 풀어요.
+        window.getSelection()?.removeAllRanges();
+        e.preventDefault();
+        onEdit();
+      }}
       onKeyDown={(e) => {
         if (e.key === "Enter" && e.target === e.currentTarget) {
           e.preventDefault();
@@ -842,13 +872,13 @@ function ViewRow({
         {t(c.area)}
       </div>
       <div role="cell" className="cm-c">
-        {t(c.place)}
+        {c.place && <CopyCell value={c.place} what="위치" render={t} />}
       </div>
       <div role="cell" className="cm-c">
         {t(c.person)}
       </div>
       <div role="cell" className="cm-c cm-num">
-        {t(c.phone)}
+        {c.phone && <CopyCell value={c.phone} what="연락처" render={t} />}
       </div>
       <div role="cell" className="cm-c cm-multi">
         <Bullets text={c.body} q={q} />
@@ -861,20 +891,19 @@ function ViewRow({
         {n !== null && <span className={"cm-dday" + (isUrgent(n, urgentDays) ? " urgent" : "")}>{ddayText(n)}</span>}
       </div>
       <div role="cell" className="cm-c">
-        <span className="cm-status" style={{ background: bg, color: fg }}>
-          <span className="cm-status-dot" aria-hidden="true" />
-          {t(c.status)}
-        </span>
+        <StatusPick status={c.status} statuses={statuses} bg={bg} fg={fg} render={t} onPick={onStatus} />
       </div>
       <div role="cell" className="cm-c cm-center">
-        <MemoButton
-          has={hasMemo}
-          memo={c.memo}
-          onClick={(e) => {
-            e.stopPropagation();
-            onMemo();
-          }}
-        />
+        <span onDoubleClick={(e) => e.stopPropagation()}>
+          <MemoButton
+            has={hasMemo}
+            memo={c.memo}
+            onClick={(e) => {
+              e.stopPropagation();
+              onMemo();
+            }}
+          />
+        </span>
       </div>
     </div>
   );
@@ -889,6 +918,136 @@ function MemoButton({ has, memo, onClick }: { has: boolean; memo: string; onClic
         <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z" />
       </svg>
     </button>
+  );
+}
+
+/** 연락처·위치 칸: 누르면 그 글자를 복사하고 "복사했어요"를 잠깐 보여요(줄 고르기·고치기로 넘어가지 않아요). */
+function CopyCell({ value, what, render }: { value: string; what: string; render: (s: string) => ReactNode }) {
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<number>();
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  return (
+    <button
+      type="button"
+      className={"cm-copy" + (copied ? " copied" : "")}
+      onDoubleClick={(e) => e.stopPropagation()}
+      title="눌러서 복사"
+      aria-label={`${what} ${value} 복사`}
+      onClick={async (e) => {
+        e.stopPropagation();
+        await copyText(value);
+        setCopied(true);
+        window.clearTimeout(timer.current);
+        timer.current = window.setTimeout(() => setCopied(false), 1400);
+      }}
+    >
+      <span className="cm-copy-v">{render(value)}</span>
+      <span className="cm-copy-note" aria-live="polite">
+        {copied ? "복사했어요" : ""}
+      </span>
+    </button>
+  );
+}
+
+/**
+ * 상태 배지: 누르면 상태 목록이 바로 떠요(줄 고치기로 넘어가지 않아요). 고르면 바로 저장해요.
+ * ↑↓로 고르고 Enter, Esc나 바깥을 누르면 닫혀요.
+ */
+function StatusPick({
+  status,
+  statuses,
+  bg,
+  fg,
+  render,
+  onPick,
+}: {
+  status: string;
+  statuses: string[];
+  bg: string;
+  fg: string;
+  render: (s: string) => ReactNode;
+  onPick: (s: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [hi, setHi] = useState(0);
+  const box = useRef<HTMLSpanElement>(null);
+  const opts = statuses.includes(status) ? statuses : [...statuses, status];
+
+  useEffect(() => {
+    if (!open) return;
+    const down = (e: MouseEvent) => {
+      if (!box.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", down);
+    return () => document.removeEventListener("mousedown", down);
+  }, [open]);
+
+  function pick(s: string) {
+    setOpen(false);
+    onPick(s);
+  }
+
+  return (
+    <span ref={box} className="cm-spick" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        className="cm-status cm-status-btn"
+        style={{ background: bg, color: fg }}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        title="눌러서 상태 바꾸기"
+        onClick={() => {
+          setHi(Math.max(0, opts.indexOf(status)));
+          setOpen(!open);
+        }}
+        onKeyDown={(e) => {
+          if (!open) return;
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setHi((hi + 1) % opts.length);
+          } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setHi(hi <= 0 ? opts.length - 1 : hi - 1);
+          } else if (e.key === "Enter") {
+            e.preventDefault();
+            e.stopPropagation();
+            pick(opts[hi]);
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            setOpen(false);
+          }
+        }}
+      >
+        <span className="cm-status-dot" aria-hidden="true" />
+        {render(status)}
+      </button>
+      {open && (
+        <span className="cm-spick-list" role="listbox" aria-label="상태 바꾸기">
+          {opts.map((o, i) => {
+            const [b, f] = statusColor(o);
+            return (
+              <span
+                key={o}
+                role="option"
+                aria-selected={o === status}
+                className={"cm-spick-opt" + (i === hi ? " hi" : "")}
+                onMouseEnter={() => setHi(i)}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  pick(o);
+                }}
+              >
+                <span className="cm-status" style={{ background: b, color: f }}>
+                  <span className="cm-status-dot" aria-hidden="true" />
+                  {o}
+                </span>
+                {o === status && <span className="cm-spick-now">지금</span>}
+              </span>
+            );
+          })}
+        </span>
+      )}
+    </span>
   );
 }
 
