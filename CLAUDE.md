@@ -5,6 +5,7 @@
 ## 말투와 형식
 - 모든 답은 **해요체**예요. 선택지는 **1안/2안** 형식으로 주고, 권하는 안과 이유를 한 줄 덧붙여요.
 - 답에는 언제나 링크를 함께 줘요(사용자가 정함). 설치 파일은 Releases 페이지와 exe 바로 받기 주소를 둘 다, 기준 문서·커밋도 말할 때마다 주소를 붙여요.
+- **회사에서는 GitHub 접속이 막혀 있어요(2026-10-16 사용자).** 설치 파일이 나오면 대화에 파일로 직접 보내요: `gh api repos/zeondas/gilog/releases/tags/build-N`로 asset id를 찾아 `gh api -H "Accept: application/octet-stream" repos/zeondas/gilog/releases/assets/<id> > giLog_<버전>_x64-setup.exe`로 받고(크기 확인) SendUserFile로 보내요. `gh release download`는 막혀 있어요. 링크도 함께 적지만 파일이 먼저예요.
 - 한 단계가 끝나면 (1) 들어간 것, (2) 제가 확인한 것, (3) 윈도우에서만 확인할 수 있어 사용자가 시험해야 할 것을 번호로 적어요.
 - 사용자가 "통과"라고 하기 전에는 다음 단계를 시작하지 않아요.
 
