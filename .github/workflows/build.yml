@@ -34,10 +34,16 @@ jobs:
       - name: 저장·암호화 시험
         run: cargo test --manifest-path src-tauri/core/Cargo.toml
 
+      # bash 칸에서는 Git에 딸린 perl이 먼저 잡히는데, 2026-10 러너부터 OpenSSL 설정에 필요한 모듈이 빠져 실패해요.
+      # 그래서 윈도우용 Strawberry Perl을 쓰게 해요(openssl-src는 PERL 값을 먼저 봐요).
       - name: 설치 파일 만들기
         id: build
         shell: bash
-        run: npm run tauri build 2>&1 | tee build.log; exit ${PIPESTATUS[0]}
+        env:
+          PERL: C:\Strawberry\perl\bin\perl.exe
+        run: |
+          export PATH="/c/Strawberry/perl/bin:$PATH"
+          npm run tauri build 2>&1 | tee build.log; exit ${PIPESTATUS[0]}
 
       # 실패하면 오류 줄을 커밋 댓글로 남겨요. (이 작업 공간에서 실행 로그를 직접 못 읽어서예요)
       - name: 실패 내용 남기기
