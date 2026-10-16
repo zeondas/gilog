@@ -603,24 +603,50 @@ function AddForm({
     setBad("");
   }
 
-  async function submit() {
+  const busy = useRef(false);
+
+  /** 등록해요. leave가 참이면(바깥을 눌렀을 때) 등록한 뒤 입력란을 접고, 제목이 비어 있으면 등록하지 않고 접기만 해요. */
+  async function submit(leave = false) {
+    if (busy.current) return;
     if (!title.trim()) {
+      if (leave) return onClose();
       setBad("title");
       titleRef.current?.focus();
       return;
     }
     const d = due.trim() ? parseDate(due) : "";
     if (d === null) {
+      // 날짜를 읽을 수 없으면 등록하지 않고 빨간 테두리로 알려요(공통 규칙).
       setBad("due");
-      box.current?.querySelector<HTMLInputElement>('input[name="due"]')?.focus();
+      if (!leave) box.current?.querySelector<HTMLInputElement>('input[name="due"]')?.focus();
       return;
     }
-    if (await onAdd({ title, detail: stringifyLines(lines), due: d })) {
-      // 제목 칸으로 먼저 옮겨요. 날짜 칸이 떠나면서 날짜를 고쳐 쓰는 것(onBlur)이 비우기보다 먼저 일어나야 해요.
-      titleRef.current?.focus();
+    busy.current = true;
+    const ok = await onAdd({ title, detail: stringifyLines(lines), due: d });
+    busy.current = false;
+    if (!ok) return;
+    if (leave) {
       reset();
+      onClose();
+      return;
     }
+    // 제목 칸으로 먼저 옮겨요. 날짜 칸이 떠나면서 날짜를 고쳐 쓰는 것(onBlur)이 비우기보다 먼저 일어나야 해요.
+    titleRef.current?.focus();
+    reset();
   }
+
+  const latest = useRef(submit);
+  latest.current = submit;
+
+  // 바깥을 누르면 저장하고 접어요(공통 규칙 "바깥을 누르면 저장"). 제목이 비어 있으면 접기만 해요.
+  useEffect(() => {
+    if (!open) return;
+    const down = (e: MouseEvent) => {
+      if (!box.current?.contains(e.target as Node)) void latest.current(true);
+    };
+    document.addEventListener("mousedown", down);
+    return () => document.removeEventListener("mousedown", down);
+  }, [open]);
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (isComposing(e) || e.defaultPrevented) return;
@@ -676,7 +702,7 @@ function AddForm({
             >
               취소
             </button>
-            <button type="button" className="btn-primary btn-xs" onClick={submit}>
+            <button type="button" className="btn-primary btn-xs" onClick={() => submit()}>
               등록
             </button>
           </DueField>
