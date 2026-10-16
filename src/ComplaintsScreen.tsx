@@ -15,6 +15,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { REMOTE_CHANGE } from "./google";
 import { api, Complaint, ComplaintInput, errorText } from "./api";
 import {
   COL_MIN,
@@ -70,6 +71,10 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
     api.complaints().then(setList, (e) => setNote(errorText(e)));
     loadSettings().then(setSettings, () => {});
     api.get(COLS_KEY).then((raw) => setWidths(readWidths(raw)), () => {});
+    // 구글 할 일에서 민원을 체크하면 상태가 바뀌어요 → 다시 읽어요.
+    const reload = () => api.complaints().then(setList, () => {});
+    window.addEventListener(REMOTE_CHANGE, reload);
+    return () => window.removeEventListener(REMOTE_CHANGE, reload);
   }, []);
 
   // 자정을 넘기면 남은 날을 다시 셈해요.

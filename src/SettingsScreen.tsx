@@ -251,8 +251,8 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked }: Pro
 
 const G_TOGGLES: [keyof GOpts, string, string][] = [
   ["events", "내 일정 내보내기", "캘린더에 직접 적은 일정이에요."],
-  ["complaints", "민원 마감 내보내기", "\"민원 마감 · 접수유형 · 위치\"만 보내요. 민원인 이름과 연락처는 보내지 않아요."],
-  ["tasks", "할 일 마감 내보내기", "할 일 목록의 마감일이 구글 달력에 보여요."],
+  ["complaints", "민원 마감 내보내기", "구글 할 일로 보내요. 구글에서 체크하면 민원대장도 완료가 돼요. 민원인 이름과 연락처는 보내지 않아요."],
+  ["tasks", "할 일 마감 내보내기", "구글 할 일로 보내요. 체크는 서로 맞춰요."],
 ];
 
 function GoogleCard() {
@@ -319,6 +319,11 @@ function GoogleCard() {
           </span>
           {!ask ? (
             <>
+              {g.lastError.includes("다시 로그인") && (
+                <button type="button" className="btn btn-primary" disabled={wait} onClick={login}>
+                  {wait ? "로그인 기다리는 중…" : "다시 로그인"}
+                </button>
+              )}
               <button type="button" className="btn" disabled={g.busy} onClick={() => exportNow()}>
                 지금 내보내기
               </button>

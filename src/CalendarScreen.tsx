@@ -16,7 +16,7 @@ import {
 import { Hl } from "./ContactsScreen";
 import { parseDate, todayStr } from "./journal";
 import { DEFAULT_SETTINGS, DONE_STATUS, loadSettings } from "./settingsStore";
-import { exportNow, GStatus, onGoogleStatus, whenText } from "./google";
+import { exportNow, GStatus, onGoogleStatus, REMOTE_CHANGE, whenText } from "./google";
 import { loadNotifyMode, refreshHolidaysDaily, saveNotifyMode, stamp, syncReminders, updateHolidays } from "./reminders";
 
 const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
@@ -157,6 +157,13 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
     api.tasksData().then((d) => setTasks(d.tasks), () => {});
     // 오늘 받은 적이 없으면 공휴일을 새로 받아 와요.
     refreshHolidaysDaily().then((got) => got && load());
+    // 구글 할 일에서 체크한 것이 들어오면 다시 읽어요.
+    const reload = () => {
+      api.complaints().then(setComplaints, () => {});
+      api.tasksData().then((d) => setTasks(d.tasks), () => {});
+    };
+    window.addEventListener(REMOTE_CHANGE, reload);
+    return () => window.removeEventListener(REMOTE_CHANGE, reload);
   }, [load]);
 
   // 자정을 넘기면 "오늘"을 바꿔요.

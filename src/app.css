@@ -5097,3 +5097,10 @@ body.col-dragging * {
 .g-box-at {
   color: var(--muted);
 }
+/* 0.9.2: 연동 상자 아래 끝을 달력 맨 아래 선에 맞춰요(사용자 시안 확인). */
+.cal-side {
+  align-self: stretch;
+}
+.cal-side > .g-box {
+  margin-top: auto;
+}

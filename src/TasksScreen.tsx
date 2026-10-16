@@ -5,6 +5,7 @@
 // - "민원" 카드에는 민원대장의 민원(마감일 있는 것)이 함께 보여요. 따로 저장하지 않고 민원을 그대로 읽어요.
 //   체크하면 민원대장의 상태가 완료로 바뀌고, 체크를 풀면 그 전 상태로 돌아가요. 제목·마감일은 민원대장에서만 고쳐요.
 import { KeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { REMOTE_CHANGE } from "./google";
 import { api, Complaint, errorText, Task, TaskEdit, TaskInput, TaskList, TasksData } from "./api";
 import { BLine, parseLines, stringifyLines } from "./bullets";
 import { BulletEditor, BulletView } from "./BulletParts";
@@ -52,6 +53,13 @@ export default function TasksScreen({ urgentDays, focusId, onFocused, onOpenComp
     api.tasksData().then(setData, (e) => setNote(errorText(e)));
     api.complaints().then(setComplaints, () => {});
     loadSettings().then((s) => setStatuses(s.status), () => {});
+    // 구글 할 일에서 체크한 것이 들어오면 다시 읽어요.
+    const reload = () => {
+      api.tasksData().then(setData, () => {});
+      api.complaints().then(setComplaints, () => {});
+    };
+    window.addEventListener(REMOTE_CHANGE, reload);
+    return () => window.removeEventListener(REMOTE_CHANGE, reload);
   }, []);
 
   // 자정을 넘기면 "오늘"을 바꿔요(마감 배지).

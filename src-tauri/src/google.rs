@@ -171,7 +171,7 @@ pub struct HttpReply {
 /// 구글로 보내는 요청을 앱이 대신 보내요(화면 쪽 요청이 막힐 때). 받지 못하면 "offline"이에요.
 #[tauri::command]
 pub async fn google_http(method: String, url: String, headers: Vec<(String, String)>, body: Option<String>) -> Result<HttpReply, String> {
-    let ok_host = ["https://oauth2.googleapis.com/", "https://www.googleapis.com/"];
+    let ok_host = ["https://oauth2.googleapis.com/", "https://www.googleapis.com/", "https://tasks.googleapis.com/"];
     if !ok_host.iter().any(|h| url.starts_with(h)) {
         return Err("invalid".into());
     }
