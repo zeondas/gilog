@@ -5,6 +5,7 @@
 // - 줄을 누르면 그 자리에서 고치고, 바깥을 누르면 저장해요. 삭제는 "이 민원을 지울까요?"를 물어요.
 // - 메모는 창에서 고쳐요. Enter 저장, Ctrl+Enter 새 줄, 바깥을 누르면 저장이에요.
 import {
+import { DelIcon } from "./Icons";
   CSSProperties,
   KeyboardEvent,
   MouseEvent as ReactMouseEvent,
@@ -177,11 +178,7 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
             onCompositionEnd={qGuard.onCompositionEnd}
           />
         </label>
-        <button type="button" className="btn btn-ctrl" onClick={() => setCatsOpen(true)}>
-          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" />
-          </svg>
+        <button type="button" className="btn btn-ctrl btn-text" onClick={() => setCatsOpen(true)}>
           분류 관리
         </button>
       </div>
@@ -787,7 +784,7 @@ function EditRow({
           </div>
         ) : (
           <button ref={trashRef} type="button" className="tool-box" aria-label={`${c.no}번 민원 지우기`} title="이 민원 지우기" onClick={() => setAsking(true)}>
-            <Trash />
+            <DelIcon />
           </button>
         )}
         <span className="hint cm-edit-hint">Tab 다음 칸 · Enter 저장 · Shift+Enter 새 줄 · 줄 맨 앞 ] ) - 와 스페이스로 머릿기호 · Esc 취소 · 바깥을 누르면 저장</span>
@@ -1023,7 +1020,6 @@ function StatusPick({
           }
         }}
       >
-        <span className="cm-status-dot" aria-hidden="true" />
         {render(status)}
       </button>
       {open && (
@@ -1043,7 +1039,6 @@ function StatusPick({
                 }}
               >
                 <span className="cm-status" style={{ background: b, color: f }}>
-                  <span className="cm-status-dot" aria-hidden="true" />
                   {o}
                 </span>
                 {o === status && <span className="cm-spick-now">지금</span>}
@@ -1122,10 +1117,3 @@ function Plus() {
   );
 }
 
-function Trash() {
-  return (
-    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" />
-    </svg>
-  );
-}

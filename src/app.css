@@ -620,6 +620,11 @@ mark {
   font: inherit;
 }
 
+/* 아이콘 없이 글자만 있는 위쪽 단추 (톱니를 뺀 분류 관리·프로젝트 관리) */
+.btn-ctrl.btn-text {
+  padding: 0 14px;
+}
+
 .btn-ctrl {
   height: var(--size-ctrl);
   border-radius: var(--radius-md);
@@ -922,8 +927,15 @@ mark {
   background: var(--line-soft);
 }
 
+/* 지우기 단추: 회색 ×, 빨강은 마우스를 올렸을 때와 "지울까요?" 띠에만 (2026-10-17 아이콘 정리 2안) */
 .tool-danger,
 .tool-box {
+  color: var(--muted);
+}
+
+.tool-danger:hover,
+.tool-box:hover:not(:disabled) {
+  background: var(--danger-wash);
   color: var(--danger);
 }
 
@@ -1319,9 +1331,9 @@ mark {
   height: 26px;
   margin-left: var(--space-3);
   padding: 0;
-  border: 1px solid var(--line);
+  border: 0;
   border-radius: var(--radius-sm);
-  background: var(--surface);
+  background: transparent;
 }
 
 .ask-wide {
@@ -2002,9 +2014,9 @@ mark {
   width: 28px;
   height: 28px;
   margin-left: var(--space-3);
-  border: 1px solid var(--line);
+  border: 0;
   border-radius: var(--radius-sm);
-  background: var(--surface);
+  background: transparent;
 }
 
 .jask {

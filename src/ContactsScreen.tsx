@@ -1,5 +1,6 @@
 // 업무연락처 화면이에요. 시안 Contacts.dc.html과 사양서의 "업무연락처" 절을 따라요.
 import { KeyboardEvent, RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DelIcon } from "./Icons";
 import { BLine, CYCLE, kindOf, nextLine, parseLines, stringifyLines, TRIGGERS, withKind } from "./bullets";
 import { BulletView, Mark } from "./BulletParts";
 import { koIndex } from "./journal";
@@ -157,11 +158,7 @@ export default function ContactsScreen() {
             onCompositionEnd={qGuard.onCompositionEnd}
           />
         </label>
-        <button type="button" className="btn btn-ctrl" onClick={() => setProjOpen(true)}>
-          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" />
-          </svg>
+        <button type="button" className="btn btn-ctrl btn-text" onClick={() => setProjOpen(true)}>
           프로젝트 관리
         </button>
       </div>
@@ -515,7 +512,7 @@ function ViewCard({ contact: c, byId, q, asking, memoOpen, onEdit, onAsk, onRemo
               <Pencil />
             </button>
             <button type="button" className="tool tool-danger" aria-label={`${c.name} 지우기`} title="이 연락처 지우기" ref={trashRef} onClick={() => onAsk(!asking)}>
-              <Trash />
+              <DelIcon />
             </button>
           </span>
         </div>
@@ -1002,7 +999,7 @@ function ProjectDialog({
                   onPick={(c) => run(api.setProjectColor(p.id, c))}
                 />
                 <button type="button" className="tool-box" aria-label={`${p.name} 지우기`} title="이 프로젝트 지우기" onClick={() => setAsk(p.id)}>
-                  <Trash />
+                  <DelIcon />
                 </button>
                 {ask === p.id && (
                   <div className="ask-band ask-wide" role="alertdialog" aria-label="프로젝트 지우기 확인">

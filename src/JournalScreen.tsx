@@ -1,6 +1,7 @@
 // 업무일지 화면이에요. 시안 Journal.dc.html과 사양서의 "업무일지" 절을 따라요.
 // 누가 언제 무슨 말을 했는지 남기는 곳이라, 손을 키보드에서 떼지 않고 한 건을 끝낼 수 있게 만들었어요.
 import { KeyboardEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DelIcon } from "./Icons";
 import { api, Complaint, Contact, ContactsData, DayInfo, Entry, EntryInput, errorText, JournalData, Project, Task, TaskList, TasksData } from "./api";
 import { firstLineOf } from "./bullets";
 import { daysBetween, daysLeft, ddayText, dueSoon, isUrgent } from "./complaints";
@@ -1676,9 +1677,7 @@ function EditCard({
               저장
             </button>
             <button type="button" className="tool-box jtrash" aria-label="이 기록 지우기" title="이 기록 지우기" onClick={() => setAsking(true)}>
-              <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" />
-              </svg>
+              <DelIcon />
             </button>
           </div>
         )}

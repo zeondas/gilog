@@ -6,6 +6,7 @@
 // - 공휴일은 칸 위쪽에 빨간 글자로 보여요(앱이 인터넷에서 받아 저장해 둔 것).
 // - 왼쪽: 종류 체크(보이기·숨기기), "관리"(색 24가지·새 종류·지우기), "다가오는 7일".
 import { CSSProperties, KeyboardEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { DelIcon } from "./Icons";
 import { api, CalEvent, CalKind, CalendarData, Complaint, errorText, EventInput, NotifyStatus, Repeat, Task } from "./api";
 import { BLine, parseLines, stringifyLines } from "./bullets";
 import { BulletEditor } from "./BulletParts";
@@ -1277,7 +1278,7 @@ function EventDialog({
         <div className="dialog-foot cal-dlg-foot">
           {!isNew && (
             <button type="button" className="tool-box cal-trash" aria-label="일정 삭제" title="일정 삭제" onClick={() => setAsking(true)}>
-              <Trash />
+              <DelIcon />
             </button>
           )}
                     <button type="button" className="btn btn-ctrl cal-cancel" onClick={onClose}>
@@ -1454,7 +1455,7 @@ function KindsDialog({
             disabled={mine.length <= 1}
             onClick={() => setAsking(k.id)}
           >
-            <Trash />
+            <DelIcon />
           </button>
         )}
         {asking === k.id && (
@@ -1889,11 +1890,4 @@ function Plus() {
   );
 }
 
-function Trash() {
-  return (
-    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" />
-    </svg>
-  );
-}
 

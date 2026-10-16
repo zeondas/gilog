@@ -5,6 +5,7 @@
 // - "민원" 카드에는 민원대장의 민원(마감일 있는 것)이 함께 보여요. 따로 저장하지 않고 민원을 그대로 읽어요.
 //   체크하면 민원대장의 상태가 완료로 바뀌고, 체크를 풀면 그 전 상태로 돌아가요. 제목·마감일은 민원대장에서만 고쳐요.
 import { KeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DelIcon } from "./Icons";
 import { REMOTE_CHANGE } from "./google";
 import { api, Complaint, errorText, Task, TaskEdit, TaskInput, TaskList, TasksData } from "./api";
 import { BLine, parseLines, stringifyLines } from "./bullets";
@@ -994,7 +995,7 @@ function ItemRow({
                   </div>
                 ) : (
                   <button type="button" className="tool-box" aria-label="이 할 일 지우기" title="이 할 일 지우기" onClick={() => setAsking(true)}>
-                    <Trash />
+                    <DelIcon />
                   </button>
                 )}
               </>
@@ -1124,7 +1125,7 @@ function TaskEditor({
             </div>
           ) : (
             <button ref={trashRef} type="button" tabIndex={-1} className="tool-box" aria-label="이 할 일 지우기" title="이 할 일 지우기" onClick={() => setAsking(true)}>
-              <Trash />
+              <DelIcon />
             </button>
           )}
           <span className="td-acts-gap" />
@@ -1159,10 +1160,3 @@ function Plus({ size = 15 }: { size?: number }) {
   );
 }
 
-function Trash() {
-  return (
-    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" />
-    </svg>
-  );
-}
