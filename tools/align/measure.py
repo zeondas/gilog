@@ -1,77 +1,61 @@
-import sys, json, asyncio, io
-from PIL import Image, ImageChops
+import asyncio, sys, json, io
+from PIL import Image
 from playwright.async_api import async_playwright
-S=1
-COLLECT = r"""
-() => {
-  const out=[]; let n=0;
-  const vis=e=>{const r=e.getBoundingClientRect();if(r.width<4||r.height<4)return null;const cs=getComputedStyle(e);if(cs.visibility==='hidden'||cs.opacity==='0')return null;return r;};
-  const boxy=e=>{const cs=getComputedStyle(e);
-    const bw=['Top','Right','Bottom','Left'].some(s=>parseFloat(cs['border'+s+'Width'])>0&&cs['border'+s+'Style']!=='none');
-    const bg=cs.backgroundColor!=='rgba(0, 0, 0, 0)'&&cs.backgroundColor!=='transparent';
-    return e.tagName==='BUTTON'||e.tagName==='INPUT'||e.tagName==='SELECT'||(bw&&cs.borderTopWidth!=='0px'&&cs.borderBottomWidth!=='0px'||bw&&parseFloat(cs.borderLeftWidth)>0&&parseFloat(cs.borderRightWidth)>0)||(bg&&parseFloat(cs.borderRadius)>0)||(bg&&e.closest('[class*=badge],[class*=chip],[class*=pill],[class*=tag]')===e);};
-  const els=[...document.querySelectorAll('body *')].filter(e=>!e.closest('svg')&&e.tagName!=='TEXTAREA');
-  const hasText=e=>{if(e.tagName==='INPUT')return (e.value||e.placeholder)&&['text','search','password','email','tel',''].includes(e.type);const t=e.innerText;return t&&t.trim().length>0&&!t.trim().includes('\n');};
-  for(const e of els){
-    const r=vis(e); if(!r||r.height>64||r.width>900||r.top<0||r.bottom>innerHeight||r.left<0||r.right>innerWidth) continue;
-    if(!boxy(e)||!hasText(e)) continue;
-    {const tp=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2); if(!tp||!(tp===e||e.contains(tp))) continue;}
-    const fy=Math.abs(r.top-Math.round(r.top))>0.01;
-    // leaf: no boxy descendant that also has text
-    if(e.tagName!=='INPUT'&&[...e.querySelectorAll('*')].some(d=>!d.closest('svg')&&vis(d)&&boxy(d)&&hasText(d)&&d.getBoundingClientRect().height<r.height-1)) continue;
-    const cs=getComputedStyle(e);
-    const bt=parseFloat(cs.borderTopWidth),bb=parseFloat(cs.borderBottomWidth),bl=parseFloat(cs.borderLeftWidth),br=parseFloat(cs.borderRightWidth);
-    const id='a'+(n++); e.setAttribute('data-audit',id);
-    out.push({id,tag:e.tagName,cls:(e.className&&e.className.baseVal===undefined?e.className:'')||'',par:(e.parentElement.className||'').toString().slice(0,40),
-      text:(e.tagName==='INPUT'?(e.value||e.placeholder):e.innerText).trim().slice(0,24),
-      fy,x:r.left+bl,y:r.top+bt,w:r.width-bl-br,h:r.height-bt-bb,ta:cs.textAlign,jc:cs.justifyContent,disp:cs.display,fs:cs.fontSize,lh:cs.lineHeight,pt:cs.paddingTop,pb:cs.paddingBottom,pl:cs.paddingLeft,pr:cs.paddingRight,ai:cs.alignItems});
-  }
-  return out;
-}"""
-HIDE_ICONS="svg,img,canvas{visibility:hidden!important} *{caret-color:transparent!important;transition:none!important;animation:none!important}"
-HIDE_TEXT="*{color:transparent!important;-webkit-text-fill-color:transparent!important;text-shadow:none!important;text-decoration-color:transparent!important} *::placeholder{color:transparent!important;-webkit-text-fill-color:transparent!important} *::selection{background:transparent!important}"
-async def measure(pg, label):
-    items=await pg.evaluate(COLLECT)
-    s1=await pg.add_style_tag(content=HIDE_ICONS)
-    await pg.wait_for_timeout(60)
-    a=Image.open(io.BytesIO(await pg.screenshot())).convert("RGB")
-    s2=await pg.add_style_tag(content=HIDE_TEXT)
-    await pg.wait_for_timeout(60)
-    b=Image.open(io.BytesIO(await pg.screenshot())).convert("RGB")
-    await pg.evaluate("()=>{document.querySelectorAll('style:not(#xcss)').forEach(s=>{if(s.textContent.includes('caret-color:transparent!important')||s.textContent.includes('-webkit-text-fill-color:transparent!important'))s.remove()})}")
-    diff=ImageChops.difference(a,b).convert("L")
-    res=[]
-    for it in items:
-        X,Y,W,H=[round(v*S) for v in (it['x'],it['y'],it['w'],it['h'])]
-        if W<=2 or H<=2: continue
-        crop=diff.crop((X,Y,X+W,Y+H)); mx=crop.getextrema()[1]
-        if mx<25: continue
-        bb=crop.point(lambda v,m=mx:255 if v>m*0.3 else 0).getbbox()
-        if not bb: continue
-        l,t,r,bm=bb
-        it.update(top=t/S,bot=(H-bm)/S,left=l/S,right=(W-r)/S,screen=label)
-        res.append(it)
-    return res
-async def run(actions, out, css='', js=''):
-    async with async_playwright() as p:
-        br=await p.chromium.launch()
-        pg=await br.new_page(viewport={"width":1920,"height":1080},device_scale_factor=S)
-        pg.set_default_timeout(4000)
-        await pg.add_init_script(path="seed.js")
-        if css: await pg.add_init_script(script="document.addEventListener('DOMContentLoaded',()=>{const s=document.createElement('style');s.id='xcss';s.textContent="+json.dumps(css)+";document.head.appendChild(s)})")
-        if js: await pg.add_init_script(script="document.addEventListener('DOMContentLoaded',()=>{"+js+"})")
-        await pg.goto("http://localhost:5175/"); await pg.wait_for_timeout(800); await pg.evaluate("document.fonts.ready.then(()=>1)")
-        allr=[]
-        for label, act in actions:
-            try:
-                await act(pg)
-            except Exception as ex:
-                print("FAIL",label,str(ex)[:120]); continue
-            await pg.wait_for_timeout(400)
-            if not label.endswith("*"):
-                await pg.mouse.move(1919,1079); await pg.evaluate("()=>document.activeElement&&document.activeElement.blur&&document.activeElement.blur()")
-            await pg.wait_for_timeout(150)
-            allr+=await measure(pg,label)
-        await br.close()
-    json.dump(allr,open(out,"w"),ensure_ascii=False,indent=0)
-    return allr
+S=sys.argv[1]; OUT=sys.argv[2]
+T="2026-10-17"
+SEED='''const f=window.__fake;
+f.projects=[{id:1,name:"광탄면 배수로 정비",color:null},{id:2,name:"시도15호선 도로정비",color:3},{id:3,name:"방호벽 개선",color:null}];f.nextProjectId=4;
+f.contacts=[{id:1,name:"김민수",org:"○○설계",role:"과장",mobile:"010-1234-5678",tel:"",email:"",memo:"",projects:[1,2]},{id:2,name:"이영희",org:"도로관리과",role:"주무관",mobile:"010-2222-3333",tel:"031-940-1234",email:"",memo:"",projects:[3]}];f.nextId=3;
+f.complaints=[{id:1,no:1,intake:"전화",received:"2026-10-14",ctype:"포트홀",area:"조리읍",place:"봉일천리 113 일원",person:"홍길동",phone:"010-1111-2222",body:"도로 파임 보수 요청",action:"",due:"2026-10-20",status:"접수",memo:""},{id:2,no:2,intake:"국민신문고",received:"2026-10-10",ctype:"배수불량",area:"문산읍",place:"선유리 22",person:"김철수",phone:"010-3333-4444",body:"배수로 막힘",action:"현장 확인",due:"2026-10-18",status:"처리중",memo:""}];f.nextComplaintId=3;
+f.tasks=[{id:1,list:2,parent:null,title:"예산 요구서 작성",detail:"",due:"2026-10-19",done:false,doneOn:""},{id:2,list:2,parent:null,title:"현장 점검 사진 정리",detail:"",due:"",done:false,doneOn:""}];f.nextTaskId=3;
+f.events=[{id:1,kind:1,title:"설계 협의",date:"2026-10-17",start:"10:00",end:"11:00",repeat:"",until:"",place:"",note:"",remind:-1,remindTime:""}];f.nextEventId=2;
+f.entries=[{id:1,date:"2026-10-17",time:"09:10",kind:"전화",who:"김민수",contact:"010-1234-5678",project:1,lines:[{who:"김민수",me:false,text:"배수로 도면 수정본 보냈어요"},{who:"",me:true,text:"확인하고 연락드릴게요"}],body:""}];f.nextEntryId=2;'''
+COLLECT='''()=>{const out=[];const seen=new Set();
+for(const el of document.querySelectorAll('button,input,span,a,label,div')){
+ const r=el.getBoundingClientRect(); if(r.width<12||r.height<14||r.height>44||r.width>700) continue;
+ const cs=getComputedStyle(el); if(cs.visibility==='hidden'||cs.display==='none') continue;
+ const boxy=(cs.backgroundColor!=='rgba(0, 0, 0, 0)'&&cs.backgroundColor!=='transparent')||parseFloat(cs.borderTopWidth)>0;
+ if(!boxy) continue;
+ let text=el.tagName==='INPUT'?(el.value||el.placeholder):el.innerText; text=(text||'').trim(); if(!text||text.includes('\\n')) continue;
+ if(r.top<0||r.bottom>window.innerHeight) continue;
+ const k=Math.round(r.x)+','+Math.round(r.y); if(seen.has(k)) continue; seen.add(k);
+ out.push({tag:el.tagName,cls:(el.className&&el.className.baseVal===undefined?el.className:'').split(' ').slice(0,2).join(' '),text,x:r.x,y:r.y,w:r.width,h:r.height,bt:parseFloat(cs.borderTopWidth),bb:parseFloat(cs.borderBottomWidth),rad:parseFloat(cs.borderTopLeftRadius)||0});}
+return out;}'''
+def analyze(img,e):
+  m=max(3,int(min(e['rad'],e['h']/2))+2); x0=int(e['x']+0.5)+m; x1=int(e['x']+e['w'])-m
+  y0=int(e['y']); y1=int(e['y']+e['h']+0.999)
+  bt=int(round(e['bt'])) ; bb=int(round(e['bb']))
+  top_edge=int(round(e['y']))+bt; bot_edge=int(round(e['y']+e['h']))-bb  # exclusive
+  if x1-x0<4 or bot_edge-top_edge<6: return None
+  crop=img.crop((x0,top_edge,x1,bot_edge)).convert('RGB')
+  W,H=crop.size; px=crop.load()
+  from collections import Counter
+  c=Counter(px[i,j] for i in range(0,W,2) for j in range(H)); bg=c.most_common(1)[0][0]
+  ink=[j for j in range(H) if any(sum(abs(a-b) for a,b in zip(px[i,j],bg))>90 for i in range(W))]
+  if not ink: return None
+  return ink[0], H-1-ink[-1]
+async def main():
+  res=[]
+  async with async_playwright() as p:
+    b=await p.chromium.launch(); pg=await b.new_page(viewport={"width":1920,"height":1080})
+    await pg.goto("http://localhost:5175/"); await pg.wait_for_timeout(1500); await pg.evaluate(SEED)
+    await pg.evaluate("document.fonts.load('13px Pretendard','가')"); await pg.wait_for_timeout(500)
+    print("font:", await pg.evaluate("document.fonts.check('13px Pretendard','가')"))
+    async def grab(name):
+      await pg.wait_for_timeout(500)
+      await pg.evaluate("document.activeElement&&document.activeElement.blur()")
+      img=Image.open(io.BytesIO(await pg.screenshot())); els=await pg.evaluate(COLLECT)
+      inOverlay=await pg.evaluate("!!document.querySelector('.overlay')")
+      for e in els:
+        a=analyze(img,e)
+        if a: res.append({"screen":name,"tag":e['tag'],"cls":e['cls'],"text":e['text'],"top":a[0],"bot":a[1],"fy":int(abs(e['y']-round(e['y']))>0.01)})
+    async def go(n): await pg.locator(".side-item",has_text=n).first.click(); await pg.wait_for_timeout(700)
+    for scr in ["업무일지","민원대장","업무연락처","캘린더","할 일","설정"]:
+      await go(scr); await grab(scr)
+    await go("업무연락처"); await pg.get_by_role("button",name="프로젝트 관리").click(); await grab("프로젝트 관리"); await pg.keyboard.press("Escape")
+    await go("민원대장"); await pg.get_by_role("button",name="분류 관리").click(); await grab("분류 관리"); await pg.keyboard.press("Escape")
+    await go("캘린더"); await pg.get_by_role("button",name="관리",exact=True).click(); await grab("종류 관리")
+    await pg.get_by_role("button",name="알림 확인").click(); await grab("알림 확인"); await pg.keyboard.press("Escape")
+    await b.close()
+  json.dump(res,open(OUT,'w'),ensure_ascii=False)
+asyncio.run(main())

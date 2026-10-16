@@ -347,7 +347,7 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
   if (!hidden.has(data.kinds.find((k) => k.system === "holiday")?.id ?? -1)) {
     for (const o of occs) if (o.kind.system === "holiday") holidaysOf.set(o.start, [...(holidaysOf.get(o.start) ?? []), o.title]);
   }
-  const holidayLine = data.holidaysAt ? `공휴일은 ${data.holidaysAt.slice(5).replace("-", "/")}에 받았어요` : "공휴일은 앱에 넣어 온 목록(2027년까지)이에요";
+  const holidayLine = data.holidaysAt ? `${data.holidaysAt.slice(5, 10).replace("-", "/")} 받음` : "앱에 넣은 목록";
 
   return (
     <div className="cal-screen">
@@ -1035,7 +1035,7 @@ function QuickRow({
       <input
         name="title"
         aria-label="일정"
-        placeholder="일정 (시간을 비우면 종일)"
+        placeholder="일정"
         className={"cell-input" + (bad === "title" ? " invalid" : "")}
         value={title}
         onChange={(e) => {
@@ -1226,7 +1226,7 @@ function EventDialog({
                 <span className="cal-dlg-sub">종료일</span>
                 <input
                   aria-label="반복 종료일"
-                  placeholder="날짜 (필수)"
+                  placeholder="날짜"
                   className={"cell-input num cal-in-date" + (bad.until || !draft.until.trim() ? " invalid" : "")}
                   value={draft.until}
                   onChange={(e) => set("until", e.target.value)}
@@ -1430,11 +1430,11 @@ function KindsDialog({
     const c = kindColor(k, data.kinds);
     return (
       <div key={k.id} className="prow cal-krow">
-        <div className="prow-name cal-krow-name">
+        <div className="prow-name mgr-name">
           <span className="cal-kbadge" style={{ background: colorBg(c), color: colorFg(c) }}>
             {k.name}
           </span>
-          <span className="hint">{extra}</span>
+          <span className="mgr-info">{extra}</span>
         </div>
         <ColorButton
           label={k.name}
@@ -1443,7 +1443,9 @@ function KindsDialog({
           autoLabel={k.system ? "처음 색" : "자동"}
           onPick={(i) => run(api.setCalKindColor(k.id, i)).then((r) => r && onKinds(r))}
         />
-        {!k.system && (
+        {k.system ? (
+          <span className="mgr-gap" aria-hidden="true" />
+        ) : (
           <button
             type="button"
             className="tool-box"
@@ -1481,7 +1483,7 @@ function KindsDialog({
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div
-        className="dialog cal-kdialog"
+        className="dialog mgr"
         role="dialog"
         aria-modal="true"
         aria-label="캘린더 종류 관리"
@@ -1497,13 +1499,13 @@ function KindsDialog({
           <span className="dialog-title">캘린더 종류 관리</span>
         </div>
         <div className="dialog-body">
-          <div className="cal-kgroup">직접 만든 종류</div>
+          <div className="mgr-label">직접 만든 종류</div>
           {mine.map((k) => row(k, count(k.id) ? `일정 ${count(k.id)}건` : "일정 없음"))}
           <div className="padd">
             <input
               aria-label="새 종류 이름"
-              placeholder="새 종류 이름을 쓰고 Enter"
-              className="cell-input cal-knew"
+              placeholder="새 종류 이름"
+              className="input"
               value={name}
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => {
@@ -1513,11 +1515,14 @@ function KindsDialog({
                 }
               }}
             />
-            <button type="button" className="btn-primary btn-xs" onClick={add}>
+            <button type="button" className="btn-primary btn-ctrl mgr-add" onClick={add}>
+              <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
               추가
             </button>
           </div>
-          <div className="cal-kgroup">자동으로 들어오는 종류</div>
+          <div className="mgr-label">자동으로 들어오는 종류</div>
           {sys.map((k) =>
             row(
               k,
@@ -1543,7 +1548,7 @@ function KindsDialog({
                     <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className={hol?.busy ? "spin" : undefined}>
                       <path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4h-4" />
                     </svg>
-                    {hol?.busy ? "받는 중…" : "공휴일 다시 받기"}
+                    {hol?.busy ? "받는 중…" : "다시 받기"}
                   </button>
                   {hol && !hol.busy && (
                     <span className={hol.ok ? "cal-hol-ok" : "cal-hol-fail"} role="status">
@@ -1822,9 +1827,7 @@ function ColorButton({ label, value, auto, autoLabel, onPick }: { label: string;
         title={`${COLOR_NAMES[value]}${auto ? " (자동)" : ""}`}
         onClick={toggle}
         style={{ background: colorBg(value), color: colorFg(value) }}
-      >
-        {auto && <span aria-hidden="true">A</span>}
-      </button>
+      />
       {open && (
         <div className="cal-cpop" role="dialog" aria-label={label + " 색 고르기"} style={at}>
           <div className="cal-cgrid" role="radiogroup">

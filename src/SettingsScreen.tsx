@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { api, DEFAULT_PREFS, errorText, inApp, Prefs, Status } from "./api";
 import { splitJamo } from "./journal";
 import { DEFAULT_SETTINGS, DONE_STATUS, Kind, loadSettings, MEMO_KIND, saveSettings, Settings, STATUS_COLORS } from "./settingsStore";
@@ -427,6 +427,16 @@ function Toggle({
   );
 }
 
+/** 받침이 있으면 "을", 없으면 "를" */
+function eulReul(w: string) {
+  const c = w.charCodeAt(w.length - 1) - 0xac00;
+  return c >= 0 && c < 11172 && c % 28 ? "을" : "를";
+}
+
+/**
+ * 목록 묶음(상태·접수유형·민원유형). ×를 누르면 "지울까요?"를 물어요(2026-10-17 사용자 — 다른 화면과 같게).
+ * stack이면 관리 창 모양: 배지 아래 줄에 넓은 추가 칸과 "＋ 추가" 단추.
+ */
 export function ListGroup({
   title,
   desc,
@@ -434,6 +444,7 @@ export function ListGroup({
   keep,
   colored,
   last,
+  stack,
   onChange,
 }: {
   title: string;
@@ -442,19 +453,56 @@ export function ListGroup({
   keep?: string;
   colored?: boolean;
   last?: boolean;
+  stack?: boolean;
   onChange: (items: string[]) => void;
 }) {
   const [draft, setDraft] = useState("");
+  const [ask, setAsk] = useState<string | null>(null);
+  const band = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (ask === null) return;
+    // Esc와 바깥 누르기는 묻는 띠만 접어요(창 전체의 Esc보다 먼저 받아요).
+    const key = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== "Escape" || e.isComposing) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setAsk(null);
+    };
+    const down = (e: MouseEvent) => {
+      if (!band.current?.contains(e.target as Node)) setAsk(null);
+    };
+    window.addEventListener("keydown", key, true);
+    document.addEventListener("mousedown", down);
+    return () => {
+      window.removeEventListener("keydown", key, true);
+      document.removeEventListener("mousedown", down);
+    };
+  }, [ask]);
   function add() {
     const v = draft.trim();
     if (!v || items.includes(v)) return;
     setDraft("");
     onChange([...items, v]);
   }
+  const input = (
+    <input
+      className={"input" + (stack ? "" : " input-sm")}
+      aria-label={`${title} 추가`}
+      placeholder={stack ? `새 ${title}` : "새 항목"}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+          e.preventDefault();
+          add();
+        }
+      }}
+    />
+  );
   return (
-    <div className={"group" + (last ? " row-last" : "")}>
-      <div className="group-head">
-        <span className="row-label">{title}</span>
+    <div className={(stack ? "mgr-group" : "group") + (last ? " row-last" : "")}>
+      <div className={stack ? "mgr-label" : "group-head"}>
+        {stack ? title : <span className="row-label">{title}</span>}
         {desc && <span className="muted small">{desc}</span>}
       </div>
       <div className="chips">
@@ -468,32 +516,48 @@ export function ListGroup({
             >
               {name}
               {name !== keep && (
-                <button type="button" className="chip-x" aria-label={`${name} 삭제`} onClick={() => onChange(items.filter((x) => x !== name))}>
+                <button type="button" className="chip-x" aria-label={`${name} 삭제`} onClick={() => setAsk(name)}>
                   <X />
                 </button>
               )}
             </span>
           );
         })}
-        <span className="chip-add">
-          <input
-            className="input input-sm"
-            aria-label={`${title} 추가`}
-            placeholder="새 항목"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.nativeEvent.isComposing) {
-                e.preventDefault();
-                add();
-              }
-            }}
-          />
-          <button type="button" className="btn-icon" aria-label={`${title} 추가`} onClick={add}>
-            <Plus />
-          </button>
-        </span>
+        {!stack && (
+          <span className="chip-add">
+            {input}
+            <button type="button" className="btn-icon" aria-label={`${title} 추가`} onClick={add}>
+              <Plus />
+            </button>
+          </span>
+        )}
       </div>
+      {ask !== null && (
+        <div ref={band} className="ask-band list-ask" role="alertdialog" aria-label={`${title} 지우기 확인`}>
+          <span>{`"${ask}"${eulReul(ask)} 지울까요? 이미 적은 민원은 그대로예요.`}</span>
+          <button type="button" className="btn btn-xs" autoFocus onClick={() => setAsk(null)}>
+            취소
+          </button>
+          <button
+            type="button"
+            className="btn btn-xs btn-danger"
+            onClick={() => {
+              onChange(items.filter((x) => x !== ask));
+              setAsk(null);
+            }}
+          >
+            지우기
+          </button>
+        </div>
+      )}
+      {stack && (
+        <div className="padd mgr-addrow">
+          {input}
+          <button type="button" className="btn-primary btn-ctrl mgr-add" onClick={add}>
+            <Plus /> 추가
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -537,8 +601,8 @@ function KindsGroup({ kinds, onChange }: { kinds: Kind[]; onChange: (k: Kind[]) 
           add();
         }}
       >
-        <input className="input" aria-label="새 구분 이름" placeholder="새 구분 (예: 현장확인)" value={name} onChange={(e) => setName(e.target.value)} style={{ flex: "1 1 160px", maxWidth: 220 }} />
-        <input className="input" aria-label="새 구분 초성" placeholder="초성 (예: ㅎㅈ)" value={key} onChange={(e) => setKey(e.target.value)} style={{ width: 120 }} />
+        <input className="input" aria-label="새 구분 이름" placeholder="새 구분" value={name} onChange={(e) => setName(e.target.value)} style={{ flex: "1 1 160px", maxWidth: 220 }} />
+        <input className="input" aria-label="새 구분 초성" placeholder="초성" value={key} onChange={(e) => setKey(e.target.value)} style={{ width: 120 }} />
         <button type="submit" className="btn-primary btn-sm">
           <Plus /> 추가
         </button>

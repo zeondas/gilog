@@ -438,7 +438,7 @@ function DateJump({ onGo }: { onGo: (d: string) => void }) {
       <input
         aria-label="날짜로 가기"
         aria-invalid={bad || undefined}
-        placeholder="날짜로 가기 (1014)"
+        placeholder="날짜로 가기"
         inputMode="numeric"
         value={v}
         onChange={(e) => {
@@ -1095,7 +1095,7 @@ function NewCard({ date, ctx, onAdd }: { date: string; ctx: Ctx; onAdd: (e: Entr
         <div className="jnew-top">
           <WhoInput
             className="cell-input"
-            placeholder="상대 이름 (연락처에서 자동 검색 · 여러 명은 쉼표로)"
+            placeholder="상대 이름"
             value={who}
             contacts={ctx.contacts}
             onChange={setWho}
@@ -1137,7 +1137,7 @@ function NewCard({ date, ctx, onAdd }: { date: string; ctx: Ctx; onAdd: (e: Entr
                   <input
                     data-uline={i}
                     aria-label={`${s.me ? "내" : s.who + "의"} 말`}
-                    placeholder={s.me ? "내가 한 말" : `${s.who}이(가) 한 말`}
+                    placeholder={s.me ? "내가 한 말" : `${s.who || "상대"} 말`}
                     className="cell-input"
                     value={l.t}
                     onFocus={() => setFocus(i)}

@@ -663,7 +663,7 @@ function AddForm({
       </div>
       {open && (
         <div className="td-add-form">
-          <BulletEditor lines={lines} onChange={setLines} name="detail" label="세부정보" placeholder="세부정보 (Shift+Enter로 줄 추가)" />
+          <BulletEditor lines={lines} onChange={setLines} name="detail" label="세부정보" placeholder="세부정보" />
           <DueField value={due} onChange={(v) => { setDue(v); if (bad === "due") setBad(""); }} bad={bad === "due"} today={today}>
             <button
               type="button"
@@ -1084,7 +1084,7 @@ function TaskEditor({
             if (bad === "title") setBad("");
           }}
         />
-        <BulletEditor lines={lines} onChange={setLines} name="detail" label="세부정보" placeholder="세부정보 (Shift+Enter로 줄 추가)" />
+        <BulletEditor lines={lines} onChange={setLines} name="detail" label="세부정보" placeholder="세부정보" />
         <DueField value={due} onChange={(v) => { setDue(v); if (bad === "due") setBad(""); }} bad={bad === "due"} today={today}>
           {asking ? (
             <div ref={askRef} className="ask-band td-ask" role="alertdialog" aria-label="할 일 지우기 확인">

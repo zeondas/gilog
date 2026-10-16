@@ -80,6 +80,8 @@ export default function App() {
     // 머릿기호를 한글 글자 정중앙에, 들여쓰기를 띄어쓰기 두 칸에 맞추려고 그 PC 글꼴로 재요(글꼴을 다 읽은 뒤 한 번 더).
     measureBullets(prefs.fontSize);
     document.fonts?.ready.then(() => measureBullets(prefs.fontSize));
+    // 앱에 넣은 Pretendard는 처음 쓰일 때 읽혀요. 다 읽은 뒤 머릿기호 위치를 다시 재요.
+    document.fonts?.load(`${prefs.fontSize}px Pretendard`, "가").then(() => measureBullets(prefs.fontSize)).catch(() => {});
   }, [prefs.theme, prefs.fontSize]);
 
   const savePrefs = useCallback(async (p: Prefs) => {

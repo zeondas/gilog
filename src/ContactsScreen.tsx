@@ -963,10 +963,9 @@ function ProjectDialog({
       className="overlay"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="dialog" role="dialog" aria-modal="true" aria-label="프로젝트 관리">
+      <div className="dialog mgr" role="dialog" aria-modal="true" aria-label="프로젝트 관리">
         <div className="dialog-head">
           <span className="dialog-title">프로젝트 관리</span>
-          <span className="muted small">색은 자동으로 정해져요. 바꾸고 싶을 때만 골라 주세요.</span>
         </div>
         <div className="dialog-body">
           {data.projects.length === 0 && <p className="muted small">아직 프로젝트가 없어요.</p>}
@@ -975,10 +974,11 @@ function ProjectDialog({
             const users = data.contacts.filter((c) => c.projects.includes(p.id)).length;
             return (
               <div key={p.id} className="prow">
-                <div className="prow-name">
+                <div className="prow-name mgr-name">
                   <span className="pbadge" style={pjStyle(p)}>
                     {p.name}
                   </span>
+                  <span className="mgr-info">{users ? `연락처 ${users}명` : "연락처 없음"}</span>
                 </div>
                 <ColorPick
                   name={p.name}
@@ -1016,7 +1016,7 @@ function ProjectDialog({
               ref={inputRef}
               className="input"
               aria-label="새 프로젝트 이름"
-              placeholder="새 프로젝트 이름 (예: 광탄면 배수로 정비)"
+              placeholder="새 프로젝트 이름"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
@@ -1026,11 +1026,10 @@ function ProjectDialog({
                 }
               }}
             />
-            <button type="button" className="btn-primary btn-sm" onClick={add}>
+            <button type="button" className="btn-primary btn-ctrl mgr-add" onClick={add}>
               <Plus size={14} /> 추가
             </button>
           </div>
-          <div className="hint">연락처를 등록하거나 고칠 때 프로젝트 칸에 없는 이름을 적어도 새로 만들어져요.</div>
         </div>
         <div className="dialog-foot">
           <button type="button" className="btn-primary" onClick={onClose}>
@@ -1048,12 +1047,12 @@ function ProjectDialog({
 function ColorPick({ name, current, auto, onPick }: { name: string; current: number; auto: boolean; onPick: (c: number | null) => void }) {
   const [open, setOpen] = useState(false);
   // 관리 창 안이 스크롤되는 상자라 목록이 잘리지 않게 화면 기준 자리에 띄워요.
-  const [at, setAt] = useState<{ top: number; left: number } | null>(null);
+  const [at, setAt] = useState<{ top: number; right: number } | null>(null);
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
     const r = box.current?.getBoundingClientRect();
-    if (r) setAt({ top: r.bottom + 4, left: r.left });
+    if (r) setAt({ top: r.bottom + 6, right: window.innerWidth - r.right });
     const down = (e: MouseEvent) => {
       if (!box.current?.contains(e.target as Node)) setOpen(false);
     };
@@ -1078,15 +1077,18 @@ function ColorPick({ name, current, auto, onPick }: { name: string; current: num
   };
   return (
     <div className="cpick" ref={box}>
-      <button type="button" className="btn btn-xs cpick-btn" aria-haspopup="true" aria-expanded={open} aria-label={`${name} 색 고르기`} onClick={() => setOpen(!open)}>
-        <span className="cpick-dot" style={{ background: `var(--pj-${current}-line)` }} aria-hidden="true" />
-        {auto ? "자동" : COLOR_NAMES[current]}
-        <svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M6 9l6 6 6-6" />
-        </svg>
-      </button>
+      <button
+        type="button"
+        className="cal-cbtn"
+        aria-haspopup="true"
+        aria-expanded={open}
+        aria-label={`${name} 색: ${auto ? "자동" : COLOR_NAMES[current]} — 눌러서 바꾸기`}
+        title={auto ? `${COLOR_NAMES[current]} (자동)` : COLOR_NAMES[current]}
+        style={{ background: `var(--pj-${current}-line)` }}
+        onClick={() => setOpen(!open)}
+      />
       {open && (
-        <div className="cpick-pop" role="radiogroup" aria-label={`${name} 색`} style={at ? { top: at.top, left: at.left } : { visibility: "hidden" }}>
+        <div className="cpick-pop" role="radiogroup" aria-label={`${name} 색`} style={at ? { top: at.top, right: at.right } : { visibility: "hidden" }}>
           <div className="cpick-grid">
             {COLOR_NAMES.map((cn, j) => (
               <button

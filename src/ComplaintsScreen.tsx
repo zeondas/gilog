@@ -1093,16 +1093,14 @@ function CatsDialog({ lists, onChange, onClose }: { lists: Lists; onChange: (l: 
   const cur = { status: lists.status, intake: lists.intake, ctype: lists.ctype };
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="dialog cm-cats" role="dialog" aria-modal="true" aria-label="분류 관리">
+      <div className="dialog mgr" role="dialog" aria-modal="true" aria-label="분류 관리">
         <div className="dialog-head">
           <span className="dialog-title">분류 관리</span>
-          <span className="muted small">입력 줄의 선택 목록에 그대로 나와요. 설정 화면의 "민원대장 항목"과 같은 목록이에요.</span>
         </div>
         <div className="dialog-body">
-          <ListGroup title="상태" desc="색은 자동으로 붙어요. 완료는 지울 수 없어요." items={cur.status} keep={KEEP_STATUS} colored onChange={(status) => onChange({ ...cur, status })} />
-          <ListGroup title="접수유형" items={cur.intake} onChange={(intake) => onChange({ ...cur, intake })} />
-          <ListGroup title="민원유형" items={cur.ctype} onChange={(ctype) => onChange({ ...cur, ctype })} last />
-          <div className="hint cm-cats-hint">쓰고 있는 항목을 지워도 이미 적은 민원의 값은 그대로 남아요.</div>
+          <ListGroup title="상태" items={cur.status} keep={KEEP_STATUS} colored stack onChange={(status) => onChange({ ...cur, status })} />
+          <ListGroup title="접수유형" items={cur.intake} stack onChange={(intake) => onChange({ ...cur, intake })} />
+          <ListGroup title="민원유형" items={cur.ctype} stack onChange={(ctype) => onChange({ ...cur, ctype })} last />
         </div>
         <div className="dialog-foot">
           <button type="button" className="btn-primary" onClick={onClose}>

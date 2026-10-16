@@ -1,3 +1,12 @@
+/* 글꼴: 사무실 PC에 Pretendard가 없어 앱에 넣어요(2026-10-17 사용자 2안, 라이선스 fonts/OFL.txt). */
+@font-face {
+  font-family: Pretendard;
+  src: url(./fonts/PretendardVariable.woff2) format("woff2-variations");
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: block;
+}
+
 /* giLog 디자인 시스템의 토큰이에요. 값은 디자인 시스템(tokens.json)에서 옮겨 왔어요. 색은 여기 이름으로만 써요. */
 :root {
   --accent: #4B37C4;
@@ -22,6 +31,11 @@
   --st-hold-fg: #4E4C5A;
   --st-new-bg: #EEEAFF;
   --st-new-fg: #4B37C4;
+  /* 가운데 뜨는 창 뒤를 덮는 막과 창 바탕 (2026-10-17 사용자 1안: 뒤 흐리게 + 더 어둡게 + 창 테두리) */
+  --scrim: rgba(28, 27, 34, 0.5);
+  --surface-raised: #FFFFFF;
+  /* 뜨는 창 안의 줄 구분선 */
+  --line-raised: #EFEEF3;
   --danger: #8A1F2B;
   --urgent: #B3261E;
   /* 할 일 마감 배지(임박) 바탕. 글자는 urgent. */
@@ -112,6 +126,9 @@
     --surface: #17161C;
     --surface-side: #121116;
     --surface-band: #1F1E26;
+    --scrim: rgba(0, 0, 0, 0.62);
+    --surface-raised: #24232C;
+    --line-raised: #363441;
     --line: #3D3B47;
     --line-soft: #2C2B34;
     --line-row: #25242C;
@@ -150,6 +167,9 @@
   --surface: #17161C;
   --surface-side: #121116;
   --surface-band: #1F1E26;
+  --scrim: rgba(0, 0, 0, 0.62);
+  --surface-raised: #24232C;
+  --line-raised: #363441;
   --line: #3D3B47;
   --line-soft: #2C2B34;
   --line-row: #25242C;

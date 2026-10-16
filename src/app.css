@@ -15,7 +15,7 @@ body {
   color: var(--ink);
   font-family: var(--font-sans);
   font-size: var(--fs);
-  line-height: 1.4;
+  line-height: round(1.4em, 1px);
   word-break: keep-all;
 }
 
@@ -1052,7 +1052,7 @@ mark {
   display: flex;
   align-items: flex-start;
   gap: 7px;
-  line-height: 1.5;
+  line-height: round(1.5em, 1px);
   overflow-wrap: anywhere;
 }
 
@@ -1227,7 +1227,8 @@ mark {
   align-items: center;
   justify-content: center;
   padding: var(--space-4);
-  background: rgba(var(--shadow-rgb), 0.38);
+  background: var(--scrim);
+  backdrop-filter: blur(3px);
 }
 
 .dialog {
@@ -1236,9 +1237,10 @@ mark {
   max-height: 100%;
   display: flex;
   flex-direction: column;
+  border: 1px solid var(--line);
   border-radius: var(--radius-lg);
-  background: var(--surface);
-  box-shadow: var(--shadow-card);
+  background: var(--surface-raised);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.35);
   overflow: hidden;
 }
 
@@ -1269,7 +1271,7 @@ mark {
   display: flex;
   justify-content: flex-end;
   padding: var(--space-3) 20px;
-  background: var(--surface-side);
+  background: var(--surface-raised);
   border-top: 1px solid var(--line-row);
 }
 
@@ -1576,7 +1578,7 @@ mark {
   font-size: 17px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  line-height: 1.2;
+  line-height: round(1.2em, 1px);
 }
 
 .jkind {
@@ -1599,7 +1601,7 @@ mark {
   font-size: 12px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  line-height: 1.3;
+  line-height: round(1.3em, 1px);
   text-align: left;
   cursor: copy;
 }
@@ -1756,7 +1758,7 @@ mark {
   color: var(--ink);
   font-size: 11.5px;
   font-weight: 500;
-  line-height: 1.2;
+  line-height: round(1.2em, 1px);
   text-align: left;
 }
 
@@ -1820,7 +1822,7 @@ mark {
 .jpillar-note {
   margin-top: 6px;
   font-size: 11px;
-  line-height: 1.25;
+  line-height: round(1.25em, 1px);
   color: var(--muted);
 }
 
@@ -1842,7 +1844,7 @@ mark {
   color: var(--muted);
   font-size: 11px;
   font-weight: 700;
-  line-height: 1.25;
+  line-height: round(1.25em, 1px);
   text-align: left;
   overflow-wrap: anywhere;
 }
@@ -2296,7 +2298,7 @@ mark {
   color: var(--ink);
   outline: 0;
   cursor: text;
-  line-height: 1.55;
+  line-height: round(1.55em, 1px);
 }
 
 .rte-area.is-empty::before {
@@ -2445,7 +2447,7 @@ mark {
 }
 
 .rte-view {
-  line-height: 1.55;
+  line-height: round(1.55em, 1px);
   overflow-x: auto;
 }
 
@@ -2591,7 +2593,7 @@ body.col-dragging * {
   padding: 4px 6px;
   resize: none;
   overflow: hidden;
-  line-height: 1.45;
+  line-height: round(1.45em, 1px);
 }
 
 .cm-center {
@@ -2686,7 +2688,7 @@ body.col-dragging * {
 }
 
 .cm-bt {
-  line-height: 1.5;
+  line-height: round(1.5em, 1px);
   word-break: keep-all;
   overflow-wrap: anywhere;
 }
@@ -2819,14 +2821,6 @@ body.col-dragging * {
   height: 32px;
 }
 
-.cm-cats {
-  width: 620px;
-}
-
-.cm-cats-hint {
-  padding: var(--space-3) 0 var(--space-1);
-}
-
 /* 업무일지 "챙길 일"의 민원 */
 .jn-due {
   display: flex;
@@ -2944,7 +2938,7 @@ body.col-dragging * {
 
 .bl-t {
   min-width: 0;
-  line-height: 1.5;
+  line-height: round(1.5em, 1px);
   word-break: keep-all;
   overflow-wrap: anywhere;
 }
@@ -2979,7 +2973,7 @@ body.col-dragging * {
   background: transparent;
   color: var(--ink);
   font: inherit;
-  line-height: 1.5;
+  line-height: round(1.5em, 1px);
   resize: none;
   overflow: hidden;
 }
@@ -4464,10 +4458,6 @@ body.col-dragging * {
 }
 
 /* 종류 관리 창 */
-.cal-kdialog {
-  width: 760px;
-}
-
 .cal-kgroup {
   padding: var(--space-3) 0 6px;
   font-size: 12px;
@@ -4746,7 +4736,7 @@ body.col-dragging * {
   overflow: hidden;
   color: var(--ink);
   border-radius: 4px;
-  line-height: 1.35;
+  line-height: round(1.35em, 1px);
 }
 
 .cal-wk-col .cal-ev .cal-ev-dot {
@@ -5068,7 +5058,7 @@ body.col-dragging * {
   padding: 10px var(--space-4);
   background: var(--accent-wash);
   color: var(--ink-2);
-  line-height: 1.5;
+  line-height: round(1.5em, 1px);
 }
 .g-box {
   display: flex;
@@ -5103,4 +5093,133 @@ body.col-dragging * {
 }
 .cal-side > .g-box {
   margin-top: auto;
+}
+
+/* ---------- 관리 창 맞추기 (2026-10-17 사용자: 프로젝트 관리·분류 관리·캘린더 종류 관리를 한 모양으로) ---------- */
+.mgr {
+  width: 480px;
+}
+
+.mgr .dialog-head {
+  padding-bottom: var(--space-2);
+}
+
+.mgr-name {
+  flex: 1 1 200px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.mgr-info {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 줄 높이 45px: 테두리 1px을 빼고 안쪽이 짝수라 배지·단추가 반 픽셀에 걸리지 않아요 */
+.mgr .prow {
+  min-height: 45px;
+}
+
+.mgr .prow > .tool-box {
+  margin-left: 4px;
+}
+
+/* 지울 수 없는 줄은 휴지통 자리를 비워 색 동그라미가 한 줄로 서요 */
+.mgr-gap {
+  flex: none;
+  width: 26px;
+  margin-left: 4px;
+}
+
+.mgr-label {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-3) 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.mgr .padd .input {
+  height: var(--size-ctrl);
+  border-radius: var(--radius-md);
+}
+
+.mgr-add {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mgr-group {
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--line-row);
+}
+
+.mgr-group.row-last {
+  border-bottom: 0;
+}
+
+.mgr-addrow {
+  padding-top: 10px;
+}
+
+.list-ask {
+  margin-top: var(--space-2);
+}
+
+/* 뜨는 창은 바탕이 한 단계 밝아서 줄 구분선과 색 동그라미 둘레를 창 바탕에 맞춰요 */
+.dialog {
+  --line-row: var(--line-raised);
+}
+
+.dialog .cal-cbtn {
+  box-shadow: 0 0 0 2px var(--surface-raised), 0 0 0 3px var(--line);
+}
+
+.dialog .cal-cbtn:hover,
+.dialog .cal-cbtn[aria-expanded="true"] {
+  box-shadow: 0 0 0 2px var(--surface-raised), 0 0 0 4px var(--accent);
+}
+
+/* ---------- 글자 가운데 맞춤 (2026-10-17 사용자 확정, tools/align 기준: 위 여백 − 아래 여백 0 또는 −1) ---------- */
+.cell-input,
+.input,
+.jday-in,
+.td-due-input {
+  padding-bottom: 2px;
+}
+
+.search input {
+  padding: 0 0 1px;
+  height: 20px;
+}
+
+.cm-bullets {
+  gap: 4px;
+}
+
+.td-src,
+.td-link-badge,
+.cal-num,
+.cal-cbtn {
+  padding-top: 1px;
+}
+
+.jproj-badge {
+  padding-top: 3px;
+}
+
+.jtree-d,
+.td-done-toggle {
+  padding-bottom: 2px;
+}
+
+.side-item {
+  height: 35px;
 }
