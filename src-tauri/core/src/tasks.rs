@@ -400,7 +400,8 @@ mod tests {
         i.detail = r#"[{"t":" 팀장 지시 "},{"t":" "},{"t":"읍면동별","k":"ci"}]"#.into();
         let t = s.add_task(&i).unwrap();
         assert_eq!(t.title, "주간업무보고 작성");
-        assert_eq!(t.detail, r#"[{"t":"팀장 지시"},{"k":"ci","t":"읍면동별"}]"#);
+        // 묶음을 나누는 빈 줄은 남아요(머릿기호 위계 규칙).
+        assert_eq!(t.detail, r#"[{"t":"팀장 지시"},{"t":""},{"k":"ci","t":"읍면동별"}]"#);
         assert_eq!((t.done, t.done_on.as_str(), t.parent), (false, "", None));
         let u = s
             .update_task(t.id, &TaskEdit { title: "주간업무보고".into(), detail: r#"[{"t":""}]"#.into(), due: String::new() })

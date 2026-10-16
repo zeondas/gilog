@@ -106,3 +106,34 @@ export function gridTemplate(ws: (number | null)[]): string {
 }
 
 export const minWidth = (ws: (number | null)[]) => ws.reduce<number>((a, w) => a + (w ?? FLEX_MIN), 0);
+
+// ---------- 열 필터 (2026-10-17 사용자 확정, 시안 ComplaintFilter.dc.html) ----------
+
+/** 거를 수 있는 열. 상태 칩과 상태 열 필터는 같은 필터예요. */
+export type FilterKey = "intake" | "ctype" | "area" | "status";
+export const FILTER_KEYS: FilterKey[] = ["intake", "ctype", "area", "status"];
+
+/** 열마다 null = 모두, 배열 = 고른 값만(빈 배열이면 아무것도 안 보여요) */
+export type ColFilters = Record<FilterKey, string[] | null>;
+export const NO_FILTERS: ColFilters = { intake: null, ctype: null, area: null, status: null };
+
+/** 모든 필터를 통과하는지(AND). skip 열은 보지 않아요(그 열 목록의 개수를 셀 때). */
+export function passes(c: Complaint, f: ColFilters, skip?: FilterKey): boolean {
+  return FILTER_KEYS.every((k) => k === skip || f[k] === null || f[k]!.includes(c[k]));
+}
+
+/** 열에 있는 값들 (빈 지역은 ""로 — 목록에서는 "(빈 칸)") */
+export function filterValues(list: Complaint[], k: FilterKey): string[] {
+  return [...new Set(list.map((c) => c[k]))];
+}
+
+/** 저장해 둔 상태 필터를 읽어요. */
+export function readStatusFilter(raw: string | null): string[] | null {
+  try {
+    const v = JSON.parse(raw ?? "null");
+    if (Array.isArray(v) && v.every((x) => typeof x === "string")) return v;
+  } catch {
+    /* 모두 */
+  }
+  return null;
+}

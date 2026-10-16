@@ -21,14 +21,21 @@ import { api, Complaint, ComplaintInput, errorText } from "./api";
 import {
   COL_MIN,
   COLUMNS,
+  ColFilters,
   daysLeft,
   ddayText,
   defaultWidths,
   expandType,
+  FILTER_KEYS,
+  FilterKey,
+  filterValues,
   gridTemplate,
   isUrgent,
   matches,
   minWidth,
+  NO_FILTERS,
+  passes,
+  readStatusFilter,
   readWidths,
 } from "./complaints";
 import { parseLines, plainOf, stringifyLines } from "./bullets";
@@ -37,7 +44,7 @@ import { copyText, Hl, MemoEditor, memoText, parseMemo } from "./ContactsScreen"
 import { koIndex, parseDate, todayStr } from "./journal";
 import { useJamoGuard } from "./koInput";
 import { PhoneInput } from "./PhoneInput";
-import { AreaInput, ChoiceInput, PlaceInput } from "./PlaceInputs";
+import { ChoiceInput, PlaceInput } from "./PlaceInputs";
 import { finalizePhone } from "./phone";
 import { KEEP_STATUS, ListGroup } from "./SettingsScreen";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, Settings, statusColor } from "./settingsStore";
@@ -46,6 +53,10 @@ const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode
 
 /** 열 너비를 저장하는 곳 (암호화 파일 안) */
 const COLS_KEY = "complaints.colWidths";
+/** 상태 필터만 마지막 것을 기억해요(2026-10-17 사용자 2안 + 상태 예외). 다른 열 필터는 앱을 끄면 풀려요. */
+const STATUS_FILTER_KEY = "complaints.statusFilter";
+
+const FILTER_LABEL: Record<FilterKey, string> = { intake: "접수유형", ctype: "민원유형", area: "지역", status: "상태" };
 
 type Lists = Pick<Settings, "status" | "intake" | "ctype">;
 
@@ -58,7 +69,9 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
   const [q, setQ] = useState("");
   // 민원인을 초성으로 찾을 때 입력기가 자음을 묶지 않게 해요.
   const qGuard = useJamoGuard(setQ);
-  const [filter, setFilter] = useState<string | null>(null);
+  // 열 제목 필터(시안 ComplaintFilter.dc.html). null = 모두, 배열 = 고른 값만. 상태 칩도 같은 status 필터예요.
+  const [filters, setFilters] = useState<ColFilters>(NO_FILTERS);
+  const [openFilter, setOpenFilter] = useState<FilterKey | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
   // 한 번 누른 줄(골라 둔 줄). 두 번 누르거나 Enter를 누르면 고쳐요.
   const [selId, setSelId] = useState<number | null>(null);
@@ -72,6 +85,7 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
     api.complaints().then(setList, (e) => setNote(errorText(e)));
     loadSettings().then(setSettings, () => {});
     api.get(COLS_KEY).then((raw) => setWidths(readWidths(raw)), () => {});
+    api.get(STATUS_FILTER_KEY).then((raw) => setFilters((f) => ({ ...f, status: readStatusFilter(raw) })), () => {});
     // 구글 할 일에서 민원을 체크하면 상태가 바뀌어요 → 다시 읽어요.
     const reload = () => api.complaints().then(setList, () => {});
     window.addEventListener(REMOTE_CHANGE, reload);
@@ -87,7 +101,7 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
   // 업무일지 "챙길 일"에서 눌러 왔으면 그 줄로 가서 잠깐 빛나게 해요.
   useEffect(() => {
     if (!list || focusId == null) return;
-    setFilter(null);
+    setFilters(NO_FILTERS);
     setQ("");
     setEditId(null);
     setFlash(focusId);
@@ -134,7 +148,8 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
 
   const all = list ?? [];
   const query = q.trim().toLowerCase();
-  const shown = all.filter((c) => (filter === null || c.status === filter) && matches(c, query));
+  const found = all.filter((c) => matches(c, query));
+  const shown = found.filter((c) => passes(c, filters));
 
   // 상태 칩: 설정 목록 + 기록에만 남아 있는 상태
   const statuses = useMemo(() => {
@@ -142,10 +157,30 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
     return [...settings.status, ...extra];
   }, [all, settings.status]);
 
-  // 거른 상태가 목록에서 사라졌으면 전체로 돌아가요.
+  /** 열마다 고를 수 있는 값 (상태는 상태 목록 순서) */
+  const valuesOf = (k: FilterKey) => (k === "status" ? statuses : filterValues(all, k));
+
+  /** 필터를 바꿔요. 모든 값을 고르면 "모두"(null)예요. 상태는 마지막 것을 저장해요. */
+  function setFilter(k: FilterKey, v: string[] | null) {
+    const all = valuesOf(k);
+    const next = v !== null && v.length === all.length && all.every((x) => v.includes(x)) ? null : v;
+    setFilters((f) => ({ ...f, [k]: next }));
+    if (k === "status") run(api.set(STATUS_FILTER_KEY, JSON.stringify(next)));
+  }
+
+  function clearFilters() {
+    setFilters(NO_FILTERS);
+    if (filters.status !== null) run(api.set(STATUS_FILTER_KEY, "null"));
+  }
+
+  // 고른 상태가 목록에서 사라졌으면 빼요.
   useEffect(() => {
-    if (filter !== null && !statuses.includes(filter)) setFilter(null);
-  }, [filter, statuses]);
+    const sf = filters.status;
+    if (sf === null || !list) return;
+    const kept = sf.filter((s) => statuses.includes(s));
+    if (kept.length !== sf.length) setFilter("status", kept.length ? kept : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.status, statuses, list]);
 
   const tableStyle = { "--cm-cols": gridTemplate(widths), minWidth: minWidth(widths) + 2 } as CSSProperties;
   const memoOf = all.find((c) => c.id === memoId) ?? null;
@@ -183,30 +218,48 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
         </button>
       </div>
 
-      <div className="ct-chips" role="group" aria-label="상태로 거르기">
-        <span className="ct-chips-label">상태</span>
-        <button type="button" className="pchip" aria-pressed={filter === null} onClick={() => setFilter(null)}>
-          <span>전체</span>
-          <span className="pchip-n">{all.length}</span>
-        </button>
-        {statuses.map((s) => (
-          <button key={s} type="button" className="pchip" aria-pressed={filter === s} onClick={() => setFilter(filter === s ? null : s)}>
-            <span>{s}</span>
-            <span className="pchip-n">{all.filter((c) => c.status === s).length}</span>
-          </button>
-        ))}
-      </div>
+      <FilterChips
+        statuses={statuses}
+        base={found.filter((c) => passes(c, filters, "status"))}
+        filters={filters}
+        total={all.length}
+        shown={shown.length}
+        onStatus={(v) => setFilter("status", v)}
+        onOpen={setOpenFilter}
+        onClear={(k) => setFilter(k, null)}
+        onClearAll={clearFilters}
+      />
 
       {note && <p className="note" role="status">{note}</p>}
 
       <div className="cm" role="table" aria-label="민원 목록" style={tableStyle}>
-        <HeadRow widths={widths} onResize={setWidths} onResized={saveWidths} />
+        <HeadRow
+          widths={widths}
+          onResize={setWidths}
+          onResized={saveWidths}
+          onResetWidths={() => saveWidths(defaultWidths())}
+          filters={filters}
+          open={openFilter}
+          onToggle={(k) => setOpenFilter(openFilter === k ? null : k)}
+          dropdown={
+            openFilter && (
+              <FilterMenu
+                k={openFilter}
+                values={valuesOf(openFilter)}
+                pool={found.filter((c) => passes(c, filters, openFilter))}
+                sel={filters[openFilter]}
+                onChange={(v) => setFilter(openFilter, v)}
+                onClose={() => setOpenFilter(null)}
+              />
+            )
+          }
+        />
         <NewRow lists={settings} onAdd={async (input) => {
           const c = await run(api.addComplaint(input));
           if (c) {
             put(c);
             // 거르는 중이라 새 민원이 안 보이면 거르기를 풀어요.
-            if (filter !== null && c.status !== filter) setFilter(null);
+            if (!passes(c, filters)) clearFilters();
             if (query && !matches(c, query)) setQ("");
           }
           return !!c;
@@ -263,16 +316,6 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
         ) : null}
       </div>
 
-      <div className="cm-foot muted small">
-        <span className="cm-foot-sum">
-          표시 {shown.length}건 / 전체 {all.length}건
-        </span>
-        <span>열 제목의 경계선을 좌우로 끌면 열 너비가 바뀌어요</span>
-        <button type="button" className="btn btn-xs" onClick={() => saveWidths(defaultWidths())}>
-          열 너비 초기화
-        </button>
-      </div>
-
       {memoOf && (
         <MemoDialog
           c={memoOf}
@@ -302,12 +345,24 @@ function HeadRow({
   widths,
   onResize,
   onResized,
+  onResetWidths,
+  filters,
+  open,
+  onToggle,
+  dropdown,
 }: {
   widths: (number | null)[];
   onResize: (w: (number | null)[]) => void;
   onResized: (w: (number | null)[]) => void;
+  onResetWidths: () => void;
+  filters: ColFilters;
+  open: FilterKey | null;
+  onToggle: (k: FilterKey) => void;
+  dropdown: ReactNode;
 }) {
   const rowRef = useRef<HTMLDivElement>(null);
+  // 열 제목 줄 우클릭 메뉴: 열 너비 초기화 (2026-10-17 사용자 2안)
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
 
   function start(e: ReactMouseEvent, i: number) {
     e.preventDefault();
@@ -335,14 +390,298 @@ function HeadRow({
   }
 
   return (
-    <div role="row" className="cm-row cm-head" ref={rowRef}>
-      {COLUMNS.map((col, i) => (
-        <div role="columnheader" key={col.key} className={"cm-hcell" + (col.key === "no" ? " right" : "")}>
-          {col.label}
-          {i < COLUMNS.length - 1 && <span className="cm-grip" aria-hidden="true" title="끌어서 열 너비 바꾸기" onMouseDown={(e) => start(e, i)} />}
-        </div>
-      ))}
+    <div
+      role="row"
+      className="cm-row cm-head"
+      ref={rowRef}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        setMenu({ x: e.clientX, y: e.clientY });
+      }}
+    >
+      {COLUMNS.map((col, i) => {
+        const fk = (FILTER_KEYS as string[]).includes(col.key) ? (col.key as FilterKey) : null;
+        const on = fk !== null && filters[fk] !== null;
+        return (
+          <div role="columnheader" key={col.key} className={"cm-hcell" + (col.key === "no" ? " right" : "") + (fk ? " cm-hf" : "")}>
+            {fk ? (
+              <button
+                type="button"
+                className={"cm-hbtn" + (on ? " on" : "")}
+                aria-haspopup="dialog"
+                aria-expanded={open === fk}
+                aria-label={col.label + " 거르기" + (on ? " (거르는 중)" : "")}
+                onClick={() => onToggle(fk)}
+              >
+                <span>{col.label}</span>
+                {on && <Funnel />}
+              </button>
+            ) : (
+              col.label
+            )}
+            {open === fk && fk && dropdown}
+            {i < COLUMNS.length - 1 && <span className="cm-grip" aria-hidden="true" title="끌어서 열 너비 바꾸기" onMouseDown={(e) => start(e, i)} />}
+          </div>
+        );
+      })}
+      {menu && (
+        <HeadMenu
+          x={menu.x}
+          y={menu.y}
+          onClose={() => setMenu(null)}
+          onReset={() => {
+            setMenu(null);
+            onResetWidths();
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+/** 열 제목 줄 우클릭 메뉴 */
+function HeadMenu({ x, y, onClose, onReset }: { x: number; y: number; onClose: () => void; onReset: () => void }) {
+  const box = useRef<HTMLDivElement>(null);
+  const close = useRef(onClose);
+  close.current = onClose;
+  useEffect(() => {
+    const down = (e: MouseEvent) => {
+      if (!box.current?.contains(e.target as Node)) close.current();
+    };
+    const key = (e: globalThis.KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        close.current();
+      }
+    };
+    document.addEventListener("mousedown", down);
+    window.addEventListener("keydown", key);
+    box.current?.querySelector<HTMLElement>(".dmenu-item")?.focus();
+    return () => {
+      document.removeEventListener("mousedown", down);
+      window.removeEventListener("keydown", key);
+    };
+  }, []);
+  const style = { left: Math.min(x, window.innerWidth - 200), top: Math.min(y, window.innerHeight - 80) };
+  return (
+    <div ref={box} className="dmenu" role="menu" aria-label="열 제목 메뉴" style={style} onContextMenu={(e) => e.preventDefault()}>
+      <button type="button" role="menuitem" className="dmenu-item" onClick={onReset}>
+        열 너비 초기화
+      </button>
+    </div>
+  );
+}
+
+// ---------- 열 필터 (시안 ComplaintFilter.dc.html) ----------
+
+/** 상태 칩 줄 + 걸린 필터 알약 + 오른쪽 끝 "N건 중 M건" */
+function FilterChips({
+  statuses,
+  base,
+  filters,
+  total,
+  shown,
+  onStatus,
+  onOpen,
+  onClear,
+  onClearAll,
+}: {
+  statuses: string[];
+  /** 상태 필터만 뺀 나머지 필터·검색을 건 민원 (칩 숫자) */
+  base: Complaint[];
+  filters: ColFilters;
+  total: number;
+  shown: number;
+  onStatus: (v: string[] | null) => void;
+  onOpen: (k: FilterKey) => void;
+  onClear: (k: FilterKey) => void;
+  onClearAll: () => void;
+}) {
+  const sf = filters.status;
+  const pills = (["intake", "ctype", "area"] as FilterKey[]).filter((k) => filters[k] !== null);
+  const many = pills.length + (sf !== null ? 1 : 0) > 1;
+  const label = (v: string) => (v === "" ? "(빈 칸)" : v);
+  return (
+    <div className="ct-chips" role="group" aria-label="상태로 거르기">
+      <span className="ct-chips-label">상태</span>
+      <button type="button" className="pchip" aria-pressed={sf === null} onClick={() => onStatus(null)}>
+        <span>전체</span>
+        <span className="pchip-n">{base.length}</span>
+      </button>
+      {statuses.map((s) => {
+        const on = sf !== null && sf.includes(s);
+        return (
+          <button key={s} type="button" className="pchip" aria-pressed={on} onClick={() => onStatus(sf && sf.length === 1 && sf[0] === s ? null : [s])}>
+            <span>{s}</span>
+            <span className="pchip-n">{base.filter((c) => c.status === s).length}</span>
+          </button>
+        );
+      })}
+      {pills.length > 0 && (
+        <>
+          <span className="cm-fsep" aria-hidden="true" />
+          {pills.map((k) => {
+            const v = filters[k]!;
+            const text = v.length === 0 ? "없음" : label(v[0]) + (v.length > 1 ? ` 외 ${v.length - 1}` : "");
+            return (
+              <span key={k} className="cm-fpill">
+                <button type="button" className="cm-fpill-open" onClick={() => onOpen(k)}>
+                  <span className="cm-fpill-k">{FILTER_LABEL[k]}</span>
+                  <span>{text}</span>
+                </button>
+                <button type="button" className="cm-fpill-x" aria-label={FILTER_LABEL[k] + " 필터 풀기"} onClick={() => onClear(k)}>
+                  <svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
+                    <path d="M6 6l12 12M18 6L6 18" />
+                  </svg>
+                </button>
+              </span>
+            );
+          })}
+        </>
+      )}
+      {many && (
+        <button type="button" className="cm-fall" onClick={onClearAll}>
+          모두 풀기
+        </button>
+      )}
+      <span className="cm-fcount">
+        {total}건 중 {shown}건
+      </span>
+    </div>
+  );
+}
+
+/**
+ * 열 필터 목록(엑셀 필터처럼): 모두, 값마다 체크 + 다른 필터를 건 뒤의 개수(0은 회색), 찾기 칸(상태는 없음),
+ * 바로 적용, "필터 풀기"·"닫기", Esc 닫기, 바깥을 누르기 시작하면 닫기.
+ */
+function FilterMenu({
+  k,
+  values,
+  pool,
+  sel,
+  onChange,
+  onClose,
+}: {
+  k: FilterKey;
+  values: string[];
+  /** 이 열만 뺀 나머지 필터·검색을 건 민원 (개수) */
+  pool: Complaint[];
+  sel: string[] | null;
+  onChange: (v: string[] | null) => void;
+  onClose: () => void;
+}) {
+  const box = useRef<HTMLDivElement>(null);
+  const [fq, setFq] = useState("");
+  const guard = useJamoGuard(setFq);
+  const close = useRef(onClose);
+  close.current = onClose;
+  useEffect(() => {
+    const down = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      // 같은 열 제목 단추는 그 단추가 여닫아요.
+      if (box.current?.contains(t) || t.closest?.(".cm-hbtn[aria-expanded='true']")) return;
+      close.current();
+    };
+    const key = (e: globalThis.KeyboardEvent) => {
+      if (e.key === "Escape" && !e.isComposing) {
+        e.preventDefault();
+        close.current();
+      }
+    };
+    document.addEventListener("mousedown", down);
+    window.addEventListener("keydown", key);
+    return () => {
+      document.removeEventListener("mousedown", down);
+      window.removeEventListener("keydown", key);
+    };
+  }, []);
+
+  const count = (v: string) => pool.filter((c) => c[k] === v).length;
+  const vals = k === "status" ? values : values.slice().sort((a, b) => count(b) - count(a) || (a === "" ? 1 : b === "" ? -1 : a.localeCompare(b, "ko")));
+  const label = (v: string) => (v === "" ? "(빈 칸)" : v);
+  const qq = fq.trim().toLowerCase();
+  const opts = vals.filter((v) => !qq || label(v).toLowerCase().includes(qq) || koIndex(label(v), qq) >= 0);
+  const isOn = (v: string) => sel === null || sel.includes(v);
+  const some = sel === null || sel.length > 0;
+
+  return (
+    <div ref={box} className={"cm-fdd" + (k === "status" ? " end" : "")} role="dialog" aria-label={FILTER_LABEL[k] + " 거르기"} onContextMenu={(e) => e.stopPropagation()}>
+      <div className="cm-fdd-head">
+        <span>{FILTER_LABEL[k]}</span>
+        <span className="cm-fdd-sub">{sel === null ? "모두 보는 중" : `${sel.length}개 고름`}</span>
+      </div>
+      {k !== "status" && (
+        <label className="search cm-fdd-search">
+          <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <circle cx="11" cy="11" r="7" />
+            <path d="M20 20l-3.5-3.5" />
+          </svg>
+          <input
+            aria-label="값 찾기"
+            placeholder={k === "area" ? "읍면동 찾기" : "찾기"}
+            value={fq}
+            autoFocus
+            onKeyDown={guard.onKeyDown}
+            onChange={guard.onChange}
+            onCompositionEnd={guard.onCompositionEnd}
+          />
+        </label>
+      )}
+      <div className="cm-fdd-list" role="group" aria-label="값 목록">
+        <button type="button" role="menuitemcheckbox" aria-checked={sel === null} className="cm-fdd-opt all" onClick={() => onChange(sel === null ? [] : null)}>
+          <Check on={some} partial={sel !== null && sel.length > 0} />
+          <span className="cm-fdd-name">모두</span>
+        </button>
+        {opts.map((v) => {
+          const on = isOn(v);
+          const n = count(v);
+          return (
+            <button
+              key={v}
+              type="button"
+              role="menuitemcheckbox"
+              aria-checked={on}
+              className={"cm-fdd-opt" + (n ? "" : " zero")}
+              onClick={() => {
+                const cur = sel === null ? values.slice() : sel.slice();
+                onChange(on ? cur.filter((x) => x !== v) : [...cur, v]);
+              }}
+            >
+              <Check on={on} />
+              <span className="cm-fdd-name">{label(v)}</span>
+              <span className="cm-fdd-n">{n}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="cm-fdd-foot">
+        <button type="button" className="cm-fdd-clear" onClick={() => onChange(null)}>
+          필터 풀기
+        </button>
+        <button type="button" className="btn-primary btn-xs" onClick={onClose}>
+          닫기
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Check({ on, partial }: { on: boolean; partial?: boolean }) {
+  return (
+    <span className={"cm-ck" + (on ? " on" : "")} aria-hidden="true">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+        <path d={partial ? "M6 12h12" : "M5 12.5l4.5 4.5L19 7.5"} />
+      </svg>
+    </span>
+  );
+}
+
+function Funnel() {
+  return (
+    <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
+      <path d="M4 5h16l-6 7.5V19l-4-2v-4.5z" />
+    </svg>
   );
 }
 
@@ -515,11 +854,11 @@ function Cells({
       <div role="cell" className="cm-c">
         <TypeInput value={d.ctype} options={lists.ctype} onChange={(ctype) => set({ ctype })} />
       </div>
-      <div role="cell" className="cm-c">
-        <AreaInput value={d.area} onChange={(area) => set({ area })} />
+      <div role="cell" className="cm-c cm-area-auto" title="위치에서 자동으로 채워져요">
+        {d.area}
       </div>
       <div role="cell" className="cm-c">
-        <PlaceInput value={d.place} onChange={(place) => set({ place })} onArea={(area) => set({ area })} />
+        <PlaceInput value={d.place} area={d.area} onChange={(place) => set({ place })} onArea={(area) => set({ area })} />
       </div>
       <div role="cell" className="cm-c">
         <input name="person" aria-label="민원인" placeholder="민원인" className="cell-input" value={d.person} onChange={(e) => set({ person: e.target.value })} />

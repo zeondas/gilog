@@ -1,7 +1,7 @@
 // 업무연락처 화면이에요. 시안 Contacts.dc.html과 사양서의 "업무연락처" 절을 따라요.
 import { KeyboardEvent, RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DelIcon } from "./Icons";
-import { BLine, CYCLE, kindOf, nextLine, parseLines, stringifyLines, TRIGGERS, withKind } from "./bullets";
+import { BLine, CYCLE, isBlank, kindOf, layout, nextLine, parseLines, stringifyLines, TRIGGERS, withKind } from "./bullets";
 import { BulletView, Mark } from "./BulletParts";
 import { koIndex } from "./journal";
 import { useJamoGuard } from "./koInput";
@@ -763,6 +763,7 @@ export function MemoEditor({
   }, []);
 
   const cur = lines[focus] ?? { t: "" };
+  const lv = layout(lines);
 
   function edit(fn: (ls: MemoLine[], i: number) => MemoLine[], move?: (i: number) => number) {
     const next = fn(lines.map((l) => ({ ...l })), focus);
@@ -772,8 +773,8 @@ export function MemoEditor({
   }
 
   const toggle = (k: "b" | "s") => edit((ls, i) => ((ls[i][k] = !ls[i][k]), ls));
-  /** 머릿기호 단추: 네모 → 동그라미 → 작대기 → 없음 */
-  const cycle = () => edit((ls, i) => ((ls[i] = withKind(ls[i], CYCLE[(CYCLE.indexOf(kindOf(ls[i])) + 1) % CYCLE.length])), ls));
+  /** 머릿기호 단추: □ → ● → 작대기 → 없음 */
+  const cycle = () => edit((ls, i) => ((ls[i] = withKind(ls[i], CYCLE[(CYCLE.indexOf(kindOf(ls[i])) + 1) % CYCLE.length], lv[i])), ls));
   const swap = (d: -1 | 1) =>
     edit(
       (ls, i) => {
@@ -805,16 +806,16 @@ export function MemoEditor({
         (ls, i) => {
           const rest = ls[i].t.slice(at);
           ls[i].t = ls[i].t.slice(0, at);
-          ls.splice(i + 1, 0, nextLine(ls[i], rest));
+          ls.splice(i + 1, 0, nextLine(ls[i], rest, lv[i]));
           return ls;
         },
         (i) => i + 1,
       );
-    } else if (e.key === "Backspace" && inLine && input.selectionStart === 0 && input.selectionEnd === 0 && kindOf(cur) !== "none") {
-      // 머릿기호 규칙: 줄 맨 앞 Backspace는 먼저 머릿기호만 지워요.
+    } else if (e.key === "Backspace" && inLine && input.selectionStart === 0 && input.selectionEnd === 0 && kindOf(cur) !== "none" && !isBlank(cur)) {
+      // 머릿기호 규칙: 줄 맨 앞 Backspace는 먼저 머릿기호만 지워요(글 시작 위치는 그대로).
       e.preventDefault();
       caret.current = 0;
-      edit((ls, i) => ((ls[i] = withKind(ls[i], "none")), ls));
+      edit((ls, i) => ((ls[i] = withKind(ls[i], "none", lv[i])), ls));
     } else if (e.key === " " && inLine && input.selectionStart === 1 && input.selectionEnd === 1 && TRIGGERS[cur.t[0]]) {
       // 줄 맨 앞 "] " ") " "- " → 네모·동그라미·작대기
       e.preventDefault();
@@ -853,7 +854,7 @@ export function MemoEditor({
         <button type="button" className="tb" aria-label="취소선" aria-pressed={!!cur.s} onClick={() => toggle("s")}>
           <s>가</s>
         </button>
-        <button type="button" className="tb" aria-label="머릿기호 바꾸기 (네모 → 동그라미 → 작대기 → 없음)" title="머릿기호 바꾸기: 네모 → 동그라미 → 작대기 → 없음" aria-pressed={kindOf(cur) !== "none"} onClick={cycle}>
+        <button type="button" className="tb" aria-label="머릿기호 바꾸기 (네모 → 점 → 작대기 → 없음)" title="머릿기호 바꾸기: □ → ● → 작대기 → 없음" aria-pressed={kindOf(cur) !== "none"} onClick={cycle}>
           <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <circle cx="5" cy="7" r="1.4" fill="currentColor" />
             <circle cx="5" cy="17" r="1.4" fill="currentColor" />
@@ -887,7 +888,7 @@ export function MemoEditor({
       <div className="memo-lines">
         {lines.map((l, i) => (
           <div key={i} className={"memo-row" + (i === focus ? " on" : "")}>
-            <Mark line={l} />
+            <Mark line={l} lv={lv[i]} hide={isBlank(l) && i !== focus && lines.length > 1} />
             <input
               data-line={i}
               aria-label={`메모 ${i + 1}번째 줄`}

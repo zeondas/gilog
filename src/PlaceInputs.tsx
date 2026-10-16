@@ -1,11 +1,11 @@
-// 민원대장의 지역·위치 칸이에요(법정동 기준, 사용자가 정함 2026-10-16).
-// - 지역 칸: 읍면동. 초성으로 쳐도 돼요(ㅈㄹ → 조리읍).
-// - 위치 칸: 맨 앞에 법정리·동, 이어서 지번. 리·동을 고르면 지역에 읍면동이 자동으로 들어가요.
+// 민원대장의 위치 칸이에요(법정동 기준, 사용자가 정함 2026-10-16).
+// - 위치 칸: 맨 앞에 법정리·동, 이어서 지번. 리·동을 고르면 지역(읍면동)이 자동으로 들어가요.
+// - 지역 칸은 직접 치지 않고 위치에서만 채워요(2026-10-16 사용자 지시). 파주 목록에 없는 위치면 지역은 비워요.
 // 겹치면(2안): 첫 후보가 골라진 목록이 떠요. ↑↓로 바꾸고 Tab(또는 Enter)으로 확정해요.
-//   지역 칸은 Tab 확정과 함께 다음 칸으로 가고, 위치 칸은 "봉일천리 "까지 채운 뒤 커서가 남아 지번을 이어 써요.
+//   위치 칸은 "봉일천리 "까지 채운 뒤 커서가 남아 지번을 이어 써요.
 import { KeyboardEvent, Ref, useLayoutEffect, useRef, useState } from "react";
 import { useJamoGuard } from "./koInput";
-import { EMD, emdsOf, findNames, Place, PLACES, splitPlace } from "./paju";
+import { emdsOf, findNames, Place, PLACES, splitPlace } from "./paju";
 
 const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
 
@@ -24,90 +24,6 @@ function moveKey(e: KeyboardEvent, n: number, hi: number, setHi: (i: number) => 
   return false;
 }
 
-// ---------- 지역 ----------
-
-export function AreaInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const [hi, setHi] = useState(0);
-  const guard = useJamoGuard((v) => {
-    onChange(v);
-    setOpen(true);
-    setHi(0);
-  });
-  guard.follow(value);
-
-  const v = value.trim();
-  const opts = v && !EMD.includes(v) ? findNames(v, EMD, (x) => x).slice(0, 12) : [];
-  const show = open && opts.length > 0;
-
-  function pick(x: string) {
-    guard.sync(x);
-    onChange(x);
-    setOpen(false);
-  }
-
-  return (
-    <div className="pin">
-      <input
-        name="area"
-        aria-label="지역 (읍면동)"
-        placeholder="읍면동"
-        className="cell-input"
-        role="combobox"
-        aria-expanded={show}
-        aria-autocomplete="list"
-        value={value}
-        onChange={guard.onChange}
-        onCompositionEnd={guard.onCompositionEnd}
-        onFocus={() => {
-          setOpen(true);
-          setHi(0);
-        }}
-        onBlur={() => {
-          setOpen(false);
-          // 하나뿐이면 떠날 때 채워요.
-          if (opts.length === 1) pick(opts[0]);
-        }}
-        onKeyDown={(e) => {
-          guard.onKeyDown(e);
-          if (isComposing(e) || !show) return;
-          if (moveKey(e, opts.length, hi, setHi)) return;
-          if (e.key === "Tab" && !e.shiftKey) {
-            // 확정하고 다음 칸으로 가요(기본 동작을 막지 않아요).
-            pick(opts[hi] ?? opts[0]);
-          } else if (e.key === "Enter") {
-            e.preventDefault();
-            pick(opts[hi] ?? opts[0]);
-          } else if (e.key === "Escape") {
-            e.preventDefault();
-            e.stopPropagation();
-            setOpen(false);
-          }
-        }}
-      />
-      {show && (
-        <div className="pin-list" role="listbox">
-          {opts.map((o, i) => (
-            <div
-              key={o}
-              role="option"
-              aria-selected={i === hi}
-              className="pin-opt"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                pick(o);
-              }}
-            >
-              {o}
-            </div>
-          ))}
-          {opts.length > 1 && <div className="pin-hint">↑↓ 고르기 · Tab 확정</div>}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ---------- 위치 ----------
 
 /** 위치 후보: 같은 법정동이 여러 행정동에 걸치면 행정동마다 하나씩 보여요. */
@@ -119,7 +35,18 @@ function placeOptions(head: string): Place[] {
   return found.slice(0, 12);
 }
 
-export function PlaceInput({ value, onChange, onArea }: { value: string; onChange: (v: string) => void; onArea: (emd: string) => void }) {
+export function PlaceInput({
+  value,
+  area,
+  onChange,
+  onArea,
+}: {
+  value: string;
+  /** 지금 지역 값 (여러 행정동에 걸친 법정동이면 이미 고른 행정동을 지켜요) */
+  area: string;
+  onChange: (v: string) => void;
+  onArea: (emd: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(0);
   const ref = useRef<HTMLInputElement>(null);
@@ -154,11 +81,12 @@ export function PlaceInput({ value, onChange, onArea }: { value: string; onChang
     setOpen(false);
   }
 
-  /** 다 쳐 놓고 고르지 않고 떠났을 때: 하나뿐이면 채우고, 이름이 맞으면 지역을 맞춰요. */
+  /** 다 쳐 놓고 고르지 않고 떠났을 때: 하나뿐이면 채우고, 이름이 맞으면 지역을 맞춰요. 파주 목록에 없으면 지역을 비워요. */
   function settle() {
     if (opts.length === 1) return pick(opts[0], false);
     const emds = emdsOf(head);
     if (emds.length === 1) onArea(emds[0]);
+    else if (!emds.includes(area)) onArea("");
   }
 
   return (

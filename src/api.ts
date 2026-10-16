@@ -390,7 +390,15 @@ function fakeTasks(cmd: string, a: Record<string, unknown>): unknown {
       try {
         const v = JSON.parse(e.detail || "[]");
         if (!Array.isArray(v)) return e.detail.trim();
-        const k = v.filter((x) => x && typeof x.t === "string" && x.t.trim()).map((x) => ({ ...x, t: x.t.trim() }));
+        // 저장 쪽 lines()와 같아요: 묶음 사이 빈 줄은 하나만, 맨 앞·맨 끝 빈 줄은 빼요.
+        const k: { t: string }[] = [];
+        for (const x of v) {
+          if (!x || typeof x.t !== "string") continue;
+          if (!x.t.trim()) {
+            if (k.length && k[k.length - 1].t !== "") k.push({ t: "" });
+          } else k.push({ ...x, t: x.t.trim() });
+        }
+        while (k.length && k[k.length - 1].t === "") k.pop();
         return k.length ? JSON.stringify(k) : "";
       } catch {
         return e.detail.trim();
@@ -502,13 +510,19 @@ function fakeComplaints(cmd: string, a: Record<string, unknown>): unknown {
       try {
         const v = JSON.parse(t);
         if (Array.isArray(v)) {
-          const kept = v
-            .filter((x) => x && typeof x.t === "string" && x.t.trim())
-            .map((x) => {
-              const o: Record<string, unknown> = { t: x.t.trim() };
-              for (const k of ["k", "lv", "b", "s"]) if (x[k] !== undefined) o[k] = x[k];
-              return o;
-            });
+          // 묶음 사이 빈 줄은 하나만 남기고 맨 앞·맨 끝 빈 줄은 빼요.
+          const kept: Record<string, unknown>[] = [];
+          for (const x of v) {
+            if (!x || typeof x.t !== "string") continue;
+            if (!x.t.trim()) {
+              if (kept.length && kept[kept.length - 1].t !== "") kept.push({ t: "" });
+              continue;
+            }
+            const o: Record<string, unknown> = { t: x.t.trim() };
+            for (const k of ["k", "lv", "b", "s"]) if (x[k] !== undefined) o[k] = x[k];
+            kept.push(o);
+          }
+          while (kept.length && kept[kept.length - 1].t === "") kept.pop();
           return kept.length ? JSON.stringify(kept) : "";
         }
       } catch {

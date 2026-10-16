@@ -2,17 +2,20 @@
 // - Mark: 머릿기호 하나(앱이 그려요, 윈도우 글자 □○를 쓰지 않아요)
 // - BulletView: 보기 화면. 복사하면 □ ○ - 글자와 띄어쓰기로 나가요.
 // - BulletEditor: 여러 줄 입력 칸(민원 내용·조치내용, 할 일 세부정보)
-import { ClipboardEvent, KeyboardEvent, ReactNode, useEffect, useLayoutEffect, useRef } from "react";
-import { BLine, kindOf, levelOf, lineToText, nextLine, textToLines, TRIGGERS, withKind } from "./bullets";
+import { ClipboardEvent, KeyboardEvent, ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { BLine, isBlank, kindOf, layout, linePrefix, nextLine, textToLines, TRIGGERS, withKind } from "./bullets";
 
 const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
 
-/** 머릿기호 하나. 단계만큼 들여쓰고, 한글 글자 높이의 정중앙에 둬요. */
-export function Mark({ line }: { line: BLine }) {
+/**
+ * 머릿기호 하나. 위계 단계(lv, layout으로 셈)만큼 들여쓰고, 한글 글자 높이의 정중앙에 둬요.
+ * hide면 자리만 두고 기호는 그리지 않아요(빈 줄).
+ */
+export function Mark({ line, lv, hide }: { line: BLine; lv: number; hide?: boolean }) {
   const k = kindOf(line);
   return (
-    <span className="bl-m" aria-hidden="true" style={{ marginLeft: `calc(var(--bl-indent, 6.5px) * ${levelOf(line)})` }}>
-      {k !== "none" && <span className={"bl-shape bl-" + k} />}
+    <span className="bl-m" aria-hidden="true" style={{ marginLeft: `calc(var(--bl-indent, 6.5px) * ${lv})` }}>
+      {k !== "none" && !hide && <span className={"bl-shape bl-" + k} />}
     </span>
   );
 }
@@ -20,11 +23,12 @@ export function Mark({ line }: { line: BLine }) {
 /** 보기 화면의 여러 줄. render로 글자 꾸미기(검색 형광 등)를 넘겨받아요. */
 export function BulletView({ lines, render, className }: { lines: BLine[]; render?: (l: BLine) => ReactNode; className?: string }) {
   if (!lines.length) return null;
+  const lv = layout(lines);
   return (
     <div className={"bl-list " + (className ?? "")} onCopy={copyLines}>
       {lines.map((l, i) => (
-        <div key={i} className="bl-line" data-bl={lineToText(l).slice(0, lineToText(l).length - l.t.length)}>
-          <Mark line={l} />
+        <div key={i} className={"bl-line" + (isBlank(l) ? " bl-blank" : "")} data-bl={linePrefix(l, lv[i])}>
+          <Mark line={l} lv={lv[i]} hide={isBlank(l)} />
           <span className="bl-t" style={{ fontWeight: l.b ? 700 : undefined, textDecoration: l.s ? "line-through" : undefined }}>
             {render ? render(l) : l.t}
           </span>
@@ -76,13 +80,17 @@ type EditorProps = {
  * 여러 줄 입력 칸. 줄마다 머릿기호가 처음부터 보이고, 글은 그 뒤에 써져요.
  * - Enter: 막지 않고 위로 넘겨요(등록·저장은 줄을 가진 쪽이 해요). 줄바꿈 글자가 들어와도 띄어쓰기로 바꿔요.
  * - Shift+Enter, Ctrl+Enter: 새 줄 (윗줄과 같은 머릿기호)
- * - 줄 맨 앞 Backspace: 머릿기호 지우기 → 한 번 더: 윗줄과 합치기
- * - 줄 맨 앞 "] " ") " "- ": 네모·동그라미·작대기
+ * - 줄 맨 앞 Backspace: 머릿기호 지우기 → 한 번 더(또는 빈 줄): 윗줄과 합치기
+ * - 줄 맨 앞 "] " ") " "- ": □·●·작대기. 들여쓰기는 위계로 정해요(bullets.ts layout).
+ * - 빈 줄은 묶음을 나눠요. 커서가 없는 빈 줄은 기호를 그리지 않아요.
  * - 여러 줄을 붙여 넣으면 줄마다 나눠요(앞의 □ ○ - • 는 단계로 알아봐요)
  */
 export function BulletEditor({ lines, onChange, placeholder, name, label, invalid, autoFocusEnd }: EditorProps) {
   const ls = lines.length ? lines : [{ t: "" }];
+  const lv = layout(ls);
   const box = useRef<HTMLDivElement>(null);
+  /** 커서가 있는 줄 (빈 줄의 기호는 이 줄일 때만 보여요) */
+  const [at, setAt] = useState<number | null>(null);
   /** 다음 그리기 때 커서를 둘 곳 [줄, 글자 위치] */
   const want = useRef<[number, number] | null>(null);
 
@@ -134,13 +142,14 @@ export function BulletEditor({ lines, onChange, placeholder, name, label, invali
       e.stopPropagation();
       const next = ls.slice();
       next[i] = { ...cur, t: cur.t.slice(0, a) };
-      next.splice(i + 1, 0, nextLine(cur, cur.t.slice(b)));
+      next.splice(i + 1, 0, nextLine(cur, cur.t.slice(b), lv[i]));
       edit(next, [i + 1, 0]);
     } else if (e.key === "Backspace" && a === 0 && b === 0) {
-      if (kindOf(cur) !== "none") {
+      if (!isBlank(cur) && kindOf(cur) !== "none") {
+        // 머릿기호만 지워요. 글 시작 위치(단계)는 그대로예요.
         e.preventDefault();
         const next = ls.slice();
-        next[i] = withKind(cur, "none");
+        next[i] = withKind(cur, "none", lv[i]);
         edit(next, [i, 0]);
       } else if (i > 0) {
         e.preventDefault();
@@ -149,6 +158,12 @@ export function BulletEditor({ lines, onChange, placeholder, name, label, invali
         next[i - 1] = { ...prev, t: prev.t + cur.t };
         next.splice(i, 1);
         edit(next, [i - 1, prev.t.length]);
+      } else if (kindOf(cur) === "none") {
+        // 첫 줄은 합칠 윗줄이 없으니 기호를 되살려요.
+        e.preventDefault();
+        const next = ls.slice();
+        next[0] = withKind(cur, "ci");
+        edit(next, [0, 0]);
       }
     } else if (e.key === " " && a === 1 && b === 1 && TRIGGERS[cur.t[0]]) {
       // 줄 맨 앞의 "] " ") " "- " → 머릿기호
@@ -207,7 +222,7 @@ export function BulletEditor({ lines, onChange, placeholder, name, label, invali
     }}>
       {ls.map((l, i) => (
         <div key={i} className="bl-line bl-eline">
-          <Mark line={l} />
+          <Mark line={l} lv={lv[i]} hide={isBlank(l) && at !== i && ls.length > 1} />
           <textarea
             data-i={i}
             name={i === 0 ? name : undefined}
@@ -224,6 +239,8 @@ export function BulletEditor({ lines, onChange, placeholder, name, label, invali
             }}
             onKeyDown={(e) => onKeyDown(e, i)}
             onPaste={(e) => onPaste(e, i)}
+            onFocus={() => setAt(i)}
+            onBlur={() => setAt((x) => (x === i ? null : x))}
           />
         </div>
       ))}

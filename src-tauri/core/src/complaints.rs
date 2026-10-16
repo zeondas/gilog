@@ -97,19 +97,25 @@ pub(crate) fn lines(s: &str) -> String {
     let trimmed = s.trim();
     if trimmed.starts_with('[') {
         if let Ok(serde_json::Value::Array(items)) = serde_json::from_str::<serde_json::Value>(trimmed) {
-            let kept: Vec<serde_json::Value> = items
-                .into_iter()
-                .filter_map(|v| {
-                    let mut o = v.as_object()?.clone();
-                    let t = o.get("t")?.as_str()?.trim().to_string();
-                    if t.is_empty() {
-                        return None;
+            // 빈 줄은 묶음을 나눠요(머릿기호 위계 규칙, 2026-10-17): 묶음 사이 빈 줄은 하나만 남기고 맨 앞·맨 끝 빈 줄은 빼요.
+            let mut kept: Vec<serde_json::Value> = Vec::new();
+            for v in items {
+                let Some(mut o) = v.as_object().cloned() else { continue };
+                let Some(t) = o.get("t").and_then(|x| x.as_str()).map(|x| x.trim().to_string()) else { continue };
+                if t.is_empty() {
+                    let after_text = kept.last().map(|x| x["t"].as_str() != Some("")).unwrap_or(false);
+                    if after_text {
+                        kept.push(serde_json::json!({ "t": "" }));
                     }
-                    o.insert("t".into(), serde_json::Value::String(t));
-                    o.retain(|k, _| matches!(k.as_str(), "t" | "k" | "lv" | "b" | "s"));
-                    Some(serde_json::Value::Object(o))
-                })
-                .collect();
+                    continue;
+                }
+                o.insert("t".into(), serde_json::Value::String(t));
+                o.retain(|k, _| matches!(k.as_str(), "t" | "k" | "lv" | "b" | "s"));
+                kept.push(serde_json::Value::Object(o));
+            }
+            while kept.last().map(|x| x["t"].as_str() == Some("")).unwrap_or(false) {
+                kept.pop();
+            }
             return if kept.is_empty() { String::new() } else { serde_json::Value::Array(kept).to_string() };
         }
     }
@@ -289,10 +295,11 @@ mod tests {
     fn bullet_lines_are_cleaned() {
         let tmp = tempfile::tempdir().unwrap();
         let mut s = Store::create(tmp.path(), "abcd1234").unwrap();
-        let mut i = input(r#"[{"t":" 포트홀 ","k":"sq"},{"t":"  "},{"t":"야간","k":"ci","x":1},{"t":"이어 씀","k":"none","lv":1}]"#);
+        let mut i = input(r#"[{"t":" "},{"t":" 포트홀 ","k":"sq"},{"t":"  "},{"t":"","k":"da"},{"t":"야간","k":"ci","x":1},{"t":"이어 씀","k":"none","lv":1},{"t":""}]"#);
         i.action = r#"[{"t":""}]"#.into();
         let c = s.add_complaint(&i).unwrap();
-        assert_eq!(c.body, r#"[{"k":"sq","t":"포트홀"},{"k":"ci","t":"야간"},{"k":"none","lv":1,"t":"이어 씀"}]"#);
+        // 묶음 사이 빈 줄은 하나만 남고, 맨 앞·맨 끝 빈 줄은 빠져요.
+        assert_eq!(c.body, r#"[{"k":"sq","t":"포트홀"},{"t":""},{"k":"ci","t":"야간"},{"k":"none","lv":1,"t":"이어 씀"}]"#);
         assert_eq!(c.action, "");
         // 빈 줄만 있으면 내용이 없는 것이에요.
         assert_eq!(s.add_complaint(&input(r#"[{"t":" "}]"#)).err().unwrap().code(), "invalid");

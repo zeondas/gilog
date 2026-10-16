@@ -1,18 +1,21 @@
-// 머릿기호 규칙 (2026-10-16 사용자가 정함, CLAUDE.md "공통 입력 규칙")
+// 머릿기호 규칙 (2026-10-16 사용자가 정함, 2026-10-17 위계 규칙으로 바꿈 — CLAUDE.md "공통 입력 규칙", 시안 BulletRule.dc.html)
 //
-// 여러 줄 칸은 줄마다 머릿기호가 있어요. 0.6.2부터 기본은 네모예요(사용자가 정함: 기본 점과 ") " 점이 같은 모양인데 단계가 달라 헷갈렸어요).
-//   sq 네모 □(1단계·기본, 들여쓰기 없음) · ci 동그라미(2단계, 띄어쓰기 두 칸, 모양은 채운 점)
-//   da 작대기(3단계, 띄어쓰기 네 칸) · none 머릿기호 없음(줄 맨 앞 Backspace로 지운 줄, 단계는 그대로)
-// 줄 맨 앞에서 "] " → 네모, ") " → 동그라미, "- " → 작대기 (기호 + 스페이스일 때만)
+// 여러 줄 칸은 줄마다 머릿기호가 있어요. 기본은 ●(채운 점)예요(2026-10-17 사용자: □는 가독성이 떨어져요).
+//   sq 네모 □ · ci 점 ●(기본) · da 작대기 - · none 머릿기호 없음(줄 맨 앞 Backspace로 지운 줄)
+// 위계 순서는 □ → ● → - 이고 절대 바꾸지 않아요(공무원 문서 규정).
+// 줄 맨 앞에서 "] " → □, ") " → ●, "- " → 작대기 (기호 + 스페이스일 때만)
 //
-// 저장 모양: [{"t":"글","k":"sq"}, ...] (k가 없으면 네모, none이면 lv에 단계). 메모는 b(굵게)·s(취소선)도 써요.
-// 예전에 글자만 저장한 것과 0.6.1의 기본 점 줄(k 없음)은 네모로 읽어요.
+// 들여쓰기는 기호 모양이 아니라 위계로 정해요(layout): 위로 거슬러 올라가며 자기보다 높은 위계 기호가 있을 때만
+// 그만큼 들여써요. 빈 줄은 묶음을 나눠요(빈 줄 위는 따지지 않아요). 기호 없는 줄은 lv가 있으면 그 단계, 없으면 바로 윗줄 단계.
+//
+// 저장 모양: [{"t":"글","k":"sq"}, ...] (k가 없으면 ●, none이면 lv에 단계). 메모는 b(굵게)·s(취소선)도 써요.
+// 예전에 글자만 저장한 것과 0.6.x의 기본 줄(k 없음 — 그때는 □)은 모두 ●로 읽어요(사용자 1안).
 
 export type BKind = "sq" | "ci" | "da" | "none";
 
 export type BLine = {
   t: string;
-  /** 머릿기호 종류. 없으면 네모(기본)예요. */
+  /** 머릿기호 종류. 없으면 ●(기본)예요. */
   k?: BKind;
   /** 머릿기호 없는 줄의 단계(0~2) */
   lv?: number;
@@ -25,61 +28,86 @@ export type BLine = {
 /** 줄 맨 앞에서 이 글자 + 스페이스를 치면 바뀌는 머릿기호 */
 export const TRIGGERS: Record<string, BKind> = { "]": "sq", ")": "ci", "-": "da" };
 
-/** 메모 창 머릿기호 단추를 누를 때마다 바뀌는 순서 */
+/** 메모 창 머릿기호 단추를 누를 때마다 바뀌는 순서 (위계 순서 그대로 □ → ● → 작대기 → 없음) */
 export const CYCLE: BKind[] = ["sq", "ci", "da", "none"];
 
-export const kindOf = (l: BLine): BKind => l.k ?? "sq";
+export const kindOf = (l: BLine): BKind => l.k ?? "ci";
 
-/** 들여쓰기 단계 (띄어쓰기 두 칸 단위) */
-export function levelOf(l: BLine): number {
-  switch (kindOf(l)) {
-    case "ci":
-      return 1;
-    case "da":
-      return 2;
-    case "none":
-      return Math.max(0, Math.min(2, l.lv ?? 0));
-    default:
-      return 0;
-  }
+/** 빈 줄(묶음 나누기) */
+export const isBlank = (l: BLine) => l.t.trim() === "";
+
+/** 위계 높낮이: □ 0, ● 1, 작대기 2 */
+const rank = (k: BKind) => (k === "sq" ? 0 : k === "ci" ? 1 : 2);
+
+/**
+ * 줄마다 들여쓰기 단계(띄어쓰기 두 칸 단위)를 셈해요(시안 BulletRule.dc.html의 layout).
+ * 개요 방식: 자기보다 높은 위계 기호가 위에 있을 때만 들여쓰고, 같은 위계 이상이 나오면 거기서 멈춰요.
+ * 빈 줄은 묶음을 나눠요. 빈 줄이라도 기호가 있으면(적는 중) 자기 단계에 그려요 — 글을 치는 순간 기호가 옮겨 가지 않게.
+ */
+export function layout(lines: BLine[]): number[] {
+  let stack: BKind[] = [];
+  let prev = 0;
+  return lines.map((l) => {
+    const k = kindOf(l);
+    if (isBlank(l)) {
+      let lv = 0;
+      if (k === "none") lv = l.lv ?? prev;
+      else {
+        const s = stack.slice();
+        while (s.length && rank(s[s.length - 1]) >= rank(k)) s.pop();
+        lv = s.length;
+      }
+      stack = [];
+      prev = 0;
+      return Math.max(0, Math.min(2, lv));
+    }
+    if (k === "none") {
+      const lv = Math.max(0, Math.min(2, l.lv ?? prev));
+      prev = lv;
+      return lv;
+    }
+    while (stack.length && rank(stack[stack.length - 1]) >= rank(k)) stack.pop();
+    const lv = stack.length;
+    stack.push(k);
+    prev = lv;
+    return lv;
+  });
 }
 
-/** 머릿기호를 바꿔요. 지울 때(none)는 지금 단계를 남겨 글 시작 위치를 지켜요. */
-export function withKind(l: BLine, k: BKind): BLine {
+/** 머릿기호를 바꿔요. 지울 때(none)는 지금 단계(lv)를 남겨 글 시작 위치를 지켜요. */
+export function withKind(l: BLine, k: BKind, lv = 0): BLine {
   const n: BLine = { ...l };
   if (k === "none") {
-    const lv = levelOf(l);
     n.k = "none";
-    if (lv) n.lv = lv;
-    else delete n.lv;
+    n.lv = Math.max(0, Math.min(2, lv));
   } else {
     delete n.lv;
-    if (k === "sq") delete n.k;
+    if (k === "ci") delete n.k;
     else n.k = k;
   }
   return n;
 }
 
-/** 새 줄은 윗줄과 같은 머릿기호·단계로 시작해요. */
-export function nextLine(l: BLine, t = ""): BLine {
+/** 새 줄은 윗줄과 같은 머릿기호로 시작해요. 기호 없는 줄이면 윗줄 단계(lv)를 이어요. */
+export function nextLine(l: BLine, t = "", lv = 0): BLine {
   const n: BLine = { t };
   if (l.k) n.k = l.k;
-  if (l.lv) n.lv = l.lv;
+  if (l.k === "none") n.lv = lv;
   return n;
 }
 
 function clean(l: Partial<BLine>): BLine | null {
   if (!l || typeof l.t !== "string") return null;
   const n: BLine = { t: l.t };
-  // 기본(네모)은 적지 않아요. 0.6.1의 "dot"(기본 점)도 기본으로 읽어요.
-  if (l.k && l.k !== "sq" && (CYCLE as string[]).includes(l.k)) n.k = l.k;
-  if (n.k === "none" && typeof l.lv === "number" && l.lv > 0) n.lv = Math.min(2, Math.round(l.lv));
+  // 기본(●)은 적지 않아요. 0.6.1의 "dot"(기본 점)도 기본으로 읽어요.
+  if (l.k && l.k !== "ci" && (CYCLE as string[]).includes(l.k)) n.k = l.k;
+  if (n.k === "none" && typeof l.lv === "number" && l.lv >= 0) n.lv = Math.min(2, Math.round(l.lv));
   if (l.b) n.b = true;
   if (l.s) n.s = true;
   return n;
 }
 
-/** 저장된 글자를 줄 목록으로 읽어요. JSON이 아니면(예전 모양) 줄마다 점이에요. */
+/** 저장된 글자를 줄 목록으로 읽어요. JSON이 아니면(예전 모양) 줄마다 ●예요. */
 export function parseLines(raw: string): BLine[] {
   if (!raw) return [];
   const s = raw.trim();
@@ -91,6 +119,7 @@ export function parseLines(raw: string): BLine[] {
           .map((x) => {
             // 업무연락처 메모의 예전 모양: nb(글머리 없음)
             if (x && x.nb && !x.k) return clean({ ...x, k: "none" });
+            // 0.6.x의 기본 줄(k 없음)과 □(그때 기본이라 k를 적지 않았어요)은 모두 ●예요(사용자 1안).
             return clean(x);
           })
           .filter((x): x is BLine => !!x);
@@ -102,9 +131,21 @@ export function parseLines(raw: string): BLine[] {
   return raw.split("\n").map((t) => ({ t }));
 }
 
-/** 줄 목록을 저장할 글자로 바꿔요. 빈 줄은 빼고, 남는 것이 없으면 빈 글자예요. */
+/**
+ * 줄 목록을 저장할 글자로 바꿔요. 묶음 사이 빈 줄은 하나만 남기고, 맨 앞·맨 끝 빈 줄은 빼요.
+ * 글이 있는 줄이 없으면 빈 글자예요. (저장 쪽 complaints.rs의 lines()와 같은 규칙)
+ */
 export function stringifyLines(ls: BLine[]): string {
-  const kept = ls.map((l) => ({ ...l, t: l.t.trim() })).filter((l) => l.t);
+  const kept: BLine[] = [];
+  for (const l of ls) {
+    const t = l.t.trim();
+    if (!t) {
+      if (kept.length && !isBlank(kept[kept.length - 1])) kept.push({ t: "" });
+      continue;
+    }
+    kept.push({ ...l, t });
+  }
+  while (kept.length && isBlank(kept[kept.length - 1])) kept.pop();
   if (!kept.length) return "";
   return JSON.stringify(kept.map((l) => clean(l)));
 }
@@ -119,32 +160,33 @@ export const firstLineOf = (raw: string) => parseLines(raw).find((l) => l.t.trim
 
 const SYMBOL: Record<BKind, string> = { sq: "□", ci: "○", da: "-", none: "" };
 
-/** 복사할 때의 한 줄: 들여쓰기는 띄어쓰기 두 칸씩, 기호는 문서에서 쓰는 글자 */
-export function lineToText(l: BLine): string {
-  const pad = "  ".repeat(levelOf(l));
+/** 복사할 때의 한 줄 앞부분: 들여쓰기는 띄어쓰기 두 칸씩(위계 단계), 기호는 문서에서 쓰는 글자 */
+export function linePrefix(l: BLine, lv: number): string {
+  if (isBlank(l)) return "";
   const sym = SYMBOL[kindOf(l)];
-  return pad + (sym ? sym + " " : "") + l.t;
+  return "  ".repeat(lv) + (sym ? sym + " " : "");
 }
 
-export const linesToText = (ls: BLine[]) => ls.map(lineToText).join("\n");
+export function linesToText(ls: BLine[]): string {
+  const lv = layout(ls);
+  return ls.map((l, i) => linePrefix(l, lv[i]) + l.t).join("\n");
+}
 
-/** 붙여 넣은 글을 줄 목록으로. 앞의 □ ○ ● • · - ※ 등은 단계로 알아보고 떼어 내요(겹치지 않게). */
+/** 붙여 넣은 글을 줄 목록으로. 앞의 □ ○ ● • · - 등은 기호로 알아보고 떼어 내요(겹치지 않게). 단계는 위계가 정해요. */
 export function textToLines(text: string): BLine[] {
   return text
     .replace(/\r\n?/g, "\n")
     .split("\n")
     .filter((x) => x.trim())
     .map((raw) => {
-      const m = /^([ \t　]*)([□■◻▪○◦●•·∙\-–ㆍ])\s+(.*)$/.exec(raw);
+      const m = /^[ \t　]*([□■◻▪○◦●•·∙\-–ㆍ])\s+(.*)$/.exec(raw);
       if (!m) return { t: raw.trim() };
-      const sym = m[2];
-      const t = m[3].trim();
+      const sym = m[1];
+      const t = m[2].trim();
       if ("□■◻▪".includes(sym)) return { t, k: "sq" as BKind };
-      if ("○◦".includes(sym)) return { t, k: "ci" as BKind };
       if ("-–".includes(sym)) return { t, k: "da" as BKind };
-      // • · ● 등은 기본 점. 앞 공백이 두 칸 이상이면 동그라미 단계로 봐요.
-      const sp = m[1].replace(/\t/g, "    ").replace(/　/g, "  ").length;
-      return sp >= 2 ? { t, k: "ci" as BKind } : { t };
+      // ○ ● • · 등은 ●(기본)
+      return { t };
     });
 }
 
