@@ -24,7 +24,7 @@
 ## 시안 두는 곳 (2026-10-17 사용자 1안)
 - **새 시안은 모두 화면 시안 캔버스 https://claude.ai/artifact/JyghMiCyKE5BRDq2C8SmJm 에 판(`이름.dc.html`)으로 더해요.** 따로 아티팩트를 만들지 않아요. 사용자가 찾기 힘들어했어요. 캔버스는 사이드바에 고정해 뒀어요(이름 "giLog 시안").
 - 시안을 말할 때는 늘 캔버스 주소와 판 이름을 함께 적어요.
-- 캔버스 판: Main(민원대장), Todo, Contacts, Journal, Calendar, Settings, JournalCal1·2(일지 달력 배치, 1안 채택), ComplaintFilter(민원대장 열 필터), BulletRule(머릿기호 시험). 새 판을 더하면 여기에도 적어요.
+- 캔버스 판: Main(민원대장), Todo, Contacts, Journal, Calendar, Settings, JournalCal1·2(일지 달력 배치, 1안 채택), ComplaintFilter(민원대장 열 필터), BulletRule(머릿기호 시험), JournalPdf(업무일지 PDF 종이 시안 — 사용자 확인 기다림). 새 판을 더하면 여기에도 적어요.
 - 예전에 따로 만든 시안(새로 더하지 않아요): 종류 칸 https://claude.ai/artifact/EUZJjsJEZqPnCy9sv5y4qS · 글자 가운데 맞춤 비교 https://claude.ai/artifact/6f6FBiSo7unEMt8qJzE5SQ · 관리 창 https://claude.ai/artifact/ALMvrTHi4RGFHvBikN9srq · 쉬는 날 음영 https://claude.ai/artifact/ND2V6G1gFkb3TWnuC8GyTD
 
 ## 만드는 순서와 진행 상태
