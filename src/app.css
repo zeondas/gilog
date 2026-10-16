@@ -2732,14 +2732,6 @@ body.col-dragging * {
   white-space: nowrap;
 }
 
-.cm-status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  corner-shape: round;
-  background: currentColor;
-}
-
 .cm-memo {
   display: inline-flex;
   align-items: center;

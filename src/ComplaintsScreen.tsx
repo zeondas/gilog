@@ -5,7 +5,6 @@
 // - 줄을 누르면 그 자리에서 고치고, 바깥을 누르면 저장해요. 삭제는 "이 민원을 지울까요?"를 물어요.
 // - 메모는 창에서 고쳐요. Enter 저장, Ctrl+Enter 새 줄, 바깥을 누르면 저장이에요.
 import {
-import { DelIcon } from "./Icons";
   CSSProperties,
   KeyboardEvent,
   MouseEvent as ReactMouseEvent,
@@ -16,6 +15,7 @@ import { DelIcon } from "./Icons";
   useRef,
   useState,
 } from "react";
+import { DelIcon } from "./Icons";
 import { REMOTE_CHANGE } from "./google";
 import { api, Complaint, ComplaintInput, errorText } from "./api";
 import {
