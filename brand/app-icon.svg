@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="1024" height="1024" role="img" aria-label="기Log 앱 아이콘">
+  <!-- 앱 아이콘: 스퀴클 바탕 accent, ㄱ 흰색, L 연보라(#B6AAFF). 두 테마 같은 그림. -->
+  <path d="M50 0C97.7 0 100 2.3 100 50C100 97.7 97.7 100 50 100C2.3 100 0 97.7 0 50C0 2.3 2.3 0 50 0Z" fill="#4B37C4"/>
+  <g transform="translate(50 50) scale(0.667) translate(-50 -50)">
+    <path d="M17 17H83V58H69V31H17Z" fill="#FFFFFF"/>
+    <path d="M17 42H31V69H83V83H17Z" fill="#B6AAFF"/>
+  </g>
+</svg>

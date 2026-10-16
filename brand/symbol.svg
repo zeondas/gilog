@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="17 17 66 66" width="660" height="660" role="img" aria-label="기Log 심볼">
+  <!-- 심볼만. ㄱ(기)과 L(Log)을 180° 맞물린 네모. 모든 모서리 직각. -->
+  <path d="M17 17H83V58H69V31H17Z" fill="#4B37C4"/>
+  <path d="M17 42H31V69H83V83H17Z" fill="#4B37C4"/>
+</svg>

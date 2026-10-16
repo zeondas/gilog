@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -716 3536 822" width="3536" height="822" role="img" aria-label="기Log">
+  <!-- 기Log 반전(흰색). 보라 바탕 위에 써요. -->
+  <g fill="#FFFFFF">
+    <g transform="translate(0 -716) scale(12.4545) translate(-17 -17)">
+      <path d="M17 17H83V58H69V31H17Z"/>
+      <path d="M17 42H31V69H83V83H17Z"/>
+    </g>
+    <g transform="translate(994 106) scale(0.97) translate(0 -106)">
+      <path d="M70 -402L540 -402L540 106L420 106L420 -296L70 -296ZM960 -402L1080 -402L1080 0L1430 0L1430 106L960 106Z"/>
+      <path d="M690 -402L810 -402L810 106L690 106ZM1540 -402L2010 -402L2010 106L1540 106ZM1660 -296L1660 0L1890 0L1890 -296ZM2150 -402L2620 -402L2620 -296L2270 -296L2270 0L2500 0L2500 -75L2394 -75L2394 -181L2620 -181L2620 106L2150 106Z" fill-rule="evenodd"/>
+    </g>
+  </g>
+</svg>
