@@ -20,7 +20,7 @@ export const memoText = (lines: MemoLine[]): string => stringifyLines(lines);
 
 // ---------- 프로젝트 색 ----------
 
-const COLOR_NAMES = ["회색", "파랑", "주황", "초록", "보라", "청록", "분홍", "노랑"];
+const COLOR_NAMES = ["회색", "파랑", "주황", "초록", "자주", "청록", "분홍", "노랑"];
 
 export function projectColor(p: Project): number {
   return p.color ?? (p.id - 1) % COLOR_NAMES.length;

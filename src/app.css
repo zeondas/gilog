@@ -4929,17 +4929,23 @@ body.col-dragging * {
 }
 
 .cal-kp-btn {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 6px;
-  max-width: 100%;
+  gap: 7px;
+  width: 100%;
   height: var(--size-input);
-  padding: 0 8px 0 3px;
+  padding: 0 6px 0 8px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface);
-  color: var(--muted);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
   cursor: pointer;
+}
+
+.cal-kp-btn:hover {
+  border-color: var(--muted);
 }
 
 .cal-kp-btn:focus-visible,
@@ -4948,11 +4954,29 @@ body.col-dragging * {
   outline-offset: -1px;
 }
 
-.cal-kp-btn .cal-kbadge {
+.cal-kp-btn svg {
+  flex: none;
+  color: var(--muted);
+}
+
+.cal-kp-name {
+  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.cal-kp-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  corner-shape: round;
+}
+
+.cal-dlg-grid .cal-kp {
+  width: 200px;
 }
 
 .cal-dlg-grid .cal-kp-btn {
@@ -5007,4 +5031,8 @@ body.col-dragging * {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.cal-push {
+  margin-left: auto;
 }

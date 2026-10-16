@@ -266,7 +266,7 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
     window.addEventListener("resize", on);
     return () => window.removeEventListener("resize", on);
   }, []);
-  const cellH = Math.max(110, Math.floor((vh - 252) / weeks));
+  const cellH = Math.max(110, Math.floor((vh - 218) / weeks));
   const lanes = Math.max(2, Math.floor((cellH - 34) / 24));
 
   if (!data) {
@@ -339,7 +339,6 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
   if (!hidden.has(data.kinds.find((k) => k.system === "holiday")?.id ?? -1)) {
     for (const o of occs) if (o.kind.system === "holiday") holidaysOf.set(o.start, [...(holidaysOf.get(o.start) ?? []), o.title]);
   }
-  const shownCount = occs.filter((o) => o.kind.system !== "holiday" && o.end >= `${ym[0]}-${String(ym[1] + 1).padStart(2, "0")}-01` && o.start.slice(0, 7) <= `${ym[0]}-${String(ym[1] + 1).padStart(2, "0")}`).length;
   const holidayLine = data.holidaysAt ? `공휴일은 ${data.holidaysAt.slice(5).replace("-", "/")}에 받았어요` : "공휴일은 앱에 넣어 온 목록(2027년까지)이에요";
 
   return (
@@ -449,7 +448,7 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
               pickKey={pick}
               q={lq}
               holidaysOf={holidaysOf}
-              height={vh - 252}
+              height={vh - 218}
               onSel={(d) => (setSel(d), setPick(null))}
               onNew={newAt}
               actsOf={actsOf}
@@ -524,13 +523,6 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
           </>
           )}
         </div>
-        <div className="cal-summary">
-          {view === "week" ? "주 보기" : `${weeks}주 달력 · 이번 달 일정 ${shownCount}건`}
-          {lq ? " (검색 중)" : ""} · ↻는 반복 일정 · 일정을 두 번 누르면 고쳐요 · 빈 곳을 두 번 누르면 새 일정 · {view === "week" ? "날짜 줄 위에서 휠로 주 넘기기" : "휠로 달 넘기기"} · {holidayLine}
-          <button type="button" className="link-btn cal-notify-link" onClick={() => setNotifyOpen(true)}>
-            알림 확인
-          </button>
-        </div>
       </div>
 
       {ed && (
@@ -600,6 +592,7 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
           }}
           run={run}
           holidayLine={holidayLine}
+          onNotify={() => (setKindsOpen(false), setNotifyOpen(true))}
           onRefreshHolidays={async () => {
             const err = await updateHolidays();
             load();
@@ -1033,7 +1026,7 @@ function QuickRow({
       <input
         name="title"
         aria-label="일정"
-        placeholder="일정을 입력하고 Enter (시간을 비우면 종일 일정)"
+        placeholder="일정 (시간을 비우면 종일)"
         className={"cell-input" + (bad === "title" ? " invalid" : "")}
         value={title}
         onChange={(e) => {
@@ -1230,7 +1223,7 @@ function EventDialog({
                   onChange={(e) => set("until", e.target.value)}
                   onBlur={() => dateFix("until")}
                 />
-                {!draft.until.trim() && <span className="cal-dlg-sub">종료일을 넣어야 저장돼요</span>}
+                
               </>
             )}
           </div>
@@ -1240,13 +1233,12 @@ function EventDialog({
 
           <span className="cal-dlg-label top">설명</span>
           <div className="cal-desc">
-            <BulletEditor lines={draft.desc} onChange={(v) => set("desc", v)} name="desc" label="설명" placeholder="설명 추가 (Shift+Enter로 줄 추가)" />
+            <BulletEditor lines={draft.desc} onChange={(v) => set("desc", v)} name="desc" label="설명" placeholder="설명 추가" />
           </div>
 
           <span className="cal-dlg-label">캘린더</span>
           <div className="cal-dlg-line">
             <KindPicker kinds={kinds} value={draft.kind} onChange={(v) => set("kind", v)} />
-            <span className="cal-dlg-sub">새 종류는 "관리"에서 만들어요</span>
           </div>
 
           <span className="cal-dlg-label">알림</span>
@@ -1279,8 +1271,7 @@ function EventDialog({
               <Trash />
             </button>
           )}
-          {draft.repeat && !isNew && <span className="cal-dlg-sub">반복 일정은 모든 회차가 함께 바뀌어요</span>}
-          <button type="button" className="btn btn-ctrl cal-cancel" onClick={onClose}>
+                    <button type="button" className="btn btn-ctrl cal-cancel" onClick={onClose}>
             취소
           </button>
           <button type="button" className="btn-primary btn-ctrl" onClick={save}>
@@ -1397,6 +1388,7 @@ function KindsDialog({
   run,
   holidayLine,
   onRefreshHolidays,
+  onNotify,
   onClose,
 }: {
   data: CalendarData;
@@ -1405,6 +1397,7 @@ function KindsDialog({
   run: <T>(p: Promise<T>, msg?: string) => Promise<T | null>;
   holidayLine: string;
   onRefreshHolidays: () => Promise<string>;
+  onNotify: () => void;
   onClose: () => void;
 }) {
   const [name, setName] = useState("");
@@ -1493,7 +1486,6 @@ function KindsDialog({
       >
         <div className="dialog-head">
           <span className="dialog-title">캘린더 종류 관리</span>
-          <span className="hint">색은 구글 캘린더의 24가지 색과 같은 순서예요. 자동으로 정해지고, 바꾸고 싶을 때만 고르면 돼요.</span>
         </div>
         <div className="dialog-body">
           <div className="cal-kgroup">직접 만든 종류</div>
@@ -1516,14 +1508,14 @@ function KindsDialog({
               추가
             </button>
           </div>
-          <div className="cal-kgroup">자동으로 들어오는 종류 (지울 수 없고 색만 바꿔요)</div>
+          <div className="cal-kgroup">자동으로 들어오는 종류</div>
           {sys.map((k) =>
             row(
               k,
               k.system === "complaint" ? (
-                "민원대장의 마감일에서 들어와요"
+                "민원대장 마감일"
               ) : k.system === "task" ? (
-                "할 일 목록의 마감일에서 들어와요"
+                "할 일 마감일"
               ) : (
                 <span className="cal-holrow">
                   <span>{holidayLine}</span>
@@ -1555,8 +1547,11 @@ function KindsDialog({
             ),
           )}
         </div>
-        <div className="dialog-foot">
-          <button type="button" className="btn-primary btn-ctrl" onClick={onClose}>
+        <div className="dialog-foot cal-dlg-foot">
+          <button type="button" className="btn btn-ctrl" onClick={onNotify}>
+            알림 확인
+          </button>
+          <button type="button" className="btn-primary btn-ctrl cal-push" onClick={onClose}>
             닫기
           </button>
         </div>
@@ -1600,7 +1595,6 @@ function NotifyDialog({ onClose }: { onClose: () => void }) {
       <div className="dialog cal-notify" role="dialog" aria-modal="true" aria-label="알림 확인" onKeyDown={(e) => e.key === "Escape" && onClose()}>
         <div className="dialog-head">
           <span className="dialog-title">알림 확인</span>
-          <span className="hint">기Log가 켜져 있을 때(트레이 포함) 윈도우 알림으로 띄워요.</span>
         </div>
         <div className="dialog-body cal-notify-body">
           <p>
@@ -1631,9 +1625,7 @@ function NotifyDialog({ onClose }: { onClose: () => void }) {
             </div>
           )}
           {step === "done" && <p className="cal-hol-ok">✓ 이 이름({ps ? "PowerShell" : "기Log"})으로 알림을 띄워요.</p>}
-          <p className="hint">
-            두 이름 모두 안 보이면 윈도우 설정 → 시스템 → 알림에서 알림이 켜져 있는지, "방해 금지"가 꺼져 있는지 봐 주세요.
-          </p>
+          <p className="hint">안 보이면 윈도우 설정 → 시스템 → 알림을 확인해 주세요.</p>
         </div>
         <div className="dialog-foot cal-dlg-foot">
           <button type="button" className="btn btn-ctrl cal-cancel" onClick={() => test(ps)}>
@@ -1678,7 +1670,7 @@ function KindPicker({ kinds, value, onChange }: { kinds: CalKind[]; value: strin
     const r = box.current?.getBoundingClientRect();
     if (r) {
       const h = mine.length * 32 + 40;
-      setAt(r.bottom + h + 8 > window.innerHeight ? { position: "fixed", left: r.left, bottom: window.innerHeight - r.top + 4, top: "auto" } : { position: "fixed", left: r.left, top: r.bottom + 4 });
+      setAt(r.bottom + h + 8 > window.innerHeight ? { position: "fixed", left: r.left, minWidth: Math.max(180, r.width), bottom: window.innerHeight - r.top + 4, top: "auto" } : { position: "fixed", left: r.left, minWidth: Math.max(180, r.width), top: r.bottom + 4 });
     }
     setOpen(true);
   };
@@ -1718,9 +1710,8 @@ function KindPicker({ kinds, value, onChange }: { kinds: CalKind[]; value: strin
           }
         }}
       >
-        <span className="cal-kbadge" style={{ background: colorBg(c), color: colorFg(c) }}>
-          {cur?.name ?? "종류 없음"}
-        </span>
+        <span className="cal-kp-dot" aria-hidden="true" style={{ background: colorBg(c) }} />
+        <span className="cal-kp-name">{cur?.name ?? "종류 없음"}</span>
         <svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
           <path d="M6 9l6 6 6-6" />
         </svg>
@@ -1741,14 +1732,12 @@ function KindPicker({ kinds, value, onChange }: { kinds: CalKind[]; value: strin
                   pick(k);
                 }}
               >
-                <span className="cal-kbadge" style={{ background: colorBg(kc), color: colorFg(kc) }}>
-                  {k.name}
-                </span>
+                <span className="cal-kp-dot" aria-hidden="true" style={{ background: colorBg(kc) }} />
+                <span>{k.name}</span>
                 {k.name === cur?.name && <span className="cal-kp-tick" aria-hidden="true">✓</span>}
               </div>
             );
           })}
-          <div className="pin-hint">↑↓ 고르기 · Enter 확정 · 새 종류는 "관리"에서</div>
         </div>
       )}
     </div>
