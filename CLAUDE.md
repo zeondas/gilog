@@ -23,7 +23,7 @@
 - 세션을 시작하면: 이 파일 → 진행 상태 표 → 대기 목록의 내 기능 칸 순서로 읽어요.
 
 ## 기준 문서 (이 순서로 우선해요)
-1. 개발 사양서: https://claude.ai/code/artifact/8a776f73-e26c-4e2c-9735-3dc7cd0885f4 (동작·저장·연동)
+1. 개발 사양서: https://claude.ai/code/artifact/8a776f73-e26c-4e2c-9735-3dc7cd0885f4 (동작·저장·연동) — 2026-10-17 지금 결정에 맞게 전체를 고쳤어요(확정했지만 앱에 없는 것은 "(다음 빌드)" 표시). **동작을 새로 정하거나 바꾸면 이 파일과 함께 사양서도 고쳐요**, 빌드에 들어가면 그 항목의 "(다음 빌드)"를 지워요.
 2. 화면 시안(Claude Design 캔버스): https://claude.ai/artifact/JyghMiCyKE5BRDq2C8SmJm — 파일 `project/*.dc.html` (배치·칸 순서·문구)
 3. 디자인 시스템: https://claude.ai/artifact/GjMv4QEBfeZmmBLqoM7ASZ — `src/tokens.css`에 옮겨져 있어요. 화면 코드에 색 값을 직접 쓰지 않고 토큰만 써요.
 - **이름·로고·색은 `docs/brand.md`가 위 세 문서보다 우선해요**(2026-10-16 확정: 기Log, 각진 ㄱL 심볼, 보라 강조색 — 시안·디자인 시스템도 보라로 고쳤어요).
