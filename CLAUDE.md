@@ -25,7 +25,7 @@
 - **새 시안은 모두 화면 시안 캔버스 https://claude.ai/artifact/JyghMiCyKE5BRDq2C8SmJm 에 판(`이름.dc.html`)으로 더해요.** 따로 아티팩트를 만들지 않아요. 사용자가 찾기 힘들어했어요. 캔버스는 사이드바에 고정해 뒀어요(이름 "giLog 시안").
 - 시안을 말할 때는 늘 캔버스 주소와 판 이름을 함께 적어요.
 - 캔버스 판: Main(민원대장), Todo, Contacts, Journal, Calendar, Settings, JournalCal1·2(일지 달력 배치, 1안 채택), ComplaintFilter(민원대장 열 필터), BulletRule(머릿기호 시험). 새 판을 더하면 여기에도 적어요.
-- 예전에 따로 만든 시안(새로 더하지 않아요): 종류 칸 https://claude.ai/artifact/EUZJjsJEZqPnCy9sv5y4qS · 글자 가운데 맞춤 비교 https://claude.ai/artifact/6f6FBiSo7unEMt8qJzE5SQ · 관리 창 https://claude.ai/artifact/ALMvrTHi4RGFHvBikN9srq
+- 예전에 따로 만든 시안(새로 더하지 않아요): 종류 칸 https://claude.ai/artifact/EUZJjsJEZqPnCy9sv5y4qS · 글자 가운데 맞춤 비교 https://claude.ai/artifact/6f6FBiSo7unEMt8qJzE5SQ · 관리 창 https://claude.ai/artifact/ALMvrTHi4RGFHvBikN9srq · 쉬는 날 음영 https://claude.ai/artifact/ND2V6G1gFkb3TWnuC8GyTD
 
 ## 만드는 순서와 진행 상태
 | 단계 | 내용 | 상태 |
@@ -69,7 +69,7 @@
   - 공휴일 받기(0.8.2): 사무실에서 앱(Rust)이 직접 받으면 막혀요(Edge로는 주소가 열림 — 회사 프록시 자동 설정 때문으로 봐요). 그래서 화면 쪽(Edge와 같은 길)에서 `fetch`로 받아 `save_holidays`로 저장해요(`src/reminders.ts`의 `updateHolidays`). 순서: holidays.hyunbin.page/basic.json → jsDelivr(`@hyunbinseo/holidays-kr@5/dist/all.js`가 알려 주는 연도 파일을 읽음) → 앱 직접(`refresh_holidays`). 실패하면 곳마다 이유를 그 자리에 보여요.
   - 0.8.3: 종류 칸은 다른 입력칸과 같은 모양(`● 이름 ▾`, 칸 폭 꽉 채움 — 사용자가 시안 https://claude.ai/artifact/EUZJjsJEZqPnCy9sv5y4qS 를 보고 정함). 달력 아래 안내 줄을 지우고 그 높이를 달력에 줬어요(창 높이 − 218). "알림 확인"은 관리 창 아래 왼쪽 단추. 안내문은 짧게(사용자: 부연 설명이 너무 많다).
   - 일정마다 따로 색 고르기는 사용자가 "우선 2안"(종류 색만)으로 정했어요(2026-10-16).
-  - **쉬는 날 붉은 음영 (2026-10-17 사용자 결정, 시안 https://claude.ai/artifact/ND2V6G1gFkb3TWnuC8GyTD — 0.8.4에 넣어요)**: 토·일요일과 공휴일 칸을 연한 빨강(새 토큰 `--rest-wash`, 주 보기 머리 줄 `--rest-band`)으로 칠해요(토요일도 — 2안). 켜고 끄는 스위치는 **설정 화면**(2안). 오늘이 쉬는 날이면 붉은 바탕은 두고 보라로 오늘을 표시하는 방식을 시안 1안(위 띠)·2안(테두리) 중에서 고르는 중이에요.
+  - **쉬는 날 붉은 음영 (2026-10-17 사용자 결정, 시안 https://claude.ai/artifact/ND2V6G1gFkb3TWnuC8GyTD — **다음 빌드에 넣어요**, 사용자 "다음 빌드때 반영")**: 토·일요일과 공휴일 칸을 연한 빨강(새 토큰 `--rest-wash`, 주 보기 머리 줄 `--rest-band`)으로 칠해요(토요일도 — 2안). 켜고 끄는 스위치는 **설정 화면**(2안). 오늘이 쉬는 날이면 붉은 바탕은 두고 보라 테두리 2px(칸 둘레, 주 보기는 그 날 세로 열 전체) + 보라 날짜 동그라미(2안, 2026-10-17 확정). 쉬는 날이 아닌 오늘은 지금처럼(연보라 바탕 + 위 띠). 월 보기 토요일 숫자는 파랑 그대로, 지난달·다음달 칸은 음영을 연하게, 처음 값은 켜짐.
   - 알림: 화면이 앞으로 7일 알림을 계산해 `set_reminders`로 보내고(일정을 바꿀 때·잠금 풀 때·30분마다), Rust가 15초마다 보고 윈도우 알림(`tauri-winrt-notification`, 앱 이름 = identifier)을 띄워요. 10분까지 늦은 것은 울리고 같은 것은 한 번만. 종일 일정은 오전 9시 기준(정시 = 그날 9시, 1일 전 = 전날 9시). 누르면 창을 꺼내고 "reminder-open" → App이 캘린더로 가서 그 일정을 열어요.
   - 창의 X는 트레이로 숨기기예요(처음 한 번 알림으로 알려 줘요). 트레이 아이콘 왼쪽 클릭 = 열기, 우클릭 메뉴 "giLog 열기"·"끝내기". 트레이에 있는 동안 한 번 더 켜면 새로 열지 않고 그 창을 보여요(`tauri-plugin-single-instance` — 자료 파일을 두 곳에서 열지 않게).
   - 빠른 입력: 날짜 → 시작 → 종료 → 일정 → 종류(ChoiceInput, 없는 이름도 받음). 아무 칸 Enter, 종류 칸 Tab(목록이 열려 있으면 Tab 확정 후 한 번 더 Tab)이면 등록. 등록 뒤 커서는 날짜 칸(사양서 "첫 칸"). 시각은 `14`·`930`·`1400`·`9:30`을 받아요(`parseTime`). "상세 입력"은 적던 것을 상세 창으로 옮겨요.
@@ -101,6 +101,7 @@
 - 사양서 "구글 캘린더 연동": 기Log → 구글 한 방향(구글에서 고친 것은 다음 내보내기 때 덮어씀), 구글 계정에 "giLog" 캘린더 하나를 만들어 그 안에만 써요, 내보낼 것 세 가지는 설정에서 각각 켜고 끔(끄면 구글에서 지움), "연결 끊기"는 로그인 정보를 지우고 내보낸 일정을 지울지 물어요. **민원인 이름·연락처는 절대 안 나가요**(민원 마감은 위치까지만). 일정 색은 구글 API가 11색만 받으니 가장 가까운 색으로.
 - 먼저 사용자와 정할 것: 구글 로그인에 필요한 앱 등록(Google Cloud 프로젝트·OAuth 클라이언트)을 누가 어떻게 만들지 — 사용자가 직접 만들도록 단계별로 안내하는 것이 기본안. "테스트" 상태로 두면 로그인이 7일마다 풀려요. 사무실 PC에서 구글 로그인 창이 열리는지(사양서 확인 목록)도 먼저 시험해요. 회사 망은 앱(Rust)이 직접 인터넷에 나가면 막힐 수 있어요(공휴일 때 화면 쪽 `fetch`로 해결 — `src/reminders.ts`).
 - **9단계 세션에서 정한 것·만든 것 (2026-10-16)**:
+  - **9단계 빌드에 함께 넣을 것: 캘린더 쉬는 날 붉은 음영**(위 "캘린더" 칸, 2026-10-17 8단계 세션에서 확정).
   - 사무실 PC에서 구글 로그인·캘린더 열림 확인(사용자).
   - 구글 앱 등록은 Claude가 앱 안 브라우저로 만들었어요(1안): 프로젝트 `gilog-511811`(이름 giLog), Google Calendar API 켬, 동의 화면 앱 이름 "기Log"·외부·**프로덕션 단계**(1안 — 로그인 7일 제한 없음), 권한은 `https://www.googleapis.com/auth/calendar.app.created` 하나(구글 분류 "민감하지 않은 범위" → 인증 심사 없음, 로고는 넣지 않아요 — 넣으면 심사 필요). 클라이언트 "giLog desktop"(데스크톱 앱 유형).
   - 홈페이지·개인정보처리방침: 공개 Gist https://gist.github.com/zeondas/bba43acb3343741a81b3e4eb88f8e22d (승인 도메인 github.com). 작업 공간의 `gh`로는 Gist를 못 써요(프록시가 막음).
