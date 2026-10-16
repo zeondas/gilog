@@ -4525,3 +4525,373 @@ body.col-dragging * {
 .cal-daydlg .dialog-foot {
   gap: var(--space-2);
 }
+
+/* ---------- 캘린더 0.8.1 ---------- */
+/* 오늘: 칸 전체를 연하게 칠하고 위쪽에 강조색 띠 */
+.cal-day.today {
+  background: var(--accent-tint);
+  box-shadow: inset 0 3px 0 var(--accent);
+}
+
+.cal-day.today.sel {
+  box-shadow: inset 0 3px 0 var(--accent), inset 0 0 0 2px var(--accent);
+}
+
+.cal-day.today:hover {
+  background: var(--accent-tint);
+}
+
+/* 월·주 보기 */
+.cal-views {
+  display: flex;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-side);
+}
+
+.cal-views button {
+  height: calc(var(--size-ctrl) - 8px);
+  padding: 0 14px;
+  border: 0;
+  border-radius: calc(var(--radius-md) - 2px);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 600;
+}
+
+.cal-views button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(20, 28, 38, 0.12);
+}
+
+/* 일정: 한 번 누르면 골라지고, 두 번 누르면 열려요 */
+.cal-ev {
+  cursor: pointer;
+  user-select: none;
+}
+
+.cal-ev:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.cal-ev.picked {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+
+/* 할 일 마감: 앞에 동그란 체크 (구글 할 일처럼), 완료면 체크 표시 */
+.cal-ev-check {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: -2px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  corner-shape: round;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.cal-ev-check:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.cal-ev.task.done {
+  opacity: 0.55;
+}
+
+/* 주 보기 */
+.cal-wk {
+  display: flex;
+  flex-direction: column;
+}
+
+.cal-wk-head,
+.cal-wk-allday {
+  display: grid;
+  grid-template-columns: 64px repeat(7, minmax(0, 1fr));
+}
+
+.cal-wk-head {
+  background: var(--surface-band);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.cal-wday {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  min-width: 0;
+  padding: 6px 10px;
+  border-left: 1px solid var(--line-row);
+  cursor: pointer;
+}
+
+.cal-wday-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.cal-wday.red .cal-wday-name,
+.cal-wday.red .cal-num {
+  color: var(--urgent);
+}
+
+.cal-wday.blue .cal-wday-name,
+.cal-wday.blue .cal-num {
+  color: var(--saturday);
+}
+
+.cal-wday.today {
+  background: var(--accent-tint);
+  box-shadow: inset 0 3px 0 var(--accent);
+}
+
+.cal-wday.today .cal-num {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.cal-wday.sel {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.cal-wk-allday {
+  row-gap: 2px;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.cal-wk-alllabel {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 8px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.cal-wk-allcell {
+  margin: -3px 0;
+  border-left: 1px solid var(--line-row);
+  cursor: pointer;
+}
+
+.cal-wk-allcell.today {
+  background: var(--accent-tint);
+}
+
+.cal-wk-allday .cal-ev {
+  margin: 0 4px;
+}
+
+.cal-wk-scroll {
+  overflow-y: auto;
+}
+
+.cal-wk-body {
+  position: relative;
+  display: grid;
+  grid-template-columns: 64px repeat(7, minmax(0, 1fr));
+  background-image: repeating-linear-gradient(to bottom, var(--line-row) 0 1px, transparent 1px 44px);
+}
+
+.cal-wk-hours {
+  position: relative;
+}
+
+.cal-wk-hours span {
+  position: absolute;
+  right: 8px;
+  transform: translateY(-50%);
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.cal-wk-col {
+  position: relative;
+  border-left: 1px solid var(--line-row);
+  cursor: pointer;
+}
+
+.cal-wk-col.today {
+  background: color-mix(in srgb, var(--accent-tint) 55%, transparent);
+}
+
+.cal-wk-col .cal-ev {
+  display: block;
+  padding: 2px 6px;
+  overflow: hidden;
+  color: var(--ink);
+  border-radius: 4px;
+  line-height: 1.35;
+}
+
+.cal-wk-col .cal-ev .cal-ev-dot {
+  display: none;
+}
+
+.cal-wk-col .cal-ev .cal-ev-time {
+  margin-right: 5px;
+}
+
+.cal-wk-col .cal-ev .cal-ev-title {
+  overflow: visible;
+  white-space: normal;
+}
+
+.cal-now {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  height: 2px;
+  background: var(--urgent);
+  pointer-events: none;
+}
+
+.cal-now::before {
+  content: "";
+  position: absolute;
+  left: -5px;
+  top: -4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--urgent);
+}
+
+/* 색 단추 하나 + 펼쳐지는 24색 */
+.cal-cbtn-wrap {
+  position: relative;
+}
+
+.cal-cbtn {
+  gap: 6px;
+  min-width: 128px;
+}
+
+.cal-cbtn-dot {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  corner-shape: round;
+}
+
+.cal-cpop {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-card), 0 12px 32px rgba(20, 28, 38, 0.18);
+}
+
+.cal-cgrid {
+  display: grid;
+  grid-template-columns: repeat(8, 22px);
+  gap: 8px;
+}
+
+.cal-cgrid .swatch {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+}
+
+.cal-cauto {
+  align-self: flex-start;
+}
+
+.cal-krow-name {
+  flex: 1 1 260px;
+}
+
+/* 공휴일 다시 받기 */
+.cal-holrow {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.cal-holbtn {
+  gap: 5px;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.cal-holbtn[aria-busy="true"] {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+.cal-hol-ok {
+  margin: 0;
+  color: var(--st-done-fg);
+  font-weight: 600;
+}
+
+.cal-hol-fail {
+  color: var(--urgent);
+  font-weight: 600;
+}
+
+.spin {
+  animation: cal-spin 0.9s linear infinite;
+}
+
+@keyframes cal-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 알림 */
+.cal-in-num {
+  width: 56px;
+}
+
+.cal-notify {
+  width: 520px;
+}
+
+.cal-notify-body {
+  gap: 8px;
+  padding-bottom: var(--space-4);
+}
+
+.cal-notify-body p {
+  margin: 0;
+}
+
+.cal-notify-ask {
+  margin-top: 0;
+  background: var(--accent-wash);
+  color: var(--ink);
+}
+
+.cal-notify-link {
+  margin-left: 8px;
+  font-size: 12px;
+}

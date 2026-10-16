@@ -1,6 +1,6 @@
 [package]
 name = "gilog"
-version = "0.8.0"
+version = "0.8.1"
 description = "giLog"
 edition = "2021"
 
@@ -25,6 +25,6 @@ reqwest = { version = "0.13", default-features = false, features = ["native-tls"
 
 # 입력 칸에 들어갈 때 한글 입력기를 한글 상태로 바꾸는 데 써요.
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_UI_Input_Ime", "Win32_UI_WindowsAndMessaging"] }
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_UI_Input_Ime", "Win32_UI_WindowsAndMessaging", "Win32_System_Registry", "Win32_UI_Shell"] }
 # 일정 알림을 윈도우 알림으로 띄우고, 누르면 그 일정을 열어요.
 tauri-winrt-notification = "0.7"

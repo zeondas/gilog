@@ -9,10 +9,10 @@ import Gate from "./Gate";
 import JournalScreen from "./JournalScreen";
 import SettingsScreen from "./SettingsScreen";
 import TasksScreen from "./TasksScreen";
-import { refreshHolidaysDaily, syncReminders } from "./reminders";
+import { applyNotifyMode, refreshHolidaysDaily, syncReminders } from "./reminders";
 import { SCREENS, SETTINGS, ScreenId } from "./screens";
 
-const VERSION = "0.8.0";
+const VERSION = "0.8.1";
 
 export default function App() {
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
@@ -94,6 +94,7 @@ export default function App() {
   // 열려 있는 동안: 일정 알림 목록을 앱에 보내고(30분마다 다시), 공휴일을 하루에 한 번 받아요.
   useEffect(() => {
     if (!unlocked) return;
+    applyNotifyMode();
     syncReminders();
     refreshHolidaysDaily();
     const t = window.setInterval(() => {

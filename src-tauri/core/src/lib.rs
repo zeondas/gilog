@@ -17,7 +17,7 @@ mod complaints;
 mod contacts;
 mod journal;
 mod tasks;
-pub use calendar::{CalKind, CalendarData, Event, EventInput, Holiday, BUILTIN_HOLIDAYS, KIND_COLORS, SYSTEM_KINDS};
+pub use calendar::{CalKind, CalendarData, Event, EventInput, Holiday, BUILTIN_HOLIDAYS, KIND_COLORS, REMIND_MAX, SYSTEM_KINDS};
 pub use complaints::{Complaint, ComplaintInput, DEFAULT_STATUS};
 pub use contacts::{Contact, ContactInput, ContactsData, Project, PROJECT_COLORS};
 pub use journal::{DayInfo, Entry, EntryInput, JournalData, JournalLine};
@@ -206,6 +206,7 @@ impl Store {
         self.conn.execute_batch(tasks::SCHEMA)?;
         tasks::seed(&self.conn)?;
         self.conn.execute_batch(calendar::SCHEMA)?;
+        calendar::upgrade(&self.conn)?;
         calendar::seed(&self.conn)?;
         Ok(())
     }

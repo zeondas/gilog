@@ -523,6 +523,9 @@ pub fn run() {
             calendar::delete_cal_kind,
             calendar::refresh_holidays,
             calendar::set_reminders,
+            calendar::test_notification,
+            calendar::notify_status,
+            calendar::set_notify_mode,
             set_ime
         ])
         .run(tauri::generate_context!())

@@ -92,6 +92,7 @@ export const REPEAT_LABELS: [Repeat, string][] = [
   ["yearly", "매년"],
 ];
 
+/** 알림 고르기 목록(분 전). 이 밖의 값은 "직접 설정"이에요. */
 export const REMIND_LABELS: [number, string][] = [
   [-1, "알림 없음"],
   [0, "정시"],
@@ -99,7 +100,34 @@ export const REMIND_LABELS: [number, string][] = [
   [30, "30분 전"],
   [60, "1시간 전"],
   [1440, "1일 전"],
+  [10080, "7일 전"],
+  [43200, "한 달 전"],
 ];
+
+/** 직접 설정의 단위 (분) */
+export const REMIND_UNITS: [number, string][] = [
+  [1, "분 전"],
+  [60, "시간 전"],
+  [1440, "일 전"],
+  [10080, "주 전"],
+];
+
+/** 알림 값(분)을 [수, 단위]로 나눠요(가장 큰 맞는 단위). */
+export function splitRemind(m: number): [number, number] {
+  for (const [u] of [...REMIND_UNITS].reverse()) if (m > 0 && m % u === 0) return [m / u, u];
+  return [m, 1];
+}
+
+/** "10분 전", "2시간 전", "3일 전", "한 달 전" */
+export function remindText(m: number): string {
+  const p = REMIND_LABELS.find(([v]) => v === m);
+  if (p) return p[1];
+  const [n, u] = splitRemind(m);
+  return n + (REMIND_UNITS.find(([v]) => v === u)?.[1] ?? "분 전");
+}
+
+/** 가장 긴 알림 (62일) */
+export const REMIND_MAX = 62 * 24 * 60;
 
 /** 이 날이 반복 일정의 한 회차가 시작하는 날인지 (반복 없음이면 시작 날짜만) */
 export function startsOn(e: Pick<CalEvent, "date" | "repeat" | "until">, key: string): boolean {
@@ -288,25 +316,27 @@ export function layoutWeek(occs: Occ[], weekStart: string, maxLanes: number): { 
 /** 종일 일정의 알림 기준 시각이에요(정시 = 그날 오전 9시, 1일 전 = 전날 오전 9시). */
 export const ALL_DAY_AT = "09:00";
 
-/** from 시각부터 days일 안에 울릴 알림. at은 밀리초(PC 시각)예요. */
+/** from 시각부터 days일 안에 울릴 알림. at은 밀리초(PC 시각)예요. 종일 일정은 알림 시각(없으면 9시) 기준이에요. */
 export function reminders(events: CalEvent[], kinds: CalKind[], now: Date, days: number): { at: number; title: string; body: string; event: number; date: string }[] {
   const from = todayStr(now);
   const to = todayStr(new Date(now.getTime() + days * 86_400_000));
   const out: { at: number; title: string; body: string; event: number; date: string }[] = [];
-  const src: Source = { kinds, events: events.filter((e) => e.remind >= 0), holidays: [], complaints: [], tasks: [] };
-  // 하루 전 알림까지 보려고 하루 더 앞까지 펼쳐요.
-  for (const o of expand(src, from, addDays(to, 1))) {
+  const withRemind = events.filter((e) => e.remind >= 0);
+  const src: Source = { kinds, events: withRemind, holidays: [], complaints: [], tasks: [] };
+  // 한 달 전 알림처럼 멀리 앞선 알림도 잡으려고, 가장 긴 알림만큼 더 앞까지 펼쳐요.
+  const lead = Math.max(0, ...withRemind.map((e) => e.remind));
+  for (const o of expand(src, from, addDays(to, Math.ceil(lead / 1440) + 1))) {
     const e = o.event!;
     // 이미 시작한 여러 날 일정의 회차는 시작일 기준이라 지났어요.
     if (o.start < from) continue;
     const at = toDate(o.start);
-    const [h, m] = (o.allDay ? ALL_DAY_AT : o.time).split(":").map(Number);
+    const [h, m] = (o.allDay ? e.remindTime || ALL_DAY_AT : o.time).split(":").map(Number);
     at.setHours(h, m, 0, 0);
     const ms = at.getTime() - e.remind * 60_000;
     if (ms < now.getTime() - 10 * 60_000 || ms > now.getTime() + days * 86_400_000) continue;
     const when = o.allDay ? "종일" : `${o.time}–${o.endTime}`;
-    const lead = e.remind === 0 ? "지금" : e.remind === 1440 ? "내일" : e.remind === 60 ? "1시간 뒤" : `${e.remind}분 뒤`;
-    const body = [`${lead} · ${longDay(o.start)} ${when}`, e.place].filter(Boolean).join(" · ");
+    const leadText = e.remind === 0 ? "지금" : remindText(e.remind).replace(/ 전$/, " 뒤").replace("1일 뒤", "내일");
+    const body = [`${leadText} · ${longDay(o.start)} ${when}`, e.place].filter(Boolean).join(" · ");
     out.push({ at: ms, title: e.title, body, event: e.id, date: o.start });
   }
   return out.sort((a, b) => a.at - b.at);

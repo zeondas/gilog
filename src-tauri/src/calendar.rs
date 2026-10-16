@@ -128,6 +128,8 @@ pub struct Reminder {
 
 #[derive(Default)]
 pub struct Reminders {
+    /// 등록한 앱 이름으로는 알림이 안 보이는 PC에서 PowerShell 이름으로 띄워요(사용자가 시험해 보고 고름).
+    via_powershell: std::sync::atomic::AtomicBool,
     list: Mutex<Vec<Reminder>>,
     /// 이미 울린 것 (일정 번호, 울릴 때)
     fired: Mutex<HashSet<(i64, i64)>>,
@@ -172,26 +174,127 @@ pub fn show_main(app: &AppHandle) {
     }
 }
 
+/// 알림이 실제로 뜨는지 화면에서 볼 수 있게 남겨 두는 상태예요(시험 단추와 함께 써요).
+#[derive(Default, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotifyStatus {
+    /// 앱이 들고 있는 알림 수(앞으로 7일)
+    pub pending: usize,
+    /// 다음 알림 때(밀리초), 없으면 0
+    pub next_at: i64,
+    /// 띄운 알림 수(앱을 켠 뒤)
+    pub shown: usize,
+    /// 마지막으로 띄우지 못한 이유. 없으면 빈 글자
+    pub last_error: String,
+    /// 윈도우 알림에 쓴 앱 이름. 등록한 이름이 안 되면 "PowerShell"로 바꿔 띄워요.
+    pub via: String,
+}
+
+static STATUS: Mutex<Option<NotifyStatus>> = Mutex::new(None);
+
+fn note_status(f: impl FnOnce(&mut NotifyStatus)) {
+    if let Ok(mut g) = STATUS.lock() {
+        f(g.get_or_insert_with(NotifyStatus::default));
+    }
+}
+
+/// 설치한 앱의 이름을 윈도우에 알려 둬요. 시작 메뉴 바로가기가 없거나 이름표가 빠져 있어도 알림이 뜨게
+/// HKCU\Software\Classes\AppUserModelId\<identifier>에 표시 이름을 적고, 이 앱이 그 이름으로 돈다고 알려요.
 #[cfg(windows)]
-fn toast(app: &AppHandle, title: &str, body: &str, open: Option<Reminder>) {
-    use tauri::Emitter;
-    use tauri_winrt_notification::{Sound, Toast};
-    // 설치한 앱은 시작 메뉴 바로가기에 이 이름(identifier)이 붙어 있어 알림에 "giLog"로 보여요.
+pub fn register_app_id(app: &AppHandle) {
+    use windows_sys::Win32::System::Registry::{RegSetKeyValueW, HKEY_CURRENT_USER, REG_SZ};
+    use windows_sys::Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID;
+    let wide = |s: &str| s.encode_utf16().chain(std::iter::once(0)).collect::<Vec<u16>>();
     let id = app.config().identifier.clone();
-    let handle = app.clone();
-    let t = Toast::new(&id).title(title).text1(body).sound(Some(Sound::Reminder)).on_activated(move |_| {
-        show_main(&handle);
-        if let Some(r) = &open {
-            let _ = handle.emit("reminder-open", r.clone());
-        }
-        Ok(())
-    });
-    let _ = t.show();
+    let key = wide(&format!("Software\\Classes\\AppUserModelId\\{id}"));
+    let name = wide("DisplayName");
+    let value = wide("giLog");
+    unsafe {
+        RegSetKeyValueW(HKEY_CURRENT_USER, key.as_ptr(), name.as_ptr(), REG_SZ, value.as_ptr() as *const core::ffi::c_void, (value.len() * 2) as u32);
+        let idw = wide(&id);
+        SetCurrentProcessExplicitAppUserModelID(idw.as_ptr());
+    }
 }
 
 #[cfg(not(windows))]
-fn toast(_app: &AppHandle, title: &str, body: &str, _open: Option<Reminder>) {
+pub fn register_app_id(_app: &AppHandle) {}
+
+/// 윈도우 알림을 띄워요. 등록한 앱 이름으로 안 되면 PowerShell 이름으로 한 번 더 해 봐요. 실패하면 이유를 돌려줘요.
+#[cfg(windows)]
+fn toast(app: &AppHandle, title: &str, body: &str, open: Option<Reminder>) -> Result<(), String> {
+    use tauri::Emitter;
+    use tauri_winrt_notification::{Sound, Toast};
+    let make = |id: &str| {
+        let handle = app.clone();
+        let open = open.clone();
+        Toast::new(id).title(title).text1(body).sound(Some(Sound::Reminder)).on_activated(move |_| {
+            show_main(&handle);
+            if let Some(r) = &open {
+                let _ = handle.emit("reminder-open", r.clone());
+            }
+            Ok(())
+        })
+    };
+    let ps = app.state::<Reminders>().via_powershell.load(std::sync::atomic::Ordering::Relaxed);
+    if ps {
+        let r = make(Toast::POWERSHELL_APP_ID).show().map(|_| "PowerShell".to_string()).map_err(|e| e.to_string());
+        return finish(r);
+    }
+    let id = app.config().identifier.clone();
+    let result = match make(&id).show() {
+        Ok(()) => Ok("giLog".to_string()),
+        Err(e1) => match make(Toast::POWERSHELL_APP_ID).show() {
+            Ok(()) => Ok(format!("PowerShell (giLog 이름으로는 실패: {e1})")),
+            Err(e2) => Err(format!("{e1} / {e2}")),
+        },
+    };
+    finish(result)
+}
+
+fn finish(result: Result<String, String>) -> Result<(), String> {
+    match result {
+        Ok(via) => {
+            note_status(|s| {
+                s.shown += 1;
+                s.via = via;
+            });
+            Ok(())
+        }
+        Err(e) => {
+            note_status(|s| s.last_error = e.clone());
+            Err(e)
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn toast(_app: &AppHandle, title: &str, body: &str, _open: Option<Reminder>) -> Result<(), String> {
     println!("[알림] {title} — {body}");
+    finish(Ok("콘솔".into()))
+}
+
+/// "알림 시험": 지금 바로 알림 하나를 띄워 봐요. 실패하면 윈도우가 돌려준 이유가 와요.
+/// 알림을 PowerShell 이름으로 띄울지 정해요(화면이 저장해 두고 켤 때마다 보내요).
+#[tauri::command]
+pub fn set_notify_mode(reminders: State<Reminders>, powershell: bool) {
+    reminders.via_powershell.store(powershell, std::sync::atomic::Ordering::Relaxed);
+}
+
+#[tauri::command]
+pub fn test_notification(app: AppHandle) -> Result<NotifyStatus, String> {
+    toast(&app, "giLog 알림 시험", "이 알림이 보이면 일정 알림도 이렇게 떠요.", None)?;
+    notify_status(app.state::<Reminders>())
+}
+
+#[tauri::command]
+pub fn notify_status(reminders: State<Reminders>) -> Result<NotifyStatus, String> {
+    let list = reminders.list.lock().map_err(|_| "io".to_string())?;
+    let now = now_ms();
+    let next = list.iter().filter(|r| r.at >= now - LATE_MS).map(|r| r.at).min().unwrap_or(0);
+    let mut s = STATUS.lock().map_err(|_| "io".to_string())?.clone().unwrap_or_default();
+    s.pending = list.len();
+    s.next_at = next;
+    Ok(s)
 }
 
 fn start_reminder_loop(app: AppHandle) {
@@ -199,7 +302,7 @@ fn start_reminder_loop(app: AppHandle) {
         std::thread::sleep(Duration::from_secs(15));
         let rem = app.state::<Reminders>();
         for r in due(&rem, now_ms()) {
-            toast(&app, &r.title, &r.body, Some(r.clone()));
+            let _ = toast(&app, &r.title, &r.body, Some(r.clone()));
         }
     });
 }
@@ -228,6 +331,7 @@ pub fn setup_tray(app: &mut App) -> tauri::Result<()> {
         tray = tray.icon(icon.clone());
     }
     tray.build(app)?;
+    register_app_id(app.handle());
     start_reminder_loop(app.handle().clone());
     Ok(())
 }
@@ -241,7 +345,7 @@ pub fn on_window_event(window: &Window, event: &WindowEvent) {
         if let Ok(mut told) = TOLD.lock() {
             if !*told {
                 *told = true;
-                toast(window.app_handle(), "giLog는 계속 켜져 있어요", "일정 알림을 띄우려고 작업 표시줄 구석(트레이)에 남아 있어요. 완전히 끝내려면 트레이 아이콘을 우클릭해 \"끝내기\"를 누르세요.", None);
+                let _ = toast(window.app_handle(), "giLog는 계속 켜져 있어요", "일정 알림을 띄우려고 작업 표시줄 구석(트레이)에 남아 있어요. 완전히 끝내려면 트레이 아이콘을 우클릭해 \"끝내기\"를 누르세요.", None);
             }
         }
     }

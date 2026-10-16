@@ -16,6 +16,33 @@ export async function syncReminders(): Promise<void> {
   }
 }
 
+const MODE_KEY = "calendar.notifyPowershell";
+
+/** 알림을 PowerShell 이름으로 띄우는지 (알림 확인 창에서 고른 것) */
+export async function loadNotifyMode(): Promise<boolean> {
+  try {
+    return (await api.get(MODE_KEY)) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/** 고른 이름을 저장하고 앱에 알려요. */
+export async function saveNotifyMode(powershell: boolean): Promise<void> {
+  try {
+    await api.set(MODE_KEY, powershell ? "1" : "0");
+  } catch {
+    /* 잠겨 있으면 이번만 */
+  }
+  await api.setNotifyMode(powershell).catch(() => {});
+}
+
+/** 잠금을 풀 때 저장해 둔 이름을 앱에 알려요. */
+export async function applyNotifyMode(): Promise<void> {
+  if (!inApp) return;
+  await api.setNotifyMode(await loadNotifyMode()).catch(() => {});
+}
+
 /** "2026-10-16 09:12" */
 export function stamp(d = new Date()): string {
   return `${todayStr(d)} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;

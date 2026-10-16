@@ -26,8 +26,9 @@ pub const KIND_COLORS: i64 = 24;
 /// 반복 규칙. 빈 글자는 반복 안 함이에요.
 pub const REPEATS: [&str; 7] = ["", "daily", "weekdays", "weekly", "biweekly", "monthly", "yearly"];
 
-/// 알림(분 전). -1은 알림 없음, 0은 정시, 1440은 1일 전이에요.
-pub const REMINDS: [i64; 6] = [-1, 0, 10, 30, 60, 1440];
+/// 알림(분 전)의 가장 긴 값이에요(62일). -1은 알림 없음, 0은 정시, 1440은 1일 전, 10080은 7일 전, 43200은 한 달(30일) 전이에요.
+/// 화면에서 직접 설정(분·시간·일·주)도 하니 정해진 값만 받지 않고 이 안이면 받아요.
+pub const REMIND_MAX: i64 = 62 * 24 * 60;
 
 /// 앱에 넣어 온 공휴일이에요(우주항공청 월력요항 기준, holidays-kr 자료). 인터넷에서 받으면 그것으로 바꿔요.
 pub const BUILTIN_HOLIDAYS: &[(&str, &str)] = &[
@@ -155,6 +156,8 @@ pub struct EventInput {
     /// 설명 (머릿기호 줄 목록 JSON)
     pub desc: String,
     pub remind: i64,
+    /// 종일 일정의 알림 기준 시각 09:00. 비어 있으면 오전 9시예요. 시간 일정은 늘 비어 있어요.
+    pub remind_time: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -174,6 +177,7 @@ pub struct Event {
     pub place: String,
     pub desc: String,
     pub remind: i64,
+    pub remind_time: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -227,6 +231,15 @@ pub(crate) const SCHEMA: &str = "
 
 const HOLIDAYS_AT: &str = "holidays.at";
 
+/// 0.8.0 파일에 0.8.1의 칸(종일 알림 시각)을 더해요.
+pub(crate) fn upgrade(conn: &rusqlite::Connection) -> Result<()> {
+    let has: bool = conn.prepare("SELECT 1 FROM pragma_table_info('events') WHERE name = 'remind_time'")?.exists([])?;
+    if !has {
+        conn.execute_batch("ALTER TABLE events ADD COLUMN remind_time TEXT NOT NULL DEFAULT '';")?;
+    }
+    Ok(())
+}
+
 /// 처음 열 때 내 종류 셋과 앱이 만든 종류 셋을 만들어요. 앱이 만든 종류가 빠져 있으면 다시 넣어요.
 /// 공휴일이 하나도 없으면 앱에 넣어 온 목록으로 채워요.
 pub(crate) fn seed(conn: &rusqlite::Connection) -> Result<()> {
@@ -258,7 +271,7 @@ pub(crate) fn seed(conn: &rusqlite::Connection) -> Result<()> {
 }
 
 const KIND_COLS: &str = "id, name, color, visible, system, ord";
-const EVENT_COLS: &str = "id, title, kind, date, end_date, all_day, time, end_time, repeat, until, place, descr, remind";
+const EVENT_COLS: &str = "id, title, kind, date, end_date, all_day, time, end_time, repeat, until, place, descr, remind, remind_time";
 
 fn bad(msg: &str) -> Error {
     Error::Invalid(msg.into())
@@ -283,6 +296,7 @@ fn event_row(r: &Row) -> rusqlite::Result<Event> {
         place: r.get(10)?,
         desc: r.get(11)?,
         remind: r.get(12)?,
+        remind_time: r.get(13)?,
     })
 }
 
@@ -319,6 +333,7 @@ struct Clean {
     place: String,
     desc: String,
     remind: i64,
+    remind_time: String,
 }
 
 fn clean(i: &EventInput) -> Result<Clean> {
@@ -361,9 +376,13 @@ fn clean(i: &EventInput) -> Result<Clean> {
         }
         u.to_string()
     };
-    if !REMINDS.contains(&i.remind) {
+    if i.remind != -1 && !(0..=REMIND_MAX).contains(&i.remind) {
         return Err(bad("알림이 맞지 않아요"));
     }
+    let remind_time = match (i.all_day && i.remind >= 0, i.remind_time.trim()) {
+        (false, _) | (true, "") => String::new(),
+        (true, t) => hhmm(minutes(t).ok_or_else(|| bad("알림 시각이 맞지 않아요"))?),
+    };
     Ok(Clean {
         title,
         kind: squash(&i.kind),
@@ -377,6 +396,7 @@ fn clean(i: &EventInput) -> Result<Clean> {
         place: i.place.trim().to_string(),
         desc: lines(&i.desc),
         remind: i.remind,
+        remind_time,
     })
 }
 
@@ -458,9 +478,9 @@ impl Store {
         let c = clean(input)?;
         let kind = self.kind_for(&c.kind)?;
         self.conn.execute(
-            "INSERT INTO events (title, kind, date, end_date, all_day, time, end_time, repeat, until, place, descr, remind)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
-            params![c.title, kind, c.date, c.end, c.all_day, c.time, c.end_time, c.repeat, c.until, c.place, c.desc, c.remind],
+            "INSERT INTO events (title, kind, date, end_date, all_day, time, end_time, repeat, until, place, descr, remind, remind_time)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+            params![c.title, kind, c.date, c.end, c.all_day, c.time, c.end_time, c.repeat, c.until, c.place, c.desc, c.remind, c.remind_time],
         )?;
         self.event(self.conn.last_insert_rowid())
     }
@@ -471,8 +491,8 @@ impl Store {
         let kind = self.kind_for(&c.kind)?;
         self.conn.execute(
             "UPDATE events SET title = ?2, kind = ?3, date = ?4, end_date = ?5, all_day = ?6, time = ?7, end_time = ?8,
-                 repeat = ?9, until = ?10, place = ?11, descr = ?12, remind = ?13 WHERE id = ?1",
-            params![id, c.title, kind, c.date, c.end, c.all_day, c.time, c.end_time, c.repeat, c.until, c.place, c.desc, c.remind],
+                 repeat = ?9, until = ?10, place = ?11, descr = ?12, remind = ?13, remind_time = ?14 WHERE id = ?1",
+            params![id, c.title, kind, c.date, c.end, c.all_day, c.time, c.end_time, c.repeat, c.until, c.place, c.desc, c.remind, c.remind_time],
         )?;
         self.event(id)
     }
@@ -577,6 +597,21 @@ mod tests {
         Store::create(tmp.path(), "abcd1234").unwrap()
     }
 
+    #[test]
+    fn old_events_table_gets_remind_time() {
+        let tmp = tempfile::tempdir().unwrap();
+        {
+            let s = store(&tmp);
+            s.conn.execute_batch("ALTER TABLE events DROP COLUMN remind_time;").unwrap();
+            s.conn
+                .execute("INSERT INTO events (title, kind, date, end_date, remind) VALUES ('옛 일정', 1, '2026-10-16', '2026-10-16', 1440)", [])
+                .unwrap();
+        }
+        let s = Store::open(tmp.path(), "abcd1234").unwrap();
+        let e = &s.calendar_data().unwrap().events[0];
+        assert_eq!((e.title.as_str(), e.remind, e.remind_time.as_str()), ("옛 일정", 1440, ""));
+    }
+
     fn ev(title: &str, date: &str) -> EventInput {
         EventInput { title: title.into(), date: date.into(), all_day: true, remind: -1, ..Default::default() }
     }
@@ -625,7 +660,19 @@ mod tests {
         // 여러 날이면 끝 시각이 시작보다 일러도 돼요.
         assert!(s.add_event(&EventInput { end: "2026-10-21".into(), end_time: "13:00".into(), ..t.clone() }).is_ok());
         assert_eq!(s.add_event(&EventInput { end: "2026-10-19".into(), ..t.clone() }).err().unwrap().code(), "invalid");
-        assert_eq!(s.add_event(&EventInput { remind: 5, ..t.clone() }).err().unwrap().code(), "invalid");
+        assert_eq!(s.add_event(&EventInput { remind: -5, ..t.clone() }).err().unwrap().code(), "invalid");
+        assert_eq!(s.add_event(&EventInput { remind: REMIND_MAX + 1, ..t.clone() }).err().unwrap().code(), "invalid");
+        // 7일 전·한 달 전·직접 설정(90분 전)도 돼요. 시간 일정에는 알림 시각이 남지 않아요.
+        let e = s.add_event(&EventInput { remind: 90, remind_time: "08:00".into(), ..t.clone() }).unwrap();
+        assert_eq!((e.remind, e.remind_time.as_str()), (90, ""));
+        // 종일 일정은 알림 시각을 받아요(비우면 9시, 틀리면 안 돼요).
+        let a = ev("교육", "2026-11-20");
+        let e = s.add_event(&EventInput { remind: 43200, remind_time: "830".into(), ..a.clone() }).err().unwrap();
+        assert_eq!(e.code(), "invalid");
+        let e = s.add_event(&EventInput { remind: 43200, remind_time: "08:30".into(), ..a.clone() }).unwrap();
+        assert_eq!((e.remind, e.remind_time.as_str()), (43200, "08:30"));
+        let e = s.add_event(&EventInput { remind: -1, remind_time: "08:30".into(), ..a }).unwrap();
+        assert_eq!(e.remind_time, "");
         // 반복은 종료일이 꼭 있어야 해요.
         let r = EventInput { repeat: "weekly".into(), ..t.clone() };
         assert_eq!(s.add_event(&r).err().unwrap().code(), "invalid");

@@ -196,8 +196,10 @@ export type EventInput = {
   place: string;
   /** 설명 (머릿기호 줄 목록 JSON) */
   desc: string;
-  /** 알림: -1 없음, 0 정시, 10·30·60분 전, 1440 하루 전 */
+  /** 알림(분 전): -1 없음, 0 정시, 1440 하루 전, 10080 7일 전, 43200 한 달 전, 그 밖에 직접 설정한 값 */
   remind: number;
+  /** 종일 일정의 알림 시각 09:00 (비우면 9시). 시간 일정은 비어 있어요. */
+  remindTime: string;
 };
 
 export type CalEvent = Omit<EventInput, "kind"> & { id: number; kind: number };
@@ -205,6 +207,9 @@ export type CalEvent = Omit<EventInput, "kind"> & { id: number; kind: number };
 export type Holiday = { date: string; name: string };
 
 export type CalendarData = { kinds: CalKind[]; events: CalEvent[]; holidays: Holiday[]; holidaysAt: string };
+
+/** 알림이 실제로 뜨는지 보는 상태 (시험 단추) */
+export type NotifyStatus = { pending: number; nextAt: number; shown: number; lastError: string; via: string };
 
 /** 알림 한 건. at은 울릴 때(밀리초)예요. */
 export type Reminder = { at: number; title: string; body: string; event: number; date: string };
@@ -285,7 +290,10 @@ function fakeCalendar(cmd: string, a: Record<string, unknown>): unknown {
       if (end === i.date && endTime < time) throw "invalid";
     }
     if (i.repeat && (!isDate(i.until) || i.until < i.date)) throw "invalid";
-    return { ...i, title, kind: kindFor(i.kind), end, time, endTime, until: i.repeat ? i.until : "", place: i.place.trim(), desc: i.desc };
+    if (i.remind !== -1 && (i.remind < 0 || i.remind > 62 * 24 * 60)) throw "invalid";
+    const rt = i.allDay && i.remind >= 0 ? i.remindTime.trim() : "";
+    if (rt && !isTime(rt)) throw "invalid";
+    return { ...i, title, kind: kindFor(i.kind), end, time, endTime, until: i.repeat ? i.until : "", place: i.place.trim(), desc: i.desc, remindTime: rt };
   };
   const ev = (id: unknown) => {
     const e = fake.events.find((x) => x.id === id);
@@ -342,7 +350,11 @@ function fakeCalendar(cmd: string, a: Record<string, unknown>): unknown {
     case "refresh_holidays":
       throw "offline";
     case "set_reminders":
+    case "set_notify_mode":
       return null;
+    case "notify_status":
+    case "test_notification":
+      return { pending: 0, nextAt: 0, shown: 0, lastError: "", via: "미리 보기" };
   }
   return undefined;
 }
@@ -681,8 +693,8 @@ function fakeCall(cmd: string, args: Record<string, unknown>): unknown {
     const r = fakeTasks(cmd, args);
     if (r !== undefined) return r;
   }
-  if (["calendar_data", "cal_kinds", "add_event", "update_event", "delete_event", "add_cal_kind", "set_cal_kind_color", "set_cal_kind_visible", "delete_cal_kind", "refresh_holidays", "set_reminders"].includes(cmd)) {
-    if (!fake.unlocked && cmd !== "set_reminders") throw "locked";
+  if (["calendar_data", "cal_kinds", "add_event", "update_event", "delete_event", "add_cal_kind", "set_cal_kind_color", "set_cal_kind_visible", "delete_cal_kind", "refresh_holidays", "set_reminders", "set_notify_mode", "notify_status", "test_notification"].includes(cmd)) {
+    if (!fake.unlocked && !["set_reminders", "set_notify_mode", "notify_status", "test_notification"].includes(cmd)) throw "locked";
     const r = fakeCalendar(cmd, args);
     if (r !== undefined) return r;
   }
@@ -818,6 +830,11 @@ export const api = {
   refreshHolidays: (now: string) => call<Holiday[]>("refresh_holidays", { now }),
   /** 앞으로 울릴 알림 목록을 보내요(윈도우 알림은 앱이 띄워요). */
   setReminders: (list: Reminder[]) => call<null>("set_reminders", { list }),
+  /** 지금 바로 알림 하나를 띄워 봐요. 실패하면 윈도우가 돌려준 이유로 실패해요. */
+  testNotification: () => call<NotifyStatus>("test_notification"),
+  notifyStatus: () => call<NotifyStatus>("notify_status"),
+  /** 알림을 PowerShell 이름으로 띄울지 (giLog 이름으로 안 보이는 PC) */
+  setNotifyMode: (powershell: boolean) => call<null>("set_notify_mode", { powershell }),
 
   /** 윈도우 입력기를 한글(true) 또는 영문(false) 상태로 바꿔요. 앱 밖에서는 아무 일도 안 해요. */
   setIme: (korean: boolean) => (inApp ? invoke<null>("set_ime", { korean }) : Promise.resolve(null)),

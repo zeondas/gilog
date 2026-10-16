@@ -5,18 +5,18 @@
 // - 민원 마감·할 일 마감은 저장하지 않고 민원대장·할 일 목록을 읽어 그려요. 누르면 원래 화면의 그 항목으로 가요.
 // - 공휴일은 칸 위쪽에 빨간 글자로 보여요(앱이 인터넷에서 받아 저장해 둔 것).
 // - 왼쪽: 종류 체크(보이기·숨기기), "관리"(색 24가지·새 종류·지우기), "다가오는 7일".
-import { KeyboardEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, CalEvent, CalKind, CalendarData, Complaint, errorText, EventInput, Repeat, Task } from "./api";
+import { CSSProperties, KeyboardEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { api, CalEvent, CalKind, CalendarData, Complaint, errorText, EventInput, NotifyStatus, Repeat, Task } from "./api";
 import { BLine, parseLines, stringifyLines } from "./bullets";
 import { BulletEditor } from "./BulletParts";
 import {
-  addDays, colorBg, colorFg, COLOR_NAMES, diffDays, expand, hourLater, kindColor, layoutWeek, longDay, monthGrid, Occ, occMatches,
-  parseTime, REMIND_LABELS, REPEAT_LABELS, shortDay, Source, weekday,
+  addDays, colorBg, colorFg, COLOR_NAMES, diffDays, expand, hourLater, kindColor, layoutWeek, longDay, monthGrid, Occ, occMatches, Placed,
+  parseTime, REMIND_LABELS, REMIND_MAX, REMIND_UNITS, REPEAT_LABELS, shortDay, Source, splitRemind, weekday,
 } from "./calendar";
 import { Hl } from "./ContactsScreen";
 import { parseDate, todayStr } from "./journal";
 import { ChoiceInput } from "./PlaceInputs";
-import { refreshHolidaysDaily, stamp, syncReminders } from "./reminders";
+import { loadNotifyMode, refreshHolidaysDaily, saveNotifyMode, stamp, syncReminders } from "./reminders";
 
 const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
 const plainEnter = (e: KeyboardEvent) => e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey;
@@ -46,9 +46,11 @@ type Draft = {
   place: string;
   desc: BLine[];
   remind: number;
+  /** 종일 일정의 알림 시각 (비우면 9시) */
+  remindTime: string;
 };
 
-type Bad = Partial<Record<"title" | "date" | "end" | "time" | "endTime" | "until", true>>;
+type Bad = Partial<Record<"title" | "date" | "end" | "time" | "endTime" | "until" | "remind" | "remindTime", true>>;
 
 /** 상세 창의 값을 저장할 값으로 바꿔요. 틀린 칸이 있으면 그 칸들을 돌려줘요. */
 function toInput(d: Draft): { input: EventInput | null; bad: Bad } {
@@ -65,6 +67,9 @@ function toInput(d: Draft): { input: EventInput | null; bad: Bad } {
   if (!d.allDay && endTime === null) bad.endTime = true;
   if (!d.allDay && time && endTime && date === end && endTime < time) bad.endTime = true;
   if (d.repeat && (!until || (date && until < date))) bad.until = true;
+  if (d.remind !== -1 && !(d.remind >= 0 && d.remind <= REMIND_MAX && Number.isInteger(d.remind))) bad.remind = true;
+  const remindTime = d.allDay && d.remind >= 0 && d.remindTime.trim() ? parseTime(d.remindTime) : "";
+  if (remindTime === null) bad.remindTime = true;
   if (Object.keys(bad).length) return { input: null, bad };
   return {
     input: {
@@ -80,6 +85,7 @@ function toInput(d: Draft): { input: EventInput | null; bad: Bad } {
       place: d.place,
       desc: stringifyLines(d.desc),
       remind: d.remind,
+      remindTime: remindTime || "",
     },
     bad,
   };
@@ -100,6 +106,7 @@ function draftOf(e: CalEvent, kinds: CalKind[]): Draft {
     place: e.place,
     desc: parseLines(e.desc),
     remind: e.remind,
+    remindTime: e.remindTime,
   };
 }
 
@@ -118,7 +125,20 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
   const [kindsOpen, setKindsOpen] = useState(false);
   /** "+N개"를 눌러 펼친 날 */
   const [dayOpen, setDayOpen] = useState<string | null>(null);
-  const [holidayNote, setHolidayNote] = useState("");
+  /** 월 보기 · 주 보기 (마지막에 고른 것을 기억해요) */
+  const [view, setView] = useState<"month" | "week">("month");
+  /** 한 번 눌러 골라 둔 일정 */
+  const [pick, setPick] = useState<string | null>(null);
+  const [notifyOpen, setNotifyOpen] = useState(false);
+  const wheel = useRef({ acc: 0, at: 0 });
+
+  useEffect(() => {
+    api.get("calendar.view").then((v) => (v === "week" || v === "month") && setView(v), () => {});
+  }, []);
+  const changeView = (v: "month" | "week") => {
+    setView(v);
+    api.set("calendar.view", v).catch(() => {});
+  };
 
   const load = useCallback(() => {
     api.calendarData().then(setData, (e) => setNote(errorText(e)));
@@ -190,8 +210,18 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
     syncReminders();
   }
 
+  async function toggleTask(t: Task) {
+    const r = await run(api.setTaskDone(t.id, !t.done, today));
+    if (!r) return;
+    const by = new Map(r.map((x) => [x.id, x]));
+    setTasks((ts) => ts.map((x) => by.get(x.id) ?? x));
+  }
+
   const lq = q.trim().toLowerCase();
-  const { start, weeks } = monthGrid(ym[0], ym[1]);
+  const month = monthGrid(ym[0], ym[1]);
+  const wkStart = addDays(sel, -weekday(sel));
+  const start = view === "week" ? wkStart : month.start;
+  const weeks = view === "week" ? 1 : month.weeks;
   const gridEnd = addDays(start, weeks * 7 - 1);
 
   const src: Source | null = useMemo(
@@ -231,9 +261,31 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
     );
   }
 
+  /** 이전·다음: 월 보기는 한 달, 주 보기는 한 주 */
   const move = (n: number) => {
+    setPick(null);
+    if (view === "week") {
+      const d = addDays(sel, n * 7);
+      setSel(d);
+      setYm([Number(d.slice(0, 4)), Number(d.slice(5, 7)) - 1]);
+      return;
+    }
     const d = new Date(ym[0], ym[1] + n, 1);
     setYm([d.getFullYear(), d.getMonth()]);
+  };
+  /** 마우스 가로 스크롤(또는 Shift+휠)로 이전·다음 */
+  const onWheel = (e: React.WheelEvent) => {
+    const dx = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.shiftKey ? e.deltaY : 0;
+    if (!dx) return;
+    const w = wheel.current;
+    const now = Date.now();
+    if (now - w.at < 450) return;
+    w.acc += dx;
+    if (Math.abs(w.acc) >= 40) {
+      move(w.acc > 0 ? 1 : -1);
+      w.acc = 0;
+      w.at = now;
+    }
   };
   const goDay = (d: string) => {
     setSel(d);
@@ -245,6 +297,22 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
     else if (o.complaint) onOpenComplaint?.(o.complaint.id);
     else if (o.task) onOpenTask?.(o.task.id);
   }
+  const actsOf = (o: Occ): ChipActs => ({
+    onPick: () => setPick(o.key),
+    onOpen: () => openOcc(o),
+    onToggle: () => o.task && toggleTask(o.task),
+  });
+  const newAt = (d: string, time: string) =>
+    setEd(time ? { ...blankDraft(d, data.kinds), allDay: false, time, endTime: hourLater(time), remind: 10 } : blankDraft(d, data.kinds));
+  const title =
+    view === "week"
+      ? (() => {
+          const e = addDays(wkStart, 6);
+          const [y1, m1, d1] = [Number(wkStart.slice(0, 4)), Number(wkStart.slice(5, 7)), Number(wkStart.slice(8))];
+          const [y2, m2, d2] = [Number(e.slice(0, 4)), Number(e.slice(5, 7)), Number(e.slice(8))];
+          return y1 !== y2 ? `${y1}년 ${m1}월 ${d1}일 – ${y2}년 ${m2}월 ${d2}일` : m1 !== m2 ? `${y1}년 ${m1}월 ${d1}일 – ${m2}월 ${d2}일` : `${y1}년 ${m1}월 ${d1}일 – ${d2}일`;
+        })()
+      : `${ym[0]}년 ${ym[1] + 1}월`;
 
   const holidaysOf = new Map<string, string[]>();
   if (!hidden.has(data.kinds.find((k) => k.system === "holiday")?.id ?? -1)) {
@@ -312,22 +380,28 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
 
       <div className="cal-body">
         <div className="cal-head">
-          <h1 className="title cal-month">
-            {ym[0]}년 {ym[1] + 1}월
-          </h1>
+          <h1 className="title cal-month">{title}</h1>
           <div className="cal-nav">
-            <button type="button" className="btn btn-ctrl cal-navbtn" aria-label="이전 달" onClick={() => move(-1)}>
+            <button type="button" className="btn btn-ctrl cal-navbtn" aria-label={view === "week" ? "이전 주" : "이전 달"} onClick={() => move(-1)}>
               <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M15 5l-7 7 7 7" />
               </svg>
             </button>
-            <button type="button" className="btn btn-ctrl" onClick={() => goDay(today)}>
+            <button type="button" className="btn btn-ctrl" onClick={() => (goDay(today), setPick(null))}>
               오늘
             </button>
-            <button type="button" className="btn btn-ctrl cal-navbtn" aria-label="다음 달" onClick={() => move(1)}>
+            <button type="button" className="btn btn-ctrl cal-navbtn" aria-label={view === "week" ? "다음 주" : "다음 달"} onClick={() => move(1)}>
               <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 5l7 7-7 7" />
               </svg>
+            </button>
+          </div>
+          <div className="cal-views" role="group" aria-label="보기 방식">
+            <button type="button" aria-pressed={view === "month"} onClick={() => changeView("month")}>
+              월
+            </button>
+            <button type="button" aria-pressed={view === "week"} onClick={() => changeView("week")}>
+              주
             </button>
           </div>
           <label className="search">
@@ -348,7 +422,23 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
           onDetail={(d) => setEd(d)}
         />
 
-        <div className="cal-grid" role="grid" aria-label={`${ym[0]}년 ${ym[1] + 1}월 달력`}>
+        <div className="cal-grid" role="grid" aria-label={title + " 달력"} onWheel={onWheel}>
+          {view === "week" ? (
+            <WeekView
+              start={wkStart}
+              occs={occs}
+              today={today}
+              sel={sel}
+              pickKey={pick}
+              q={lq}
+              holidaysOf={holidaysOf}
+              height={vh - 252}
+              onSel={(d) => (setSel(d), setPick(null))}
+              onNew={newAt}
+              actsOf={actsOf}
+            />
+          ) : (
+          <>
           <div className="cal-dow" role="row">
             {["일", "월", "화", "수", "목", "금", "토"].map((w, i) => (
               <div key={w} role="columnheader" className={i === 0 ? "sun" : i === 6 ? "sat" : undefined}>
@@ -377,8 +467,8 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
                       aria-selected={d === sel}
                       className={cls}
                       style={{ gridColumn: i + 1 }}
-                      onClick={() => setSel(d)}
-                      onDoubleClick={() => setEd(blankDraft(d, data.kinds))}
+                      onClick={() => (setSel(d), setPick(null))}
+                      onDoubleClick={() => newAt(d, "")}
                     >
                       <div className="cal-dhead">
                         <span className="cal-num">{d.slice(8) === "01" ? `${Number(d.slice(5, 7))}/1` : Number(d.slice(8))}</span>
@@ -392,7 +482,7 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
                   );
                 })}
                 {placed.map((p) => (
-                  <EventChip key={p.occ.key + ws} p={p} q={lq} onOpen={() => openOcc(p.occ)} />
+                  <EventChip key={p.occ.key + ws} p={p} q={lq} picked={pick === p.occ.key} acts={actsOf(p.occ)} />
                 ))}
                 {more.map((n, i) =>
                   n ? (
@@ -414,10 +504,15 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
               </div>
             );
           })}
+          </>
+          )}
         </div>
         <div className="cal-summary">
-          {weeks}주 달력 · 이번 달 일정 {shownCount}건{lq ? " (검색 중)" : ""} · ↻는 반복 일정 · 칸을 두 번 누르면 그 날 일정 상세 입력 · {holidayLine}
-          {holidayNote && ` · ${holidayNote}`}
+          {view === "week" ? "주 보기" : `${weeks}주 달력 · 이번 달 일정 ${shownCount}건`}
+          {lq ? " (검색 중)" : ""} · ↻는 반복 일정 · 일정을 두 번 누르면 고쳐요 · 빈 곳을 두 번 누르면 새 일정 · 가로 스크롤로 {view === "week" ? "주" : "달"} 넘기기 · {holidayLine}
+          <button type="button" className="link-btn cal-notify-link" onClick={() => setNotifyOpen(true)}>
+            알림 확인
+          </button>
         </div>
       </div>
 
@@ -447,9 +542,13 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
                     key={o.key}
                     p={{ occ: o, col: 0, span: 1, lane: i, cutStart: false, cutEnd: false }}
                     q={lq}
-                    onOpen={() => {
-                      setDayOpen(null);
-                      openOcc(o);
+                    picked={pick === o.key}
+                    acts={{
+                      ...actsOf(o),
+                      onOpen: () => {
+                        setDayOpen(null);
+                        openOcc(o);
+                      },
                     }}
                   />
                 ))}
@@ -473,6 +572,7 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
           </div>
         </div>
       )}
+      {notifyOpen && <NotifyDialog onClose={() => setNotifyOpen(false)} />}
       {kindsOpen && (
         <KindsDialog
           data={data}
@@ -484,13 +584,12 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
           run={run}
           holidayLine={holidayLine}
           onRefreshHolidays={async () => {
-            setHolidayNote("공휴일을 받는 중…");
             try {
               await api.refreshHolidays(stamp());
-              setHolidayNote("");
               load();
+              return "";
             } catch (e) {
-              setHolidayNote(errorText(e) + " 저장해 둔 공휴일을 그대로 보여 줘요.");
+              return errorText(e) + " 저장해 둔 공휴일을 그대로 보여 줘요.";
             }
           }}
           onClose={() => setKindsOpen(false)}
@@ -501,36 +600,82 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
 }
 
 function blankDraft(date: string, kinds: CalKind[]): Draft {
-  return { id: null, title: "", kind: firstKind(kinds), date, end: "", allDay: true, time: "", endTime: "", repeat: "", until: "", place: "", desc: [], remind: -1 };
+  return { id: null, title: "", kind: firstKind(kinds), date, end: "", allDay: true, time: "", endTime: "", repeat: "", until: "", place: "", desc: [], remind: -1, remindTime: "" };
 }
 
 // ---------- 달력의 일정 하나 ----------
 
-function EventChip({ p, q, onOpen }: { p: ReturnType<typeof layoutWeek>["placed"][number]; q: string; onOpen: () => void }) {
+type ChipActs = {
+  /** 한 번 누르기: 고르기 */
+  onPick: () => void;
+  /** 두 번 누르기(또는 골라 둔 채 Enter): 고치기·원래 화면으로 */
+  onOpen: () => void;
+  /** 할 일의 동그라미: 완료·되돌리기 */
+  onToggle: () => void;
+};
+
+function EventChip({ p, q, picked, style, acts }: { p: Placed; q: string; picked: boolean; style?: CSSProperties; acts: ChipActs }) {
   const o = p.occ;
   const bar = o.allDay;
   const when = o.allDay ? (o.start !== o.end ? `${shortDay(o.start)}~${shortDay(o.end)}` : "종일") : `${o.time}–${o.endTime}`;
-  const full = [when, o.title, o.kind.name, o.place].filter(Boolean).join(" · ") + (o.done ? " · 완료" : "") + (o.event ? "" : " · 누르면 원래 화면으로 가요");
-  const cls = ["cal-ev", bar ? "bar" : "dot", p.cutStart ? "cut-s" : "", p.cutEnd ? "cut-e" : "", o.done ? "done" : "", o.event ? "" : "linked"].filter(Boolean).join(" ");
+  const full =
+    [when, o.title, o.kind.name, o.place].filter(Boolean).join(" · ") + (o.done ? " · 완료" : "") + (o.event ? " · 두 번 누르면 고쳐요" : " · 두 번 누르면 원래 화면으로 가요");
+  const cls = ["cal-ev", bar ? "bar" : "dot", p.cutStart ? "cut-s" : "", p.cutEnd ? "cut-e" : "", o.done ? "done" : "", o.event ? "" : "linked", o.task ? "task" : "", picked ? "picked" : ""]
+    .filter(Boolean)
+    .join(" ");
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       className={cls}
       title={full}
       aria-label={full}
+      aria-pressed={picked}
       style={{
         gridColumn: `${p.col + 1} / span ${p.span}`,
         gridRow: p.lane + 2,
         background: bar ? colorBg(o.color) : undefined,
         color: bar ? colorFg(o.color) : undefined,
+        ...style,
       }}
       onClick={(e) => {
         e.stopPropagation();
-        onOpen();
+        acts.onPick();
       }}
-      onDoubleClick={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        acts.onOpen();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          acts.onOpen();
+        } else if (e.key === " " && o.task) {
+          e.preventDefault();
+          acts.onToggle();
+        }
+      }}
     >
-      {!bar && <span className="cal-ev-dot" aria-hidden="true" style={{ background: colorBg(o.color) }} />}
+      {o.task ? (
+        <button
+          type="button"
+          tabIndex={-1}
+          className="cal-ev-check"
+          role="checkbox"
+          aria-checked={o.done}
+          aria-label={o.done ? "완료 되돌리기" : "완료"}
+          title={o.done ? "완료 되돌리기" : "완료"}
+          onClick={(e) => {
+            e.stopPropagation();
+            acts.onToggle();
+          }}
+          onDoubleClick={(e) => e.stopPropagation()}
+        >
+          {o.done ? <CheckCircle /> : <Circle />}
+        </button>
+      ) : (
+        !bar && <span className="cal-ev-dot" aria-hidden="true" style={{ background: colorBg(o.color) }} />
+      )}
       {!bar && <span className="cal-ev-time">{o.time}</span>}
       <span className="cal-ev-title">
         <Hl text={o.title} q={q} />
@@ -540,7 +685,178 @@ function EventChip({ p, q, onOpen }: { p: ReturnType<typeof layoutWeek>["placed"
           ↻
         </span>
       )}
-    </button>
+    </div>
+  );
+}
+
+// ---------- 주간 보기 ----------
+
+/** 한 시간의 높이(px) */
+const HOUR = 44;
+
+type Slot = { occ: Occ; s: number; e: number; col: number; cols: number };
+
+/** 한 날의 시간 일정을 겹치지 않게 칸(열)으로 나눠요. */
+function slotsOf(list: Occ[]): Slot[] {
+  const mins = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+  const items = list
+    .map((occ) => {
+      const s = mins(occ.time);
+      return { occ, s, e: Math.max(mins(occ.endTime || occ.time), s + 20), col: 0, cols: 1 };
+    })
+    .sort((a, b) => a.s - b.s || b.e - a.e);
+  const out: Slot[] = [];
+  let group: Slot[] = [];
+  let ends: number[] = [];
+  let groupEnd = -1;
+  const close = () => {
+    for (const g of group) g.cols = ends.length;
+    out.push(...group);
+    group = [];
+    ends = [];
+  };
+  for (const it of items) {
+    if (group.length && it.s >= groupEnd) close();
+    let c = ends.findIndex((x) => x <= it.s);
+    if (c < 0) c = ends.length;
+    ends[c] = it.e;
+    it.col = c;
+    group.push(it);
+    groupEnd = Math.max(groupEnd, it.e);
+  }
+  close();
+  return out;
+}
+
+function WeekView({
+  start,
+  occs,
+  today,
+  sel,
+  pickKey,
+  q,
+  holidaysOf,
+  height,
+  onSel,
+  onNew,
+  actsOf,
+}: {
+  start: string;
+  occs: Occ[];
+  today: string;
+  sel: string;
+  pickKey: string | null;
+  q: string;
+  holidaysOf: Map<string, string[]>;
+  height: number;
+  onSel: (d: string) => void;
+  onNew: (d: string, time: string) => void;
+  actsOf: (o: Occ) => ChipActs;
+}) {
+  const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
+  const top = occs.filter((o) => o.allDay || o.start !== o.end);
+  const { placed } = layoutWeek(top, start, 99);
+  const lanes = placed.reduce((n, p) => Math.max(n, p.lane + 1), 0);
+  /** 시간 칸 높이: 받은 높이에서 머리 줄과 종일 줄을 뺀 만큼 */
+  const bodyH = Math.max(260, height - 40 - Math.max(1, lanes) * 26 - 8);
+  const scroller = useRef<HTMLDivElement>(null);
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(t);
+  }, []);
+  // 주를 바꾸면 아침(오전 8시, 오늘이 있으면 지금 한 시간 앞 중 이른 때)으로 내려가요.
+  useEffect(() => {
+    const h = days.includes(today) ? Math.min(8, Math.max(0, now.getHours() - 1)) : 8;
+    if (scroller.current) scroller.current.scrollTop = h * HOUR;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [start]);
+  const nowTop = (now.getHours() * 60 + now.getMinutes()) * (HOUR / 60);
+  const dayCls = (d: string) => {
+    const dow = weekday(d);
+    return ["cal-wday", d === today ? "today" : "", d === sel ? "sel" : "", dow === 0 || holidaysOf.has(d) ? "red" : dow === 6 ? "blue" : ""].filter(Boolean).join(" ");
+  };
+  return (
+    <div className="cal-wk">
+      <div className="cal-wk-head">
+        <div className="cal-wk-gutter" />
+        {days.map((d) => (
+          <div key={d} className={dayCls(d)} onClick={() => onSel(d)} onDoubleClick={() => onNew(d, "")}>
+            <span className="cal-wday-name">{["일", "월", "화", "수", "목", "금", "토"][weekday(d)]}</span>
+            <span className="cal-num">{Number(d.slice(8))}</span>
+            {holidaysOf.get(d) && <span className="cal-hol">{holidaysOf.get(d)!.join(", ")}</span>}
+          </div>
+        ))}
+      </div>
+      <div className="cal-wk-allday" style={{ gridTemplateRows: `repeat(${Math.max(1, lanes)}, 24px)` }}>
+        <div className="cal-wk-gutter cal-wk-alllabel" style={{ gridRow: `1 / span ${Math.max(1, lanes)}` }}>
+          종일
+        </div>
+        {days.map((d, i) => (
+          <div
+            key={d}
+            className={"cal-wk-allcell" + (d === today ? " today" : "")}
+            style={{ gridColumn: i + 2, gridRow: `1 / span ${Math.max(1, lanes)}` }}
+            onClick={() => onSel(d)}
+            onDoubleClick={() => onNew(d, "")}
+          />
+        ))}
+        {placed.map((p) => (
+          <EventChip
+            key={p.occ.key}
+            p={p}
+            q={q}
+            picked={pickKey === p.occ.key}
+            style={{ gridColumn: `${p.col + 2} / span ${p.span}`, gridRow: p.lane + 1 }}
+            acts={actsOf(p.occ)}
+          />
+        ))}
+      </div>
+      <div className="cal-wk-scroll" ref={scroller} style={{ height: bodyH }}>
+        <div className="cal-wk-body" style={{ height: 24 * HOUR }}>
+          <div className="cal-wk-hours">
+            {Array.from({ length: 24 }, (_, h) => (
+              <span key={h} style={{ top: h * HOUR }}>
+                {h === 0 ? "" : `${h < 12 ? "오전" : "오후"} ${h <= 12 ? h : h - 12}시`}
+              </span>
+            ))}
+          </div>
+          {days.map((d) => (
+            <div
+              key={d}
+              className={"cal-wk-col" + (d === today ? " today" : "")}
+              onClick={() => onSel(d)}
+              onDoubleClick={(e) => {
+                const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
+                const h = Math.min(23, Math.max(0, Math.floor(y / HOUR)));
+                onNew(d, String(h).padStart(2, "0") + ":00");
+              }}
+            >
+              {slotsOf(occs.filter((o) => !o.allDay && o.start === o.end && o.start === d)).map((sl) => (
+                <EventChip
+                  key={sl.occ.key}
+                  p={{ occ: sl.occ, col: 0, span: 1, lane: 0, cutStart: false, cutEnd: false }}
+                  q={q}
+                  picked={pickKey === sl.occ.key}
+                  style={{
+                    position: "absolute",
+                    top: (sl.s * HOUR) / 60,
+                    height: Math.max(20, ((sl.e - sl.s) * HOUR) / 60 - 2),
+                    left: `calc(${(100 / sl.cols) * sl.col}% + 2px)`,
+                    width: `calc(${100 / sl.cols}% - 4px)`,
+                    margin: 0,
+                    background: `color-mix(in srgb, ${colorBg(sl.occ.color)} 22%, var(--surface))`,
+                    borderLeft: `3px solid ${colorBg(sl.occ.color)}`,
+                  }}
+                  acts={actsOf(sl.occ)}
+                />
+              ))}
+              {d === today && <div className="cal-now" style={{ top: nowTop }} aria-hidden="true" />}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -620,6 +936,7 @@ function QuickRow({
       place: "",
       desc: "",
       remind: t ? 10 : -1,
+      remindTime: "",
     });
     if (!ok) return;
     setTime("");
@@ -916,16 +1233,17 @@ function EventDialog({
           </div>
 
           <span className="cal-dlg-label">알림</span>
-          <div className="cal-dlg-line">
-            <select aria-label="알림" className="cal-select" value={draft.remind} onChange={(e) => set("remind", Number(e.target.value))}>
-              {REMIND_LABELS.map(([v, l]) => (
-                <option key={v} value={v}>
-                  {l}
-                </option>
-              ))}
-            </select>
-            {draft.allDay && draft.remind >= 0 && <span className="cal-dlg-sub">종일 일정은 오전 9시 기준이에요</span>}
-          </div>
+          <RemindField
+            value={draft.remind}
+            allDay={draft.allDay}
+            time={draft.remindTime}
+            bad={!!bad.remind}
+            badTime={!!bad.remindTime}
+            onChange={(remind, remindTime) => {
+              onChange({ ...draft, remind, remindTime });
+              if (bad.remind || bad.remindTime) setBad((b) => ({ ...b, remind: undefined, remindTime: undefined }));
+            }}
+          />
         </div>
         {asking && (
           <div className="ask-band cal-ask" role="alertdialog" aria-label="일정 지우기 확인">
@@ -957,6 +1275,102 @@ function EventDialog({
   );
 }
 
+// ---------- 알림 고르기 ----------
+
+/**
+ * 알림: 정해 둔 값(정시·10분·30분·1시간·1일·7일·한 달 전) 또는 직접 설정(수 + 분·시간·일·주 전).
+ * 종일 일정은 그 날(또는 며칠 전)의 몇 시에 알릴지 시각도 정해요(비우면 오전 9시).
+ */
+function RemindField({
+  value,
+  allDay,
+  time,
+  bad,
+  badTime,
+  onChange,
+}: {
+  value: number;
+  allDay: boolean;
+  time: string;
+  bad: boolean;
+  badTime: boolean;
+  onChange: (remind: number, time: string) => void;
+}) {
+  const preset = REMIND_LABELS.some(([v]) => v === value);
+  const [custom, setCustom] = useState(!preset);
+  const [n, u] = splitRemind(value < 0 ? 0 : value);
+  const [num, setNum] = useState(String(n));
+  const [unit, setUnit] = useState(u);
+  const setCustomValue = (nn: string, uu: number) => {
+    setNum(nn);
+    setUnit(uu);
+    const k = Number(nn);
+    onChange(Number.isFinite(k) && nn.trim() !== "" ? Math.round(k * uu) : NaN, time);
+  };
+  return (
+    <div className="cal-dlg-line">
+      <select
+        aria-label="알림"
+        className="cal-select"
+        value={custom ? "custom" : String(value)}
+        onChange={(e) => {
+          if (e.target.value === "custom") {
+            setCustom(true);
+            const base = value > 0 ? value : 60;
+            const [cn, cu] = splitRemind(base);
+            setCustomValue(String(cn), cu);
+          } else {
+            setCustom(false);
+            onChange(Number(e.target.value), time);
+          }
+        }}
+      >
+        {REMIND_LABELS.map(([v, l]) => (
+          <option key={v} value={v}>
+            {allDay && v === 0 ? "당일" : l}
+          </option>
+        ))}
+        <option value="custom">직접 설정</option>
+      </select>
+      {custom && (
+        <>
+          <input
+            aria-label="알림 수"
+            inputMode="numeric"
+            className={"cell-input num cal-in-num" + (bad ? " invalid" : "")}
+            value={num}
+            onChange={(e) => setCustomValue(e.target.value.replace(/[^0-9]/g, ""), unit)}
+          />
+          <select aria-label="알림 단위" className="cal-select" value={unit} onChange={(e) => setCustomValue(num, Number(e.target.value))}>
+            {REMIND_UNITS.map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </select>
+        </>
+      )}
+      {allDay && value >= 0 && (
+        <>
+          <span className="cal-dlg-sub">알림 시각</span>
+          <input
+            aria-label="알림 시각"
+            placeholder="09:00"
+            className={"cell-input num cal-in-time" + (badTime ? " invalid" : "")}
+            value={time}
+            onChange={(e) => onChange(value, e.target.value)}
+            onBlur={() => {
+              const t = parseTime(time);
+              if (t) onChange(value, t);
+            }}
+          />
+        </>
+      )}
+      {bad && <span className="cal-dlg-sub">62일 전까지 정할 수 있어요</span>}
+    </div>
+  );
+}
+
 // ---------- 종류 관리 창 ----------
 
 function KindsDialog({
@@ -973,10 +1387,12 @@ function KindsDialog({
   onDeleted: (id: number) => void;
   run: <T>(p: Promise<T>, msg?: string) => Promise<T | null>;
   holidayLine: string;
-  onRefreshHolidays: () => void;
+  onRefreshHolidays: () => Promise<string>;
   onClose: () => void;
 }) {
   const [name, setName] = useState("");
+  /** 공휴일 다시 받기: 받는 중·결과 */
+  const [hol, setHol] = useState<{ busy: boolean; msg: string; ok: boolean } | null>(null);
   const [asking, setAsking] = useState<number | null>(null);
   const mine = data.kinds.filter((k) => !k.system);
   const sys = data.kinds.filter((k) => k.system);
@@ -999,29 +1415,15 @@ function KindsDialog({
           <span className="cal-kbadge" style={{ background: colorBg(c), color: colorFg(c) }}>
             {k.name}
           </span>
-          <span className="hint">
-            {COLOR_NAMES[c]}
-            {k.color === null ? " (자동)" : ""} · {extra}
-          </span>
+          <span className="hint">{extra}</span>
         </div>
-        <div className="swatches cal-swatches" role="radiogroup" aria-label={k.name + " 색"}>
-          {COLOR_NAMES.map((n, i) => (
-            <button
-              key={n}
-              type="button"
-              role="radio"
-              aria-checked={i === c}
-              aria-label={`${k.name} 색: ${n}`}
-              title={n}
-              className="swatch"
-              style={{ background: colorBg(i), color: colorBg(i) }}
-              onClick={() => run(api.setCalKindColor(k.id, i)).then((r) => r && onKinds(r))}
-            />
-          ))}
-        </div>
-        <button type="button" className="btn btn-xs" aria-pressed={k.color === null} onClick={() => run(api.setCalKindColor(k.id, null)).then((r) => r && onKinds(r))}>
-          {k.system ? "처음 색" : "자동"}
-        </button>
+        <ColorButton
+          label={k.name}
+          value={c}
+          auto={k.color === null}
+          autoLabel={k.system ? "처음 색" : "자동"}
+          onPick={(i) => run(api.setCalKindColor(k.id, i)).then((r) => r && onKinds(r))}
+        />
         {!k.system && (
           <button
             type="button"
@@ -1106,12 +1508,32 @@ function KindsDialog({
               ) : k.system === "task" ? (
                 "할 일 목록의 마감일에서 들어와요"
               ) : (
-                <>
-                  {holidayLine}{" "}
-                  <button type="button" className="link-btn" onClick={onRefreshHolidays}>
-                    지금 다시 받기
+                <span className="cal-holrow">
+                  <span>{holidayLine}</span>
+                  <button
+                    type="button"
+                    className="btn btn-xs cal-holbtn"
+                    aria-disabled={hol?.busy || undefined}
+                    aria-busy={hol?.busy || undefined}
+                    onClick={async () => {
+                      if (hol?.busy) return;
+                      setHol({ busy: true, msg: "받는 중…", ok: true });
+                      const err = await onRefreshHolidays();
+                      setHol({ busy: false, msg: err || `받았어요 (${stamp().slice(11)})`, ok: !err });
+                    }}
+                  >
+                    <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className={hol?.busy ? "spin" : undefined}>
+                      <path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4h-4" />
+                    </svg>
+                    {hol?.busy ? "받는 중…" : "공휴일 다시 받기"}
                   </button>
-                </>
+                  {hol && !hol.busy && (
+                    <span className={hol.ok ? "cal-hol-ok" : "cal-hol-fail"} role="status">
+                      {hol.ok ? "✓ " : ""}
+                      {hol.msg}
+                    </span>
+                  )}
+                </span>
               ),
             ),
           )}
@@ -1126,7 +1548,169 @@ function KindsDialog({
   );
 }
 
+// ---------- 알림 확인 창 ----------
+
+/**
+ * 윈도우 알림이 뜨는지 확인해요. 시험 알림을 띄워 보고, 안 보이면 PowerShell 이름으로 다시 띄워 봐요
+ * (설치 바로가기의 앱 이름이 윈도우에 안 잡힌 PC가 있어요). 보인 쪽을 저장해 두고 그 이름으로 계속 띄워요.
+ */
+function NotifyDialog({ onClose }: { onClose: () => void }) {
+  const [st, setSt] = useState<NotifyStatus | null>(null);
+  const [ps, setPs] = useState(false);
+  const [step, setStep] = useState<"" | "asked" | "done">("");
+  const [err, setErr] = useState("");
+  const refresh = useCallback(() => api.notifyStatus().then(setSt, () => {}), []);
+  useEffect(() => {
+    syncReminders().then(refresh);
+    loadNotifyMode().then(setPs);
+  }, [refresh]);
+
+  async function test(powershell: boolean) {
+    setErr("");
+    await saveNotifyMode(powershell);
+    setPs(powershell);
+    try {
+      setSt(await api.testNotification());
+      setStep("asked");
+    } catch (e) {
+      setErr(String(e));
+    }
+  }
+
+  const next = st?.nextAt ? new Date(st.nextAt) : null;
+  return (
+    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="dialog cal-notify" role="dialog" aria-modal="true" aria-label="알림 확인" onKeyDown={(e) => e.key === "Escape" && onClose()}>
+        <div className="dialog-head">
+          <span className="dialog-title">알림 확인</span>
+          <span className="hint">giLog가 켜져 있을 때(트레이 포함) 윈도우 알림으로 띄워요.</span>
+        </div>
+        <div className="dialog-body cal-notify-body">
+          <p>
+            앞으로 7일 동안 울릴 알림 <b>{st?.pending ?? 0}건</b>
+            {next && ` · 다음 알림 ${shortDay(todayStr(next))} ${String(next.getHours()).padStart(2, "0")}:${String(next.getMinutes()).padStart(2, "0")}`}
+          </p>
+          <p className="hint">
+            지금 쓰는 이름: {ps ? "PowerShell" : "giLog"}
+            {st?.shown ? ` · 켠 뒤 띄운 알림 ${st.shown}건` : ""}
+            {st?.lastError ? ` · 마지막 오류: ${st.lastError}` : ""}
+          </p>
+          {err && <p className="note">윈도우가 알림을 거절했어요: {err}</p>}
+          {step === "asked" && (
+            <div className="ask-band cal-notify-ask">
+              <span>화면 오른쪽 아래에 "giLog 알림 시험"이 보였나요?</span>
+              <button type="button" className="btn btn-xs" onClick={() => setStep("done")}>
+                보였어요
+              </button>
+              {!ps ? (
+                <button type="button" className="btn btn-xs" onClick={() => test(true)}>
+                  안 보였어요 (다른 이름으로 다시)
+                </button>
+              ) : (
+                <button type="button" className="btn btn-xs" onClick={() => test(false)}>
+                  안 보였어요 (giLog 이름으로 다시)
+                </button>
+              )}
+            </div>
+          )}
+          {step === "done" && <p className="cal-hol-ok">✓ 이 이름({ps ? "PowerShell" : "giLog"})으로 알림을 띄워요.</p>}
+          <p className="hint">
+            두 이름 모두 안 보이면 윈도우 설정 → 시스템 → 알림에서 알림이 켜져 있는지, "방해 금지"가 꺼져 있는지 봐 주세요.
+          </p>
+        </div>
+        <div className="dialog-foot cal-dlg-foot">
+          <button type="button" className="btn btn-ctrl cal-cancel" onClick={() => test(ps)}>
+            시험 알림 띄우기
+          </button>
+          <button type="button" className="btn-primary btn-ctrl" onClick={onClose}>
+            닫기
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- 색 단추 ----------
+
+/** 색 단추 하나. 누르면 24색과 "자동"(앱이 만든 종류는 "처음 색")이 펼쳐져요. */
+function ColorButton({ label, value, auto, autoLabel, onPick }: { label: string; value: number; auto: boolean; autoLabel: string; onPick: (i: number | null) => void }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const off = (e: MouseEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
+    document.addEventListener("mousedown", off);
+    return () => document.removeEventListener("mousedown", off);
+  }, [open]);
+  const pick = (i: number | null) => {
+    onPick(i);
+    setOpen(false);
+  };
+  return (
+    <div
+      className="cal-cbtn-wrap"
+      ref={box}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && open) {
+          e.stopPropagation();
+          e.preventDefault();
+          setOpen(false);
+        }
+      }}
+    >
+      <button type="button" className="btn btn-xs cal-cbtn" aria-haspopup="true" aria-expanded={open} aria-label={`${label} 색: ${COLOR_NAMES[value]}${auto ? " (자동)" : ""}`} onClick={() => setOpen((o) => !o)}>
+        <span className="cal-cbtn-dot" aria-hidden="true" style={{ background: colorBg(value) }} />
+        {COLOR_NAMES[value]}
+        {auto ? " (자동)" : ""}
+        <svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {open && (
+        <div className="cal-cpop" role="dialog" aria-label={label + " 색 고르기"}>
+          <div className="cal-cgrid" role="radiogroup">
+            {COLOR_NAMES.map((n, i) => (
+              <button
+                key={n}
+                type="button"
+                role="radio"
+                aria-checked={i === value}
+                aria-label={n}
+                title={n}
+                className="swatch"
+                style={{ background: colorBg(i), color: colorBg(i) }}
+                onClick={() => pick(i)}
+              />
+            ))}
+          </div>
+          <button type="button" className="btn btn-xs cal-cauto" aria-pressed={auto} onClick={() => pick(null)}>
+            {autoLabel}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---------- 아이콘 ----------
+
+function Circle() {
+  return (
+    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+      <circle cx="12" cy="12" r="9" />
+    </svg>
+  );
+}
+
+function CheckCircle() {
+  return (
+    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M8 12.5l2.8 2.8L16.5 9.5" />
+    </svg>
+  );
+}
 
 function Tick() {
   return (
