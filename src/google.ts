@@ -15,6 +15,7 @@ import { api, CalEvent, CalKind, changeHooks, Complaint, inApp, Repeat, Task } f
 import { linesToText, parseLines } from "./bullets";
 import { addDays, kindColor } from "./calendar";
 import { DONE_STATUS } from "./settingsStore";
+import { complaintTitle } from "./tasks";
 import { stamp } from "./reminders";
 
 const SCOPE = "https://www.googleapis.com/auth/calendar.app.created";
@@ -308,9 +309,48 @@ export async function forgetClient(): Promise<void> {
 
 // ---------- 구글에 보낼 모양 ----------
 
-/** 구글 24색 번호 → 구글 API가 받는 일정 색 11가지(colorId) 가운데 가장 가까운 것 */
+/** 기Log 종류 색(구글 24색, tokens.css의 --gc-N 밝게 값)이에요. 구글이 일정에 받는 색 목록에서 가장 가까운 것을 골라요. */
+const GC_HEX = [
+  "#B55C76", "#CC6175", "#CD887C", "#CD5D3B", "#D77046", "#D37E40", "#D89949", "#E2BB5E", "#D5BE69", "#BEC162", "#8CAB61", "#588E63",
+  "#69AD83", "#56978E", "#5A98CE", "#6A8BDC", "#838BBF", "#6D73BF", "#AB9ECB", "#9E7CAE", "#9E61B6", "#917568", "#7C7C7C", "#A3998D",
+];
+/** 구글 일정 색 목록을 못 받았을 때 쓰는 표(예전 11색) */
 const GC_TO_EVENT = ["4", "4", "4", "11", "6", "6", "5", "5", "5", "2", "2", "10", "2", "2", "7", "9", "1", "9", "1", "3", "3", "8", "8", "8"];
-export const eventColorId = (n: number) => GC_TO_EVENT[n] ?? "8";
+
+/** 구글이 알려 준 일정 색 목록: colorId → 바탕 색 */
+let palette: Record<string, string> | null = null;
+
+const rgb = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+
+/** 24색 번호 → 구글 colorId. 구글 목록에 같은 색이 있으면 그 색, 없으면 가장 가까운 색이에요. */
+export function eventColorId(n: number, pal: Record<string, string> | null = palette): string {
+  const want = GC_HEX[n];
+  if (!pal || !want || !Object.keys(pal).length) return GC_TO_EVENT[n] ?? "8";
+  const [r, g, b] = rgb(want);
+  let best = "";
+  let bestD = Infinity;
+  for (const [id, hex] of Object.entries(pal)) {
+    if (!/^#[0-9a-f]{6}$/i.test(hex)) continue;
+    const [r2, g2, b2] = rgb(hex);
+    const d = (r - r2) ** 2 + (g - g2) ** 2 + (b - b2) ** 2;
+    if (d < bestD) [best, bestD] = [id, d];
+  }
+  return best || (GC_TO_EVENT[n] ?? "8");
+}
+
+/** 구글의 일정 색 목록을 읽어요(구글이 색을 늘리면 그대로 따라가요). 못 읽으면 예전 표를 써요. */
+async function loadPalette(): Promise<void> {
+  if (palette) return;
+  try {
+    const r = await gapi("GET", "/colors");
+    const ev = (r.json.event ?? {}) as Record<string, { background?: string }>;
+    const p: Record<string, string> = {};
+    for (const [id, v] of Object.entries(ev)) if (v.background) p[id] = v.background;
+    if (Object.keys(p).length) palette = p;
+  } catch {
+    /* 다음에 다시 */
+  }
+}
 
 const RRULE: Record<Exclude<Repeat, "">, string> = {
   daily: "FREQ=DAILY",
@@ -378,11 +418,8 @@ function allDayBody(key: string, title: string, date: string, color: string): GB
   };
 }
 
-/** 민원 마감 제목: "민원 마감 · 접수유형 · 위치". 민원인 이름·연락처·내용은 넣지 않아요. */
-export function complaintGoogleTitle(c: Complaint): string {
-  const where = [c.area, c.place].filter(Boolean).join(" ");
-  return ["민원 마감", c.intake || c.ctype, where].filter(Boolean).join(" · ");
-}
+/** 민원 마감 제목은 기Log 캘린더와 같은 "접수유형(지역 위치)"이에요(사용자 2026-10-17). 민원인 이름·연락처·내용은 넣지 않아요. */
+export const complaintGoogleTitle = (c: Complaint): string => complaintTitle(c);
 
 /** 지금 구글에 있어야 할 일정: 우리 이름 → 보낼 내용 */
 export function desired(src: { kinds: CalKind[]; events: CalEvent[]; complaints: Complaint[]; tasks: Task[] }, opts: GOpts): Map<string, GBody> {
@@ -480,6 +517,7 @@ async function runSync(forceFull: boolean): Promise<void> {
   publish({ busy: true });
   const save = () => putJson(K_STATE, s);
   try {
+    await loadPalette();
     const [cal, cd, complaints, td, opts] = await Promise.all([ensureCalendar(s), api.calendarData(), api.complaints(), api.tasksData(), loadOpts()]);
     await save();
     const want = desired({ kinds: cd.kinds, events: cd.events, complaints, tasks: td.tasks }, opts);

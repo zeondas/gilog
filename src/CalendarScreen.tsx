@@ -345,7 +345,6 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
   return (
     <div className="cal-screen">
       <aside className="cal-side">
-        <GoogleBox />
         <div className="cal-kinds">
           <div className="cal-side-head">
             <span>캘린더 종류</span>
@@ -394,6 +393,7 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
           )}
           {upcoming.length > 12 && <p className="cal-up-empty">외 {upcoming.length - 12}건</p>}
         </div>
+        <GoogleBox />
       </aside>
 
       <div className="cal-body">
