@@ -31,7 +31,8 @@
 - **사이드바**: 지금 `App.tsx`의 `<div className="brand">giLog</div>` 자리에 로고 높이 32px(심볼 기준). 메뉴 위 여백은 지금과 같게.
 - **잠금 화면**: 앱 아이콘 64px + 그 아래 글자 로고만(심볼 빼고 ㄱㅣLOG, 높이 약 23px).
 - **정보(설정의 "정보")**: 앱 아이콘 56px + 글자 로고 + 버전.
-- **앱 아이콘 교체**: 저장소 맨 위 `app-icon.png`를 `brand/app-icon-1024.png`로 바꾸고 `npx tauri icon app-icon.png`로 `src-tauri/icons/`를 다시 만들어요(ico·png 모든 크기). 트레이 아이콘도 같은 그림이에요.
+- **앱 아이콘 교체**: 저장소 맨 위 `app-icon.png`를 `brand/app-icon-1024.png`로 바꾸고 `npx tauri icon app-icon.png`로 `src-tauri/icons/`를 다시 만들어요. **그다음 작은 크기는 손으로 맞춘 파일로 덮어써요**(자동으로 줄이면 16~32px에서 획이 흐려져요): `brand/icons/app-icon.ico` → `src-tauri/icons/icon.ico`(16·20·24·32·40·48·64·96·128·256 모두 들어 있음), `brand/icons/icon-32.png` → `src-tauri/icons/32x32.png`, `icon-64.png` → `64x64.png`, `icon-128.png` → `128x128.png`, `icon-256.png` → `128x128@2x.png`. 작업표시줄·트레이·창 제목 아이콘은 모두 `icon.ico`에서 가져가요(트레이는 `default_window_icon`).
+- 작은 크기(16·20·24·32px)는 심볼을 픽셀 칸에 맞춰 다시 그린 그림이에요. 미리 보기: `brand/icon-preview.png`.
 - 규칙: 로고 둘레에 심볼 높이의 절반 이상 비워요. 로고 최소 높이 16px, 심볼 단독 12px. 늘이기·눕히기·색 바꾸기·그림자·간격 바꾸기 금지.
 
 ## 3. 색 — 남색 계열을 모두 없애요
