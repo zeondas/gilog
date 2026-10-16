@@ -274,6 +274,14 @@ fn add_project(state: State<AppState>, name: String) -> Result<ContactsData, Str
 }
 
 #[tauri::command]
+fn rename_project(state: State<AppState>, id: i64, name: String) -> Result<ContactsData, String> {
+    with_store(&state, |s| {
+        s.rename_project(id, &name)?;
+        s.contacts_data()
+    })
+}
+
+#[tauri::command]
 fn set_project_color(state: State<AppState>, id: i64, color: Option<i64>) -> Result<ContactsData, String> {
     with_store(&state, |s| {
         s.set_project_color(id, color)?;
@@ -489,6 +497,7 @@ pub fn run() {
             set_contact_memo,
             delete_contact,
             add_project,
+            rename_project,
             set_project_color,
             delete_project,
             journal_data,

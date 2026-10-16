@@ -933,6 +933,8 @@ function ProjectDialog({
 }) {
   const [draft, setDraft] = useState("");
   const [ask, setAsk] = useState<number | null>(null);
+  /** 이름을 고치고 있는 프로젝트 */
+  const [editId, setEditId] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => inputRef.current?.focus(), []);
@@ -975,10 +977,23 @@ function ProjectDialog({
             return (
               <div key={p.id} className="prow">
                 <div className="prow-name mgr-name">
-                  <span className="pbadge" style={pjStyle(p)}>
-                    {p.name}
-                  </span>
-                  <span className="mgr-info">{users ? `연락처 ${users}명` : "연락처 없음"}</span>
+                  {editId === p.id ? (
+                    <NameEdit
+                      initial={p.name}
+                      taken={(n) => data.projects.some((x) => x.id !== p.id && x.name === n)}
+                      onDone={async (n) => {
+                        setEditId(null);
+                        if (n !== null && n !== p.name) await run(api.renameProject(p.id, n));
+                      }}
+                    />
+                  ) : (
+                    <>
+                      <button type="button" className="pbadge mgr-badge-btn" style={pjStyle(p)} title="눌러서 이름 고치기" onClick={() => setEditId(p.id)}>
+                        {p.name}
+                      </button>
+                      <span className="mgr-info">{users ? `연락처 ${users}명` : "연락처 없음"}</span>
+                    </>
+                  )}
                 </div>
                 <ColorPick
                   name={p.name}
@@ -1038,6 +1053,54 @@ function ProjectDialog({
         </div>
       </div>
     </div>
+  );
+}
+
+// ---------- 이름 고치기 ----------
+
+/**
+ * 관리 창 줄의 이름 칸(2026-10-17 사용자: 등록된 프로젝트를 고칠 수 있어야 해요).
+ * Enter·바깥 누르기 = 저장, Esc = 그대로. 같은 이름이 있으면 빨간 테두리로 막아요.
+ */
+function NameEdit({ initial, taken, onDone }: { initial: string; taken: (name: string) => boolean; onDone: (name: string | null) => void }) {
+  const [v, setV] = useState(initial);
+  const done = useRef(false);
+  const name = v.trim();
+  const bad = !name || taken(name);
+  const finish = (save: boolean) => {
+    if (done.current) return;
+    if (save && bad) {
+      // 비었거나 같은 이름이면 고치기 전 이름으로 두어요.
+      done.current = true;
+      onDone(null);
+      return;
+    }
+    done.current = true;
+    onDone(save ? name : null);
+  };
+  return (
+    <input
+      className={"input mgr-name-in" + (bad ? " invalid" : "")}
+      aria-label="프로젝트 이름"
+      aria-invalid={bad || undefined}
+      title={bad ? (name ? "같은 이름의 프로젝트가 있어요" : "이름을 적어 주세요") : undefined}
+      autoFocus
+      value={v}
+      onFocus={(e) => e.currentTarget.select()}
+      onChange={(e) => setV(e.target.value)}
+      onBlur={() => finish(true)}
+      onKeyDown={(e) => {
+        if (isComposing(e)) return;
+        if (e.key === "Enter") {
+          e.preventDefault();
+          if (!bad) finish(true);
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          e.nativeEvent.stopImmediatePropagation();
+          finish(false);
+        }
+      }}
+    />
   );
 }
 

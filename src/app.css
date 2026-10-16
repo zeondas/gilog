@@ -5223,3 +5223,27 @@ body.col-dragging * {
 .side-item {
   height: 35px;
 }
+
+/* 관리 창: 이름 배지를 누르면 그 자리에서 고쳐요 */
+.mgr-badge-btn {
+  border: 0;
+  font-family: inherit;
+  cursor: text;
+}
+
+.mgr-badge-btn:hover {
+  outline: 2px solid var(--accent-line);
+  outline-offset: 1px;
+}
+
+.mgr-name-in {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 28px;
+}
+
+.input.invalid {
+  border-color: var(--urgent);
+  outline: 2px solid var(--urgent);
+  outline-offset: -1px;
+}

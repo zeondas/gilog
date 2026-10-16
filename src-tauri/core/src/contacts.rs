@@ -232,6 +232,26 @@ impl Store {
         Ok(id)
     }
 
+    /// 프로젝트 이름을 바꿔요. 붙어 있는 사람·일지 기록은 번호로 이어져 있어 그대로 따라와요.
+    pub fn rename_project(&self, id: i64, name: &str) -> Result<()> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(Error::Invalid("프로젝트 이름이 비어 있어요".into()));
+        }
+        let taken: Option<i64> = self
+            .conn
+            .query_row("SELECT id FROM projects WHERE name = ?1 AND id <> ?2", params![name, id], |r| r.get(0))
+            .optional()?;
+        if taken.is_some() {
+            return Err(Error::Invalid("같은 이름의 프로젝트가 있어요".into()));
+        }
+        let n = self.conn.execute("UPDATE projects SET name = ?2 WHERE id = ?1", params![id, name])?;
+        if n == 0 {
+            return Err(Error::NotFound);
+        }
+        Ok(())
+    }
+
     /// 프로젝트 색을 정해요. None이면 자동으로 되돌려요.
     pub fn set_project_color(&self, id: i64, color: Option<i64>) -> Result<()> {
         if let Some(c) = color {
@@ -358,6 +378,23 @@ mod tests {
         assert_eq!(s.contacts_data().unwrap().projects[0].color, None);
         assert_eq!(s.set_project_color(pid, Some(8)).err().unwrap().code(), "invalid");
         assert_eq!(s.add_project("  ").err().unwrap().code(), "invalid");
+    }
+
+    #[test]
+    fn rename_project_keeps_links() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut s = Store::create(tmp.path(), "abcd1234").unwrap();
+        s.add_contact(&input("가", &["배수로", "포장"])).unwrap();
+        let d = s.contacts_data().unwrap();
+        let pid = d.projects.iter().find(|p| p.name == "배수로").unwrap().id;
+        s.rename_project(pid, " 광탄면 배수로 ").unwrap();
+        let d = s.contacts_data().unwrap();
+        assert_eq!(d.projects.iter().find(|p| p.id == pid).unwrap().name, "광탄면 배수로");
+        assert!(d.contacts[0].projects.contains(&pid));
+        assert_eq!(s.rename_project(pid, "포장").err().unwrap().code(), "invalid");
+        assert_eq!(s.rename_project(pid, " ").err().unwrap().code(), "invalid");
+        s.rename_project(pid, "광탄면 배수로").unwrap();
+        assert_eq!(s.rename_project(999, "새 이름").err().unwrap().code(), "not_found");
     }
 
     #[test]

@@ -669,6 +669,14 @@ function fakeContacts(cmd: string, a: Record<string, unknown>): ContactsData | n
       projectId(name);
       return data();
     }
+    case "rename_project": {
+      const name = (a.name as string).trim();
+      const p = fake.projects.find((x) => x.id === a.id);
+      if (!p) throw "not_found";
+      if (!name || fake.projects.some((x) => x.id !== a.id && x.name === name)) throw "invalid";
+      p.name = name;
+      return data();
+    }
     case "set_project_color": {
       const p = fake.projects.find((x) => x.id === a.id);
       if (!p) throw "not_found";
@@ -796,6 +804,7 @@ export const api = {
   setContactMemo: (id: number, memo: string) => call<ContactsData>("set_contact_memo", { id, memo }),
   deleteContact: (id: number) => call<ContactsData>("delete_contact", { id }),
   addProject: (name: string) => call<ContactsData>("add_project", { name }),
+  renameProject: (id: number, name: string) => call<ContactsData>("rename_project", { id, name }),
   setProjectColor: (id: number, color: number | null) => call<ContactsData>("set_project_color", { id, color }),
   deleteProject: (id: number) => call<ContactsData>("delete_project", { id }),
 
