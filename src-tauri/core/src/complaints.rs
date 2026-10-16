@@ -93,7 +93,7 @@ fn bad(msg: &str) -> Error {
 /// 0.6.1부터 화면은 머릿기호 규칙에 따라 줄 목록을 JSON으로 보내요: `[{"t":"글","k":"sq"}, ...]`
 /// (k: 머릿기호 종류, lv: 머릿기호 없는 줄의 단계, b·s: 굵게·취소선). 그 모양이면 줄마다 정리해 다시 써요.
 /// 예전 모양(줄바꿈으로 나눈 글자)도 그대로 받아요.
-fn lines(s: &str) -> String {
+pub(crate) fn lines(s: &str) -> String {
     let trimmed = s.trim();
     if trimmed.starts_with('[') {
         if let Ok(serde_json::Value::Array(items)) = serde_json::from_str::<serde_json::Value>(trimmed) {

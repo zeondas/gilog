@@ -129,6 +129,40 @@ export type Complaint = ComplaintInput & {
   memo: string;
 };
 
+// ---------- 할 일 목록 ----------
+
+export type TaskList = {
+  id: number;
+  name: string;
+  /** 체크를 끄면 카드를 숨겨요. */
+  visible: boolean;
+  /** 처음부터 있는 목록(민원). 지우거나 이름을 바꿀 수 없어요. */
+  builtin: boolean;
+  ord: number;
+};
+
+export type TaskInput = {
+  list: number;
+  /** 위 항목. 있으면 하위 항목이에요(한 단계까지). */
+  parent: number | null;
+  title: string;
+  /** 세부정보 (머릿기호 줄 목록 JSON) */
+  detail: string;
+  /** 마감일. 비어 있으면 마감이 없어요. */
+  due: string;
+};
+
+export type TaskEdit = { title: string; detail: string; due: string };
+
+export type Task = TaskInput & {
+  id: number;
+  done: boolean;
+  /** 완료한 날. 완료가 아니면 비어 있어요. */
+  doneOn: string;
+};
+
+export type TasksData = { lists: TaskList[]; tasks: Task[] };
+
 export const inApp = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 const fake = {
@@ -145,7 +179,134 @@ const fake = {
   nextEntryId: 1,
   complaints: [] as Complaint[],
   nextComplaintId: 1,
+  taskLists: [
+    { id: 1, name: "민원", visible: true, builtin: true, ord: 0 },
+    { id: 2, name: "행정업무", visible: true, builtin: false, ord: 1 },
+  ] as TaskList[],
+  tasks: [] as Task[],
+  nextListId: 3,
+  nextTaskId: 1,
 };
+
+// 브라우저 미리 보기용 할 일 흉내예요. 저장 쪽(core/tasks.rs)과 같은 규칙을 따라요.
+function fakeTasks(cmd: string, a: Record<string, unknown>): unknown {
+  const isDate = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d) && !Number.isNaN(new Date(d + "T00:00:00").getTime());
+  const squash = (s: string) => s.split(/\s+/).filter(Boolean).join(" ");
+  const lists = () => [...fake.taskLists].sort((x, y) => x.ord - y.ord || x.id - y.id).map((l) => ({ ...l }));
+  const list = (id: unknown) => {
+    const l = fake.taskLists.find((x) => x.id === id);
+    if (!l) throw "not_found";
+    return l;
+  };
+  const task = (id: unknown) => {
+    const t = fake.tasks.find((x) => x.id === id);
+    if (!t) throw "not_found";
+    return t;
+  };
+  const clean = (e: TaskEdit): TaskEdit => {
+    const title = squash(e.title);
+    const due = e.due.trim();
+    if (!title || (due && !isDate(due))) throw "invalid";
+    const kept = (() => {
+      try {
+        const v = JSON.parse(e.detail || "[]");
+        if (!Array.isArray(v)) return e.detail.trim();
+        const k = v.filter((x) => x && typeof x.t === "string" && x.t.trim()).map((x) => ({ ...x, t: x.t.trim() }));
+        return k.length ? JSON.stringify(k) : "";
+      } catch {
+        return e.detail.trim();
+      }
+    })();
+    return { title, detail: kept, due };
+  };
+  const listName = (n: string) => {
+    const name = squash(n);
+    if (!name) throw "invalid";
+    return name;
+  };
+  switch (cmd) {
+    case "tasks_data":
+      return { lists: lists(), tasks: structuredClone(fake.tasks) };
+    case "add_task_list": {
+      const name = listName(a.name as string);
+      if (fake.taskLists.some((l) => l.name === name)) throw "invalid";
+      const l = { id: fake.nextListId++, name, visible: true, builtin: false, ord: Math.max(0, ...fake.taskLists.map((x) => x.ord)) + 1 };
+      fake.taskLists.push(l);
+      return { ...l };
+    }
+    case "rename_task_list": {
+      const l = list(a.id);
+      if (l.builtin) throw "invalid";
+      const name = listName(a.name as string);
+      if (fake.taskLists.some((x) => x.name === name && x.id !== l.id)) throw "invalid";
+      l.name = name;
+      return { ...l };
+    }
+    case "set_task_list_visible": {
+      const l = list(a.id);
+      l.visible = a.visible as boolean;
+      return { ...l };
+    }
+    case "move_task_list": {
+      const all = lists();
+      const i = all.findIndex((l) => l.id === a.id);
+      if (i < 0) throw "not_found";
+      const j = i + Math.sign(a.dir as number);
+      if (j >= 0 && j < all.length && j !== i) [all[i], all[j]] = [all[j], all[i]];
+      all.forEach((l, k) => (list(l.id).ord = k));
+      return lists();
+    }
+    case "delete_task_list": {
+      const l = list(a.id);
+      if (l.builtin) throw "invalid";
+      const n = fake.tasks.filter((t) => t.list === l.id).length;
+      fake.tasks = fake.tasks.filter((t) => t.list !== l.id);
+      fake.taskLists = fake.taskLists.filter((x) => x.id !== l.id);
+      return n;
+    }
+    case "add_task": {
+      const i = a.task as TaskInput;
+      const c = clean(i);
+      list(i.list);
+      if (i.parent !== null) {
+        const p = fake.tasks.find((t) => t.id === i.parent);
+        if (!p || p.list !== i.list || p.parent !== null) throw "invalid";
+      }
+      const t: Task = { id: fake.nextTaskId++, list: i.list, parent: i.parent, ...c, done: false, doneOn: "" };
+      fake.tasks.push(t);
+      return structuredClone(t);
+    }
+    case "update_task": {
+      const t = task(a.id);
+      Object.assign(t, clean(a.task as TaskEdit));
+      return structuredClone(t);
+    }
+    case "set_task_done": {
+      const t = task(a.id);
+      const done = a.done as boolean;
+      const today = a.today as string;
+      if (done && !isDate(today)) throw "invalid";
+      const kids = fake.tasks.filter((x) => x.parent === t.id);
+      const touched = [t, ...kids];
+      if (done) touched.forEach((x) => !x.done && Object.assign(x, { done: true, doneOn: today }));
+      else {
+        touched.forEach((x) => Object.assign(x, { done: false, doneOn: "" }));
+        const p = fake.tasks.find((x) => x.id === t.parent);
+        if (p) {
+          Object.assign(p, { done: false, doneOn: "" });
+          touched.push(p);
+        }
+      }
+      return structuredClone(touched);
+    }
+    case "delete_task": {
+      const before = fake.tasks.length;
+      fake.tasks = fake.tasks.filter((t) => t.id !== a.id && t.parent !== a.id);
+      return before - fake.tasks.length;
+    }
+  }
+  return undefined;
+}
 
 // 브라우저 미리 보기용 민원대장 흉내예요. 저장 쪽(core/complaints.rs)과 같은 규칙을 따라요.
 function fakeComplaints(cmd: string, a: Record<string, unknown>): unknown {
@@ -356,6 +517,11 @@ function fakeCall(cmd: string, args: Record<string, unknown>): unknown {
     const r = fakeComplaints(cmd, args);
     if (r !== undefined) return r;
   }
+  if (cmd.includes("task")) {
+    if (!fake.unlocked) throw "locked";
+    const r = fakeTasks(cmd, args);
+    if (r !== undefined) return r;
+  }
   if (cmd.includes("journal")) {
     if (!fake.unlocked) throw "locked";
     const r = fakeJournal(cmd, args);
@@ -459,6 +625,20 @@ export const api = {
   setComplaintStatus: (id: number, status: string) => call<Complaint>("set_complaint_status", { id, status }),
   setComplaintMemo: (id: number, memo: string) => call<Complaint>("set_complaint_memo", { id, memo }),
   deleteComplaint: (id: number) => call<null>("delete_complaint", { id }),
+
+  tasksData: () => call<TasksData>("tasks_data"),
+  addTaskList: (name: string) => call<TaskList>("add_task_list", { name }),
+  renameTaskList: (id: number, name: string) => call<TaskList>("rename_task_list", { id, name }),
+  setTaskListVisible: (id: number, visible: boolean) => call<TaskList>("set_task_list_visible", { id, visible }),
+  /** 목록을 앞(-1)·뒤(+1)로 옮기고 모든 목록을 돌려줘요. */
+  moveTaskList: (id: number, dir: number) => call<TaskList[]>("move_task_list", { id, dir }),
+  /** 목록과 그 안의 할 일을 지워요. 지운 할 일 수를 돌려줘요. */
+  deleteTaskList: (id: number) => call<number>("delete_task_list", { id }),
+  addTask: (task: TaskInput) => call<Task>("add_task", { task }),
+  updateTask: (id: number, task: TaskEdit) => call<Task>("update_task", { id, task }),
+  /** 완료하거나 되돌리고, 함께 바뀐 할 일(하위·위 항목)을 돌려줘요. */
+  setTaskDone: (id: number, done: boolean, today: string) => call<Task[]>("set_task_done", { id, done, today }),
+  deleteTask: (id: number) => call<number>("delete_task", { id }),
 
   /** 윈도우 입력기를 한글(true) 또는 영문(false) 상태로 바꿔요. 앱 밖에서는 아무 일도 안 해요. */
   setIme: (korean: boolean) => (inApp ? invoke<null>("set_ime", { korean }) : Promise.resolve(null)),

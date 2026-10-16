@@ -1,9 +1,10 @@
 // 업무일지 화면이에요. 시안 Journal.dc.html과 사양서의 "업무일지" 절을 따라요.
 // 누가 언제 무슨 말을 했는지 남기는 곳이라, 손을 키보드에서 떼지 않고 한 건을 끝낼 수 있게 만들었어요.
 import { KeyboardEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, Complaint, Contact, ContactsData, DayInfo, Entry, EntryInput, errorText, JournalData, Project } from "./api";
+import { api, Complaint, Contact, ContactsData, DayInfo, Entry, EntryInput, errorText, JournalData, Project, Task, TaskList, TasksData } from "./api";
 import { firstLineOf } from "./bullets";
-import { daysLeft, ddayText, dueSoon, isUrgent } from "./complaints";
+import { daysBetween, daysLeft, ddayText, dueSoon, isUrgent } from "./complaints";
+import { tasksDueSoon } from "./tasks";
 import { copyText, Hl, projectColor } from "./ContactsScreen";
 import { PhoneInput } from "./PhoneInput";
 import { finalizePhone } from "./phone";
@@ -63,7 +64,15 @@ type Ctx = {
 
 // ---------- 화면 ----------
 
-export default function JournalScreen({ urgentDays = 2, onOpenComplaint }: { urgentDays?: number; onOpenComplaint?: (id: number) => void }) {
+export default function JournalScreen({
+  urgentDays = 2,
+  onOpenComplaint,
+  onOpenTask,
+}: {
+  urgentDays?: number;
+  onOpenComplaint?: (id: number) => void;
+  onOpenTask?: (id: number) => void;
+}) {
   const [data, setData] = useState<JournalData | null>(null);
   const [cdata, setCdata] = useState<ContactsData>({ contacts: [], projects: [] });
   const [myName, setMyName] = useState(DEFAULT_SETTINGS.myName);
@@ -78,10 +87,12 @@ export default function JournalScreen({ urgentDays = 2, onOpenComplaint }: { urg
   const [menuId, setMenuId] = useState<number | null>(null);
   const [note, setNote] = useState("");
   const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [tasks, setTasks] = useState<TasksData>({ lists: [], tasks: [] });
 
   useEffect(() => {
     api.journalData().then(setData, (e) => setNote(errorText(e)));
     api.complaints().then(setComplaints, () => {});
+    api.tasksData().then(setTasks, () => {});
     api.contactsData().then(setCdata, () => {});
     loadSettings().then(
       (s) => {
@@ -327,7 +338,15 @@ export default function JournalScreen({ urgentDays = 2, onOpenComplaint }: { urg
           <span className="jn-aside-title">챙길 일</span>
           <span className="muted small">마감 7일 이내</span>
         </div>
-        <DueList list={dueSoon(complaints, today)} today={today} urgentDays={urgentDays} onOpen={onOpenComplaint} />
+        <DueList
+          list={dueSoon(complaints, today)}
+          tasks={tasksDueSoon(tasks.tasks, today)}
+          lists={tasks.lists}
+          today={today}
+          urgentDays={urgentDays}
+          onOpen={onOpenComplaint}
+          onOpenTask={onOpenTask}
+        />
       </aside>
     </div>
   );
@@ -335,22 +354,59 @@ export default function JournalScreen({ urgentDays = 2, onOpenComplaint }: { urg
 
 // ---------- 챙길 일 ----------
 
-/** 마감 7일 안(지난 것 포함)이고 완료가 아닌 민원. 누르면 민원대장의 그 줄로 가요. 할 일은 7단계에서 더해요. */
-function DueList({ list, today, urgentDays, onOpen }: { list: Complaint[]; today: string; urgentDays: number; onOpen?: (id: number) => void }) {
-  if (!list.length) return <p className="jn-aside-empty muted small">마감이 7일 안으로 다가온 민원이 없어요.</p>;
+/**
+ * 마감 7일 안(지난 것 포함)이고 완료가 아닌 민원과 할 일. 마감이 빠른 것이 위예요.
+ * 민원을 누르면 민원대장의 그 줄로, 할 일을 누르면 할 일 목록의 그 항목으로 가요.
+ */
+function DueList({
+  list,
+  tasks,
+  lists,
+  today,
+  urgentDays,
+  onOpen,
+  onOpenTask,
+}: {
+  list: Complaint[];
+  tasks: Task[];
+  lists: TaskList[];
+  today: string;
+  urgentDays: number;
+  onOpen?: (id: number) => void;
+  onOpenTask?: (id: number) => void;
+}) {
+  if (!list.length && !tasks.length) return <p className="jn-aside-empty muted small">마감이 7일 안으로 다가온 민원·할 일이 없어요.</p>;
+  const rows = [
+    ...list.map((c) => ({ due: c.due, k: 0, id: c.id, c, t: null as Task | null })),
+    ...tasks.map((t) => ({ due: t.due, k: 1, id: t.id, c: null as Complaint | null, t })),
+  ].sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : a.k - b.k));
   return (
     <div className="jn-due">
-      {list.map((c) => {
-        const n = daysLeft(c, today) ?? 0;
-        const title = [c.ctype, [c.area, c.place].filter(Boolean).join(" ")].filter(Boolean).join(" · ") || firstLineOf(c.body);
+      {rows.map(({ c, t }) => {
+        if (c) {
+          const n = daysLeft(c, today) ?? 0;
+          const title = [c.ctype, [c.area, c.place].filter(Boolean).join(" ")].filter(Boolean).join(" · ") || firstLineOf(c.body);
+          return (
+            <button key={"c" + c.id} type="button" className="jn-due-item" title="민원대장에서 보기" onClick={() => onOpen?.(c.id)}>
+              <span className={"jn-due-d" + (isUrgent(n, urgentDays) ? " urgent" : "")}>{ddayText(n)}</span>
+              <span className="jn-due-t">
+                민원 {c.no}번 · {title}
+              </span>
+              <span className="jn-due-s">
+                {c.due} 마감 · {c.status}
+              </span>
+            </button>
+          );
+        }
+        const task = t!;
+        const n = daysBetween(today, task.due);
+        const listName = lists.find((l) => l.id === task.list)?.name ?? "";
         return (
-          <button key={c.id} type="button" className="jn-due-item" title="민원대장에서 보기" onClick={() => onOpen?.(c.id)}>
+          <button key={"t" + task.id} type="button" className="jn-due-item" title="할 일 목록에서 보기" onClick={() => onOpenTask?.(task.id)}>
             <span className={"jn-due-d" + (isUrgent(n, urgentDays) ? " urgent" : "")}>{ddayText(n)}</span>
-            <span className="jn-due-t">
-              민원 {c.no}번 · {title}
-            </span>
+            <span className="jn-due-t">할 일 · {task.title}</span>
             <span className="jn-due-s">
-              {c.due} 마감 · {c.status}
+              {task.due} 마감{listName ? ` · ${listName}` : ""}
             </span>
           </button>
         );

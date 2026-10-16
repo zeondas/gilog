@@ -24,6 +24,8 @@
   --st-new-fg: #4A3B8C;
   --danger: #8A1F2B;
   --urgent: #B3261E;
+  /* 할 일 마감 배지(임박) 바탕. 글자는 urgent. */
+  --urgent-bg: #FBE9E7;
   --saturday: #1D4E9E;
   /* 삭제를 한 번 더 묻는 띠의 바탕. 글자는 danger. */
   --danger-wash: #FBE4EC;
@@ -97,6 +99,7 @@
   --st-new-fg: #C4B8F0;
   --danger: #F08A95;
     --urgent: #F28B82;
+    --urgent-bg: #3D2220;
     --danger-wash: #3A1D24;
     --mark: #6B5A12;
     --search-bg: #2A2615;
@@ -132,6 +135,7 @@
   --st-hold-fg: #B4BECA;
   --danger: #F08A95;
   --urgent: #F28B82;
+  --urgent-bg: #3D2220;
   --saturday: #8AB4F8;
   --danger-wash: #3A1D24;
   --mark: #6B5A12;

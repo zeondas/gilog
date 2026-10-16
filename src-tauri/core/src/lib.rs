@@ -15,9 +15,11 @@ use serde::{Deserialize, Serialize};
 mod complaints;
 mod contacts;
 mod journal;
+mod tasks;
 pub use complaints::{Complaint, ComplaintInput, DEFAULT_STATUS};
 pub use contacts::{Contact, ContactInput, ContactsData, Project, PROJECT_COLORS};
 pub use journal::{DayInfo, Entry, EntryInput, JournalData, JournalLine};
+pub use tasks::{Task, TaskEdit, TaskInput, TaskList, TasksData, COMPLAINT_LIST};
 
 const DB_FILE: &str = "gilog.db";
 const META_FILE: &str = "gilog.key.json";
@@ -199,6 +201,8 @@ impl Store {
         self.conn.execute_batch(journal::SCHEMA)?;
         journal::upgrade(&self.conn)?;
         self.conn.execute_batch(complaints::SCHEMA)?;
+        self.conn.execute_batch(tasks::SCHEMA)?;
+        tasks::seed(&self.conn)?;
         Ok(())
     }
 

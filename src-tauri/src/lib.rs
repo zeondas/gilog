@@ -4,7 +4,10 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use gilog_core::{Complaint, ComplaintInput, ContactInput, ContactsData, DayInfo, Entry, EntryInput, JournalData, Store};
+use gilog_core::{
+    Complaint, ComplaintInput, ContactInput, ContactsData, DayInfo, Entry, EntryInput, JournalData, Store, Task, TaskEdit, TaskInput,
+    TaskList, TasksData,
+};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 
@@ -359,6 +362,59 @@ fn delete_complaint(state: State<AppState>, id: i64) -> Result<(), String> {
     with_store(&state, |s| s.delete_complaint(id))
 }
 
+// ---------- 할 일 목록 ----------
+// 처음에 전체를 읽고, 바꾸는 명령은 바뀐 것만 돌려줘요. 민원은 여기 없고 화면이 민원대장을 그대로 읽어요.
+
+#[tauri::command]
+fn tasks_data(state: State<AppState>) -> Result<TasksData, String> {
+    with_store(&state, |s| s.tasks_data())
+}
+
+#[tauri::command]
+fn add_task_list(state: State<AppState>, name: String) -> Result<TaskList, String> {
+    with_store(&state, |s| s.add_task_list(&name))
+}
+
+#[tauri::command]
+fn rename_task_list(state: State<AppState>, id: i64, name: String) -> Result<TaskList, String> {
+    with_store(&state, |s| s.rename_task_list(id, &name))
+}
+
+#[tauri::command]
+fn set_task_list_visible(state: State<AppState>, id: i64, visible: bool) -> Result<TaskList, String> {
+    with_store(&state, |s| s.set_task_list_visible(id, visible))
+}
+
+#[tauri::command]
+fn move_task_list(state: State<AppState>, id: i64, dir: i64) -> Result<Vec<TaskList>, String> {
+    with_store(&state, |s| s.move_task_list(id, dir))
+}
+
+#[tauri::command]
+fn delete_task_list(state: State<AppState>, id: i64) -> Result<usize, String> {
+    with_store(&state, |s| s.delete_task_list(id))
+}
+
+#[tauri::command]
+fn add_task(state: State<AppState>, task: TaskInput) -> Result<Task, String> {
+    with_store(&state, |s| s.add_task(&task))
+}
+
+#[tauri::command]
+fn update_task(state: State<AppState>, id: i64, task: TaskEdit) -> Result<Task, String> {
+    with_store(&state, |s| s.update_task(id, &task))
+}
+
+#[tauri::command]
+fn set_task_done(state: State<AppState>, id: i64, done: bool, today: String) -> Result<Vec<Task>, String> {
+    with_store(&state, |s| s.set_task_done(id, done, &today))
+}
+
+#[tauri::command]
+fn delete_task(state: State<AppState>, id: i64) -> Result<usize, String> {
+    with_store(&state, |s| s.delete_task(id))
+}
+
 // ---------- 백업과 저장 위치 ----------
 
 #[tauri::command]
@@ -437,6 +493,16 @@ pub fn run() {
             set_complaint_status,
             set_complaint_memo,
             delete_complaint,
+            tasks_data,
+            add_task_list,
+            rename_task_list,
+            set_task_list_visible,
+            move_task_list,
+            delete_task_list,
+            add_task,
+            update_task,
+            set_task_done,
+            delete_task,
             set_ime
         ])
         .run(tauri::generate_context!())

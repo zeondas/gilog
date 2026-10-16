@@ -6,9 +6,10 @@ import ContactsScreen from "./ContactsScreen";
 import Gate from "./Gate";
 import JournalScreen from "./JournalScreen";
 import SettingsScreen from "./SettingsScreen";
+import TasksScreen from "./TasksScreen";
 import { SCREENS, SETTINGS, ScreenId } from "./screens";
 
-const VERSION = "0.6.2";
+const VERSION = "0.7.0";
 
 export default function App() {
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
@@ -21,6 +22,13 @@ export default function App() {
   const openComplaint = useCallback((id: number) => {
     setFocusComplaint(id);
     setCurrent("complaints");
+  }, []);
+  // 업무일지 "챙길 일"에서 누른 할 일. 할 일 목록이 그 항목으로 가면 비워요.
+  const [focusTask, setFocusTask] = useState<number | null>(null);
+  const clearTask = useCallback(() => setFocusTask(null), []);
+  const openTask = useCallback((id: number) => {
+    setFocusTask(id);
+    setCurrent("todo");
   }, []);
 
   const refresh = useCallback(() => {
@@ -126,9 +134,11 @@ export default function App() {
         ) : current === "contacts" ? (
           <ContactsScreen />
         ) : current === "journal" ? (
-          <JournalScreen urgentDays={prefs.urgentDays} onOpenComplaint={openComplaint} />
+          <JournalScreen urgentDays={prefs.urgentDays} onOpenComplaint={openComplaint} onOpenTask={openTask} />
         ) : current === "complaints" ? (
           <ComplaintsScreen urgentDays={prefs.urgentDays} focusId={focusComplaint} onFocused={clearFocus} />
+        ) : current === "todo" ? (
+          <TasksScreen urgentDays={prefs.urgentDays} focusId={focusTask} onFocused={clearTask} onOpenComplaint={openComplaint} />
         ) : (
           <>
             <h1 className="title">{screen.name}</h1>

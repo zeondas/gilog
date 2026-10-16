@@ -3204,3 +3204,674 @@ body.col-dragging * {
 .dmenu-ask {
   margin: 0;
 }
+
+/* ---------- 할 일 목록 (7단계, 시안 Todo.dc.html) ---------- */
+.td-screen {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+/* 왼쪽 목록 */
+.td-lists {
+  flex: 1 0 190px;
+  max-width: 230px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.td-lists-head {
+  padding: 0 var(--space-2) 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.td-list {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 30px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--ink);
+  font-size: var(--fs);
+  font-weight: 500;
+  text-align: left;
+}
+
+.td-list:hover {
+  background: var(--surface-band);
+}
+
+.td-list[aria-pressed="false"] {
+  opacity: 0.55;
+}
+
+.td-list-box {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1.5px solid var(--accent);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--on-accent);
+}
+
+.td-list[aria-pressed="true"] .td-list-box {
+  background: var(--accent);
+}
+
+.td-list-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.td-list-count {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.td-newlist {
+  display: flex;
+  gap: var(--space-1);
+  margin-top: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line-soft);
+}
+
+.td-newlist .cell-input {
+  flex: 1;
+  height: 30px;
+}
+
+.td-newlist-add {
+  flex: none;
+  width: 30px;
+  height: 30px;
+}
+
+.dmenu-note {
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.td-rename {
+  display: flex;
+  gap: 6px;
+  padding: 2px;
+}
+
+/* 오른쪽 카드들. 가로 스크롤 없이 다음 줄로 넘어가요. */
+.td-body {
+  flex: 999 1 640px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.td-summary {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.td-cards {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+.td-card {
+  flex: 1 0 340px;
+  max-width: 560px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.td-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-band);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.td-card-name {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.td-link-badge,
+.td-src {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 5px;
+  background: var(--accent-tint);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.td-card-count {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 신규 입력 */
+.td-add {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.td-add.open {
+  background: var(--accent-wash);
+}
+
+.td-add.sub {
+  padding: 6px 0 6px 0;
+  border-bottom: 0;
+  background: transparent;
+}
+
+.td-add-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.td-add-icon {
+  flex: none;
+  color: var(--accent);
+}
+
+.td-add-title {
+  flex: 1;
+  min-width: 0;
+  height: calc(var(--size-row) - 8px);
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 500;
+}
+
+.td-add-title::placeholder {
+  color: var(--muted);
+}
+
+.td-add.open .td-add-title,
+.td-add.sub .td-add-title {
+  border-color: var(--line);
+  background: var(--surface);
+}
+
+.td-add-title:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.td-add-title.invalid,
+.td-due-input.invalid {
+  border-color: var(--urgent);
+  outline: 2px solid var(--urgent);
+  outline-offset: -1px;
+}
+
+.td-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 26px;
+}
+
+.td-due-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.td-cal-btn {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink-2);
+}
+
+.td-cal-btn[aria-expanded="true"] {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+}
+
+.td-due-input {
+  flex: none;
+  width: 104px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  corner-shape: round;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.td-due-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.td-add-cancel {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+}
+
+.td-acts-gap {
+  flex: 1;
+}
+
+/* 작은 달력 */
+.td-cal {
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 238px;
+  max-width: 100%;
+  padding: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 4px 14px rgba(20, 28, 38, 0.1);
+}
+
+.td-cal-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 2px 2px;
+}
+
+.td-cal-title {
+  margin-right: auto;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.td-cal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-2);
+}
+
+.td-cal-nav:hover {
+  background: var(--surface-band);
+}
+
+.td-cal-week,
+.td-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.td-cal-week {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-align: center;
+}
+
+.td-cal-week .sun,
+.td-cal-day.sun {
+  color: var(--urgent);
+}
+
+.td-cal-week .sat,
+.td-cal-day.sat {
+  color: var(--saturday);
+}
+
+.td-cal-day {
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  corner-shape: round;
+  background: transparent;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.td-cal-day:hover {
+  background: var(--surface-band);
+}
+
+.td-cal-day.today {
+  border-color: var(--accent);
+  font-weight: 700;
+}
+
+.td-cal-day.sel,
+.td-cal-day.sel:hover {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+}
+
+/* 항목 */
+.td-items,
+.td-done-list {
+  display: flex;
+  flex-direction: column;
+  padding: 6px var(--space-2);
+}
+
+.td-done-list {
+  padding-top: 0;
+}
+
+.td-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.td-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  outline: 0;
+  cursor: default;
+}
+
+.td-row.sub {
+  padding-left: 34px;
+}
+
+.td-subadd {
+  padding-left: 34px;
+}
+
+.td-row:hover {
+  background: var(--surface-band);
+}
+
+.td-row.sel {
+  background: var(--accent-wash);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+
+.td-row:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.td-row.flash {
+  background: var(--flash);
+}
+
+.td-row.done {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.td-row.done .td-row-main {
+  opacity: 0.6;
+}
+
+.td-row.done .td-title-t {
+  text-decoration: line-through;
+}
+
+.td-check {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  padding: 0;
+  border: 1.5px solid var(--muted);
+  border-radius: 50%;
+  corner-shape: round;
+  background: var(--surface);
+  color: var(--on-accent);
+  cursor: pointer;
+}
+
+.td-check:hover {
+  border-color: var(--accent);
+}
+
+.td-check.on {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.td-row.done .td-check {
+  opacity: 0.6;
+}
+
+.td-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.td-row-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.td-title-t {
+  flex: 1;
+  min-width: 0;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.td-note-icon {
+  flex: none;
+  margin-top: 3px;
+  color: var(--muted);
+  opacity: 0.8;
+}
+
+.td-detail {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-side);
+  color: var(--ink-2);
+  font-size: 12.5px;
+  cursor: text;
+}
+
+.td-detail-none {
+  color: var(--muted);
+}
+
+.td-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.td-due {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 5px;
+  background: var(--st-hold-bg);
+  color: var(--st-hold-fg);
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.td-due b {
+  font-weight: 700;
+}
+
+.td-due.today {
+  background: var(--accent-tint);
+  color: var(--accent);
+}
+
+.td-due.urgent {
+  background: var(--urgent-bg);
+  color: var(--urgent);
+}
+
+.td-due.soon {
+  background: var(--st-work-bg);
+  color: var(--st-work-fg);
+}
+
+.td-src-st {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.td-row-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.td-row-acts .tool-box,
+.td-due-row .tool-box {
+  margin-left: 0;
+}
+
+.td-ask {
+  flex: 1 1 100%;
+  margin-top: 0;
+}
+
+.td-empty {
+  margin: 0;
+  padding: var(--space-6) var(--space-2);
+  color: var(--muted);
+  font-size: 12.5px;
+  text-align: center;
+}
+
+.td-done {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line-row);
+}
+
+.td-done-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 34px;
+  padding: 0 var(--space-4);
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.td-done-toggle:hover {
+  color: var(--ink);
+}
+
+/* 고치기 */
+.td-edit {
+  background: var(--accent-wash);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+
+.td-edit:hover {
+  background: var(--accent-wash);
+}
+
+.td-edit .td-check {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.td-edit-title {
+  font-weight: 500;
+}
+
+.td-edit .bl-ed,
+.td-add-form .bl-ed {
+  font-size: var(--fs);
+}
