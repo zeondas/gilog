@@ -349,6 +349,14 @@ function fakeCalendar(cmd: string, a: Record<string, unknown>): unknown {
     }
     case "refresh_holidays":
       throw "offline";
+    case "save_holidays": {
+      const list = (a.list as Holiday[]).filter((h) => isDate(h.date) && h.name.trim());
+      if (!list.length) throw "invalid";
+      const years = new Set(list.map((h) => h.date.slice(0, 4)));
+      fake.holidays = [...fake.holidays.filter((h) => !years.has(h.date.slice(0, 4))), ...list].sort((x, y) => (x.date < y.date ? -1 : 1));
+      fake.holidaysAt = String(a.now);
+      return structuredClone(fake.holidays);
+    }
     case "set_reminders":
     case "set_notify_mode":
       return null;
@@ -693,7 +701,7 @@ function fakeCall(cmd: string, args: Record<string, unknown>): unknown {
     const r = fakeTasks(cmd, args);
     if (r !== undefined) return r;
   }
-  if (["calendar_data", "cal_kinds", "add_event", "update_event", "delete_event", "add_cal_kind", "set_cal_kind_color", "set_cal_kind_visible", "delete_cal_kind", "refresh_holidays", "set_reminders", "set_notify_mode", "notify_status", "test_notification"].includes(cmd)) {
+  if (["calendar_data", "cal_kinds", "add_event", "update_event", "delete_event", "add_cal_kind", "set_cal_kind_color", "set_cal_kind_visible", "delete_cal_kind", "refresh_holidays", "save_holidays", "set_reminders", "set_notify_mode", "notify_status", "test_notification"].includes(cmd)) {
     if (!fake.unlocked && !["set_reminders", "set_notify_mode", "notify_status", "test_notification"].includes(cmd)) throw "locked";
     const r = fakeCalendar(cmd, args);
     if (r !== undefined) return r;
@@ -828,6 +836,8 @@ export const api = {
   deleteCalKind: (id: number) => call<number>("delete_cal_kind", { id }),
   /** 공휴일을 인터넷에서 받아 저장해요. 받지 못하면 "offline"으로 실패해요. */
   refreshHolidays: (now: string) => call<Holiday[]>("refresh_holidays", { now }),
+  /** 화면이 받아 온 공휴일을 저장해요(받은 해만 바꿔요). */
+  saveHolidays: (list: Holiday[], now: string) => call<Holiday[]>("save_holidays", { list, now }),
   /** 앞으로 울릴 알림 목록을 보내요(윈도우 알림은 앱이 띄워요). */
   setReminders: (list: Reminder[]) => call<null>("set_reminders", { list }),
   /** 지금 바로 알림 하나를 띄워 봐요. 실패하면 윈도우가 돌려준 이유로 실패해요. */

@@ -5,7 +5,7 @@
 // - 민원 마감·할 일 마감은 저장하지 않고 민원대장·할 일 목록을 읽어 그려요. 누르면 원래 화면의 그 항목으로 가요.
 // - 공휴일은 칸 위쪽에 빨간 글자로 보여요(앱이 인터넷에서 받아 저장해 둔 것).
 // - 왼쪽: 종류 체크(보이기·숨기기), "관리"(색 24가지·새 종류·지우기), "다가오는 7일".
-import { CSSProperties, KeyboardEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, KeyboardEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, CalEvent, CalKind, CalendarData, Complaint, errorText, EventInput, NotifyStatus, Repeat, Task } from "./api";
 import { BLine, parseLines, stringifyLines } from "./bullets";
 import { BulletEditor } from "./BulletParts";
@@ -15,8 +15,8 @@ import {
 } from "./calendar";
 import { Hl } from "./ContactsScreen";
 import { parseDate, todayStr } from "./journal";
-import { ChoiceInput } from "./PlaceInputs";
-import { loadNotifyMode, refreshHolidaysDaily, saveNotifyMode, stamp, syncReminders } from "./reminders";
+import { DEFAULT_SETTINGS, DONE_STATUS, loadSettings } from "./settingsStore";
+import { loadNotifyMode, refreshHolidaysDaily, saveNotifyMode, stamp, syncReminders, updateHolidays } from "./reminders";
 
 const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
 const plainEnter = (e: KeyboardEvent) => e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey;
@@ -131,6 +131,12 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
   const [pick, setPick] = useState<string | null>(null);
   const [notifyOpen, setNotifyOpen] = useState(false);
   const wheel = useRef({ acc: 0, at: 0 });
+  const [statuses, setStatuses] = useState<string[]>(DEFAULT_SETTINGS.status);
+  /** 이번에 체크한 민원의 그 전 상태 */
+  const prevStatus = useRef(new Map<number, string>());
+  useEffect(() => {
+    loadSettings().then((x) => setStatuses(x.status), () => {});
+  }, []);
 
   useEffect(() => {
     api.get("calendar.view").then((v) => (v === "week" || v === "month") && setView(v), () => {});
@@ -210,6 +216,17 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
     syncReminders();
   }
 
+  /** 민원 마감의 동그라미: 완료로 바꾸고, 풀면 그 전 상태로(이번에 체크한 것만 기억, 모르면 완료가 아닌 첫 상태). 할 일 목록과 같은 규칙이에요. */
+  async function toggleComplaint(c: Complaint) {
+    const done = c.status === DONE_STATUS;
+    const next = done ? prevStatus.current.get(c.id) ?? statuses.find((x) => x !== DONE_STATUS) ?? "접수" : DONE_STATUS;
+    const r = await run(api.setComplaintStatus(c.id, next));
+    if (!r) return;
+    if (done) prevStatus.current.delete(c.id);
+    else prevStatus.current.set(c.id, c.status);
+    setComplaints((cs) => cs.map((x) => (x.id === r.id ? r : x)));
+  }
+
   async function toggleTask(t: Task) {
     const r = await run(api.setTaskDone(t.id, !t.done, today));
     if (!r) return;
@@ -273,9 +290,13 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
     const d = new Date(ym[0], ym[1] + n, 1);
     setYm([d.getFullYear(), d.getMonth()]);
   };
-  /** 마우스 가로 스크롤(또는 Shift+휠)로 이전·다음 */
+  /**
+   * 마우스 휠(세로)로 이전·다음 (0.8.2 사용자 1안): 월 보기는 달력 어디서나 달 이동.
+   * 주 보기는 날짜 머리 줄·종일 줄 위에서만 주 이동이고, 시간 칸 위의 휠은 시간을 내려요.
+   */
   const onWheel = (e: React.WheelEvent) => {
-    const dx = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.shiftKey ? e.deltaY : 0;
+    if (view === "week" && !(e.target as HTMLElement).closest(".cal-wk-head, .cal-wk-allday")) return;
+    const dx = e.deltaY;
     if (!dx) return;
     const w = wheel.current;
     const now = Date.now();
@@ -300,7 +321,7 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
   const actsOf = (o: Occ): ChipActs => ({
     onPick: () => setPick(o.key),
     onOpen: () => openOcc(o),
-    onToggle: () => o.task && toggleTask(o.task),
+    onToggle: () => (o.task ? toggleTask(o.task) : o.complaint ? toggleComplaint(o.complaint) : undefined),
   });
   const newAt = (d: string, time: string) =>
     setEd(time ? { ...blankDraft(d, data.kinds), allDay: false, time, endTime: hourLater(time), remind: 10 } : blankDraft(d, data.kinds));
@@ -328,10 +349,6 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
           <div className="cal-side-head">
             <span>캘린더 종류</span>
             <button type="button" className="btn btn-xs cal-manage" onClick={() => setKindsOpen(true)}>
-              <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" />
-              </svg>
               관리
             </button>
           </div>
@@ -509,7 +526,7 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
         </div>
         <div className="cal-summary">
           {view === "week" ? "주 보기" : `${weeks}주 달력 · 이번 달 일정 ${shownCount}건`}
-          {lq ? " (검색 중)" : ""} · ↻는 반복 일정 · 일정을 두 번 누르면 고쳐요 · 빈 곳을 두 번 누르면 새 일정 · 가로 스크롤로 {view === "week" ? "주" : "달"} 넘기기 · {holidayLine}
+          {lq ? " (검색 중)" : ""} · ↻는 반복 일정 · 일정을 두 번 누르면 고쳐요 · 빈 곳을 두 번 누르면 새 일정 · {view === "week" ? "날짜 줄 위에서 휠로 주 넘기기" : "휠로 달 넘기기"} · {holidayLine}
           <button type="button" className="link-btn cal-notify-link" onClick={() => setNotifyOpen(true)}>
             알림 확인
           </button>
@@ -584,13 +601,9 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
           run={run}
           holidayLine={holidayLine}
           onRefreshHolidays={async () => {
-            try {
-              await api.refreshHolidays(stamp());
-              load();
-              return "";
-            } catch (e) {
-              return errorText(e) + " 저장해 둔 공휴일을 그대로 보여 줘요.";
-            }
+            const err = await updateHolidays();
+            load();
+            return err ? `받지 못했어요(${err}). 저장해 둔 공휴일을 그대로 보여 줘요.` : "";
           }}
           onClose={() => setKindsOpen(false)}
         />
@@ -620,7 +633,7 @@ function EventChip({ p, q, picked, style, acts }: { p: Placed; q: string; picked
   const when = o.allDay ? (o.start !== o.end ? `${shortDay(o.start)}~${shortDay(o.end)}` : "종일") : `${o.time}–${o.endTime}`;
   const full =
     [when, o.title, o.kind.name, o.place].filter(Boolean).join(" · ") + (o.done ? " · 완료" : "") + (o.event ? " · 두 번 누르면 고쳐요" : " · 두 번 누르면 원래 화면으로 가요");
-  const cls = ["cal-ev", bar ? "bar" : "dot", p.cutStart ? "cut-s" : "", p.cutEnd ? "cut-e" : "", o.done ? "done" : "", o.event ? "" : "linked", o.task ? "task" : "", picked ? "picked" : ""]
+  const cls = ["cal-ev", bar ? "bar" : "dot", p.cutStart ? "cut-s" : "", p.cutEnd ? "cut-e" : "", o.done ? "done" : "", o.event ? "" : "linked", o.task || o.complaint ? "task" : "", picked ? "picked" : ""]
     .filter(Boolean)
     .join(" ");
   return (
@@ -650,13 +663,13 @@ function EventChip({ p, q, picked, style, acts }: { p: Placed; q: string; picked
         if (e.key === "Enter") {
           e.preventDefault();
           acts.onOpen();
-        } else if (e.key === " " && o.task) {
+        } else if (e.key === " " && (o.task || o.complaint)) {
           e.preventDefault();
           acts.onToggle();
         }
       }}
     >
-      {o.task ? (
+      {o.task || o.complaint ? (
         <button
           type="button"
           tabIndex={-1}
@@ -760,6 +773,17 @@ function WeekView({
   /** 시간 칸 높이: 받은 높이에서 머리 줄과 종일 줄을 뺀 만큼 */
   const bodyH = Math.max(260, height - 40 - Math.max(1, lanes) * 26 - 8);
   const scroller = useRef<HTMLDivElement>(null);
+  /** 시간 칸 오른쪽 스크롤 막대 폭. 위 두 줄도 이만큼 비워 세로선을 맞춰요(0.8.2). */
+  const [bar, setBar] = useState(0);
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const fit = () => setBar(el.offsetWidth - el.clientWidth);
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const [now, setNow] = useState(new Date());
   useEffect(() => {
     const t = window.setInterval(() => setNow(new Date()), 60_000);
@@ -778,7 +802,7 @@ function WeekView({
   };
   return (
     <div className="cal-wk">
-      <div className="cal-wk-head">
+      <div className="cal-wk-head" style={{ paddingRight: bar }}>
         <div className="cal-wk-gutter" />
         {days.map((d) => (
           <div key={d} className={dayCls(d)} onClick={() => onSel(d)} onDoubleClick={() => onNew(d, "")}>
@@ -788,7 +812,7 @@ function WeekView({
           </div>
         ))}
       </div>
-      <div className="cal-wk-allday" style={{ gridTemplateRows: `repeat(${Math.max(1, lanes)}, 24px)` }}>
+      <div className="cal-wk-allday" style={{ gridTemplateRows: `repeat(${Math.max(1, lanes)}, 24px)`, paddingRight: bar }}>
         <div className="cal-wk-gutter cal-wk-alllabel" style={{ gridRow: `1 / span ${Math.max(1, lanes)}` }}>
           종일
         </div>
@@ -1017,7 +1041,7 @@ function QuickRow({
           if (bad === "title") setBad("");
         }}
       />
-      <ChoiceInput name="kind" label="종류" value={kind} options={kinds.filter((k) => !k.system).map((k) => k.name)} stayOnTab onChange={setKind} />
+      <KindPicker kinds={kinds} value={kind} onChange={setKind} />
       <button
         type="button"
         tabIndex={-1}
@@ -1086,10 +1110,6 @@ function EventDialog({
     else save();
   }
 
-  const kindObj = kinds.find((k) => k.name === draft.kind.trim());
-  const kc = kindObj ? kindColor(kindObj, kinds) : null;
-  const userKinds = kinds.filter((k) => !k.system).map((k) => k.name);
-  const sysKind = !!kindObj?.system;
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (isComposing(e)) return;
@@ -1225,11 +1245,8 @@ function EventDialog({
 
           <span className="cal-dlg-label">캘린더</span>
           <div className="cal-dlg-line">
-            <div className="cal-in-kind">
-              <ChoiceInput name="kind" label="종류" value={draft.kind} options={userKinds} invalid={sysKind} onChange={(v) => set("kind", v)} />
-            </div>
-            {kc !== null && <span className="cal-kind-swatch" aria-hidden="true" style={{ background: colorBg(kc) }} />}
-            <span className="cal-dlg-sub">{sysKind ? "앱이 만드는 종류에는 적을 수 없어요" : !kindObj && draft.kind.trim() ? "새 종류로 만들어져요" : ""}</span>
+            <KindPicker kinds={kinds} value={draft.kind} onChange={(v) => set("kind", v)} />
+            <span className="cal-dlg-sub">새 종류는 "관리"에서 만들어요</span>
           </div>
 
           <span className="cal-dlg-label">알림</span>
@@ -1631,11 +1648,119 @@ function NotifyDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
+// ---------- 종류 고르기 ----------
+
+/**
+ * 캘린더 종류를 배지로 보여 주고 목록에서만 골라요(0.8.2 — 아무 글자나 치면 종류가 늘어나서).
+ * 새 종류는 "관리" 창에서 만들어요. 키: Space·↓ 열기, ↑↓ 고르기, Enter·Tab 확정, Esc 닫기.
+ * 닫혀 있을 때의 Enter·Tab은 감싼 줄이 받아요(빠른 입력은 등록, 상세 창은 저장).
+ */
+function KindPicker({ kinds, value, onChange }: { kinds: CalKind[]; value: string; onChange: (name: string) => void }) {
+  const mine = kinds.filter((k) => !k.system);
+  const [open, setOpen] = useState(false);
+  const [hi, setHi] = useState(0);
+  /** 목록 자리(화면 기준). 창 안에서 잘리지 않게 화면에 띄워요. */
+  const [at, setAt] = useState<CSSProperties>({});
+  const box = useRef<HTMLDivElement>(null);
+  const cur = mine.find((k) => k.name === value) ?? mine[0];
+  useEffect(() => {
+    if (cur && cur.name !== value) onChange(cur.name);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cur?.name, value]);
+  useEffect(() => {
+    if (!open) return;
+    const off = (e: MouseEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
+    document.addEventListener("mousedown", off);
+    return () => document.removeEventListener("mousedown", off);
+  }, [open]);
+  const show = () => {
+    setHi(Math.max(0, mine.findIndex((k) => k.name === cur?.name)));
+    const r = box.current?.getBoundingClientRect();
+    if (r) {
+      const h = mine.length * 32 + 40;
+      setAt(r.bottom + h + 8 > window.innerHeight ? { position: "fixed", left: r.left, bottom: window.innerHeight - r.top + 4, top: "auto" } : { position: "fixed", left: r.left, top: r.bottom + 4 });
+    }
+    setOpen(true);
+  };
+  const pick = (k: CalKind) => {
+    onChange(k.name);
+    setOpen(false);
+  };
+  const c = cur ? kindColor(cur, kinds) : 0;
+  return (
+    <div className="cal-kp" ref={box}>
+      <button
+        type="button"
+        name="kind"
+        className="cal-kp-btn"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={"캘린더 종류: " + (cur?.name ?? "")}
+        onClick={() => (open ? setOpen(false) : show())}
+        onKeyDown={(e) => {
+          if (!open) {
+            if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === " ") {
+              e.preventDefault();
+              show();
+            }
+            return;
+          }
+          if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            e.preventDefault();
+            setHi((h) => (h + (e.key === "ArrowDown" ? 1 : -1) + mine.length) % mine.length);
+          } else if (e.key === "Enter" || (e.key === "Tab" && !e.shiftKey) || e.key === " ") {
+            e.preventDefault();
+            if (mine[hi]) pick(mine[hi]);
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            e.stopPropagation();
+            setOpen(false);
+          }
+        }}
+      >
+        <span className="cal-kbadge" style={{ background: colorBg(c), color: colorFg(c) }}>
+          {cur?.name ?? "종류 없음"}
+        </span>
+        <svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {open && (
+        <div className="cal-kp-list" role="listbox" aria-label="캘린더 종류" style={at}>
+          {mine.map((k, i) => {
+            const kc = kindColor(k, kinds);
+            return (
+              <div
+                key={k.id}
+                role="option"
+                aria-selected={i === hi}
+                className="cal-kp-opt"
+                onMouseEnter={() => setHi(i)}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  pick(k);
+                }}
+              >
+                <span className="cal-kbadge" style={{ background: colorBg(kc), color: colorFg(kc) }}>
+                  {k.name}
+                </span>
+                {k.name === cur?.name && <span className="cal-kp-tick" aria-hidden="true">✓</span>}
+              </div>
+            );
+          })}
+          <div className="pin-hint">↑↓ 고르기 · Enter 확정 · 새 종류는 "관리"에서</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---------- 색 단추 ----------
 
 /** 색 단추 하나. 누르면 24색과 "자동"(앱이 만든 종류는 "처음 색")이 펼쳐져요. */
 function ColorButton({ label, value, auto, autoLabel, onPick }: { label: string; value: number; auto: boolean; autoLabel: string; onPick: (i: number | null) => void }) {
   const [open, setOpen] = useState(false);
+  const [at, setAt] = useState<CSSProperties>({});
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -1643,6 +1768,14 @@ function ColorButton({ label, value, auto, autoLabel, onPick }: { label: string;
     document.addEventListener("mousedown", off);
     return () => document.removeEventListener("mousedown", off);
   }, [open]);
+  const toggle = () => {
+    const r = box.current?.getBoundingClientRect();
+    if (r) {
+      const right = window.innerWidth - r.right;
+      setAt(r.bottom + 170 > window.innerHeight ? { position: "fixed", right, bottom: window.innerHeight - r.top + 6, top: "auto" } : { position: "fixed", right, top: r.bottom + 6 });
+    }
+    setOpen((o) => !o);
+  };
   const pick = (i: number | null) => {
     onPick(i);
     setOpen(false);
@@ -1659,16 +1792,20 @@ function ColorButton({ label, value, auto, autoLabel, onPick }: { label: string;
         }
       }}
     >
-      <button type="button" className="btn btn-xs cal-cbtn" aria-haspopup="true" aria-expanded={open} aria-label={`${label} 색: ${COLOR_NAMES[value]}${auto ? " (자동)" : ""}`} onClick={() => setOpen((o) => !o)}>
-        <span className="cal-cbtn-dot" aria-hidden="true" style={{ background: colorBg(value) }} />
-        {COLOR_NAMES[value]}
-        {auto ? " (자동)" : ""}
-        <svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M6 9l6 6 6-6" />
-        </svg>
+      <button
+        type="button"
+        className="cal-cbtn"
+        aria-haspopup="true"
+        aria-expanded={open}
+        aria-label={`${label} 색: ${COLOR_NAMES[value]}${auto ? " (자동)" : ""} — 눌러서 바꾸기`}
+        title={`${COLOR_NAMES[value]}${auto ? " (자동)" : ""}`}
+        onClick={toggle}
+        style={{ background: colorBg(value), color: colorFg(value) }}
+      >
+        {auto && <span aria-hidden="true">A</span>}
       </button>
       {open && (
-        <div className="cal-cpop" role="dialog" aria-label={label + " 색 고르기"}>
+        <div className="cal-cpop" role="dialog" aria-label={label + " 색 고르기"} style={at}>
           <div className="cal-cgrid" role="radiogroup">
             {COLOR_NAMES.map((n, i) => (
               <button

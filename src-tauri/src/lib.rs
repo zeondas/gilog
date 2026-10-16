@@ -522,6 +522,7 @@ pub fn run() {
             calendar::set_cal_kind_visible,
             calendar::delete_cal_kind,
             calendar::refresh_holidays,
+            calendar::save_holidays,
             calendar::set_reminders,
             calendar::test_notification,
             calendar::notify_status,

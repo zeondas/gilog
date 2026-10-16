@@ -48,6 +48,83 @@ export function stamp(d = new Date()): string {
   return `${todayStr(d)} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+// ---------- 공휴일 받기 (0.8.2) ----------
+// 사무실 망은 회사 프록시 자동 설정을 써서, 앱(Rust)이 직접 받으면 막혔어요(사용자: Edge에서는 주소가 열림).
+// 그래서 화면 쪽(Edge와 같은 인터넷 길)에서 먼저 받고, 안 되면 다른 곳 → 마지막으로 앱이 직접 받아요.
+
+const HOLIDAY_URL = "https://holidays.hyunbin.page/basic.json";
+/** 같은 자료의 공용 배포처(jsDelivr). all.js가 연도별 파일 이름을 알려 줘요. */
+const CDN = "https://cdn.jsdelivr.net/npm/@hyunbinseo/holidays-kr@5/dist/";
+
+type HolidayList = { date: string; name: string }[];
+
+function fromMap(m: Record<string, string | string[]>): HolidayList {
+  return Object.entries(m).flatMap(([date, v]) => (Array.isArray(v) ? v : [v]).map((name) => ({ date, name })));
+}
+
+async function getText(url: string): Promise<string> {
+  const ctl = new AbortController();
+  const t = window.setTimeout(() => ctl.abort(), 15_000);
+  try {
+    const r = await fetch(url, { signal: ctl.signal, cache: "no-store" });
+    if (!r.ok) throw new Error(`응답 ${r.status}`);
+    return await r.text();
+  } finally {
+    window.clearTimeout(t);
+  }
+}
+
+/** 연도별 파일(예: 2026-CCnV5XUt.js) 안의 "2026-01-01": ["1월 1일"] 줄을 읽어요. */
+export function parseYearFile(js: string): HolidayList {
+  const out: HolidayList = [];
+  for (const m of js.matchAll(/"(\d{4}-\d{2}-\d{2})":\s*\[([^\]]*)\]/g)) {
+    for (const n of m[2].matchAll(/"([^"]+)"/g)) out.push({ date: m[1], name: n[1] });
+  }
+  return out;
+}
+
+const why = (e: unknown) => (e instanceof Error ? (e.name === "AbortError" ? "시간 초과" : e.message || e.name) : String(e));
+
+/**
+ * 공휴일을 받아 저장해요. 성공하면 "", 실패하면 곳마다 실패 이유를 이어 붙인 글을 돌려줘요.
+ * 1) 공휴일 자료 사이트, 2) 공용 배포처(jsDelivr) — 둘 다 화면 쪽에서, 3) 앱이 직접.
+ */
+export async function updateHolidays(): Promise<string> {
+  const fails: string[] = [];
+  try {
+    const list = fromMap(JSON.parse(await getText(HOLIDAY_URL)));
+    if (list.length) {
+      await api.saveHolidays(list, stamp());
+      return "";
+    }
+    fails.push("자료 사이트: 비어 있음");
+  } catch (e) {
+    fails.push("자료 사이트: " + why(e));
+  }
+  try {
+    const all = await getText(CDN + "all.js");
+    const files = [...all.matchAll(/from\s*"\.\/(\d{4}-[^"]+\.js)"/g)].map((m) => m[1]);
+    const thisYear = new Date().getFullYear();
+    const want = files.filter((f) => Number(f.slice(0, 4)) >= thisYear - 1);
+    const lists = await Promise.all(want.map(async (f) => parseYearFile(await getText(CDN + f))));
+    const list = lists.flat();
+    if (list.length) {
+      await api.saveHolidays(list, stamp());
+      return "";
+    }
+    fails.push("배포처: 비어 있음");
+  } catch (e) {
+    fails.push("배포처: " + why(e));
+  }
+  try {
+    await api.refreshHolidays(stamp());
+    return "";
+  } catch (e) {
+    fails.push("앱 직접: " + (e === "offline" ? "연결 안 됨" : String(e)));
+  }
+  return fails.join(" · ");
+}
+
 let lastTry = 0;
 
 /**
@@ -61,8 +138,7 @@ export async function refreshHolidaysDaily(force = false): Promise<boolean> {
     const d = await api.calendarData();
     if (!force && d.holidaysAt.slice(0, 10) === todayStr()) return false;
     lastTry = Date.now();
-    await api.refreshHolidays(stamp());
-    return true;
+    return (await updateHolidays()) === "";
   } catch {
     return false;
   }

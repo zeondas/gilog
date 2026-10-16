@@ -112,6 +112,12 @@ pub async fn refresh_holidays(state: State<'_, AppState>, now: String) -> Result
     with_store(&state, |s| s.replace_holidays(&list, &now))
 }
 
+/// 화면(Edge와 같은 인터넷 길 — 회사 프록시 자동 설정을 따라가요)이 받아 온 공휴일을 저장해요(0.8.2).
+#[tauri::command]
+pub fn save_holidays(state: State<AppState>, list: Vec<Holiday>, now: String) -> Result<Vec<Holiday>, String> {
+    with_store(&state, |s| s.replace_holidays(&list, &now))
+}
+
 // ---------- 알림 ----------
 
 /// 화면이 보내는 알림 한 건. at은 울릴 때(1970년부터 밀리초, PC 시각)예요.

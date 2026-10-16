@@ -12,7 +12,7 @@ import TasksScreen from "./TasksScreen";
 import { applyNotifyMode, refreshHolidaysDaily, syncReminders } from "./reminders";
 import { SCREENS, SETTINGS, ScreenId } from "./screens";
 
-const VERSION = "0.8.1";
+const VERSION = "0.8.2";
 
 export default function App() {
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);

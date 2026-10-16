@@ -4780,8 +4780,24 @@ body.col-dragging * {
 }
 
 .cal-cbtn {
-  gap: 6px;
-  min-width: 128px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  corner-shape: round;
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--line);
+  font-size: 10.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cal-cbtn:hover,
+.cal-cbtn[aria-expanded="true"] {
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
 }
 
 .cal-cbtn-dot {
@@ -4894,4 +4910,78 @@ body.col-dragging * {
 .cal-notify-link {
   margin-left: 8px;
   font-size: 12px;
+}
+
+/* ---------- 캘린더 0.8.2 ---------- */
+/* 종류 고르기: 배지를 눌러 목록에서만 골라요 */
+.cal-kp {
+  position: relative;
+  min-width: 0;
+}
+
+.cal-kp-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  height: var(--size-input);
+  padding: 0 8px 0 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.cal-kp-btn:focus-visible,
+.cal-kp-btn[aria-expanded="true"] {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.cal-kp-btn .cal-kbadge {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cal-dlg-grid .cal-kp-btn {
+  height: 32px;
+}
+
+.cal-kp-list {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-card), 0 12px 32px rgba(20, 28, 38, 0.18);
+}
+
+.cal-kp-opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.cal-kp-opt[aria-selected="true"] {
+  background: var(--surface-band);
+}
+
+.cal-kp-tick {
+  margin-left: auto;
+  color: var(--accent);
+  font-weight: 700;
 }
