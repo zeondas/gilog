@@ -27,12 +27,13 @@ import {
   defaultWidths,
   expandType,
   FILTER_KEYS,
+  fitWidths,
   FilterKey,
   filterValues,
   gridTemplate,
   isUrgent,
   matches,
-  minWidth,
+  maxWidthOf,
   NO_FILTERS,
   passes,
   readStatusFilter,
@@ -66,6 +67,9 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
   const [list, setList] = useState<Complaint[] | null>(null);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [widths, setWidths] = useState<(number | null)[]>(defaultWidths());
+  // 표가 쓸 수 있는 폭. 저장된 열 너비가 이보다 넓으면 비율대로 줄여 보여요(가로 스크롤 없음).
+  const tableRef = useRef<HTMLDivElement>(null);
+  const [avail, setAvail] = useState(0);
   const [q, setQ] = useState("");
   // 민원인을 초성으로 찾을 때 입력기가 자음을 묶지 않게 해요.
   const qGuard = useJamoGuard(setQ);
@@ -182,8 +186,20 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.status, statuses, list]);
 
-  const tableStyle = { "--cm-cols": gridTemplate(widths), minWidth: minWidth(widths) + 2 } as CSSProperties;
+  const shownWidths = fitWidths(widths, avail);
+  const tableStyle = { "--cm-cols": gridTemplate(shownWidths) } as CSSProperties;
   const memoOf = all.find((c) => c.id === memoId) ?? null;
+
+  // 표 안쪽 폭을 재요(창 크기를 바꾸면 다시).
+  useEffect(() => {
+    const el = tableRef.current;
+    if (!el) return;
+    const measure = () => setAvail(el.clientWidth);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [list === null]);
 
   if (!list) {
     return (
@@ -232,9 +248,10 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
 
       {note && <p className="note" role="status">{note}</p>}
 
-      <div className="cm" role="table" aria-label="민원 목록" style={tableStyle}>
+      <div className="cm" role="table" aria-label="민원 목록" style={tableStyle} ref={tableRef}>
         <HeadRow
-          widths={widths}
+          widths={shownWidths}
+          avail={avail}
           onResize={setWidths}
           onResized={saveWidths}
           onResetWidths={() => saveWidths(defaultWidths())}
@@ -343,6 +360,7 @@ function same(c: Complaint, i: ComplaintInput) {
 
 function HeadRow({
   widths,
+  avail,
   onResize,
   onResized,
   onResetWidths,
@@ -352,6 +370,7 @@ function HeadRow({
   dropdown,
 }: {
   widths: (number | null)[];
+  avail: number;
   onResize: (w: (number | null)[]) => void;
   onResized: (w: (number | null)[]) => void;
   onResetWidths: () => void;
@@ -371,10 +390,12 @@ function HeadRow({
     // 남는 폭을 나눠 갖는 열도 끌면 지금 보이는 폭에서 시작해요.
     const base = widths.map((w, j) => w ?? (row.children[j] as HTMLElement).getBoundingClientRect().width);
     const startX = e.clientX;
+    // 표 폭을 넘게 넓히지 않아요(가로 스크롤이 생기지 않게).
+    const max = avail > 0 ? maxWidthOf(widths, i, avail, base) : Infinity;
     let last = widths;
     const move = (ev: MouseEvent) => {
       const next = widths.slice();
-      next[i] = Math.max(COL_MIN, Math.round(base[i] + ev.clientX - startX));
+      next[i] = Math.min(max, Math.max(COL_MIN, Math.round(base[i] + ev.clientX - startX)));
       last = next;
       onResize(next);
     };

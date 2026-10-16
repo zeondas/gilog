@@ -68,37 +68,62 @@ export type ColKey =
   | "no" | "intake" | "received" | "ctype" | "area" | "place" | "person"
   | "phone" | "body" | "action" | "due" | "status" | "memo";
 
-/** 사양서 순서 13열. w가 null인 열(내용·조치내용)은 남는 폭을 나눠 가져요(최소 220px). */
+/**
+ * 사양서 순서 13열. w가 null인 열(내용·조치내용)은 남는 폭을 반씩 나눠 가져요.
+ * 기본 폭은 1600×900 창 기준(2026-10-17 사용자 1안, 시안 ComplaintCols.dc.html): 열마다 글 폭에 맞춰 줄이고
+ * 위치·내용·조치내용의 긴 글은 칸 안에서 다음 줄로 넘겨요. 가로 스크롤이 없어야 해요.
+ */
 export const COLUMNS: { key: ColKey; label: string; w: number | null }[] = [
-  { key: "no", label: "연번", w: 52 },
-  { key: "intake", label: "접수유형", w: 108 },
-  { key: "received", label: "접수일", w: 106 },
-  { key: "ctype", label: "민원유형", w: 100 },
-  { key: "area", label: "지역", w: 76 },
-  { key: "place", label: "위치", w: 132 },
-  { key: "person", label: "민원인", w: 76 },
-  { key: "phone", label: "연락처", w: 128 },
+  { key: "no", label: "연번", w: 44 },
+  { key: "intake", label: "접수유형", w: 92 },
+  { key: "received", label: "접수일", w: 96 },
+  { key: "ctype", label: "민원유형", w: 84 },
+  { key: "area", label: "지역", w: 64 },
+  { key: "place", label: "위치", w: 116 },
+  { key: "person", label: "민원인", w: 60 },
+  { key: "phone", label: "연락처", w: 120 },
   { key: "body", label: "내용", w: null },
   { key: "action", label: "조치내용", w: null },
-  { key: "due", label: "마감일", w: 150 },
-  { key: "status", label: "상태", w: 100 },
-  { key: "memo", label: "메모", w: 48 },
+  { key: "due", label: "마감일", w: 130 },
+  { key: "status", label: "상태", w: 72 },
+  { key: "memo", label: "메모", w: 40 },
 ];
 
-export const FLEX_MIN = 220;
+/** 내용·조치내용의 가장 좁은 폭 */
+export const FLEX_MIN = 140;
 export const COL_MIN = 40;
 
 export const defaultWidths = () => COLUMNS.map((c) => c.w);
 
-/** 저장해 둔 열 너비를 읽어요. 모양이 맞지 않으면 처음 폭이에요. */
+/** 0.6.x~0.9.x의 처음 폭. "열 너비 초기화"로 이 값이 저장돼 있으면 새 처음 폭으로 읽어요. */
+const OLD_DEFAULT = [52, 108, 106, 100, 76, 132, 76, 128, null, null, 150, 100, 48];
+
+/** 저장해 둔 열 너비를 읽어요. 모양이 맞지 않거나 예전 처음 폭이면 새 처음 폭이에요. */
 export function readWidths(raw: string | null): (number | null)[] {
   try {
     const v = JSON.parse(raw ?? "");
-    if (Array.isArray(v) && v.length === COLUMNS.length && v.every((x) => x === null || (typeof x === "number" && x >= COL_MIN))) return v;
+    if (Array.isArray(v) && v.length === COLUMNS.length && v.every((x) => x === null || (typeof x === "number" && x >= COL_MIN))) {
+      if (v.every((x, i) => x === OLD_DEFAULT[i])) return defaultWidths();
+      return v;
+    }
   } catch {
     /* 처음 폭으로 */
   }
   return defaultWidths();
+}
+
+/**
+ * 표 폭(avail)에 맞춰 보이는 폭을 정해요. 고정 열 + 내용·조치내용 최소 폭이 표 폭을 넘으면
+ * 고정 열을 같은 비율로 줄여요(가장 좁게 COL_MIN). 저장된 값은 그대로 두어 창을 넓히면 다시 원래 폭이에요.
+ */
+export function fitWidths(ws: (number | null)[], avail: number): (number | null)[] {
+  if (!(avail > 0)) return ws;
+  const flex = ws.filter((w) => w === null).length * FLEX_MIN;
+  const fixed = ws.reduce<number>((a, w) => a + (w ?? 0), 0);
+  if (fixed + flex <= avail) return ws;
+  const room = Math.max(0, avail - flex);
+  const k = room / fixed;
+  return ws.map((w) => (w === null ? null : Math.max(COL_MIN, Math.floor(w * k))));
 }
 
 export function gridTemplate(ws: (number | null)[]): string {
@@ -106,6 +131,12 @@ export function gridTemplate(ws: (number | null)[]): string {
 }
 
 export const minWidth = (ws: (number | null)[]) => ws.reduce<number>((a, w) => a + (w ?? FLEX_MIN), 0);
+
+/** 열 하나를 끌어 넓힐 수 있는 가장 큰 폭(다른 열과 내용·조치내용 최소 폭을 빼고) */
+export function maxWidthOf(ws: (number | null)[], i: number, avail: number, base: number[]): number {
+  const others = ws.reduce<number>((a, w, j) => a + (j === i ? 0 : w === null ? FLEX_MIN : base[j]), 0);
+  return Math.max(COL_MIN, Math.floor(avail - others));
+}
 
 // ---------- 열 필터 (2026-10-17 사용자 확정, 시안 ComplaintFilter.dc.html) ----------
 
