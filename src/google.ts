@@ -11,7 +11,7 @@
 //   google.state  — giLog 캘린더 id, 내보낸 일정 목록(우리 이름 → 구글 id·내용 지문), 마지막 성공·실패
 //   google.opts   — 세 가지 켜고 끄기
 import { invoke } from "@tauri-apps/api/core";
-import { api, CalEvent, CalKind, changeHooks, Complaint, inApp, Repeat, Task } from "./api";
+import { api, CalEvent, CalKind, changeHooks, Complaint, inApp, Repeat, Task, TaskList } from "./api";
 import { linesToText, parseLines } from "./bullets";
 import { addDays, kindColor } from "./calendar";
 import { DONE_STATUS, loadSettings } from "./settingsStore";
@@ -22,7 +22,6 @@ import { stamp } from "./reminders";
 /** 캘린더는 "앱이 만든 캘린더만", 할 일은 구글 할 일 전체(앱이 만든 "기Log" 목록만 만져요 — 구글에 더 좁은 권한이 없어요). */
 const SCOPE = "https://www.googleapis.com/auth/calendar.app.created https://www.googleapis.com/auth/tasks";
 const TASKS_API = "https://tasks.googleapis.com/tasks/v1";
-const TASK_LIST_NAME = "기Log";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const API = "https://www.googleapis.com/calendar/v3";
 const TZ = "Asia/Seoul";
@@ -37,7 +36,7 @@ export type GClient = { id: string; secret: string };
 type GToken = { refresh: string; access: string; exp: number };
 type GItem = { id: string; h: string };
 /** 구글 할 일 하나: 마지막으로 보낸 완료 상태(done)를 기억해 구글에서 체크한 것을 알아봐요. prev는 민원의 완료 전 상태예요. */
-type TItem = { id: string; h: string; done: boolean; parent: string; prev?: string };
+type TItem = { id: string; h: string; done: boolean; parent: string; list?: string; prev?: string };
 export type GState = {
   calendarId: string;
   items: Record<string, GItem>;
@@ -301,6 +300,18 @@ export async function disconnectGoogle(removeEvents: boolean): Promise<string> {
       warn = "구글의 giLog 캘린더를 지우지 못했어요. 구글 캘린더에서 직접 지워 주세요.";
     }
   }
+  if (removeEvents) {
+    // 구글 할 일은 사용자의 목록(민원·행정업무 등)에 들어 있어서, 기Log가 넣은 것만 하나씩 지워요.
+    try {
+      for (const it of Object.values(s.titems ?? {})) {
+        const l = it.list || s.listId;
+        if (l) await gapi("DELETE", `${tasksPath(l)}/${encodeURIComponent(it.id)}`, undefined, TASKS_API);
+      }
+      if (s.listId) await gapi("DELETE", `/users/@me/lists/${encodeURIComponent(s.listId)}`, undefined, TASKS_API);
+    } catch {
+      warn = (warn ? warn + " " : "") + "구글 할 일의 일부를 지우지 못했어요.";
+    }
+  }
   if (t?.refresh) {
     await http("POST", "https://oauth2.googleapis.com/revoke", { "Content-Type": "application/x-www-form-urlencoded" }, form({ token: t.refresh })).catch(() => {});
   }
@@ -434,21 +445,25 @@ export function desired(src: { kinds: CalKind[]; events: CalEvent[]; complaints:
 
 // ---------- 구글 할 일 (할 일 마감·민원 마감, 사용자 2026-10-17: 마감 체크는 구글 할 일과 맞춰요) ----------
 
-/** 구글 할 일로 보낼 것 하나 */
-export type GTaskWant = { title: string; notes: string; due: string; done: boolean; parentKey: string; prev?: string };
+/** 구글 할 일로 보낼 것 하나. listName은 들어갈 구글 할 일 목록 이름(기Log 할 일 목록 이름과 같아요). */
+export type GTaskWant = { title: string; notes: string; due: string; done: boolean; parentKey: string; listName: string; prev?: string };
 
 /** 완료한 것은 마감이 이만큼 안쪽이면 구글에 체크된 채로 남겨요(할 일 목록의 "완료됨"과 같은 생각). */
 const DONE_KEEP_DAYS = 30;
 
-/** 지금 구글 할 일에 있어야 할 것. 위 항목이 먼저 오게 늘어놓아요(하위 항목은 위 항목 아래에 넣어요). */
-export function desiredTasks(src: { complaints: Complaint[]; tasks: Task[] }, opts: GOpts, today: string): Map<string, GTaskWant> {
+/**
+ * 지금 구글 할 일에 있어야 할 것. 위 항목이 먼저 오게 늘어놓아요(하위 항목은 위 항목 아래에 넣어요).
+ * 기Log 할 일 목록과 같은 이름의 구글 할 일 목록에 넣어요(사용자 2026-10-17). 민원은 기Log의 "민원" 목록 이름으로.
+ */
+export function desiredTasks(src: { complaints: Complaint[]; tasks: Task[]; lists: TaskList[] }, opts: GOpts, today: string): Map<string, GTaskWant> {
   const out = new Map<string, GTaskWant>();
   const keepFrom = addDays(today, -DONE_KEEP_DAYS);
+  const listName = new Map(src.lists.map((l) => [l.id, l.name]));
   if (opts.tasks) {
     const byId = new Map(src.tasks.map((t) => [t.id, t]));
     const wanted = (t: Task) => !!t.due && (!t.done || t.due >= keepFrom);
-    const top = src.tasks.filter((t) => t.parent === null);
-    const subs = src.tasks.filter((t) => t.parent !== null);
+    const top = src.tasks.filter((t) => t.parent === null && listName.has(t.list));
+    const subs = src.tasks.filter((t) => t.parent !== null && listName.has(t.list));
     const inc = new Set<number>();
     for (const t of top) if (wanted(t) || subs.some((c) => c.parent === t.id && wanted(c))) inc.add(t.id);
     const body = (t: Task, parentKey: string): GTaskWant => ({
@@ -457,6 +472,7 @@ export function desiredTasks(src: { complaints: Complaint[]; tasks: Task[] }, op
       due: t.due,
       done: t.done,
       parentKey,
+      listName: listName.get(t.list)!,
     });
     for (const t of top) if (inc.has(t.id)) out.set("t" + t.id, body(t, ""));
     for (const c of subs) {
@@ -468,11 +484,12 @@ export function desiredTasks(src: { complaints: Complaint[]; tasks: Task[] }, op
     }
   }
   if (opts.complaints) {
+    const name = src.lists.find((l) => l.builtin)?.name ?? "민원";
     for (const c of src.complaints) {
       const done = c.status === DONE_STATUS;
       if (!c.due || (done && c.due < keepFrom)) continue;
       // 민원은 제목(접수유형·위치)만 보내요. 민원인 이름·연락처·내용·조치내용·메모는 보내지 않아요.
-      out.set("c" + c.id, { title: complaintGoogleTitle(c), notes: "", due: c.due, done, parentKey: "", prev: done ? undefined : c.status });
+      out.set("c" + c.id, { title: complaintGoogleTitle(c), notes: "", due: c.due, done, parentKey: "", listName: name, prev: done ? undefined : c.status });
     }
   }
   return out;
@@ -486,18 +503,26 @@ const taskBody = (w: GTaskWant) => ({
   status: w.done ? "completed" : "needsAction",
 });
 
-/** 구글 할 일의 "기Log" 목록이 있으면 그 id, 없으면 새로 만들어요. */
-async function ensureList(s: GState): Promise<string> {
-  if (s.listId) {
-    const r = await gapi("GET", `/users/@me/lists/${encodeURIComponent(s.listId)}`, undefined, TASKS_API);
-    if (r.status === 200) return s.listId;
-    s.titems = {};
+const tasksPath = (list: string) => `/lists/${encodeURIComponent(list)}/tasks`;
+
+/** 구글 할 일 목록 이름 → id. 없는 이름은 새로 만들어요(같은 이름이 여럿이면 첫 것). */
+async function ensureLists(names: Set<string>): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  let page = "";
+  for (let i = 0; i < 20; i++) {
+    const r = await gapi("GET", `/users/@me/lists?maxResults=100${page ? "&pageToken=" + encodeURIComponent(page) : ""}`, undefined, TASKS_API);
+    for (const l of (r.json.items as { id: string; title: string }[]) ?? []) if (!out.has(l.title)) out.set(l.title, l.id);
+    page = String(r.json.nextPageToken ?? "");
+    if (!page) break;
   }
-  const r = await gapi("POST", "/users/@me/lists", { title: TASK_LIST_NAME }, TASKS_API);
-  const id = String(r.json.id ?? "");
-  if (!id) throw new Error("구글 할 일 목록을 만들지 못했어요");
-  s.listId = id;
-  return id;
+  for (const n of names) {
+    if (out.has(n)) continue;
+    const r = await gapi("POST", "/users/@me/lists", { title: n }, TASKS_API);
+    const id = String(r.json.id ?? "");
+    if (!id) throw new Error("구글 할 일 목록을 만들지 못했어요");
+    out.set(n, id);
+  }
+  return out;
 }
 
 async function listRemoteTasks(list: string): Promise<Map<string, { done: boolean }>> {
@@ -505,7 +530,8 @@ async function listRemoteTasks(list: string): Promise<Map<string, { done: boolea
   let page = "";
   for (let i = 0; i < 50; i++) {
     const q = `?maxResults=100&showCompleted=true&showHidden=true${page ? "&pageToken=" + encodeURIComponent(page) : ""}`;
-    const r = await gapi("GET", `/lists/${encodeURIComponent(list)}/tasks${q}`, undefined, TASKS_API);
+    const r = await gapi("GET", tasksPath(list) + q, undefined, TASKS_API);
+    if (r.status === 404) break; // 목록을 구글에서 지웠어요
     for (const it of (r.json.items as { id: string; status?: string }[]) ?? []) out.set(it.id, { done: it.status === "completed" });
     page = String(r.json.nextPageToken ?? "");
     if (!page) break;
@@ -516,21 +542,30 @@ async function listRemoteTasks(list: string): Promise<Map<string, { done: boolea
 /** 이벤트: 구글에서 체크한 것을 기Log에 넣었어요. 열려 있는 화면이 자료를 다시 읽어요. */
 export const REMOTE_CHANGE = "gilog-google-change";
 
+/** 보낸 항목이 들어 있는 구글 목록 (0.9.2에서 "기Log" 목록에 넣은 것은 list가 없어요) */
+const itemList = (s: GState, it: TItem) => it.list || s.listId;
+
 /**
  * 구글에서 체크하거나 푼 것을 기Log에 넣어요. 기Log에서도 그 사이에 바꿨으면 기Log 쪽을 따라요.
+ * 구글 목록에는 사용자가 직접 만든 할 일도 있으니, 기Log가 보낸 것만 봐요(다른 것은 건드리지 않아요).
  * 넣은 것이 있으면 true예요.
  */
-async function pullTaskChecks(s: GState, list: string, src: { complaints: Complaint[]; tasks: Task[] }, full: boolean): Promise<boolean> {
-  const remote = await listRemoteTasks(list);
+async function pullTaskChecks(s: GState, src: { complaints: Complaint[]; tasks: Task[] }, full: boolean): Promise<boolean> {
   const today = todayStr();
   let changed = false;
   let firstOpen = "";
+  const remotes = new Map<string, Map<string, { done: boolean }>>();
+  for (const it of Object.values(s.titems)) {
+    const l = itemList(s, it);
+    if (l && !remotes.has(l)) remotes.set(l, await listRemoteTasks(l));
+  }
   for (const [k, it] of Object.entries(s.titems)) {
-    const r = remote.get(it.id);
+    const r = remotes.get(itemList(s, it))?.get(it.id);
     if (!r) {
       delete s.titems[k]; // 구글에서 지웠어요 → 다시 보내요
       continue;
     }
+    if (full) it.h = "";
     if (r.done === it.done) continue;
     const id = Number(k.slice(1));
     if (k[0] === "t") {
@@ -549,48 +584,52 @@ async function pullTaskChecks(s: GState, list: string, src: { complaints: Compla
     }
     it.done = r.done;
   }
-  if (full) {
-    // 기Log가 모르는 구글 할 일은 지워요(기Log 목록 안에서만).
-    const known = new Set(Object.values(s.titems).map((v) => v.id));
-    for (const id of remote.keys()) if (!known.has(id)) await gapi("DELETE", `/lists/${encodeURIComponent(list)}/tasks/${encodeURIComponent(id)}`, undefined, TASKS_API);
-    for (const v of Object.values(s.titems)) v.h = "";
-  }
   return changed;
 }
 
-async function pushTasks(s: GState, list: string, want: Map<string, GTaskWant>, save: () => Promise<unknown>): Promise<void> {
-  const base = `/lists/${encodeURIComponent(list)}/tasks`;
+async function pushTasks(s: GState, want: Map<string, GTaskWant>, save: () => Promise<unknown>): Promise<void> {
+  const ids = await ensureLists(new Set([...want.values()].map((w) => w.listName)));
   let n = 0;
+  const drop = async (it: TItem) => {
+    const l = itemList(s, it);
+    if (l) await gapi("DELETE", `${tasksPath(l)}/${encodeURIComponent(it.id)}`, undefined, TASKS_API);
+  };
   // 지울 것 먼저(하위 항목이 위 항목과 함께 지워져도 괜찮게 404는 넘겨요).
   for (const k of Object.keys(s.titems)) {
     if (want.has(k)) continue;
-    await gapi("DELETE", `${base}/${encodeURIComponent(s.titems[k].id)}`, undefined, TASKS_API);
+    await drop(s.titems[k]);
     delete s.titems[k];
     if (++n % 10 === 0) await save();
   }
   for (const [k, w] of want) {
+    const list = ids.get(w.listName)!;
     const parent = w.parentKey ? s.titems[w.parentKey]?.id ?? "" : "";
     const body = taskBody(w);
-    const h = fingerprint({ ...body, parent });
+    const h = fingerprint({ ...body, parent, list });
     const cur = s.titems[k];
-    if (cur && cur.h === h) {
+    if (cur && cur.h === h && itemList(s, cur) === list) {
       cur.prev = w.prev ?? cur.prev;
       continue;
     }
     let id = "";
-    if (cur && cur.parent === parent) {
-      const r = await gapi("PATCH", `${base}/${encodeURIComponent(cur.id)}`, body, TASKS_API);
+    if (cur && cur.parent === parent && itemList(s, cur) === list) {
+      const r = await gapi("PATCH", `${tasksPath(list)}/${encodeURIComponent(cur.id)}`, body, TASKS_API);
       if (r.status === 200) id = cur.id;
     } else if (cur) {
-      // 위 항목이 바뀌었어요 → 지우고 새로 넣어요.
-      await gapi("DELETE", `${base}/${encodeURIComponent(cur.id)}`, undefined, TASKS_API);
+      // 목록이나 위 항목이 바뀌었어요 → 지우고 새로 넣어요.
+      await drop(cur);
     }
     if (!id) {
-      const r = await gapi("POST", base + (parent ? `?parent=${encodeURIComponent(parent)}` : ""), body, TASKS_API);
+      const r = await gapi("POST", tasksPath(list) + (parent ? `?parent=${encodeURIComponent(parent)}` : ""), body, TASKS_API);
       id = String(r.json.id ?? "");
     }
-    if (id) s.titems[k] = { id, h, done: w.done, parent, prev: w.prev ?? cur?.prev };
+    if (id) s.titems[k] = { id, h, done: w.done, parent, list, prev: w.prev ?? cur?.prev };
     if (++n % 10 === 0) await save();
+  }
+  // 0.9.2가 만든 "기Log" 목록은 다 옮겼으면 지워요(그 목록에는 기Log가 넣은 것만 있어요).
+  if (s.listId && !Object.values(s.titems).some((it) => !it.list)) {
+    await gapi("DELETE", `/users/@me/lists/${encodeURIComponent(s.listId)}`, undefined, TASKS_API);
+    s.listId = "";
   }
 }
 
@@ -669,18 +708,17 @@ async function runSync(forceFull: boolean): Promise<void> {
     await save();
     // 구글 할 일: 먼저 구글에서 체크한 것을 받아 오고, 그다음 기Log 내용을 보내요.
     const needTasks = opts.tasks || opts.complaints || Object.keys(s.titems).length > 0;
-    let list = "";
+    let tasksOk = false;
     // 구글 할 일이 안 돼도(권한이 없는 예전 로그인 등) 캘린더는 보내고, 이유는 마지막에 알려요.
     let taskErr: unknown = null;
     if (needTasks) {
       try {
-        list = await ensureList(s);
         const first = { complaints: await api.complaints(), tasks: (await api.tasksData()).tasks };
-        if (await pullTaskChecks(s, list, first, full)) window.dispatchEvent(new Event(REMOTE_CHANGE));
+        if (await pullTaskChecks(s, first, full)) window.dispatchEvent(new Event(REMOTE_CHANGE));
         await save();
+        tasksOk = true;
       } catch (e) {
         taskErr = e;
-        list = "";
       }
     }
     const [cd, complaints, td] = await Promise.all([api.calendarData(), api.complaints(), api.tasksData()]);
@@ -729,9 +767,9 @@ async function runSync(forceFull: boolean): Promise<void> {
       delete s.items[k];
       if (++n % 10 === 0) await save();
     }
-    if (list) {
+    if (tasksOk) {
       try {
-        await pushTasks(s, list, desiredTasks({ complaints, tasks: td.tasks }, opts, todayStr()), save);
+        await pushTasks(s, desiredTasks({ complaints, tasks: td.tasks, lists: td.lists }, opts, todayStr()), save);
       } catch (e) {
         taskErr = e;
       }
@@ -807,7 +845,7 @@ export function scheduleGoogleSync(): void {
 }
 
 /** 구글로 나가는 것을 바꾸는 명령들이에요(보기·색 칸 숨기기 등은 빼요). */
-const CHANGES = /^(add_event|update_event|delete_event|set_cal_kind_color|delete_cal_kind|add_complaint|update_complaint|set_complaint_status|delete_complaint|add_task|update_task|set_task_done|delete_task|delete_task_list)$/;
+const CHANGES = /^(add_event|update_event|delete_event|set_cal_kind_color|delete_cal_kind|add_complaint|update_complaint|set_complaint_status|delete_complaint|add_task|update_task|set_task_done|delete_task|delete_task_list|rename_task_list)$/;
 
 function onDataChange(cmd: string) {
   if (CHANGES.test(cmd)) scheduleGoogleSync();
