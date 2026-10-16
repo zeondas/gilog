@@ -191,6 +191,22 @@
 - **위쪽 단추 앞의 해 모양(톱니) 아이콘을 지워요**(사용자 1안: 캘린더 "관리"는 0.8.2에서 지웠고, 다른 화면 것은 이 정리 때 함께). 민원대장 "분류 관리" 등 `M12 2v3M12 19v3…` 모양 아이콘이 있는 단추를 찾아 지워요.
 - **배지 안의 동그라미 점을 모두 없애요**(2026-10-16 사용자 지시: "나중에 다 없애는 걸로"). 예: 민원대장 상태 배지 "● 접수". 이 정리 때 모든 화면에서 함께 빼요. 캘린더 종류 칸(0.8.3 1안)의 색 점도 이때 같이 봐요.
 
+### 공통 — 글자 가운데 맞춤 (2026-10-17 사용자 확정: "제안대로", **다음 빌드에 넣어요** — 어느 기능 세션이든 다음에 빌드하는 세션이 함께 넣어요)
+비교 시안(지금 모습 ↔ 수정안 10배 확대): https://claude.ai/artifact/6f6FBiSo7unEMt8qJzE5SQ · 재는 도구: `tools/align/`(README 참고, 시안 CSS는 `tools/align/proposal.css`, 창 맞추기는 `snap.js`)
+- 기준: 1920×1080·배율 100%에서 박스·배지·버튼·입력칸 안쪽의 위 여백 − 아래 여백(칠해진 글자 기준)이 **0 또는 −1**(남는 1px은 아래, 사용자 1안). 지금 618곳 중 54% → 시안 82%.
+- 원인: 사무실 PC에는 Pretendard가 없어 Noto Sans KR로 보였어요(한글 가운데가 줄 가운데보다 0.06em 아래 → 1px 처짐). 또 줄 높이가 18.2px처럼 소수점이라 놓인 자리마다 반올림이 달라 같은 배지가 줄마다 위아래로 바뀌었어요.
+- 넣을 것:
+  1. **Pretendard를 앱에 넣어요**(사용자 2안). npm `pretendard@1.3.9`의 `dist/web/variable/woff2/PretendardVariable.woff2`와 라이선스(OFL)를 `src/fonts/`에 두고 `tokens.css` 맨 위에 `@font-face { font-family: Pretendard; src: url(./fonts/PretendardVariable.woff2) format("woff2-variations"); font-weight: 45 920; font-display: block; }`. 글꼴을 다 읽은 뒤 `measureBullets`가 다시 재는지 확인(머릿기호 위치).
+  2. **줄 높이를 정수 px로**: `body { line-height: round(1.4em, 1px) }`(13px → 18px), app.css의 다른 숫자 line-height 14곳도 같은 꼴 `round(Xem, 1px)`로(목록은 `proposal.css`).
+  3. **입력칸 글자 1px 올리기**: `.cell-input, .input, .jday-in, .td-due-input { padding-bottom: 2px }`(app.css 맨 끝), 검색칸 `.search input { padding: 0 0 1px; height: 20px }`. `.td-add-title`은 그대로.
+  4. **민원대장 여러 줄 칸 줄 간격** `.cm-bullets { gap: 4px }`(3 → 4, 칸 높이가 늘 짝수가 되어 옆 칸 배지가 반 픽셀에 걸리지 않아요).
+  5. **위 여백 1px**: `.td-src, .td-link-badge, .cal-num, .cal-cbtn { padding-top: 1px }`, `.jproj-badge { padding-top: 3px }`. **아래 여백 2px**: `.jtree-d, .td-done-toggle { padding-bottom: 2px }`.
+  6. **사이드 메뉴 높이** `.side-item { height: 35px }`(34 → 35, 사용자 1안. `--size-ctrl` 토큰은 그대로 — 시험해 보니 7개 메뉴 모두 맞음).
+  7. **가운데 뜨는 창**(`.overlay > *`)이 반 픽셀에 걸리면 위쪽 소수 부분만큼 `translate`로 올려 정수 픽셀에 놓아요(창 크기가 바뀔 때마다, `snap.js` 참고).
+  8. **안내 문구의 괄호를 빼요**(사용자: 부연 설명 줄이기): `JournalScreen.tsx` "상대 이름 (연락처에서 자동 검색 · 여러 명은 쉼표로)" → "상대 이름", `` `${s.who}이(가) 한 말` `` → `` `${s.who} 말` ``("김민수 말", 이름이 없으면 "상대 말"), "날짜로 가기 (1014)" → "날짜로 가기" / `CalendarScreen.tsx` "일정 (시간을 비우면 종일)" → "일정", "날짜 (필수)" → "날짜" / `ContactsScreen.tsx` "새 프로젝트 이름 (예: 광탄면 배수로 정비)" → "새 프로젝트 이름" / `SettingsScreen.tsx` "새 구분 (예: 현장확인)" → "새 구분", "초성 (예: ㅎㅈ)" → "초성" / `TasksScreen.tsx` "세부정보 (Shift+Enter로 줄 추가)" → "세부정보"(2곳).
+- 그대로 두는 것(사용자 확정): 숫자만 있는 칸(날짜·시각·전화)은 1px 차이가 남아도 그대로(옆 한글 칸과 글자 바닥선을 맞춰요). 캘린더·할 일의 민원 제목 "접수유형(지역 위치)"의 괄호도 그대로.
+- 넣은 뒤: `tools/align`으로 모든 화면과 창(분류 관리·프로젝트 관리·종류 관리·상세 창·**알림 확인** — 알림 확인은 아직 못 쟀어요)을 다시 재서 기준에 맞춰요. 0.9.0 구글 연동 카드 등 새로 생긴 박스도 함께 봐요. 어긋난 곳이 남으면 비교 시안에 더해 사용자에게 보여 주고 정해요. 사용자 시험 항목: 윈도우에서 글꼴이 Pretendard로 바뀌었는지, 배지·입력칸 글자 위치.
+
 ### 공통 — 이름·로고·색 (2026-10-16 확정 → `docs/brand.md`)
 - 확정: 화면 이름 "기Log", 로고는 각진 ㄱL 맞물림 심볼 + ㄱㅣLOG 글자(파일 `brand/`), 강조색 보라 `#4B37C4`(어둡게 `#B6AAFF`), 남색 계열 토큰을 모두 보라·중성 회색으로 바꿔요. 0.8.2에 넣었어요. 버전은 `src/version.ts` 하나에서 화면이 읽어요(올릴 때 package.json·tauri.conf.json·Cargo.toml과 함께).
 - 설치 파일 이름·자료 폴더·식별자는 giLog 그대로라 "설치 파일 보내기" 명령은 바꾸지 않아요.

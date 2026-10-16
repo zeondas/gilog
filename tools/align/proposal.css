@@ -1,0 +1,23 @@
+@font-face{font-family:Pretendard;src:url(/PretendardVariable.woff2) format("woff2-variations");font-weight:45 920;font-style:normal;font-display:block}
+body{line-height:round(1.4em,1px)}
+body{line-height:round(1.4em,1px)}
+.memo-line{line-height:round(1.5em,1px)}
+.jtime{line-height:round(1.2em,1px)}
+.jtel{line-height:round(1.3em,1px)}
+.jmenu-opt{line-height:round(1.2em,1px)}
+.jpillar-note{line-height:round(1.25em,1px)}
+.jproj-badge{line-height:round(1.25em,1px)}
+.rte-area{line-height:round(1.55em,1px)}
+.rte-view{line-height:round(1.55em,1px)}
+.cm-area{line-height:round(1.45em,1px)}
+.cm-bt{line-height:round(1.5em,1px)}
+.bl-t{line-height:round(1.5em,1px)}
+.bl-ta{line-height:round(1.5em,1px)}
+.cal-wk-col .cal-ev{line-height:round(1.35em,1px)}
+.cm-bullets{gap:4px}
+.cell-input,.input,.jday-in,.td-due-input{padding-bottom:2px}
+.search input{padding:0 0 1px;height:20px}
+.td-src,.td-link-badge,.cal-num,.cal-cbtn{padding-top:1px}
+.jproj-badge{padding-top:3px}
+.jtree-d,.td-done-toggle{padding-bottom:2px}
+.side-item{height:35px}
