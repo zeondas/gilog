@@ -1,6 +1,7 @@
 // 앱을 처음 켰을 때 암호를 정하는 화면과, 잠긴 앱을 여는 화면이에요.
 import { FormEvent, useState } from "react";
 import { api, errorText } from "./api";
+import Logo, { AppIcon } from "./Logo";
 
 type Props = { mode: "setup" | "unlock"; folder: string; onOpen: () => void };
 
@@ -33,8 +34,9 @@ export default function Gate({ mode, folder, onOpen }: Props) {
   return (
     <div className="gate">
       <form className="card gate-card" onSubmit={submit}>
-        <div className="card-head">
-          <span className="brand">giLog</span>
+        <div className="gate-brand">
+          <AppIcon size={64} />
+          <Logo height={23} variant="word" />
         </div>
         <div className="card-body gate-body">
           <p className="gate-lead">{setup ? "잠금 암호를 정해 주세요." : "잠금 암호를 넣어 주세요."}</p>

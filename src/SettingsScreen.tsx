@@ -3,6 +3,8 @@ import { api, DEFAULT_PREFS, errorText, inApp, Prefs, Status } from "./api";
 import { splitJamo } from "./journal";
 import { DEFAULT_SETTINGS, DONE_STATUS, Kind, loadSettings, MEMO_KIND, saveSettings, Settings, STATUS_COLORS } from "./settingsStore";
 import { SCREENS } from "./screens";
+import Logo, { AppIcon } from "./Logo";
+import { VERSION } from "./version";
 
 type Props = {
   prefs: Prefs;
@@ -218,6 +220,17 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked }: Pro
             <option value={5}>5일 전부터</option>
           </select>
         </Row>
+      </section>
+
+      <section className="card">
+        <div className="card-head">정보</div>
+        <div className="about">
+          <AppIcon size={56} />
+          <div className="about-text">
+            <Logo height={20} variant="word" />
+            <span className="muted small">버전 {VERSION}</span>
+          </div>
+        </div>
       </section>
     </>
   );
@@ -460,7 +473,7 @@ function PasswordChange() {
 async function pickFolder(): Promise<string | null> {
   if (!inApp) return null;
   const { open } = await import("@tauri-apps/plugin-dialog");
-  const r = await open({ directory: true, title: "giLog 자료를 둘 폴더" });
+  const r = await open({ directory: true, title: "기Log 자료를 둘 폴더" });
   return typeof r === "string" ? r : null;
 }
 
@@ -497,7 +510,7 @@ function BackupRow({ onLocked, setNote }: { onLocked: () => void; setNote: (s: s
     const path = await save({
       title: "백업 파일 저장",
       defaultPath: `giLog-${today}.gilogbak`,
-      filters: [{ name: "giLog 백업", extensions: ["gilogbak"] }],
+      filters: [{ name: "기Log 백업", extensions: ["gilogbak"] }],
     });
     if (!path) return;
     try {
@@ -511,7 +524,7 @@ function BackupRow({ onLocked, setNote }: { onLocked: () => void; setNote: (s: s
   async function pickImport() {
     if (!inApp) return;
     const { open } = await import("@tauri-apps/plugin-dialog");
-    const r = await open({ title: "불러올 백업 파일", filters: [{ name: "giLog 백업", extensions: ["gilogbak"] }] });
+    const r = await open({ title: "불러올 백업 파일", filters: [{ name: "기Log 백업", extensions: ["gilogbak"] }] });
     if (typeof r === "string") {
       setImportPath(r);
       setMsg("");

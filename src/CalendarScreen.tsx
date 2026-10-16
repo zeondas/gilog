@@ -1600,7 +1600,7 @@ function NotifyDialog({ onClose }: { onClose: () => void }) {
       <div className="dialog cal-notify" role="dialog" aria-modal="true" aria-label="알림 확인" onKeyDown={(e) => e.key === "Escape" && onClose()}>
         <div className="dialog-head">
           <span className="dialog-title">알림 확인</span>
-          <span className="hint">giLog가 켜져 있을 때(트레이 포함) 윈도우 알림으로 띄워요.</span>
+          <span className="hint">기Log가 켜져 있을 때(트레이 포함) 윈도우 알림으로 띄워요.</span>
         </div>
         <div className="dialog-body cal-notify-body">
           <p>
@@ -1608,14 +1608,14 @@ function NotifyDialog({ onClose }: { onClose: () => void }) {
             {next && ` · 다음 알림 ${shortDay(todayStr(next))} ${String(next.getHours()).padStart(2, "0")}:${String(next.getMinutes()).padStart(2, "0")}`}
           </p>
           <p className="hint">
-            지금 쓰는 이름: {ps ? "PowerShell" : "giLog"}
+            지금 쓰는 이름: {ps ? "PowerShell" : "기Log"}
             {st?.shown ? ` · 켠 뒤 띄운 알림 ${st.shown}건` : ""}
             {st?.lastError ? ` · 마지막 오류: ${st.lastError}` : ""}
           </p>
           {err && <p className="note">윈도우가 알림을 거절했어요: {err}</p>}
           {step === "asked" && (
             <div className="ask-band cal-notify-ask">
-              <span>화면 오른쪽 아래에 "giLog 알림 시험"이 보였나요?</span>
+              <span>화면 오른쪽 아래에 "기Log 알림 시험"이 보였나요?</span>
               <button type="button" className="btn btn-xs" onClick={() => setStep("done")}>
                 보였어요
               </button>
@@ -1625,12 +1625,12 @@ function NotifyDialog({ onClose }: { onClose: () => void }) {
                 </button>
               ) : (
                 <button type="button" className="btn btn-xs" onClick={() => test(false)}>
-                  안 보였어요 (giLog 이름으로 다시)
+                  안 보였어요 (기Log 이름으로 다시)
                 </button>
               )}
             </div>
           )}
-          {step === "done" && <p className="cal-hol-ok">✓ 이 이름({ps ? "PowerShell" : "giLog"})으로 알림을 띄워요.</p>}
+          {step === "done" && <p className="cal-hol-ok">✓ 이 이름({ps ? "PowerShell" : "기Log"})으로 알림을 띄워요.</p>}
           <p className="hint">
             두 이름 모두 안 보이면 윈도우 설정 → 시스템 → 알림에서 알림이 켜져 있는지, "방해 금지"가 꺼져 있는지 봐 주세요.
           </p>

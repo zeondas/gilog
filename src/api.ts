@@ -843,7 +843,7 @@ export const api = {
   /** 지금 바로 알림 하나를 띄워 봐요. 실패하면 윈도우가 돌려준 이유로 실패해요. */
   testNotification: () => call<NotifyStatus>("test_notification"),
   notifyStatus: () => call<NotifyStatus>("notify_status"),
-  /** 알림을 PowerShell 이름으로 띄울지 (giLog 이름으로 안 보이는 PC) */
+  /** 알림을 PowerShell 이름으로 띄울지 (기Log 이름으로 안 보이는 PC) */
   setNotifyMode: (powershell: boolean) => call<null>("set_notify_mode", { powershell }),
 
   /** 윈도우 입력기를 한글(true) 또는 영문(false) 상태로 바꿔요. 앱 밖에서는 아무 일도 안 해요. */
@@ -866,7 +866,7 @@ export function errorText(e: unknown): string {
     case "keyring":
       return "윈도우 자격 증명 관리자에 열쇠를 맡기지 못했어요.";
     case "meta":
-      return "giLog 백업 파일이 아니에요.";
+      return "기Log 백업 파일이 아니에요.";
     case "invalid":
       return "넣은 값을 확인해 주세요.";
     case "offline":

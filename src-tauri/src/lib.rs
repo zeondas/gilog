@@ -530,5 +530,5 @@ pub fn run() {
             set_ime
         ])
         .run(tauri::generate_context!())
-        .expect("giLog를 시작하지 못했어요");
+        .expect("기Log를 시작하지 못했어요");
 }

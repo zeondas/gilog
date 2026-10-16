@@ -6,13 +6,15 @@ import CalendarScreen, { EventFocus } from "./CalendarScreen";
 import ComplaintsScreen from "./ComplaintsScreen";
 import ContactsScreen from "./ContactsScreen";
 import Gate from "./Gate";
+import Logo from "./Logo";
+import { VERSION } from "./version";
 import JournalScreen from "./JournalScreen";
 import SettingsScreen from "./SettingsScreen";
 import TasksScreen from "./TasksScreen";
 import { applyNotifyMode, refreshHolidaysDaily, syncReminders } from "./reminders";
 import { SCREENS, SETTINGS, ScreenId } from "./screens";
 
-const VERSION = "0.8.2";
+
 
 export default function App() {
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
@@ -130,7 +132,9 @@ export default function App() {
   return (
     <div className="shell">
       <nav className="side" aria-label="모듈">
-        <div className="brand">giLog</div>
+        <div className="brand">
+          <Logo height={32} />
+        </div>
         <div className="side-list">
           {SCREENS.map((s) => (
             <button

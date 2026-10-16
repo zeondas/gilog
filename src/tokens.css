@@ -1,32 +1,32 @@
 /* giLog 디자인 시스템의 토큰이에요. 값은 디자인 시스템(tokens.json)에서 옮겨 왔어요. 색은 여기 이름으로만 써요. */
 :root {
-  --accent: #0C447C;
+  --accent: #4B37C4;
   --on-accent: #FFFFFF;
-  --accent-tint: #E3EEFB;
-  --accent-wash: #F5F9FE;
-  --accent-line: #9DB7D6;
-  --ink: #1B2430;
-  --ink-2: #3A4553;
-  --muted: #56616F;
+  --accent-tint: #EEEAFF;
+  --accent-wash: #F8F6FF;
+  --accent-line: #B9AEF0;
+  --ink: #1C1B22;
+  --ink-2: #3B3A45;
+  --muted: #5E5C6A;
   --surface: #FFFFFF;
-  --surface-side: #F4F6F8;
-  --surface-band: #F1F4F7;
-  --line: #C9D3DE;
-  --line-soft: #E3E8EE;
-  --line-row: #EEF1F4;
+  --surface-side: #F5F5F8;
+  --surface-band: #F1F0F5;
+  --line: #CFCDD9;
+  --line-soft: #E5E4EC;
+  --line-row: #EFEEF3;
   --st-work-bg: #FDEBD3;
   --st-work-fg: #8A4B00;
   --st-done-bg: #E1F0E6;
   --st-done-fg: #1F5E3A;
-  --st-hold-bg: #ECEEF1;
-  --st-hold-fg: #4A5563;
-  --st-new-bg: #EEEAF7;
-  --st-new-fg: #4A3B8C;
+  --st-hold-bg: #EEEDF2;
+  --st-hold-fg: #4E4C5A;
+  --st-new-bg: #EEEAFF;
+  --st-new-fg: #4B37C4;
   --danger: #8A1F2B;
   --urgent: #B3261E;
   /* 할 일 마감 배지(임박) 바탕. 글자는 urgent. */
   --urgent-bg: #FBE9E7;
-  --saturday: #1D4E9E;
+  --saturday: #2F55C8;
   /* 삭제를 한 번 더 묻는 띠의 바탕. 글자는 danger. */
   --danger-wash: #FBE4EC;
   /* 검색에 맞은 글자 형광 표시 */
@@ -35,7 +35,7 @@
   --search-bg: #FFF8E1;
   --search-line: #E8D9A8;
   /* 민원대장 표의 줄무늬(한 줄 걸러) */
-  --row-alt: #FAFBFC;
+  --row-alt: #FAFAFC;
   /* 업무일지 "챙길 일"에서 눌러 온 민원 줄을 잠깐 칠하는 색 */
   --flash: #FFF3BF;
   /* 프로젝트 배지 8색 (바탕, 글자, 테두리·점). 0.6.2에 사용자가 고른 "연한 바탕 + 쨍한 글자·테두리"(2안).
@@ -90,7 +90,9 @@
   --size-pillar: 88px;
   --size-side: 200px;
   --size-card-min: 280px;
-  --shadow-card: 0 1px 2px rgba(20,28,38,0.06), 0 6px 16px rgba(20,28,38,0.06);
+  /* 그림자 색(남색 기운 없는 중성 어두운 색). rgba(var(--shadow-rgb), 투명도)로 써요. */
+  --shadow-rgb: 28, 27, 34;
+  --shadow-card: 0 1px 2px rgba(var(--shadow-rgb), 0.06), 0 6px 16px rgba(var(--shadow-rgb), 0.06);
   --font-sans: Pretendard, "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
   --fs: 13px;
   color-scheme: light;
@@ -99,30 +101,28 @@
 /* 테마 '시스템': 윈도우가 어둡게일 때 */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --accent: #8DB8EA;
-    --on-accent: #0B1E33;
-    --accent-tint: #1B3350;
-    --accent-wash: #172230;
-    --accent-line: #3F5F85;
-    --ink: #E6EBF1;
-    --ink-2: #C3CCD6;
-    --muted: #9AA6B4;
-    --surface: #151A21;
-    --surface-side: #10141A;
-    --surface-band: #1D242D;
-    --line: #3A4553;
-    --line-soft: #2A323D;
-    --line-row: #232A33;
+    --accent: #B6AAFF;
+    --on-accent: #1A1240;
+    --accent-tint: #2B2552;
+    --accent-wash: #1E1B30;
+    --accent-line: #5A4FA8;
+    --ink: #ECEAF2;
+    --ink-2: #C9C6D3;
+    --muted: #A09DAD;
+    --surface: #17161C;
+    --surface-side: #121116;
+    --surface-band: #1F1E26;
+    --line: #3D3B47;
+    --line-soft: #2C2B34;
+    --line-row: #25242C;
     --st-work-bg: #40300F;
     --st-work-fg: #F2C078;
     --st-done-bg: #173524;
     --st-done-fg: #8FD0A6;
-    --st-hold-bg: #2A313B;
-    --st-hold-fg: #B4BECA;
-    --st-new-bg: #2E2A45;
-    --st-new-fg: #C4B8F0;
-    --st-new-bg: #2E2A45;
-  --st-new-fg: #C4B8F0;
+    --st-hold-bg: #2C2B34;
+    --st-hold-fg: #BAB7C6;
+    --st-new-bg: #2B2552;
+    --st-new-fg: #C9C0FF;
   --danger: #F08A95;
     --urgent: #F28B82;
     --urgent-bg: #3D2220;
@@ -131,7 +131,7 @@
     --search-bg: #2A2615;
     --search-line: #5A4E22;
     --saturday: #8AB4F8;
-    --row-alt: #181E26;
+    --row-alt: #1B1A21;
     --flash: #3A3416;
     color-scheme: dark;
   }
@@ -139,26 +139,26 @@
 
 /* 테마 '어둡게'를 직접 골랐을 때 */
 :root[data-theme="dark"] {
-  --accent: #8DB8EA;
-  --on-accent: #0B1E33;
-  --accent-tint: #1B3350;
-  --accent-wash: #172230;
-  --accent-line: #3F5F85;
-  --ink: #E6EBF1;
-  --ink-2: #C3CCD6;
-  --muted: #9AA6B4;
-  --surface: #151A21;
-  --surface-side: #10141A;
-  --surface-band: #1D242D;
-  --line: #3A4553;
-  --line-soft: #2A323D;
-  --line-row: #232A33;
+  --accent: #B6AAFF;
+  --on-accent: #1A1240;
+  --accent-tint: #2B2552;
+  --accent-wash: #1E1B30;
+  --accent-line: #5A4FA8;
+  --ink: #ECEAF2;
+  --ink-2: #C9C6D3;
+  --muted: #A09DAD;
+  --surface: #17161C;
+  --surface-side: #121116;
+  --surface-band: #1F1E26;
+  --line: #3D3B47;
+  --line-soft: #2C2B34;
+  --line-row: #25242C;
   --st-work-bg: #40300F;
   --st-work-fg: #F2C078;
   --st-done-bg: #173524;
   --st-done-fg: #8FD0A6;
-  --st-hold-bg: #2A313B;
-  --st-hold-fg: #B4BECA;
+  --st-hold-bg: #2C2B34;
+  --st-hold-fg: #BAB7C6;
   --danger: #F08A95;
   --urgent: #F28B82;
   --urgent-bg: #3D2220;
@@ -167,9 +167,9 @@
   --mark: #6B5A12;
   --search-bg: #2A2615;
   --search-line: #5A4E22;
-  --st-new-bg: #2E2A45;
-  --st-new-fg: #C4B8F0;
-  --row-alt: #181E26;
+  --st-new-bg: #2B2552;
+  --st-new-fg: #C9C0FF;
+  --row-alt: #1B1A21;
   --flash: #3A3416;
   color-scheme: dark;
 }
