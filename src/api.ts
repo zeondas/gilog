@@ -38,7 +38,8 @@ export type ErrorCode =
   | "io"
   | "db"
   | "meta"
-  | "invalid";
+  | "invalid"
+  | "offline";
 
 // ---------- 업무연락처 ----------
 
@@ -163,6 +164,51 @@ export type Task = TaskInput & {
 
 export type TasksData = { lists: TaskList[]; tasks: Task[] };
 
+// ---------- 캘린더 ----------
+
+/** 캘린더 종류. system은 앱이 만든 종류("complaint"·"task"·"holiday")이고 내 종류는 빈 글자예요. */
+export type CalKind = {
+  id: number;
+  name: string;
+  /** 구글 24색 가운데 번호(0~23). null이면 자동 색이에요(내 종류만). */
+  color: number | null;
+  visible: boolean;
+  system: "" | "complaint" | "task" | "holiday";
+  ord: number;
+};
+
+/** 반복 규칙. 빈 글자는 반복 안 함이에요. */
+export type Repeat = "" | "daily" | "weekdays" | "weekly" | "biweekly" | "monthly" | "yearly";
+
+export type EventInput = {
+  title: string;
+  /** 종류 이름. 없는 이름이면 새 종류가 만들어져요. */
+  kind: string;
+  date: string;
+  /** 끝 날짜 (비어 있으면 시작 날짜) */
+  end: string;
+  allDay: boolean;
+  time: string;
+  endTime: string;
+  repeat: Repeat;
+  /** 반복 종료일 (반복이면 꼭 있어야 해요) */
+  until: string;
+  place: string;
+  /** 설명 (머릿기호 줄 목록 JSON) */
+  desc: string;
+  /** 알림: -1 없음, 0 정시, 10·30·60분 전, 1440 하루 전 */
+  remind: number;
+};
+
+export type CalEvent = Omit<EventInput, "kind"> & { id: number; kind: number };
+
+export type Holiday = { date: string; name: string };
+
+export type CalendarData = { kinds: CalKind[]; events: CalEvent[]; holidays: Holiday[]; holidaysAt: string };
+
+/** 알림 한 건. at은 울릴 때(밀리초)예요. */
+export type Reminder = { at: number; title: string; body: string; event: number; date: string };
+
 export const inApp = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 const fake = {
@@ -186,7 +232,120 @@ const fake = {
   tasks: [] as Task[],
   nextListId: 3,
   nextTaskId: 1,
+  calKinds: [
+    { id: 1, name: "업무 일정", color: null, visible: true, system: "", ord: 0 },
+    { id: 2, name: "회의 · 협의", color: null, visible: true, system: "", ord: 1 },
+    { id: 3, name: "출장", color: null, visible: true, system: "", ord: 2 },
+    { id: 4, name: "민원 마감", color: 1, visible: true, system: "complaint", ord: 1000 },
+    { id: 5, name: "할 일 마감", color: 12, visible: true, system: "task", ord: 1001 },
+    { id: 6, name: "공휴일", color: 3, visible: true, system: "holiday", ord: 1002 },
+  ] as CalKind[],
+  events: [] as CalEvent[],
+  nextKindId: 7,
+  nextEventId: 1,
+  // 미리 보기용 공휴일 몇 개(앱에서는 저장 쪽이 앱에 넣어 온 목록과 인터넷에서 받은 것을 써요).
+  holidays: [
+    ["2026-09-24", "추석 전날"], ["2026-09-25", "추석"], ["2026-09-26", "추석 다음 날"], ["2026-10-03", "개천절"],
+    ["2026-10-05", "대체공휴일(개천절)"], ["2026-10-09", "한글날"], ["2026-12-25", "기독탄신일"], ["2027-01-01", "1월 1일"],
+  ].map(([date, name]) => ({ date, name })) as Holiday[],
+  holidaysAt: "",
 };
+
+// 브라우저 미리 보기용 캘린더 흉내예요. 저장 쪽(core/calendar.rs)과 같은 규칙을 따라요.
+function fakeCalendar(cmd: string, a: Record<string, unknown>): unknown {
+  const isDate = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d) && !Number.isNaN(new Date(d + "T00:00:00").getTime());
+  const isTime = (t: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(t);
+  const squash = (x: string) => x.split(/\s+/).filter(Boolean).join(" ");
+  const kinds = () =>
+    [...fake.calKinds].sort((x, y) => Number(x.system !== "") - Number(y.system !== "") || x.ord - y.ord || x.id - y.id).map((k) => ({ ...k }));
+  const kindFor = (name: string) => {
+    const n = squash(name);
+    if (!n) return kinds().find((k) => !k.system)!.id;
+    const k = fake.calKinds.find((x) => x.name === n);
+    if (k?.system) throw "invalid";
+    if (k) return k.id;
+    const nk: CalKind = { id: fake.nextKindId++, name: n, color: null, visible: true, system: "", ord: Math.max(0, ...fake.calKinds.filter((x) => !x.system).map((x) => x.ord)) + 1 };
+    fake.calKinds.push(nk);
+    return nk.id;
+  };
+  const clean = (i: EventInput): Omit<CalEvent, "id"> => {
+    const title = squash(i.title);
+    const end = i.end.trim() || i.date;
+    if (!title || !isDate(i.date) || !isDate(end) || end < i.date) throw "invalid";
+    let time = "";
+    let endTime = "";
+    if (!i.allDay) {
+      if (!isTime(i.time) || (i.endTime && !isTime(i.endTime))) throw "invalid";
+      time = i.time;
+      if (i.endTime) endTime = i.endTime;
+      else {
+        const m = Math.min(Number(time.slice(0, 2)) * 60 + Number(time.slice(3)) + 60, 23 * 60 + 59);
+        endTime = String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+      }
+      if (end === i.date && endTime < time) throw "invalid";
+    }
+    if (i.repeat && (!isDate(i.until) || i.until < i.date)) throw "invalid";
+    return { ...i, title, kind: kindFor(i.kind), end, time, endTime, until: i.repeat ? i.until : "", place: i.place.trim(), desc: i.desc };
+  };
+  const ev = (id: unknown) => {
+    const e = fake.events.find((x) => x.id === id);
+    if (!e) throw "not_found";
+    return e;
+  };
+  switch (cmd) {
+    case "calendar_data":
+      return { kinds: kinds(), events: structuredClone(fake.events), holidays: structuredClone(fake.holidays), holidaysAt: fake.holidaysAt };
+    case "cal_kinds":
+      return kinds();
+    case "add_event": {
+      const e = { id: fake.nextEventId++, ...clean(a.event as EventInput) };
+      fake.events.push(e);
+      return { ...e };
+    }
+    case "update_event": {
+      const e = ev(a.id);
+      Object.assign(e, clean(a.event as EventInput));
+      return { ...e };
+    }
+    case "delete_event":
+      ev(a.id);
+      fake.events = fake.events.filter((x) => x.id !== a.id);
+      return null;
+    case "add_cal_kind": {
+      const n = squash(String(a.name));
+      if (!n || fake.calKinds.some((k) => k.name === n)) throw "invalid";
+      kindFor(n);
+      return kinds();
+    }
+    case "set_cal_kind_color": {
+      const k = fake.calKinds.find((x) => x.id === a.id);
+      if (!k) throw "not_found";
+      const c = a.color as number | null;
+      k.color = c === null && k.system ? ({ complaint: 1, task: 12, holiday: 3 } as const)[k.system] : c;
+      return kinds();
+    }
+    case "set_cal_kind_visible": {
+      const k = fake.calKinds.find((x) => x.id === a.id);
+      if (!k) throw "not_found";
+      k.visible = !!a.visible;
+      return kinds();
+    }
+    case "delete_cal_kind": {
+      const k = fake.calKinds.find((x) => x.id === a.id);
+      if (!k) throw "not_found";
+      if (k.system || fake.calKinds.filter((x) => !x.system).length <= 1) throw "invalid";
+      const n = fake.events.filter((e) => e.kind === k.id).length;
+      fake.events = fake.events.filter((e) => e.kind !== k.id);
+      fake.calKinds = fake.calKinds.filter((x) => x.id !== k.id);
+      return n;
+    }
+    case "refresh_holidays":
+      throw "offline";
+    case "set_reminders":
+      return null;
+  }
+  return undefined;
+}
 
 // 브라우저 미리 보기용 할 일 흉내예요. 저장 쪽(core/tasks.rs)과 같은 규칙을 따라요.
 function fakeTasks(cmd: string, a: Record<string, unknown>): unknown {
@@ -522,6 +681,11 @@ function fakeCall(cmd: string, args: Record<string, unknown>): unknown {
     const r = fakeTasks(cmd, args);
     if (r !== undefined) return r;
   }
+  if (["calendar_data", "cal_kinds", "add_event", "update_event", "delete_event", "add_cal_kind", "set_cal_kind_color", "set_cal_kind_visible", "delete_cal_kind", "refresh_holidays", "set_reminders"].includes(cmd)) {
+    if (!fake.unlocked && cmd !== "set_reminders") throw "locked";
+    const r = fakeCalendar(cmd, args);
+    if (r !== undefined) return r;
+  }
   if (cmd.includes("journal")) {
     if (!fake.unlocked) throw "locked";
     const r = fakeJournal(cmd, args);
@@ -640,6 +804,21 @@ export const api = {
   setTaskDone: (id: number, done: boolean, today: string) => call<Task[]>("set_task_done", { id, done, today }),
   deleteTask: (id: number) => call<number>("delete_task", { id }),
 
+  calendarData: () => call<CalendarData>("calendar_data"),
+  addEvent: (event: EventInput) => call<CalEvent>("add_event", { event }),
+  updateEvent: (id: number, event: EventInput) => call<CalEvent>("update_event", { id, event }),
+  deleteEvent: (id: number) => call<null>("delete_event", { id }),
+  calKinds: () => call<CalKind[]>("cal_kinds"),
+  addCalKind: (name: string) => call<CalKind[]>("add_cal_kind", { name }),
+  setCalKindColor: (id: number, color: number | null) => call<CalKind[]>("set_cal_kind_color", { id, color }),
+  setCalKindVisible: (id: number, visible: boolean) => call<CalKind[]>("set_cal_kind_visible", { id, visible }),
+  /** 종류와 그 종류의 일정을 지워요. 지운 일정 수를 돌려줘요. */
+  deleteCalKind: (id: number) => call<number>("delete_cal_kind", { id }),
+  /** 공휴일을 인터넷에서 받아 저장해요. 받지 못하면 "offline"으로 실패해요. */
+  refreshHolidays: (now: string) => call<Holiday[]>("refresh_holidays", { now }),
+  /** 앞으로 울릴 알림 목록을 보내요(윈도우 알림은 앱이 띄워요). */
+  setReminders: (list: Reminder[]) => call<null>("set_reminders", { list }),
+
   /** 윈도우 입력기를 한글(true) 또는 영문(false) 상태로 바꿔요. 앱 밖에서는 아무 일도 안 해요. */
   setIme: (korean: boolean) => (inApp ? invoke<null>("set_ime", { korean }) : Promise.resolve(null)),
 };
@@ -663,6 +842,8 @@ export function errorText(e: unknown): string {
       return "giLog 백업 파일이 아니에요.";
     case "invalid":
       return "넣은 값을 확인해 주세요.";
+    case "offline":
+      return "인터넷에 연결하지 못했어요.";
     default:
       return "파일을 읽거나 쓰지 못했어요. 자료 폴더를 확인해 주세요.";
   }

@@ -1,6 +1,6 @@
 [package]
 name = "gilog"
-version = "0.7.0"
+version = "0.8.0"
 description = "giLog"
 edition = "2021"
 
@@ -12,13 +12,19 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["tray-icon"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 gilog-core = { path = "core" }
 tauri-plugin-dialog = "2"
 keyring = { version = "3", features = ["windows-native"] }
+# 창을 닫아도 트레이에 남으니, 앱을 한 번 더 켜면 새로 열지 않고 떠 있는 창을 보여 줘요(자료 파일을 두 곳에서 열지 않게).
+tauri-plugin-single-instance = "2"
+# 공휴일을 인터넷에서 받아요. 윈도우의 인증서와 프록시 설정을 그대로 써요(사무실 망).
+reqwest = { version = "0.13", default-features = false, features = ["native-tls", "charset", "http2", "system-proxy"] }
 
 # 입력 칸에 들어갈 때 한글 입력기를 한글 상태로 바꾸는 데 써요.
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_UI_Input_Ime", "Win32_UI_WindowsAndMessaging"] }
+# 일정 알림을 윈도우 알림으로 띄우고, 누르면 그 일정을 열어요.
+tauri-winrt-notification = "0.7"

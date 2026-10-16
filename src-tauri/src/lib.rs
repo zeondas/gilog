@@ -1,3 +1,4 @@
+mod calendar;
 mod ime;
 
 use std::fs;
@@ -12,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 
 /// 열려 있는 자료 파일을 들고 있어요. None이면 잠긴 상태예요.
-struct AppState {
+pub(crate) struct AppState {
     store: Mutex<Option<Store>>,
 }
 
@@ -220,7 +221,7 @@ fn set_value(state: State<AppState>, key: String, value: String) -> Result<(), S
 // ---------- 업무연락처 ----------
 // 바꾸는 명령은 모두 바뀐 뒤의 연락처·프로젝트 전체를 돌려줘요. 화면은 그것으로 다시 그려요.
 
-fn with_store<T>(state: &State<AppState>, f: impl FnOnce(&mut Store) -> gilog_core::Result<T>) -> Result<T, String> {
+pub(crate) fn with_store<T>(state: &State<AppState>, f: impl FnOnce(&mut Store) -> gilog_core::Result<T>) -> Result<T, String> {
     let mut guard = state.store.lock().map_err(io)?;
     let store = guard.as_mut().ok_or_else(|| "locked".to_string())?;
     f(store).map_err(code)
@@ -457,8 +458,16 @@ fn move_data(app: AppHandle, state: State<AppState>, folder: String) -> Result<(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // 이미 떠 있으면(트레이에 있어도) 새로 열지 않고 그 창을 보여 줘요. 맨 먼저 붙여야 해요.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| calendar::show_main(app)))
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState { store: Mutex::new(None) })
+        .manage(calendar::Reminders::default())
+        .setup(|app| {
+            calendar::setup_tray(app)?;
+            Ok(())
+        })
+        .on_window_event(calendar::on_window_event)
         .invoke_handler(tauri::generate_handler![
             get_prefs,
             set_prefs,
@@ -503,6 +512,17 @@ pub fn run() {
             update_task,
             set_task_done,
             delete_task,
+            calendar::calendar_data,
+            calendar::add_event,
+            calendar::update_event,
+            calendar::delete_event,
+            calendar::cal_kinds,
+            calendar::add_cal_kind,
+            calendar::set_cal_kind_color,
+            calendar::set_cal_kind_visible,
+            calendar::delete_cal_kind,
+            calendar::refresh_holidays,
+            calendar::set_reminders,
             set_ime
         ])
         .run(tauri::generate_context!())

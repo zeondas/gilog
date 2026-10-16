@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, DEFAULT_PREFS, errorText, Prefs, Status } from "./api";
+import { listen } from "@tauri-apps/api/event";
+import { api, DEFAULT_PREFS, errorText, inApp, Prefs, Reminder, Status } from "./api";
 import { measureBullets } from "./bullets";
+import CalendarScreen, { EventFocus } from "./CalendarScreen";
 import ComplaintsScreen from "./ComplaintsScreen";
 import ContactsScreen from "./ContactsScreen";
 import Gate from "./Gate";
 import JournalScreen from "./JournalScreen";
 import SettingsScreen from "./SettingsScreen";
 import TasksScreen from "./TasksScreen";
+import { refreshHolidaysDaily, syncReminders } from "./reminders";
 import { SCREENS, SETTINGS, ScreenId } from "./screens";
 
-const VERSION = "0.7.0";
+const VERSION = "0.8.0";
 
 export default function App() {
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
@@ -29,6 +32,20 @@ export default function App() {
   const openTask = useCallback((id: number) => {
     setFocusTask(id);
     setCurrent("todo");
+  }, []);
+
+  // 일정 알림을 누르면 캘린더의 그 일정을 열어요. 캘린더가 열면 비워요.
+  const [focusEvent, setFocusEvent] = useState<EventFocus | null>(null);
+  const clearEvent = useCallback(() => setFocusEvent(null), []);
+  useEffect(() => {
+    if (!inApp) return;
+    const off = listen<Reminder>("reminder-open", (e) => {
+      setFocusEvent({ event: e.payload.event, date: e.payload.date });
+      setCurrent("calendar");
+    });
+    return () => {
+      off.then((f) => f());
+    };
   }, []);
 
   const refresh = useCallback(() => {
@@ -73,6 +90,18 @@ export default function App() {
 
   // 자동 잠금: 마우스나 키보드 입력이 없으면 잠가요.
   const unlocked = status?.unlocked ?? false;
+
+  // 열려 있는 동안: 일정 알림 목록을 앱에 보내고(30분마다 다시), 공휴일을 하루에 한 번 받아요.
+  useEffect(() => {
+    if (!unlocked) return;
+    syncReminders();
+    refreshHolidaysDaily();
+    const t = window.setInterval(() => {
+      syncReminders();
+      refreshHolidaysDaily();
+    }, 30 * 60 * 1000);
+    return () => window.clearInterval(t);
+  }, [unlocked]);
   useEffect(() => {
     if (!unlocked || !prefs.autoLock) return;
     const ms = prefs.autoLockMin * 60 * 1000;
@@ -137,6 +166,8 @@ export default function App() {
           <JournalScreen urgentDays={prefs.urgentDays} onOpenComplaint={openComplaint} onOpenTask={openTask} />
         ) : current === "complaints" ? (
           <ComplaintsScreen urgentDays={prefs.urgentDays} focusId={focusComplaint} onFocused={clearFocus} />
+        ) : current === "calendar" ? (
+          <CalendarScreen focus={focusEvent} onFocused={clearEvent} onOpenComplaint={openComplaint} onOpenTask={openTask} />
         ) : current === "todo" ? (
           <TasksScreen urgentDays={prefs.urgentDays} focusId={focusTask} onFocused={clearTask} onOpenComplaint={openComplaint} />
         ) : (
