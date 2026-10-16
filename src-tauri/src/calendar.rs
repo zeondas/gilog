@@ -214,7 +214,7 @@ pub fn register_app_id(app: &AppHandle) {
     let id = app.config().identifier.clone();
     let key = wide(&format!("Software\\Classes\\AppUserModelId\\{id}"));
     let name = wide("DisplayName");
-    let value = wide("기Log");
+    let value = wide("기록");
     unsafe {
         RegSetKeyValueW(HKEY_CURRENT_USER, key.as_ptr(), name.as_ptr(), REG_SZ, value.as_ptr() as *const core::ffi::c_void, (value.len() * 2) as u32);
         let idw = wide(&id);
@@ -320,7 +320,7 @@ pub fn setup_tray(app: &mut App) -> tauri::Result<()> {
     let quit = MenuItem::with_id(app, "quit", "끝내기", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&open, &quit])?;
     let mut tray = TrayIconBuilder::with_id("main")
-        .tooltip("기Log")
+        .tooltip("기록")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, e| match e.id.as_ref() {

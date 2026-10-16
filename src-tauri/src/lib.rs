@@ -1,5 +1,6 @@
 mod calendar;
 mod ime;
+mod google;
 
 use std::fs;
 use std::path::PathBuf;
@@ -527,6 +528,10 @@ pub fn run() {
             calendar::test_notification,
             calendar::notify_status,
             calendar::set_notify_mode,
+            google::google_listen,
+            google::google_wait,
+            google::open_google_login,
+            google::google_http,
             set_ime
         ])
         .run(tauri::generate_context!())

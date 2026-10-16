@@ -5036,3 +5036,64 @@ body.col-dragging * {
 .cal-push {
   margin-left: auto;
 }
+
+/* ---------- 구글 캘린더 연동 (9단계) ---------- */
+.g-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--st-done-fg);
+}
+.g-dot.bad {
+  background: var(--danger);
+}
+.g-row .g-dot {
+  align-self: center;
+}
+.g-err {
+  color: var(--danger);
+}
+.g-cut {
+  color: var(--danger);
+}
+.g-msg {
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--line-row);
+  color: var(--ink-2);
+}
+.g-foot {
+  margin: 0;
+  padding: 10px var(--space-4);
+  background: var(--accent-wash);
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+.g-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.g-box-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 700;
+}
+.g-box-sub {
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+  color: var(--muted);
+}
+.g-box-sub.g-err {
+  color: var(--danger);
+}
+.g-box-at {
+  color: var(--muted);
+}

@@ -765,9 +765,13 @@ function fakeCall(cmd: string, args: Record<string, unknown>): unknown {
   throw "io";
 }
 
+/** 자료를 바꾼 명령이 성공하면 알려 줄 곳(구글 연동이 바뀐 것을 내보내요). */
+export const changeHooks = new Set<(cmd: string) => void>();
+
 async function call<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {
-  if (inApp) return invoke<T>(cmd, args);
-  return fakeCall(cmd, args) as T;
+  const r = inApp ? await invoke<T>(cmd, args) : (fakeCall(cmd, args) as T);
+  for (const f of changeHooks) f(cmd);
+  return r;
 }
 
 export const api = {

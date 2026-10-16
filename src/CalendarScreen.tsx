@@ -16,6 +16,7 @@ import {
 import { Hl } from "./ContactsScreen";
 import { parseDate, todayStr } from "./journal";
 import { DEFAULT_SETTINGS, DONE_STATUS, loadSettings } from "./settingsStore";
+import { exportNow, GStatus, onGoogleStatus, whenText } from "./google";
 import { loadNotifyMode, refreshHolidaysDaily, saveNotifyMode, stamp, syncReminders, updateHolidays } from "./reminders";
 
 const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
@@ -344,6 +345,7 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
   return (
     <div className="cal-screen">
       <aside className="cal-side">
+        <GoogleBox />
         <div className="cal-kinds">
           <div className="cal-side-head">
             <span>캘린더 종류</span>
@@ -1556,6 +1558,29 @@ function KindsDialog({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ---------- 구글 연동 상태 상자 (9단계, 시안: 캘린더 왼쪽 맨 위) ----------
+
+function GoogleBox() {
+  const [g, setG] = useState<GStatus | null>(null);
+  useEffect(() => onGoogleStatus(setG), []);
+  if (!g || !g.connected) return null;
+  return (
+    <div className="g-box">
+      <div className="g-box-head">
+        <span className={"g-dot" + (g.lastError ? " bad" : "")} aria-hidden="true" />
+        <span>{g.lastError ? "구글 내보내기 실패" : "구글 캘린더 연동됨"}</span>
+      </div>
+      <span className={"g-box-sub" + (g.lastError ? " g-err" : "")}>
+        {g.busy ? "내보내는 중…" : g.lastError || "기Log → 구글 한 방향"}
+        {!g.busy && g.lastOk && <span className="g-box-at">마지막 성공 {whenText(g.lastOk)}</span>}
+      </span>
+      <button type="button" className="btn btn-xs" disabled={g.busy} onClick={() => exportNow()}>
+        지금 내보내기
+      </button>
     </div>
   );
 }

@@ -12,6 +12,7 @@ import JournalScreen from "./JournalScreen";
 import SettingsScreen from "./SettingsScreen";
 import TasksScreen from "./TasksScreen";
 import { applyNotifyMode, refreshHolidaysDaily, syncReminders } from "./reminders";
+import { startGoogleSync } from "./google";
 import { SCREENS, SETTINGS, ScreenId } from "./screens";
 
 
@@ -99,6 +100,7 @@ export default function App() {
     applyNotifyMode();
     syncReminders();
     refreshHolidaysDaily();
+    startGoogleSync();
     const t = window.setInterval(() => {
       syncReminders();
       refreshHolidaysDaily();
@@ -133,7 +135,7 @@ export default function App() {
     <div className="shell">
       <nav className="side" aria-label="모듈">
         <div className="brand">
-          <Logo height={32} />
+          <Logo height={28} variant="word" />
         </div>
         <div className="side-list">
           {SCREENS.map((s) => (

@@ -5,6 +5,22 @@ import { DEFAULT_SETTINGS, DONE_STATUS, Kind, loadSettings, MEMO_KIND, saveSetti
 import { SCREENS } from "./screens";
 import Logo, { AppIcon } from "./Logo";
 import { VERSION } from "./version";
+import {
+  connectGoogle,
+  DEFAULT_OPTS,
+  disconnectGoogle,
+  exportNow,
+  forgetClient,
+  GOpts,
+  GStatus,
+  loadGoogleStatus,
+  loadOpts,
+  onGoogleStatus,
+  parseClientFile,
+  saveClient,
+  saveOpts,
+  whenText,
+} from "./google";
 
 type Props = {
   prefs: Prefs;
@@ -113,12 +129,7 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked }: Pro
         <KindsGroup kinds={s.kinds} onChange={(kinds) => update({ ...s, kinds })} />
       </section>
 
-      <section className="card">
-        <div className="card-head">구글 캘린더 연동</div>
-        <div className="card-body">
-          <p className="muted">9단계에서 만들어요. 민원인 이름과 연락처는 어떤 경우에도 구글로 내보내지 않아요.</p>
-        </div>
-      </section>
+      <GoogleCard />
 
       <section className="card">
         <div className="card-head">보안 · 저장</div>
@@ -233,6 +244,133 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked }: Pro
         </div>
       </section>
     </>
+  );
+}
+
+// ---------- 구글 캘린더 연동 (9단계) ----------
+
+const G_TOGGLES: [keyof GOpts, string, string][] = [
+  ["events", "내 일정 내보내기", "캘린더에 직접 적은 일정이에요."],
+  ["complaints", "민원 마감 내보내기", "\"민원 마감 · 접수유형 · 위치\"만 보내요. 민원인 이름과 연락처는 보내지 않아요."],
+  ["tasks", "할 일 마감 내보내기", "할 일 목록의 마감일이 구글 달력에 보여요."],
+];
+
+function GoogleCard() {
+  const [g, setG] = useState<GStatus | null>(null);
+  const [opts, setOpts] = useState<GOpts>(DEFAULT_OPTS);
+  const [msg, setMsg] = useState("");
+  const [wait, setWait] = useState(false);
+  const [ask, setAsk] = useState(false);
+
+  useEffect(() => {
+    loadGoogleStatus().catch(() => {});
+    loadOpts().then(setOpts);
+    return onGoogleStatus(setG);
+  }, []);
+
+  async function pickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    try {
+      await saveClient(parseClientFile(await f.text()));
+      setMsg("앱 정보 파일을 넣었어요. 이제 구글 로그인을 눌러 주세요.");
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function login() {
+    setMsg("브라우저에서 구글 로그인을 마쳐 주세요.");
+    setWait(true);
+    try {
+      await connectGoogle();
+      setMsg("");
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : String(err));
+    } finally {
+      setWait(false);
+    }
+  }
+
+  async function cut(removeEvents: boolean) {
+    setAsk(false);
+    setMsg((await disconnectGoogle(removeEvents)) || (removeEvents ? "연결을 끊고 구글의 giLog 캘린더를 지웠어요." : "연결을 끊었어요. 구글의 일정은 그대로 있어요."));
+  }
+
+  function toggle(k: keyof GOpts) {
+    const next = { ...opts, [k]: !opts[k] };
+    setOpts(next);
+    saveOpts(next);
+  }
+
+  if (!g) return null;
+  const sub = g.busy ? "내보내는 중…" : g.lastError || (g.lastOk ? `기Log → 구글 한 방향 · 마지막 내보내기 ${whenText(g.lastOk)}` : "기Log → 구글 한 방향");
+
+  return (
+    <section className="card">
+      <div className="card-head">구글 캘린더 연동</div>
+      {g.connected ? (
+        <div className="row g-row">
+          <span className={"g-dot" + (g.lastError ? " bad" : "")} aria-hidden="true" />
+          <span className="row-text">
+            <span className="row-label">{g.lastError ? "연결됨 · 내보내지 못했어요" : "연결됨 · 개인 구글 계정"}</span>
+            <span className={"small " + (g.lastError ? "g-err" : "muted")}>{sub}</span>
+          </span>
+          {!ask ? (
+            <>
+              <button type="button" className="btn" disabled={g.busy} onClick={() => exportNow()}>
+                지금 내보내기
+              </button>
+              <button type="button" className="btn g-cut" onClick={() => setAsk(true)}>
+                연결 끊기
+              </button>
+            </>
+          ) : (
+            <span className="ask-row">
+              <span className="gate-error">구글에 내보낸 일정도 지울까요?</span>
+              <button type="button" className="btn" onClick={() => setAsk(false)}>
+                취소
+              </button>
+              <button type="button" className="btn" onClick={() => cut(false)}>
+                일정은 두기
+              </button>
+              <button type="button" className="btn btn-danger" onClick={() => cut(true)}>
+                일정도 지우기
+              </button>
+            </span>
+          )}
+        </div>
+      ) : (
+        <>
+          <Row label="앱 정보 파일" desc={g.configured ? "넣었어요. 다른 파일로 바꾸려면 다시 고르세요." : "구글 콘솔에서 받은 client_secret…json 파일을 골라 주세요."}>
+            <label className="btn">
+              파일 고르기
+              <input type="file" accept=".json,application/json" hidden onChange={pickFile} />
+            </label>
+            {g.configured && (
+              <button type="button" className="btn" onClick={() => forgetClient()}>
+                지우기
+              </button>
+            )}
+          </Row>
+          <Row label="구글 로그인" desc={g.lastError || "로그인하면 구글 계정에 giLog 캘린더를 만들어 그 안에만 써요."}>
+            <button type="button" className="btn btn-primary" disabled={!g.configured || wait || !inApp} onClick={login}>
+              {wait ? "로그인 기다리는 중…" : "구글 로그인"}
+            </button>
+          </Row>
+        </>
+      )}
+      {msg && (
+        <p className="g-msg small" role="status">
+          {msg}
+        </p>
+      )}
+      {G_TOGGLES.map(([k, label, desc]) => (
+        <Toggle key={k} label={label} desc={desc} on={opts[k]} onChange={() => toggle(k)} />
+      ))}
+      <p className="g-foot small">민원인 이름과 연락처는 어떤 경우에도 구글로 내보내지 않아요. 내보낸 일정은 시청 밖 구글 서버에 저장돼요.</p>
+    </section>
   );
 }
 
