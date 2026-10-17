@@ -2090,18 +2090,13 @@ mark {
 }
 
 .jcard-new > .jpillar {
+  /* 구분 칸을 오른쪽 말 줄과 같은 높이에 맞춰요(위아래 줄 사이 6px) */
+  gap: 6px;
   border-right: 1px dashed var(--accent-line);
 }
 
 .jcard-edit > .jpillar {
   border-right: 1px solid var(--accent-line);
-}
-
-.jpillar-note {
-  margin-top: 6px;
-  font-size: 11px;
-  line-height: round(1.25em, 1px);
-  color: var(--muted);
 }
 
 .jproj-pillar {

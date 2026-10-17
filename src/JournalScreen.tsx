@@ -1230,7 +1230,6 @@ function NewCard({ date, ctx, onAdd }: { date: string; ctx: Ctx; onAdd: (e: Entr
           ref={kindRef}
           aria-label="구분"
           placeholder="구분"
-          list="jkind-list"
           autoComplete="off"
           className="cell-input"
           title={"초성 단축키: " + ctx.kinds.slice(0, 4).map((k) => `${k.key} ${k.name}`).join(", ") + " …"}
@@ -1244,18 +1243,6 @@ function NewCard({ date, ctx, onAdd }: { date: string; ctx: Ctx; onAdd: (e: Entr
             fill(who, k);
           }}
         />
-        <datalist id="jkind-list">
-          {ctx.kinds.map((k) => (
-            <option key={k.name} value={k.name}>
-              {k.key}
-            </option>
-          ))}
-        </datalist>
-        {!memo && (
-          <span className="jpillar-note" title="프로젝트는 상대의 연락처에서 자동으로 붙어요. 등록한 뒤 눌러서 바꿀 수 있어요.">
-            프로젝트 자동
-          </span>
-        )}
       </div>
       {memo ? (
         <div className="jnew-main">
@@ -1735,7 +1722,6 @@ function EditCard({
         />
         <input
           aria-label="구분"
-          list="jkind-list-edit"
           autoComplete="off"
           className="cell-input"
           value={kind}
@@ -1747,13 +1733,6 @@ function EditCard({
             if (k !== kind) setKind(k);
           }}
         />
-        <datalist id="jkind-list-edit">
-          {ctx.kinds.map((k) => (
-            <option key={k.name} value={k.name}>
-              {k.key}
-            </option>
-          ))}
-        </datalist>
         {!memo && (
         <span className="jproj-wrap jproj-pillar">
           <button
