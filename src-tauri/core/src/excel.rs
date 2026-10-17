@@ -112,13 +112,18 @@ pub fn write_xlsx(path: &Path, kind: SheetKind, data: &ExcelExport) -> Result<()
     ws.set_name(kind.title()).map_err(xerr)?;
     ws.set_default_row_height(30);
 
+    // 한글 글꼴은 엑셀이 쓰는 것처럼 문자 집합 129(한글)·family 1을 붙여야 그 글꼴로 보여요(2026-10-17 사용자: 제목이 헤드라인으로 안 보여요).
     let title = Format::new()
         .set_font_name("HY헤드라인M")
+        .set_font_charset(129)
+        .set_font_family(1)
         .set_font_size(20)
         .set_align(FormatAlign::Center)
         .set_align(FormatAlign::VerticalCenter);
     let head = Format::new()
         .set_font_name(FONT)
+        .set_font_charset(129)
+        .set_font_family(2)
         .set_font_size(10)
         .set_bold()
         .set_font_color(Color::RGB(0x002060))
@@ -130,6 +135,8 @@ pub fn write_xlsx(path: &Path, kind: SheetKind, data: &ExcelExport) -> Result<()
         .set_text_wrap();
     let cell = Format::new()
         .set_font_name(FONT)
+        .set_font_charset(129)
+        .set_font_family(2)
         .set_font_size(10)
         .set_num_format("@")
         .set_border(FormatBorder::Thin)
