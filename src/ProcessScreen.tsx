@@ -7,7 +7,7 @@
 import { CSSProperties, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, Complaint, Contact, ContactsData, errorText, inApp } from "./api";
 import { daysBetween } from "./complaints";
-import { copyText, projectColor } from "./ContactsScreen";
+import { projectColor } from "./ContactsScreen";
 import { DelIcon } from "./Icons";
 import { koIndex, todayStr } from "./journal";
 import {
@@ -582,7 +582,6 @@ function WorksDialog({
   const [selW, setSelW] = useState<number | null>(null);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [edit, setEdit] = useState<Draft>(EMPTY_DRAFT);
-  const [copied, setCopied] = useState<number | null>(null);
   const [ask, setAsk] = useState<{ id: number; rect: DOMRect } | null>(null);
   const [err, setErr] = useState("");
   const editRef = useRef<HTMLDivElement>(null);
@@ -758,27 +757,10 @@ function WorksDialog({
                 <span className="pr-ell">{w.co}</span>
                 <span className="pr-agent" title="업무연락처와 같은 연락처예요. 어느 쪽에서 고쳐도 함께 바뀌어요">
                   {c ? (
-                    <>
-                      <span className="pr-agent-name">
-                        <PersonIcon />
-                        {c.name}
-                      </span>
-                      {phoneOf(c) && (
-                        <button
-                          type="button"
-                          className={"pr-tel" + (copied === w.id ? " ok" : "")}
-                          title="눌러서 복사"
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            await copyText(phoneOf(c));
-                            setCopied(w.id);
-                            window.setTimeout(() => setCopied((x) => (x === w.id ? null : x)), 1500);
-                          }}
-                        >
-                          {copied === w.id ? "복사했어요" : phoneOf(c)}
-                        </button>
-                      )}
-                    </>
+                    <span className="pr-agent-name">
+                      <PersonIcon />
+                      {c.name}
+                    </span>
                   ) : (
                     <span className="pr-sub">—</span>
                   )}
@@ -819,7 +801,7 @@ function WorksDialog({
         </div>
         <div className="pr-hints">
           {err && <span className="pr-err">{err}</span>}
-          <span>현장대리인은 업무연락처에서 골라요(어느 쪽에서 고쳐도 함께 바뀌어요). 공사명은 업무연락처 프로젝트로도 등록되고 현장대리인에게 붙어요. 번호를 누르면 복사, 줄을 두 번 누르면 고치고 [저장]·Enter로 저장해요(Esc 취소).</span>
+          <span>현장대리인은 업무연락처에서 골라요(어느 쪽에서 고쳐도 함께 바뀌어요). 공사명은 업무연락처 프로젝트로도 등록되고 현장대리인에게 붙어요. 줄을 두 번 누르면 고치고 [저장]·Enter로 저장해요(Esc 취소).</span>
           <span>양식은 pptx·hwpx 중 골라요. 양식 이름을 누르면 파일을 바꿔요. 양식에 글자 자리 {"{주소} {보수내용} {고려사항} {연번} {지시일} {지시자}"} 와 그림 자리 "위치도"·"현장사진"을 두면 돼요.</span>
         </div>
         <div className="dialog-foot">
