@@ -103,17 +103,6 @@ fn xerr(e: XlsxError) -> Error {
     }
 }
 
-/// 글자의 대략 폭(엑셀 열 너비 단위). 한글·전각은 2, 나머지는 1.
-fn units(s: &str) -> f64 {
-    s.chars().map(|c| if (c as u32) >= 0x1100 { 1.85 } else { 1.0 }).sum()
-}
-
-/// 칸 안에서 몇 줄로 보일지(줄바꿈 + 열 폭으로 넘어가는 줄) 대략 셈해요.
-fn shown_lines(text: &str, width: f64) -> usize {
-    let cap = (width * 1.05).max(4.0);
-    text.split('\n').map(|l| ((units(l) / cap).ceil() as usize).max(1)).sum()
-}
-
 /// 내보내기: 양식(README) 그대로 써요.
 pub fn write_xlsx(path: &Path, kind: SheetKind, data: &ExcelExport) -> Result<()> {
     let cols = kind.columns();
@@ -121,6 +110,7 @@ pub fn write_xlsx(path: &Path, kind: SheetKind, data: &ExcelExport) -> Result<()
     let mut wb = Workbook::new();
     let ws: &mut Worksheet = wb.add_worksheet();
     ws.set_name(kind.title()).map_err(xerr)?;
+    ws.set_default_row_height(30);
 
     let title = Format::new()
         .set_font_name("HY헤드라인M")
@@ -167,8 +157,7 @@ pub fn write_xlsx(path: &Path, kind: SheetKind, data: &ExcelExport) -> Result<()
     // 4행부터 자료
     for (r, row) in data.rows.iter().enumerate() {
         let rr = (r + 3) as u32;
-        let mut lines = 1usize;
-        for (c, (name, w, is_left)) in cols.iter().enumerate() {
+        for (c, (name, _, is_left)) in cols.iter().enumerate() {
             let v = row.get(c).map(String::as_str).unwrap_or("");
             let cc = c as u16;
             if kind == SheetKind::Contacts && *name == "연번" {
@@ -181,11 +170,9 @@ pub fn write_xlsx(path: &Path, kind: SheetKind, data: &ExcelExport) -> Result<()
             } else {
                 ws.write_string_with_format(rr, cc, v, if *is_left { &left } else { &center }).map_err(xerr)?;
             }
-            lines = lines.max(shown_lines(v, *w));
         }
-        // 기본 30, 여러 줄이면 줄 수만큼(1안)
-        let h = if lines <= 1 { 30.0 } else { (lines as f64 * 15.0 + 6.0).max(30.0).min(409.0) };
-        ws.set_row_height(rr, h).map_err(xerr)?;
+        // 1행 제목만 50, 나머지 모든 행은 30 고정(2026-10-17 사용자 — 여러 줄이어도 늘리지 않아요)
+        ws.set_row_height(rr, 30).map_err(xerr)?;
     }
     let last_row = (data.rows.len() + 2) as u32;
 
@@ -339,13 +326,6 @@ mod tests {
         write_xlsx(&path, SheetKind::Complaints, &ExcelExport::default()).unwrap();
         let back = read_xlsx(&path, SheetKind::Complaints).unwrap();
         assert!(back.rows.is_empty());
-    }
-
-    #[test]
-    fn line_estimate() {
-        assert_eq!(shown_lines("짧은 글", 34.0), 1);
-        assert_eq!(shown_lines("가\n나\n다", 34.0), 3);
-        assert!(shown_lines(&"가".repeat(40), 34.0) >= 2);
     }
 
     /// 화면에서 확인할 때 쓰는 보기 파일(GILOG_XLSX_OUT=폴더 일 때만 써요).
