@@ -25,7 +25,7 @@ export const actionLine = (workName: string, seq: number) => `${workName} 지시
 export function processError(e: unknown): string | null {
   switch (e) {
     case "inbox":
-      return "받은편지함 폴더가 없어요. 설정에서 확인해 주세요.";
+      return "가져올 폴더 폴더가 없어요. 설정에서 확인해 주세요.";
     case "template":
       return "지시부 양식 파일이 없어요. 공사 관리에서 양식을 골라 주세요.";
     case "nofile":
@@ -34,14 +34,18 @@ export function processError(e: unknown): string | null {
       return "JPG를 만들지 못했어요.";
     case "windows":
       return "JPG는 윈도우 앱에서 만들어요.";
+    case "noclaude":
+      return "Claude Code를 찾지 못했어요. 설치했는지, 설정의 Claude 실행 파일을 확인해 주세요.";
+    case "running":
+      return "이미 민원을 불러오는 중이에요.";
     case "missing":
       return "파일이 없어요. 옮기거나 지웠는지 확인해 주세요.";
   }
   return null;
 }
 
-/** 브라우저 미리 보기의 "민원 불러오기"가 받은편지함에 넣는 보기 민원.
- *  AI가 받은편지함에 놓는 결과 파일과 같은 칸이에요(work는 공사 이름 앞 글자로 찾아요). */
+/** 브라우저 미리 보기의 "민원 불러오기"가 가져올 폴더에 넣는 보기 민원.
+ *  AI가 가져올 폴더에 놓는 결과 파일과 같은 칸이에요(work는 공사 이름 앞 글자로 찾아요). */
 export const SAMPLES: (Partial<Case> & { guess: string })[] = [
   { no: "1AA-2610-0312207", received: "2026-10-17", due: "2026-10-24", area: "조리읍", place: "등원리 230-1", short: "포트홀", summary: "\"보수해주세요\" + 사진 2장", reason: "사진: 차로 가장자리 지름 약 40cm 파임 1곳", photos: ["a.jpg", "b.jpg"], map: "m.png", guess: "도로시설물" },
   { no: "1AA-2610-0311980", received: "2026-10-17", due: "2026-10-23", area: "문산읍", place: "선유리 455", short: "균열", summary: "도로 갈라짐과 침하, 차량 흔들림", reason: "사진: 거북등 균열이 차로 절반, 여러 군데 — 포장 범위", photos: ["a.jpg"], guess: "도로포장" },
@@ -57,21 +61,37 @@ export const SAMPLE_WORKS = [
   { name: "가드레일·맨홀·도로부속시설 정비공사", co: "□□건설(주)", agent: "김도윤", phone: "010-0000-0188", scope: "가드레일 파손, 맨홀 단차·뚜껑 파손", nextSeq: 2, tpl: "D:\\지시부\\지시부_가드레일맨홀.pptx" },
 ];
 
-/** AI에게 줄 지침(설정 "민원처리" 카드의 [지침 복사]). 어떤 AI든 이 지침대로 받은편지함에 결과 파일을 놓으면 기Log가 똑같이 처리해요. */
-export function aiGuide(p: { inbox: string; downloads: string; outbox: string }, works: { id: number; name: string; scope: string }[]): string {
+/** 이미 있는 기록(Claude가 같은 민원을 다시 가져오지 않게) — 민원인 이름·연락처는 넣지 않아요. */
+export type Known = { nos: string[]; records: string[] };
+
+/** Claude에게 줄 지침. [민원 불러오기]가 Claude에게 넘기고, 설정의 [지침 복사]로도 복사해요. */
+export function aiGuide(p: { inbox: string; downloads: string; outbox: string }, works: { id: number; name: string; scope: string }[], known: Known = { nos: [], records: [] }): string {
   const list = works.length ? works.map((w) => `  - ${w.id}: ${w.name} — ${w.scope || "(처리 범위 없음)"}`).join("\n") : "  - (등록된 공사가 없어요 — work는 null)";
+  const nos = known.nos.length ? known.nos.join(", ") : "(없음)";
+  const recs = known.records.length ? known.records.map((r) => `  - ${r}`).join("\n") : "  - (없음)";
   return `# 기Log 민원처리 지침
 
-## 1. 민원 읽기
-1. 엣지로 ${PORTAL_URL} 첫 화면을 열고 메뉴를 눌러 민원처리목록으로 들어가요(주소를 바로 열면 405 오류).
-2. 목록의 민원마다 접수번호를 보고, 받은편지함(${p.inbox})과 그 안 "읽음" 폴더에 "<접수번호>.json"이 이미 있으면 건너뛰어요.
-3. 민원 원문을 읽고 첨부 사진은 [일괄다운로드]로 받아요(다운로드 폴더 ${p.downloads}). 개인정보 창은 열지 않아요. 제목은 담당자가 붙인 것이라 판단에 쓰지 않아요.
-4. 위치는 주소(리·동 + 지번)만 적어요. "앞", "버스정류장 뒤" 같은 말은 빼요. 원문·사진에 주소가 분명하지 않으면 "주소불명".
-5. 아래 공사의 처리 범위를 보고 공사 번호를 골라요. 애매하거나 공사 대상이 아니면 null.
-${list}
+## 0. 시작
+- 엣지(Claude 확장)로 일해요. 새 탭을 열어 ${PORTAL_URL} 첫 화면을 열고 메뉴를 눌러 민원처리목록으로 들어가요(주소를 바로 열면 405 오류).
+- 로그인 화면이 나오거나 로그인이 풀려 있으면 아무것도 쓰지 말고, 마지막 답을 정확히 LOGIN_REQUIRED 한 줄로 끝내요. 인증서 로그인은 담당자가 해요.
+- 개인정보 창은 열지 않아요. 제목은 담당자가 붙인 것이라 판단에 쓰지 않아요.
 
-## 2. 결과 파일
-민원 하나마다 받은편지함에 "<접수번호>.json"을 UTF-8로 써요.
+## 1. 가져올 민원 고르기
+- 목록에서 처리가 끝나지 않은 민원을 모두 봐요(건수 제한 없음).
+- 접수번호가 아래 "이미 있는 접수번호"에 있으면 열지 않고 건너뛰어요.
+- 그 밖의 민원은 열어서 본문을 읽고, 아래 "이미 있는 기록"과 같은 민원(같은 곳·같은 내용)이면 건너뛰어요. 기록에 없는 민원만 가져와요.
+- 가져올 민원 수를 정하면 가져올 폴더(${p.inbox})에 "_진행.json"을 {"total": 가져올 수, "done": 0} 으로 쓰고, 한 건을 끝낼 때마다 done을 올려요.
+
+이미 있는 접수번호: ${nos}
+이미 있는 기록(접수일 · 위치 · 내용):
+${recs}
+
+## 2. 한 건마다
+1. 본문을 읽고 첨부 사진은 [일괄다운로드]로 받아요(다운로드 폴더 ${p.downloads}). 받은 파일 이름을 확인해요.
+2. 위치는 주소(리·동 + 지번)만 적어요. "앞", "버스정류장 뒤" 같은 말은 빼요. 본문·사진에 주소가 분명하지 않으면 "주소불명".
+3. 아래 공사의 처리 범위를 보고 공사 번호를 골라요. 애매하거나 공사 대상이 아니면 null.
+${list}
+4. 가져올 폴더에 "<접수번호>.json"을 UTF-8로 써요.
 {
   "no": "1AA-2610-0309895",
   "received": "2026-10-15",
@@ -86,10 +106,14 @@ ${list}
   "map": "위치도 파일 이름.png"
 }
 - received·due는 접수일·처리기한(YYYY-MM-DD), area는 읍면동, short는 파일 이름에 쓸 보수내용 한두 낱말이에요.
-- summary는 민원 요약 한 줄, reason은 판단 이유 한 줄이에요.
-- photos·map은 다운로드 폴더나 받은편지함에 있는 파일 이름이에요. 없으면 [] 와 "".
+- summary는 민원 요약 한 줄, reason은 판단 이유 한 줄이에요. 민원인 이름·연락처는 쓰지 않아요.
+- photos·map은 다운로드 폴더에 있는 파일 이름이에요. 없으면 [] 와 "".
 
-## 3. 폰으로 보내기
-보낼편지함(${p.outbox})에 있는 JPG를 하나씩 대화에 올리고, 올린 파일은 그 안 "보냄" 폴더로 옮겨요. 그래야 기Log가 전송 완료로 바꿔요.
+## 3. 끝
+- 다 끝나면 마지막 답을 "새 민원 N건" 한 줄로 끝내요.
+
+## (따로) 폰으로 보내기
+보낼 폴더(${p.outbox})에 있는 JPG를 하나씩 대화에 올리고, 올린 파일은 그 안 "보냄" 폴더로 옮겨요. 그래야 기Log가 전송 완료로 바꿔요.
 `;
 }
+

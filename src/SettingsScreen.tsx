@@ -1024,9 +1024,9 @@ function Plus() {
 
 const PROCESS_DIRS: { key: "root" | "inbox" | "downloads" | "outbox"; label: string; desc: string }[] = [
   { key: "root", label: "민원 폴더", desc: "사진·지시부를 이 폴더에 접수일_위치_보수내용 이름으로 둬요." },
-  { key: "inbox", label: "받은편지함", desc: "AI가 민원마다 결과 파일을 놓는 곳이에요." },
+  { key: "inbox", label: "가져올 폴더", desc: "Claude가 신문고에서 읽은 민원을 한 건씩 놓는 곳이에요." },
   { key: "downloads", label: "다운로드 폴더", desc: "엣지가 신문고 첨부 사진을 받는 곳이에요." },
-  { key: "outbox", label: "보낼편지함", desc: "폰으로 보낼 지시부 JPG를 두면 Claude가 대화에 올려요." },
+  { key: "outbox", label: "보낼 폴더", desc: "폰으로 보낼 지시부 JPG를 두면 Claude가 대화에 올려요." },
 ];
 
 function ProcessCard({ p, onChange }: { p: ProcessSettings; onChange: (p: ProcessSettings) => void }) {
@@ -1077,7 +1077,20 @@ function ProcessCard({ p, onChange }: { p: ProcessSettings; onChange: (p: Proces
           </span>
         </Row>
       ))}
-      <Row label="AI 지침" desc="Claude나 다른 AI에 붙여 넣으면 신문고 민원을 받은편지함에 넣고, 보낼편지함의 지시부를 대화에 올려요." last>
+      <Row label="Claude 실행 파일" desc="[민원 불러오기]가 실행하는 Claude Code예요. 보통 그대로 두면 돼요.">
+        <span className="proc-dir">
+          <input
+            key={p.claude}
+            className="input"
+            aria-label="Claude 실행 파일"
+            data-ime="en"
+            defaultValue={p.claude}
+            onBlur={(e) => text("claude", e.target.value || "claude")}
+            onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+          />
+        </span>
+      </Row>
+      <Row label="AI 지침" desc="[민원 불러오기]가 Claude에게 주는 지침이에요. 다른 AI에 붙여 넣어 써도 돼요." last>
         <span className="proc-dir">
           {copied && <span className="muted small">복사했어요</span>}
           <button type="button" className="btn btn-xs" onClick={copyGuide}>

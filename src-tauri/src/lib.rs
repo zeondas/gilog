@@ -513,6 +513,7 @@ pub fn run() {
         .manage(AppState { store: Mutex::new(None) })
         .manage(calendar::Reminders::default())
         .manage(files::Watch::default())
+        .manage(process::ClaudeRun::default())
         .setup(|app| {
             // 창은 숨긴 채 만들고, 화면이 처음 그려지면(window_ready) 보여요.
             let theme = theme_pref(app.handle());
@@ -604,6 +605,9 @@ pub fn run() {
             process::check_sent,
             process::open_path,
             process::open_portal,
+            process::run_claude,
+            process::stop_claude,
+            process::claude_status,
             process::show_in_folder,
             set_ime,
             window::window_ready,

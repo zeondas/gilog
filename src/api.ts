@@ -235,7 +235,7 @@ export type WorkInput = {
 };
 export type Work = WorkInput & { id: number };
 
-/** new 지시부 전 · made 지시부 만듦 · queued 보낼편지함에 넣음(Claude가 올리기 전) · sent 전송 완료 */
+/** new 지시부 전 · made 지시부 만듦 · queued 보낼 폴더에 넣음(Claude가 올리기 전) · sent 전송 완료 */
 export type Stage = "new" | "made" | "queued" | "sent";
 
 export type Case = {
@@ -260,7 +260,7 @@ export type Case = {
   folder: string;
   orderFile: string;
   orderJpg: string;
-  /** 보낼편지함에 넣은 JPG */
+  /** 보낼 폴더에 넣은 JPG */
   outboxFile: string;
   sentAt: string;
 };
@@ -268,6 +268,7 @@ export type Case = {
 export type CasePatch = Partial<Pick<Case, "work" | "note" | "seq" | "stage" | "complaint" | "folder" | "orderFile" | "orderJpg" | "outboxFile" | "sentAt">>;
 export type ProcessData = { works: Work[]; cases: Case[] };
 export type InboxResult = { added: Case[]; skipped: number; failed: string[]; missingFiles: string[] };
+export type RunStatus = { state: "idle" | "running" | "done" | "login" | "stopped" | "error"; total: number | null; done: number | null; message: string };
 export type OrderResult = { case: Case; seq: number; workName: string; missing: string[] };
 
 export const inApp = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -289,8 +290,11 @@ const fake = {
   works: [] as Work[],
   nextWorkId: 1,
   cases: [] as Case[],
-  /** 미리 보기의 받은편지함: 다음 "민원 불러오기"가 읽어 갈 건들 */
+  /** 미리 보기의 가져올 폴더: 다음 "민원 불러오기"가 읽어 갈 건들 */
   inbox: [] as Partial<Case>[],
+  /** 미리 보기: Claude가 차례로 놓을 보기 민원과 진행 */
+  runQueue: [] as Partial<Case>[],
+  run: { state: "idle", total: null, done: null, message: "" } as RunStatus,
   taskLists: [
     { id: 1, name: "민원", visible: true, builtin: true, ord: 0 },
     { id: 2, name: "행정업무", visible: true, builtin: false, ord: 1 },
@@ -899,13 +903,32 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
     case "show_in_folder":
     case "open_portal":
       return null;
+    case "run_claude":
+      // 미리 보기: 보기 민원을 몇 번에 나눠 가져올 폴더에 넣는 것처럼 보여요.
+      fake.run = { state: "running", total: fake.runQueue.length, done: 0, message: "" };
+      return null;
+    case "stop_claude":
+      if (fake.run.state === "running") fake.run.state = "stopped";
+      fake.runQueue = [];
+      return null;
+    case "claude_status": {
+      if (fake.run.state === "running") {
+        const next = fake.runQueue.shift();
+        if (next) {
+          fake.inbox.push(next);
+          fake.run.done = (fake.run.done ?? 0) + 1;
+        } else fake.run.state = "done";
+      }
+      return { ...fake.run };
+    }
+      return null;
   }
   return undefined;
 }
 
-/** 미리 보기 전용: 받은편지함에 보기 민원을 넣어요(앱에서는 아무것도 안 해요). */
+/** 미리 보기 전용: 가져올 폴더에 보기 민원을 넣어요(앱에서는 아무것도 안 해요). */
 export function previewInbox(list: Partial<Case>[]) {
-  if (!inApp) fake.inbox.push(...structuredClone(list));
+  if (!inApp) fake.runQueue = structuredClone(list);
 }
 
 function fakeCall(cmd: string, args: Record<string, unknown>): unknown {
@@ -1071,6 +1094,9 @@ export const api = {
   openPath: (path: string) => call<null>("open_path", { path }),
   showInFolder: (path: string) => call<null>("show_in_folder", { path }),
   openPortal: (url: string) => call<null>("open_portal", { url }),
+  runClaude: (req: { exe: string; inbox: string; downloads: string; guide: string }) => call<null>("run_claude", { req }),
+  stopClaude: () => call<null>("stop_claude"),
+  claudeStatus: (inbox: string) => call<RunStatus>("claude_status", { inbox }),
   /** 엑셀에서 읽은 줄을 그대로 넣고 넣은 수를 돌려줘요. */
   importComplaints: (rows: (ComplaintInput & { memo: string })[]) => call<number>("import_complaints", { rows }),
   importContacts: (rows: (ContactInput & { memo: string })[]) => call<number>("import_contacts", { rows }),

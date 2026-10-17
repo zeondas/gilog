@@ -1,13 +1,13 @@
 //! 민원처리(10단계) 명령. 저장 규칙은 core의 process·order에 있고, 여기는 파일·폴더·윈도우 프로그램 일을 해요.
 //!
-//! - 받은편지함: AI가 민원 한 건마다 JSON 파일 하나를 놓아요(사양서 "민원처리" 흐름 2).
-//!   사진·위치도 파일 이름은 받은편지함 → 다운로드 폴더 순으로 찾고, 민원 폴더(설정, 기본 D:\민원처리) 한 곳에
+//! - 가져올 폴더: AI가 민원 한 건마다 JSON 파일 하나를 놓아요(사양서 "민원처리" 흐름 2).
+//!   사진·위치도 파일 이름은 가져올 폴더 → 다운로드 폴더 순으로 찾고, 민원 폴더(설정, 기본 D:\민원처리) 한 곳에
 //!   `접수일_위치_보수내용_사진1.jpg`처럼 이름을 붙여 옮겨요(시안 Process·Files 판 — 파일함이 이 이름으로 찾아요).
-//!   읽은 JSON은 받은편지함의 "읽음" 폴더로 옮겨요(이미 있는 접수번호도). 못 읽은 파일은 그대로 두고 이름을 알려 줘요.
+//!   읽은 JSON은 가져올 폴더의 "읽음" 폴더로 옮겨요(이미 있는 접수번호도). 못 읽은 파일은 그대로 두고 이름을 알려 줘요.
 //! - 지시부: 양식을 채워 민원 폴더에 쓰고(`make_order`), JPG는 파워포인트·한글로 따로 만들어요(`order_jpg`, 몇 초 걸려 따로 돌려요).
-//! - 폰으로 보내기(사용자 2안): JPG를 보낼편지함 폴더에 복사하고 "보내는 중"(queued)으로 둬요.
-//!   Claude가 대화에 올린 뒤 그 파일을 보낼편지함의 "보냄" 폴더로 옮기면 `check_sent`가 보고 전송 완료(sent)로 바꿔요.
-//!   보낼편지함에도 "보냄"에도 없으면(누가 지웠으면) 다시 보낼 수 있게 지시부 만듦(made)으로 돌려요.
+//! - 폰으로 보내기(사용자 2안): JPG를 보낼 폴더 폴더에 복사하고 "보내는 중"(queued)으로 둬요.
+//!   Claude가 대화에 올린 뒤 그 파일을 보낼 폴더의 "보냄" 폴더로 옮기면 `check_sent`가 보고 전송 완료(sent)로 바꿔요.
+//!   보낼 폴더에도 "보냄"에도 없으면(누가 지웠으면) 다시 보낼 수 있게 지시부 만듦(made)으로 돌려요.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -99,7 +99,7 @@ fn order_path(dir: &Path, stem: &str, ext: &str) -> PathBuf {
     dir.join(format!("{s}.{ext}"))
 }
 
-/// 이름만 적힌 첨부를 찾아요: 절대 경로면 그대로, 아니면 받은편지함 → 다운로드 폴더.
+/// 이름만 적힌 첨부를 찾아요: 절대 경로면 그대로, 아니면 가져올 폴더 → 다운로드 폴더.
 fn find_file(name: &str, dirs: &[&Path]) -> Option<PathBuf> {
     let n = name.trim();
     if n.is_empty() {
@@ -124,7 +124,7 @@ pub struct InboxResult {
     pub missing_files: Vec<String>,
 }
 
-/// 받은편지함 파일 하나에 민원 하나, 또는 여러 건의 배열이 들어 있어요.
+/// 가져올 폴더 파일 하나에 민원 하나, 또는 여러 건의 배열이 들어 있어요.
 fn parse_inbox_file(text: &str) -> Option<Vec<CaseInput>> {
     let text = text.trim_start_matches('\u{feff}');
     if let Ok(one) = serde_json::from_str::<CaseInput>(text) {
@@ -148,6 +148,8 @@ pub fn read_inbox(state: State<AppState>, inbox: String, downloads: String, root
         .map_err(io)?
         .filter_map(|e| e.ok().map(|e| e.path()))
         .filter(|p| p.is_file() && p.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("json")))
+        // `_진행.json` 같은 Claude의 메모 파일은 민원이 아니에요.
+        .filter(|p| !p.file_name().and_then(|n| n.to_str()).unwrap_or("").starts_with('_'))
         .collect();
     files.sort();
 
@@ -155,7 +157,11 @@ pub fn read_inbox(state: State<AppState>, inbox: String, downloads: String, root
     for file in files {
         let fname = file.file_name().and_then(|n| n.to_str()).unwrap_or("").to_string();
         let Some(list) = fs::read_to_string(&file).ok().and_then(|t| parse_inbox_file(&t)) else {
-            res.failed.push(fname);
+            // Claude가 아직 쓰는 중일 수 있어요 — 막 바뀐 파일은 다음에 다시 읽어요.
+            let fresh = fs::metadata(&file).and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok()).is_some_and(|d| d.as_secs() < 10);
+            if !fresh {
+                res.failed.push(fname);
+            }
             continue;
         };
         let mut ready = Vec::new();
@@ -390,7 +396,7 @@ pub async fn order_jpg(state: State<'_, AppState>, no: String) -> Result<Case, S
     }
 }
 
-/// 폰으로 보내기: JPG를 보낼편지함에 복사하고 "보내는 중"으로 적어요.
+/// 폰으로 보내기: JPG를 보낼 폴더에 복사하고 "보내는 중"으로 적어요.
 #[tauri::command]
 pub fn send_order(state: State<AppState>, no: String, outbox: String) -> Result<Case, String> {
     let c = with_store(&state, |s| s.case(&no))?;
@@ -429,7 +435,7 @@ pub fn check_sent(state: State<AppState>, now: String) -> Result<Vec<Case>, Stri
     Ok(changed)
 }
 
-/// Claude가 대화에 올린 파일을 옮겨 두는 보낼편지함 안 폴더
+/// Claude가 대화에 올린 파일을 옮겨 두는 보낼 폴더 안 폴더
 pub const SENT_DIR: &str = "보냄";
 
 /// 지시부 파일이나 민원 폴더를 윈도우 기본 프로그램(파워포인트·한글·탐색기)으로 열어요.
@@ -517,6 +523,13 @@ mod tests {
     }
 
     #[test]
+    fn final_answer_states() {
+        assert_eq!(final_state("LOGIN_REQUIRED", false).0, "login");
+        assert_eq!(final_state("새 민원 3건을 가져왔어요", false).0, "done");
+        assert_eq!(final_state("오류: 확장 연결 안 됨\n자세히", true), ("error".into(), "오류: 확장 연결 안 됨".into()));
+    }
+
+    #[test]
     fn inbox_file_one_or_many() {
         assert_eq!(parse_inbox_file("\u{feff}{\"no\":\"1AA-1\",\"photos\":[\"a.jpg\"]}").unwrap()[0].photos, vec!["a.jpg"]);
         assert_eq!(parse_inbox_file("[{\"no\":\"1\"},{\"no\":\"2\"}]").unwrap().len(), 2);
@@ -531,4 +544,179 @@ mod tests {
         assert!(s.contains("PowerPoint.Application"));
         assert!(jpg_script(Path::new("a.hwpx"), Path::new("a.jpg")).contains("HWPFrame.HwpObject"));
     }
+}
+
+// ---------- 민원 불러오기: Claude가 신문고를 읽어요 (2026-10-18 사용자 1안) ----------
+//
+// 단추를 누르면 Claude Code를 창 없이 실행해요(`claude -p --chrome`). Claude는 엣지 확장으로
+// 신문고 민원처리목록을 읽고, 새 민원 한 건마다 가져올 폴더에 결과 파일을 놓아요.
+// 화면은 2초마다 `claude_status`와 `read_inbox`로 진행과 새 줄을 가져와요.
+// 진행 수는 Claude가 가져올 폴더에 쓰는 `_진행.json`({"total":N,"done":k})에서 읽어요.
+// 신문고 로그인이 풀려 있으면 Claude는 아무것도 쓰지 않고 마지막 답을 `LOGIN_REQUIRED`로 끝내요(사용자 1안 — 멈추고 알림).
+
+#[derive(Default)]
+pub struct ClaudeRun {
+    inner: std::sync::Arc<std::sync::Mutex<RunInner>>,
+}
+
+#[derive(Default)]
+struct RunInner {
+    child: Option<std::process::Child>,
+    status: RunStatus,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunStatus {
+    /// idle · running · done · login · stopped · error
+    pub state: String,
+    pub total: Option<u32>,
+    pub done: Option<u32>,
+    /// 오류일 때 이유(첫 줄)
+    pub message: String,
+}
+
+/// 진행 파일 이름(read_inbox는 `_`로 시작하는 파일을 읽지 않아요)
+pub const PROGRESS_FILE: &str = "_진행.json";
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunRequest {
+    /// Claude 실행 파일(설정, 처음 값 "claude")
+    pub exe: String,
+    /// 가져올 폴더
+    pub inbox: String,
+    /// 엣지 다운로드 폴더
+    pub downloads: String,
+    /// 지침 전체(화면이 만들어 넘겨요 — 공사 처리 범위·이미 있는 기록 포함)
+    pub guide: String,
+}
+
+/// 마지막 답에서 상태를 읽어요.
+fn final_state(result: &str, is_error: bool) -> (String, String) {
+    if result.contains("LOGIN_REQUIRED") {
+        ("login".into(), String::new())
+    } else if is_error {
+        ("error".into(), result.lines().find(|l| !l.trim().is_empty()).unwrap_or("").chars().take(200).collect())
+    } else {
+        ("done".into(), String::new())
+    }
+}
+
+#[tauri::command]
+pub fn run_claude(run: State<ClaudeRun>, req: RunRequest) -> Result<(), String> {
+    use std::io::{BufRead, Write};
+    use std::process::{Command, Stdio};
+    let mut g = run.inner.lock().map_err(|_| "busy".to_string())?;
+    if let Some(c) = g.child.as_mut() {
+        if c.try_wait().ok().flatten().is_none() {
+            return Err("running".into());
+        }
+    }
+    let inbox = PathBuf::from(req.inbox.trim());
+    fs::create_dir_all(&inbox).map_err(io)?;
+    let _ = fs::remove_file(inbox.join(PROGRESS_FILE));
+    let exe = if req.exe.trim().is_empty() { "claude" } else { req.exe.trim() };
+    let mut cmd = Command::new(exe);
+    cmd.current_dir(&inbox)
+        .args(["-p", "아래 지침대로 국민신문고 민원을 가져와요.", "--chrome", "--output-format", "stream-json", "--verbose"])
+        .args(["--permission-mode", "acceptEdits", "--permission-prompts", "none"])
+        .args(["--allowedTools", "mcp__claude-in-chrome,Read,Write,Edit,Glob"])
+        .arg("--add-dir")
+        .arg(req.downloads.trim())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000);
+    }
+    let mut child = cmd.spawn().map_err(|e| if e.kind() == std::io::ErrorKind::NotFound { "noclaude".to_string() } else { e.to_string() })?;
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin.write_all(req.guide.as_bytes()).map_err(io)?;
+    }
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+    g.child = Some(child);
+    g.status = RunStatus { state: "running".into(), ..Default::default() };
+    drop(g);
+
+    // 사용자가 멈추면 child가 없어져요 — 읽는 쪽은 그때 "stopped"를 덮어쓰지 않아요.
+    let inner = run.inner.clone();
+    let err_text = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+    if let Some(e) = stderr {
+        let et = err_text.clone();
+        std::thread::spawn(move || {
+            for line in std::io::BufReader::new(e).lines().map_while(Result::ok) {
+                if let Ok(mut s) = et.lock() {
+                    if s.len() < 2000 {
+                        s.push_str(&line);
+                        s.push('\n');
+                    }
+                }
+            }
+        });
+    }
+    std::thread::spawn(move || {
+        let mut last: Option<(String, String)> = None;
+        if let Some(out) = stdout {
+            for line in std::io::BufReader::new(out).lines().map_while(Result::ok) {
+                let Ok(v) = serde_json::from_str::<serde_json::Value>(&line) else { continue };
+                if v["type"] == "result" {
+                    let text = v["result"].as_str().unwrap_or("").to_string();
+                    last = Some(final_state(&text, v["is_error"].as_bool().unwrap_or(false)));
+                }
+            }
+        }
+        let Ok(mut g) = inner.lock() else { return };
+        if g.status.state != "running" {
+            return;
+        }
+        let code_ok = g.child.as_mut().and_then(|c| c.wait().ok()).map(|s| s.success()).unwrap_or(false);
+        let (state, message) = match last {
+            Some(x) => x,
+            None if code_ok => ("done".into(), String::new()),
+            None => ("error".into(), err_text.lock().map(|s| s.lines().find(|l| !l.trim().is_empty()).unwrap_or("").to_string()).unwrap_or_default()),
+        };
+        g.status.state = state;
+        g.status.message = message;
+        g.child = None;
+    });
+    Ok(())
+}
+
+#[tauri::command]
+pub fn stop_claude(run: State<ClaudeRun>) -> Result<(), String> {
+    let mut g = run.inner.lock().map_err(|_| "busy".to_string())?;
+    if let Some(mut c) = g.child.take() {
+        #[cfg(windows)]
+        {
+            // claude가 띄운 자식 프로세스까지 함께 끝내요.
+            use std::os::windows::process::CommandExt;
+            let _ = std::process::Command::new("taskkill").args(["/T", "/F", "/PID", &c.id().to_string()]).creation_flags(0x0800_0000).status();
+        }
+        let _ = c.kill();
+        let _ = c.wait();
+    }
+    if g.status.state == "running" {
+        g.status.state = "stopped".into();
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn claude_status(run: State<ClaudeRun>, inbox: String) -> Result<RunStatus, String> {
+    let g = run.inner.lock().map_err(|_| "busy".to_string())?;
+    let mut s = g.status.clone();
+    if s.state.is_empty() {
+        s.state = "idle".into();
+    }
+    if let Ok(t) = fs::read_to_string(PathBuf::from(inbox.trim()).join(PROGRESS_FILE)) {
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(t.trim_start_matches('\u{feff}')) {
+            s.total = v["total"].as_u64().map(|n| n as u32);
+            s.done = v["done"].as_u64().map(|n| n as u32);
+        }
+    }
+    Ok(s)
 }

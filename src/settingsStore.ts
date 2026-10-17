@@ -17,15 +17,18 @@ export type ProcessSettings = {
   downloads: string;
   /** 폰으로 보낼 JPG를 두는 곳(Claude가 대화에 올려요) */
   outbox: string;
+  /** Claude Code 실행 파일(경로를 비우면 "claude") */
+  claude: string;
 };
 
 export const DEFAULT_PROCESS: ProcessSettings = {
   signer: "도로관리과 전훈민",
   signerPhone: "",
   root: "D:\\민원처리",
-  inbox: "D:\\민원처리\\받은편지함",
+  inbox: "D:\\민원처리\\가져오기",
   downloads: "D:\\",
-  outbox: "D:\\민원처리\\보낼편지함",
+  outbox: "D:\\민원처리\\보내기",
+  claude: "claude",
 };
 
 export type Settings = {

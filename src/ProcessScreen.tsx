@@ -1,19 +1,19 @@
 // 민원처리 화면이에요(10단계). 시안 Process.dc.html과 사양서 "민원처리" 절을 따라요.
 //
 // - 상태 열이 없어요. 맨 오른쪽 단추 자리 하나가 진행을 보여 줘요: [지시부 만들기] → [폰으로 보내기] → ✓ 전송 완료.
-// - [민원 불러오기]는 받은편지함 폴더의 결과 파일(JSON)을 읽어요(AI가 놓아요). 사진은 민원 폴더로 옮겨요.
+// - [민원 불러오기]는 가져올 폴더 폴더의 결과 파일(JSON)을 읽어요(AI가 놓아요). 사진은 민원 폴더로 옮겨요.
 // - [지시부 만들기] = 양식 채우기(민원 폴더에 접수일_위치_보수내용.pptx/hwpx) + 민원대장 등록(조치내용 "□ 공사명 지시(연번)")
 //   + JPG(파워포인트·한글). 민원대장에서 완료하면 이 표에서 숨어요.
-// - [폰으로 보내기] = JPG를 보낼편지함에 복사 → "보내는 중". Claude가 대화에 올리고 "보냄" 폴더로 옮기면 ✓ 전송 완료(사용자 2안).
+// - [폰으로 보내기] = JPG를 보낼 폴더에 복사 → "보내는 중". Claude가 대화에 올리고 "보냄" 폴더로 옮기면 ✓ 전송 완료(사용자 2안).
 // - 대상이 아닌 건은 줄 끝 ×(작은 묻기 창). 지운 건은 다음 불러오기 때 다시 와요.
 // - 공사 관리 창: 현장대리인은 업무연락처에서 골라요(같은 연락처 하나 — 쌍방향), 공사명은 업무연락처 프로젝트로도 등록돼요.
 import { CSSProperties, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { api, Case, Complaint, Contact, ContactsData, errorText, inApp, previewInbox, Work, WorkInput } from "./api";
+import { api, Case, Complaint, Contact, ContactsData, errorText, inApp, previewInbox, RunStatus, Work, WorkInput } from "./api";
 import { daysBetween } from "./complaints";
 import { projectColor } from "./ContactsScreen";
 import { DelIcon } from "./Icons";
 import { koIndex, todayStr } from "./journal";
-import { actionLine, fileName, md, orderDate, PORTAL_URL, processError, SAMPLE_WORKS, SAMPLES, signerText } from "./process";
+import { actionLine, aiGuide, fileName, md, orderDate, PORTAL_URL, processError, SAMPLE_WORKS, SAMPLES, signerText } from "./process";
 import { DEFAULT_PROCESS, DONE_STATUS, loadSettings, ProcessSettings } from "./settingsStore";
 
 type Props = { urgentDays: number; onOpenComplaint: (id: number) => void };
@@ -27,6 +27,17 @@ function workColor(w: Work | undefined, cd: ContactsData | null): number {
 const phoneOf = (c: Contact | undefined) => (c ? c.mobile || c.tel : "");
 
 const FETCHED_KEY = "process.fetched";
+
+/** 민원대장 내용(줄 목록 JSON 또는 글자)을 한 줄 글자로 */
+function bodyText(b: string): string {
+  try {
+    const v = JSON.parse(b);
+    if (Array.isArray(v)) return v.map((x) => x?.t ?? "").filter(Boolean).join(" / ");
+  } catch {
+    /* 글자 그대로 */
+  }
+  return b.replace(/\s+/g, " ");
+}
 
 const errText = (e: unknown) => processError(e) ?? (typeof e === "string" && e.length > 12 ? e : errorText(e));
 
@@ -47,7 +58,8 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   const [sel, setSel] = useState<string | null>(null);
   const [showDone, setShowDone] = useState(false);
   const [worksOpen, setWorksOpen] = useState(false);
-  const [reading, setReading] = useState(false);
+  // Claude가 신문고를 읽는 중: 가져온 수 / 가져올 수(모르면 null)
+  const [run, setRun] = useState<{ n: number; total: number | null } | null>(null);
   // 지시부·JPG를 만드는 중인 줄
   const [busy, setBusy] = useState<Record<string, string>>({});
   // 뜨는 목록(공사 고르기)과 지우기 묻기 창
@@ -108,30 +120,62 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   const done = found.filter((c) => isDone(c));
   const rows = showDone ? [...open, ...done] : open;
 
-  // ---------- 민원 불러오기: 받은편지함의 결과 파일을 읽어요 ----------
+  // ---------- 민원 불러오기: Claude가 신문고를 읽어 가져올 폴더에 놓고, 2초마다 표에 넣어요 ----------
+  async function pullInbox(acc: { n: number; failed: Set<string>; missing: number }) {
+    const r = await api.readInbox(ps.inbox, ps.downloads, ps.root);
+    if (r.added.length) setCases((l) => [...l, ...r.added.filter((a) => !l.some((x) => x.no === a.no))]);
+    acc.n += r.added.length;
+    r.failed.forEach((f) => acc.failed.add(f));
+    acc.missing += r.missingFiles.length;
+  }
+
   async function fetchCases() {
-    if (reading || !works) return;
-    setReading(true);
+    if (run || !works) return;
     setNote("");
+    // 이미 있는 기록: 이 표의 접수번호 + 민원대장(최근 90일 접수, 민원인 정보는 빼요)
+    const since = todayStr(new Date(Date.now() - 90 * 86400000));
+    const known = {
+      nos: cases.map((c) => c.no),
+      records: complaints
+        .filter((m) => m.received >= since)
+        .map((m) => `${m.received} · ${[m.area, m.place].filter(Boolean).join(" ") || "위치 없음"} · ${bodyText(m.body).slice(0, 80)}`),
+    };
+    if (!inApp) previewInbox(SAMPLES.map(({ guess, ...c }) => ({ ...c, work: guess ? works.find((w) => w.name.startsWith(guess))?.id ?? null : null })));
     try {
-      if (!inApp) {
-        // 미리 보기: 보기 민원을 받은편지함에 넣어 둬요(공사는 이름 앞 글자로).
-        previewInbox(SAMPLES.map(({ guess, ...c }) => ({ ...c, work: guess ? works.find((w) => w.name.startsWith(guess))?.id ?? null : null })));
-      }
-      const r = await api.readInbox(ps.inbox, ps.downloads, ps.root);
-      setCases((l) => [...l, ...r.added]);
-      const msg = [`새 민원 ${r.added.length}건`, r.skipped ? `이미 있는 ${r.skipped}건` : "", r.failed.length ? `못 읽은 파일 ${r.failed.join(", ")}` : "", r.missingFiles.length ? `못 찾은 사진 ${r.missingFiles.length}개` : ""]
-        .filter(Boolean)
-        .join(" · ");
-      setNote(msg);
-      const f = `${stamp()} · 새 민원 ${r.added.length}건`;
-      setFetched(f);
-      await api.set(FETCHED_KEY, f);
+      await api.runClaude({ exe: ps.claude, inbox: ps.inbox, downloads: ps.downloads, guide: aiGuide(ps, works, known) });
     } catch (e) {
       setNote(errText(e));
-    } finally {
-      setReading(false);
+      return;
     }
+    setRun({ n: 0, total: null });
+    const acc = { n: 0, failed: new Set<string>(), missing: 0 };
+    let st: RunStatus;
+    for (;;) {
+      await new Promise((r) => setTimeout(r, inApp ? 2000 : 700));
+      st = await api.claudeStatus(ps.inbox).catch(() => ({ state: "error", total: null, done: null, message: "" }) as RunStatus);
+      await pullInbox(acc).catch(() => {});
+      setRun({ n: st.done ?? acc.n, total: st.total });
+      if (st.state !== "running") break;
+    }
+    await pullInbox(acc).catch(() => {});
+    setRun(null);
+    const tail = [acc.failed.size ? `못 읽은 파일 ${[...acc.failed].join(", ")}` : "", acc.missing ? `못 찾은 사진 ${acc.missing}개` : ""].filter(Boolean);
+    const head =
+      st.state === "login"
+        ? "신문고 로그인이 풀려 있어요. [신문고 열기]로 로그인한 뒤 다시 눌러 주세요"
+        : st.state === "stopped"
+          ? `멈췄어요 · 새 민원 ${acc.n}건`
+          : st.state === "error"
+            ? `Claude가 멈췄어요${st.message ? ` — ${st.message}` : ""} · 새 민원 ${acc.n}건`
+            : `새 민원 ${acc.n}건`;
+    setNote([head, ...tail].join(" · "));
+    const f = `${stamp()} · 새 민원 ${acc.n}건`;
+    setFetched(f);
+    await api.set(FETCHED_KEY, f);
+  }
+
+  async function stopFetch() {
+    await api.stopClaude().catch(() => {});
   }
 
   // ---------- 지시부 만들기 · 폰으로 보내기 ----------
@@ -197,7 +241,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     if (!ready?.orderJpg) return;
     try {
       putCase(await api.sendOrder(c.no, ps.outbox));
-      setNote("보낼편지함에 넣었어요. Claude가 대화에 올리면 전송 완료로 바뀌어요");
+      setNote("보낼 폴더에 넣었어요. Claude가 대화에 올리면 전송 완료로 바뀌어요");
     } catch (e) {
       setNote(errText(e));
     }
@@ -289,13 +333,28 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
             <path d="M14 4h6v6M20 4l-9 9M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" />
           </svg>
         </button>
-        <button type="button" className="btn-primary btn-ctrl pr-fetch" title="받은편지함의 결과 파일을 읽어요" onClick={fetchCases} disabled={reading}>
+        <button type="button" className="btn-primary btn-ctrl pr-fetch" title="Claude가 엣지로 신문고 민원처리목록을 읽어 기록에 없는 민원을 가져와요" onClick={fetchCases} disabled={!!run}>
           <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 3v12M7 10l5 5 5-5M4 19h16" />
           </svg>
-          {reading ? "불러오는 중…" : "민원 불러오기"}
+          {run ? "불러오는 중…" : "민원 불러오기"}
         </button>
       </div>
+
+      {run && (
+        <div className="pr-run" role="status">
+          <span className="pr-run-dot" aria-hidden="true" />
+          <span>
+            Claude가 신문고 민원처리목록을 읽고 있어요{run.total != null ? ` · ${run.n}/${run.total}건` : run.n ? ` · ${run.n}건` : ""}
+          </span>
+          <span className="pr-run-bar">
+            <span style={{ width: run.total ? `${(run.n / run.total) * 100}%` : "8%" }} />
+          </span>
+          <button type="button" className="btn btn-xs" onClick={stopFetch}>
+            멈추기
+          </button>
+        </div>
+      )}
 
       <div className="pr-table" role="table" aria-label="민원처리 목록">
         <div className="pr-row pr-headrow" role="row">
@@ -311,7 +370,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
         </div>
         <div className="pr-body">
           {rows.length === 0 && (
-            <p className="pr-empty">{cases.length === 0 ? "[민원 불러오기]를 누르면 받은편지함의 민원을 가져와요." : q ? "찾는 민원이 없어요." : "처리할 민원이 없어요."}</p>
+            <p className="pr-empty">{cases.length === 0 ? "[민원 불러오기]를 누르면 Claude가 신문고에서 기록에 없는 민원을 가져와요." : q ? "찾는 민원이 없어요." : "처리할 민원이 없어요."}</p>
           )}
           {rows.map((c) => {
             const w = works.find((x) => x.id === c.work);
@@ -394,11 +453,11 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                       지시부 만들기
                     </button>
                   ) : c.stage === "made" ? (
-                    <button type="button" className="pr-next go" disabled={isD} title="JPG를 보낼편지함에 넣어요. Claude가 대화에 올리면 폰에서 카톡으로 공유해요" onClick={() => send(c)}>
+                    <button type="button" className="pr-next go" disabled={isD} title="JPG를 보낼 폴더에 넣어요. Claude가 대화에 올리면 폰에서 카톡으로 공유해요" onClick={() => send(c)}>
                       폰으로 보내기
                     </button>
                   ) : c.stage === "queued" ? (
-                    <span className="pr-sent pr-queued" title="보낼편지함에 있어요. Claude가 대화에 올리면 전송 완료로 바뀌어요">
+                    <span className="pr-sent pr-queued" title="보낼 폴더에 있어요. Claude가 대화에 올리면 전송 완료로 바뀌어요">
                       보내는 중
                     </span>
                   ) : (
