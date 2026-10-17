@@ -20,7 +20,10 @@ import { complaintTitle } from "./tasks";
 import { stamp } from "./reminders";
 
 /** 캘린더는 "앱이 만든 캘린더만", 할 일은 구글 할 일 전체(앱이 만든 "기Log" 목록만 만져요 — 구글에 더 좁은 권한이 없어요). */
-const SCOPE = "https://www.googleapis.com/auth/calendar.app.created https://www.googleapis.com/auth/tasks";
+const CAL_SCOPE = "https://www.googleapis.com/auth/calendar.app.created";
+/** 구글 할 일 권한. 구글이 "민감한 권한"으로 봐서, 받는 사람마다 확인되지 않은 앱 경고가 뜨고 100명 한도에 세어져요.
+ * 그래서 설정의 "구글 할 일로 보내기"를 켠 사람만 받아요(사용자 2026-10-17 1안). */
+const TASKS_SCOPE = "https://www.googleapis.com/auth/tasks";
 const TASKS_API = "https://tasks.googleapis.com/tasks/v1";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const API = "https://www.googleapis.com/calendar/v3";
@@ -33,7 +36,9 @@ const K_STATE = "google.state";
 const K_OPTS = "google.opts";
 
 export type GClient = { id: string; secret: string };
-type GToken = { refresh: string; access: string; exp: number };
+/** scope는 구글이 허용한 권한 목록(0.9.4 전 로그인은 없어요 — 그때는 늘 할 일 권한까지 받았어요). */
+type GToken = { refresh: string; access: string; exp: number; scope?: string };
+const hasTasksScope = (t: GToken | null) => !!t && (t.scope === undefined || t.scope.includes(TASKS_SCOPE));
 type GItem = { id: string; h: string };
 /** 구글 할 일 하나: 마지막으로 보낸 완료 상태(done)를 기억해 구글에서 체크한 것을 알아봐요. prev는 민원의 완료 전 상태예요. */
 type TItem = { id: string; h: string; done: boolean; parent: string; list?: string; prev?: string };
@@ -50,9 +55,10 @@ export type GState = {
   /** 다음 맞추기는 전체를 다시 맞춰요(처음 연결·지금 내보내기) */
   full: boolean;
 };
-export type GOpts = { events: boolean; complaints: boolean; tasks: boolean };
+/** gtasks: 할 일·민원 마감을 구글 할 일로 보내요(끄면 구글 캘린더의 종일 일정으로 보내요). */
+export type GOpts = { events: boolean; complaints: boolean; tasks: boolean; gtasks: boolean };
 
-export const DEFAULT_OPTS: GOpts = { events: true, complaints: true, tasks: true };
+export const DEFAULT_OPTS: GOpts = { events: true, complaints: true, tasks: true, gtasks: false };
 const EMPTY_STATE: GState = { calendarId: "", items: {}, listId: "", titems: {}, lastOk: "", lastError: "", full: true };
 
 // ---------- 저장 ----------
@@ -67,7 +73,33 @@ async function getJson<T>(key: string): Promise<T | null> {
 }
 const putJson = (key: string, v: unknown) => api.set(key, v === null ? "" : JSON.stringify(v));
 
-export const loadOpts = async (): Promise<GOpts> => ({ ...DEFAULT_OPTS, ...((await getJson<GOpts>(K_OPTS)) ?? {}) });
+export async function loadOpts(): Promise<GOpts> {
+  const o = { ...DEFAULT_OPTS, ...((await getJson<Partial<GOpts>>(K_OPTS)) ?? {}) };
+  if ((await getJson<Partial<GOpts>>(K_OPTS))?.gtasks === undefined) {
+    // 0.9.2~0.9.3에서 이미 구글 할 일로 보내던 사람은 그대로 켜 둬요.
+    const st = await getJson<GState>(K_STATE);
+    o.gtasks = !!st && (Object.keys(st.titems ?? {}).length > 0 || !!st.listId);
+  }
+  return o;
+}
+
+// ---------- 앱 정보 (설치 파일에 넣은 것) ----------
+
+/** 설치 파일을 만들 때 넣은 앱 정보(GitHub 비밀 값 GILOG_GOOGLE_CLIENT, 구글 콘솔에서 받은 JSON 그대로). 저장소에는 없어요. */
+export const BUILTIN_CLIENT: GClient | null = (() => {
+  const raw = (import.meta.env.VITE_GOOGLE_CLIENT as string | undefined) ?? "";
+  if (!raw.trim()) return null;
+  try {
+    return parseClientFile(raw);
+  } catch {
+    return null;
+  }
+})();
+
+/** 쓸 앱 정보: 사용자가 고른 파일이 있으면 그것, 없으면 설치 파일에 넣은 것 */
+async function getClient(): Promise<GClient | null> {
+  return (await getJson<GClient>(K_CLIENT)) ?? BUILTIN_CLIENT;
+}
 const loadState = async (): Promise<GState> => ({ ...EMPTY_STATE, ...((await getJson<GState>(K_STATE)) ?? {}) });
 
 // ---------- 화면에 보여 줄 상태 ----------
@@ -98,7 +130,7 @@ export function onGoogleStatus(f: (s: GStatus) => void): () => void {
 
 /** 저장한 것을 읽어 상태를 새로 맞춰요(잠금을 풀 때). */
 export async function loadGoogleStatus(): Promise<GStatus> {
-  const [c, t, s] = await Promise.all([getJson<GClient>(K_CLIENT), getJson<GToken>(K_TOKEN), loadState()]);
+  const [c, t, s] = await Promise.all([getClient(), getJson<GToken>(K_TOKEN), loadState()]);
   publish({ configured: !!c?.id, connected: !!t?.refresh, lastOk: s.lastOk, lastError: s.lastError });
   return status;
 }
@@ -190,12 +222,12 @@ async function tokenCall(params: Record<string, string>): Promise<Record<string,
 /** 쓸 수 있는 접근 열쇠. 만료가 가까우면 새로 받아요. 로그인이 풀렸으면 "relogin"을 던져요. */
 async function accessToken(): Promise<string> {
   const t = await getJson<GToken>(K_TOKEN);
-  const c = await getJson<GClient>(K_CLIENT);
+  const c = await getClient();
   if (!t?.refresh || !c) throw new Error("not_connected");
   if (t.access && t.exp - 60_000 > Date.now()) return t.access;
   try {
     const j = await tokenCall({ client_id: c.id, client_secret: c.secret, refresh_token: t.refresh, grant_type: "refresh_token" });
-    const next: GToken = { refresh: t.refresh, access: String(j.access_token), exp: Date.now() + Number(j.expires_in ?? 3600) * 1000 };
+    const next: GToken = { refresh: t.refresh, access: String(j.access_token), exp: Date.now() + Number(j.expires_in ?? 3600) * 1000, scope: t.scope };
     await putJson(K_TOKEN, next);
     return next.access;
   } catch (e) {
@@ -242,9 +274,10 @@ async function challengeOf(verifier: string): Promise<string> {
  * 기본 브라우저로 구글 로그인 창을 띄우고, 끝나면 로그인 정보를 저장한 뒤 전체를 내보내요.
  * 실패하면 화면에 보일 글을 던져요.
  */
-export async function connectGoogle(): Promise<void> {
+export async function connectGoogle(withTasks?: boolean): Promise<void> {
   if (!inApp) throw new Error("앱에서만 연결할 수 있어요.");
-  const c = await getJson<GClient>(K_CLIENT);
+  const wantTasks = withTasks ?? (await loadOpts()).gtasks;
+  const c = await getClient();
   if (!c) throw new Error("앱 정보 파일을 먼저 골라 주세요.");
   const port = await invoke<number>("google_listen");
   const redirect = `http://127.0.0.1:${port}`;
@@ -256,7 +289,8 @@ export async function connectGoogle(): Promise<void> {
       client_id: c.id,
       redirect_uri: redirect,
       response_type: "code",
-      scope: SCOPE,
+      scope: wantTasks ? `${CAL_SCOPE} ${TASKS_SCOPE}` : CAL_SCOPE,
+      include_granted_scopes: "true",
       code_challenge: await challengeOf(verifier),
       code_challenge_method: "S256",
       access_type: "offline",
@@ -278,7 +312,7 @@ export async function connectGoogle(): Promise<void> {
     throw new Error(e instanceof Error && e.message === "offline" ? "구글에 연결하지 못했어요(인터넷 연결을 확인해 주세요)." : `로그인 정보를 받지 못했어요(${e instanceof Error ? e.message : e}).`);
   }
   if (!j.refresh_token) throw new Error("로그인 정보를 받지 못했어요. 다시 시도해 주세요.");
-  await putJson(K_TOKEN, { refresh: String(j.refresh_token), access: String(j.access_token ?? ""), exp: Date.now() + Number(j.expires_in ?? 3600) * 1000 });
+  await putJson(K_TOKEN, { refresh: String(j.refresh_token), access: String(j.access_token ?? ""), exp: Date.now() + Number(j.expires_in ?? 3600) * 1000, scope: String(j.scope ?? (wantTasks ? `${CAL_SCOPE} ${TASKS_SCOPE}` : CAL_SCOPE)) });
   const s = await loadState();
   await putJson(K_STATE, { ...s, full: true, lastError: "" });
   publish({ connected: true, lastError: "" });
@@ -324,7 +358,7 @@ export async function disconnectGoogle(removeEvents: boolean): Promise<string> {
 /** 앱 정보 파일까지 지워요(다른 파일로 바꿀 때). 연결되어 있으면 먼저 끊어야 해요. */
 export async function forgetClient(): Promise<void> {
   await putJson(K_CLIENT, null);
-  publish({ configured: false });
+  publish({ configured: !!BUILTIN_CLIENT });
 }
 
 // ---------- 구글에 보낼 모양 ----------
@@ -430,7 +464,22 @@ export function eventBody(e: CalEvent, kinds: CalKind[]): GBody {
 /** 민원 마감 제목은 기Log 캘린더와 같은 "접수유형(지역 위치)"이에요(사용자 2026-10-17). 민원인 이름·연락처·내용은 넣지 않아요. */
 export const complaintGoogleTitle = (c: Complaint): string => complaintTitle(c);
 
-/** 지금 구글 캘린더에 있어야 할 일정(내 일정만 — 민원·할 일 마감은 구글 할 일로 보내요): 우리 이름 → 보낼 내용 */
+function allDayBody(key: string, title: string, date: string, color: string): GBody {
+  return {
+    summary: title,
+    start: { date },
+    end: { date: addDays(date, 1) },
+    colorId: color,
+    reminders: { useDefault: false },
+    transparency: "transparent",
+    extendedProperties: marker(key),
+  };
+}
+
+/**
+ * 지금 구글 캘린더에 있어야 할 일정: 우리 이름 → 보낼 내용.
+ * "구글 할 일로 보내기"를 켰으면 내 일정만, 껐으면 민원·할 일 마감도 종일 일정으로(완료한 것은 빼요).
+ */
 export function desired(src: { kinds: CalKind[]; events: CalEvent[]; complaints: Complaint[]; tasks: Task[] }, opts: GOpts): Map<string, GBody> {
   const out = new Map<string, GBody>();
   if (opts.events) {
@@ -438,6 +487,24 @@ export function desired(src: { kinds: CalKind[]; events: CalEvent[]; complaints:
       const k = src.kinds.find((x) => x.id === e.kind);
       if (!k || k.system) continue;
       out.set("e" + e.id, eventBody(e, src.kinds));
+    }
+  }
+  if (opts.gtasks) return out;
+  const sys = (x: CalKind["system"]) => src.kinds.find((k) => k.system === x);
+  const ck = sys("complaint");
+  if (opts.complaints && ck) {
+    const color = eventColorId(kindColor(ck, src.kinds));
+    for (const c of src.complaints) {
+      if (!c.due || c.status === DONE_STATUS) continue;
+      out.set("c" + c.id, allDayBody("c" + c.id, complaintGoogleTitle(c), c.due, color));
+    }
+  }
+  const tk = sys("task");
+  if (opts.tasks && tk) {
+    const color = eventColorId(kindColor(tk, src.kinds));
+    for (const t of src.tasks) {
+      if (!t.due || t.done) continue;
+      out.set("t" + t.id, allDayBody("t" + t.id, t.title, t.due, color));
     }
   }
   return out;
@@ -654,6 +721,7 @@ function friendly(e: unknown): string {
   const m = e instanceof Error ? e.message : String(e);
   if (m === "offline") return "인터넷에 연결되지 않았어요. 연결되면 다시 보내요.";
   if (m === "relogin") return "구글 로그인이 풀렸어요. 설정에서 다시 연결해 주세요.";
+  if (m === "need_tasks_scope") return "구글 할 일 권한이 없어요. 설정에서 다시 로그인해 주세요.";
   if (m === "not_connected") return "";
   if (e instanceof GError && e.code === 403 && /insufficient|scope/i.test(m)) return "구글 할 일 권한이 없어요. 설정에서 다시 로그인해 주세요.";
   if (e instanceof GError && e.code === 403) return `구글이 거절했어요: ${m}`;
@@ -693,7 +761,7 @@ async function listRemote(cal: string): Promise<{ id: string; key: string }[]> {
 }
 
 async function runSync(forceFull: boolean): Promise<void> {
-  const [c, t] = await Promise.all([getJson<GClient>(K_CLIENT), getJson<GToken>(K_TOKEN)]);
+  const [c, t] = await Promise.all([getClient(), getJson<GToken>(K_TOKEN)]);
   if (!c || !t?.refresh) return;
   const s = await loadState();
   const full = forceFull || s.full;
@@ -707,10 +775,13 @@ async function runSync(forceFull: boolean): Promise<void> {
     const cal = await ensureCalendar(s);
     await save();
     // 구글 할 일: 먼저 구글에서 체크한 것을 받아 오고, 그다음 기Log 내용을 보내요.
-    const needTasks = opts.tasks || opts.complaints || Object.keys(s.titems).length > 0;
+    // 구글 할 일: "구글 할 일로 보내기"를 켰거나, 껐는데 예전에 보낸 것이 남아 있으면(지우려고) 봐요.
+    const hadTasks = Object.keys(s.titems).length > 0;
+    const scopeOk = hasTasksScope(t);
+    const needTasks = scopeOk && (opts.gtasks || hadTasks);
     let tasksOk = false;
-    // 구글 할 일이 안 돼도(권한이 없는 예전 로그인 등) 캘린더는 보내고, 이유는 마지막에 알려요.
-    let taskErr: unknown = null;
+    // 구글 할 일이 안 돼도(권한이 없는 로그인 등) 캘린더는 보내고, 이유는 마지막에 알려요.
+    let taskErr: unknown = opts.gtasks && !scopeOk ? new Error("need_tasks_scope") : null;
     if (needTasks) {
       try {
         const first = { complaints: await api.complaints(), tasks: (await api.tasksData()).tasks };
@@ -769,7 +840,8 @@ async function runSync(forceFull: boolean): Promise<void> {
     }
     if (tasksOk) {
       try {
-        await pushTasks(s, desiredTasks({ complaints, tasks: td.tasks, lists: td.lists }, opts, todayStr()), save);
+        const tw = opts.gtasks ? desiredTasks({ complaints, tasks: td.tasks, lists: td.lists }, opts, todayStr()) : new Map<string, GTaskWant>();
+        await pushTasks(s, tw, save);
       } catch (e) {
         taskErr = e;
       }
@@ -818,6 +890,12 @@ export function syncGoogle(full = false): Promise<void> {
     }
   })();
   return running;
+}
+
+/** 연결되어 있는데 구글 할 일 권한이 없는지 ("구글 할 일로 보내기"를 켤 때 다시 로그인해야 하는지) */
+export async function needsTasksLogin(): Promise<boolean> {
+  const t = await getJson<GToken>(K_TOKEN);
+  return !!t?.refresh && !hasTasksScope(t);
 }
 
 /** 지금 내보내기: 전체를 다시 맞춰요. */

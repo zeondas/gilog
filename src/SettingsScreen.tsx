@@ -21,6 +21,8 @@ import {
   saveClient,
   saveOpts,
   whenText,
+  BUILTIN_CLIENT,
+  needsTasksLogin,
 } from "./google";
 
 type Props = {
@@ -367,8 +369,9 @@ function KeysCard({ saved, onSave }: { saved: Partial<Record<string, string>>; o
 
 const G_TOGGLES: [keyof GOpts, string, string][] = [
   ["events", "내 일정 내보내기", "캘린더에 직접 적은 일정이에요."],
-  ["complaints", "민원 마감 내보내기", "구글 할 일로 보내요. 구글에서 체크하면 민원대장도 완료가 돼요. 민원인 이름과 연락처는 보내지 않아요."],
-  ["tasks", "할 일 마감 내보내기", "구글 할 일로 보내요. 체크는 서로 맞춰요."],
+  ["complaints", "민원 마감 내보내기", "민원인 이름과 연락처는 보내지 않아요."],
+  ["tasks", "할 일 마감 내보내기", "할 일 목록의 마감일이 구글에 보여요."],
+  ["gtasks", "구글 할 일로 보내기", "민원·할 일 마감을 구글 할 일(체크 동그라미)로 보내고 체크를 서로 맞춰요. 켜면 구글 권한을 한 번 더 받아요."],
 ];
 
 function GoogleCard() {
@@ -400,7 +403,7 @@ function GoogleCard() {
     setMsg("브라우저에서 구글 로그인을 마쳐 주세요.");
     setWait(true);
     try {
-      await connectGoogle();
+      await connectGoogle(opts.gtasks);
       setMsg("");
     } catch (err) {
       setMsg(err instanceof Error ? err.message : String(err));
@@ -414,8 +417,22 @@ function GoogleCard() {
     setMsg((await disconnectGoogle(removeEvents)) || (removeEvents ? "연결을 끊고 구글의 giLog 캘린더를 지웠어요." : "연결을 끊었어요. 구글의 일정은 그대로 있어요."));
   }
 
-  function toggle(k: keyof GOpts) {
+  async function toggle(k: keyof GOpts) {
     const next = { ...opts, [k]: !opts[k] };
+    // 구글 할 일을 켜는데 지금 로그인에 할 일 권한이 없으면, 권한을 더 받는 로그인부터 해요.
+    if (k === "gtasks" && next.gtasks && (await needsTasksLogin())) {
+      setMsg("브라우저에서 구글 할 일 권한을 허용해 주세요.");
+      setWait(true);
+      try {
+        await connectGoogle(true);
+        setMsg("");
+      } catch (err) {
+        setMsg(err instanceof Error ? err.message : String(err));
+        setWait(false);
+        return;
+      }
+      setWait(false);
+    }
     setOpts(next);
     saveOpts(next);
   }
@@ -464,6 +481,7 @@ function GoogleCard() {
         </div>
       ) : (
         <>
+          {!BUILTIN_CLIENT && (
           <Row label="앱 정보 파일" desc={g.configured ? "넣었어요. 다른 파일로 바꾸려면 다시 고르세요." : "구글 콘솔에서 받은 client_secret…json 파일을 골라 주세요."}>
             <label className="btn">
               파일 고르기
@@ -475,6 +493,7 @@ function GoogleCard() {
               </button>
             )}
           </Row>
+          )}
           <Row label="구글 로그인" desc={g.lastError || "로그인하면 구글 계정에 giLog 캘린더를 만들어 그 안에만 써요."}>
             <button type="button" className="btn btn-primary" disabled={!g.configured || wait || !inApp} onClick={login}>
               {wait ? "로그인 기다리는 중…" : "구글 로그인"}

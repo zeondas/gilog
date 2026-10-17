@@ -41,6 +41,9 @@ jobs:
         shell: bash
         env:
           PERL: C:\Strawberry\perl\bin\perl.exe
+          # 구글 연동 앱 정보(구글 콘솔에서 받은 client_secret JSON 그대로)를 설치 파일에 넣어요. 저장소에는 없어요.
+          # 비밀 값이 없으면 비어 있고, 그때는 설정에서 파일을 골라요.
+          VITE_GOOGLE_CLIENT: ${{ secrets.GILOG_GOOGLE_CLIENT }}
         run: |
           export PATH="/c/Strawberry/perl/bin:$PATH"
           npm run tauri build 2>&1 | tee build.log; exit ${PIPESTATUS[0]}
