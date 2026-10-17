@@ -5,7 +5,7 @@ import { areaFor, fakeRoadToJibun, RoadLookup } from "./address";
 
 export type Status = { exists: boolean; unlocked: boolean; folder: string };
 
-/** 암호 없이도 읽는 앱 설정이에요. */
+/** 비밀번호 없이도 읽는 앱 설정이에요. */
 export type Prefs = {
   dataDir: string;
   theme: "system" | "light" | "dark";
@@ -43,7 +43,15 @@ export type ErrorCode =
   | "db"
   | "meta"
   | "invalid"
-  | "offline";
+  | "offline"
+  | "hello_unavailable"
+  | "hello_canceled"
+  | "hello_failed"
+  | "pin_stale"
+  | "pin_off";
+
+/** 윈도우 PIN으로 잠금 풀기 상태(이 PC만). */
+export type PinStatus = { available: boolean; on: boolean };
 
 // ---------- 업무연락처 ----------
 
@@ -281,6 +289,7 @@ export const inApp = typeof window !== "undefined" && "__TAURI_INTERNALS__" in w
 
 const fake = {
   password: null as string | null,
+  pin: { available: true, on: false },
   unlocked: false,
   values: new Map<string, string>(),
   prefs: { ...DEFAULT_PREFS },
@@ -1037,6 +1046,30 @@ function fakeCall(cmd: string, args: Record<string, unknown>): unknown {
     case "lock":
       fake.unlocked = false;
       return null;
+    // 미리 보기에서는 Windows Hello 창 대신 확인 창으로 흉내 내요.
+    case "pin_status":
+      return { ...fake.pin, on: fake.pin.on };
+    case "pin_enable":
+      if (!fake.unlocked) throw "locked";
+      if (a.password !== fake.password) throw "wrong_password";
+      if (!fakeHello()) throw "hello_canceled";
+      fake.pin.on = true;
+      return null;
+    case "pin_disable":
+      fake.pin.on = false;
+      return null;
+    case "pin_unlock":
+      if (!fake.pin.on) throw "pin_stale";
+      if (!fakeHello()) throw "hello_canceled";
+      fake.unlocked = true;
+      return null;
+    case "pin_rekey":
+      if (!fake.pin.on) return null;
+      if (!fakeHello()) {
+        fake.pin.on = false;
+        throw "pin_off";
+      }
+      return null;
     case "change_password":
       if (a.oldPassword !== fake.password) throw "wrong_password";
       if (a.newPassword.length < 4) throw "password_too_short";
@@ -1055,12 +1088,17 @@ function fakeCall(cmd: string, args: Record<string, unknown>): unknown {
       if (a.password !== fake.password) throw "wrong_password";
       fake.unlocked = false;
       fake.prefs.askPassword = true;
+      fake.pin.on = false;
       return null;
     case "move_data":
       fake.unlocked = false;
       return null;
   }
   throw "io";
+}
+
+function fakeHello(): boolean {
+  return window.confirm("[미리 보기] Windows Hello 흉내 — 확인 = PIN 맞음, 취소 = 취소");
 }
 
 /** 자료를 바꾼 명령이 성공하면 알려 줄 곳(구글 연동이 바뀐 것을 내보내요). */
@@ -1087,6 +1125,11 @@ export const api = {
   exportBackup: (path: string) => call<null>("export_backup", { path }),
   importBackup: (path: string, password: string) => call<null>("import_backup", { path, password }),
   moveData: (folder: string) => call<null>("move_data", { folder }),
+  pinStatus: () => call<PinStatus>("pin_status"),
+  pinEnable: (password: string) => call<null>("pin_enable", { password }),
+  pinDisable: () => call<null>("pin_disable"),
+  pinUnlock: () => call<null>("pin_unlock"),
+  pinRekey: (password: string) => call<null>("pin_rekey", { password }),
 
   contactsData: () => call<ContactsData>("contacts_data"),
   addContact: (contact: ContactInput) => call<ContactsData>("add_contact", { contact }),
@@ -1185,9 +1228,19 @@ export const api = {
 export function errorText(e: unknown): string {
   switch (e as ErrorCode) {
     case "wrong_password":
-      return "암호가 맞지 않아요.";
+      return "비밀번호가 맞지 않아요.";
     case "password_too_short":
-      return "암호는 4자 이상이어야 해요.";
+      return "비밀번호는 4자 이상이어야 해요.";
+    case "hello_unavailable":
+      return "이 PC에서는 윈도우 PIN을 쓸 수 없어요.";
+    case "hello_canceled":
+      return "PIN 확인을 취소했어요.";
+    case "hello_failed":
+      return "윈도우 PIN 확인에 실패했어요.";
+    case "pin_stale":
+      return "저장해 둔 비밀번호로 열지 못해 PIN 풀기를 껐어요.\n비밀번호를 넣어 주세요.";
+    case "pin_off":
+      return "PIN 풀기를 껐어요. 다시 켜면 새 비밀번호로 보관해요.";
     case "already_exists":
       return "그 폴더에 자료 파일이 이미 있어요.";
     case "not_found":

@@ -5,6 +5,7 @@ mod process;
 mod window;
 mod files;
 mod files_text;
+mod hello;
 #[cfg(windows)]
 mod files_win;
 
@@ -22,14 +23,14 @@ use tauri::{AppHandle, Manager, State};
 
 /// 열려 있는 자료 파일을 들고 있어요. None이면 잠긴 상태예요.
 pub(crate) struct AppState {
-    store: Mutex<Option<Store>>,
+    pub(crate) store: Mutex<Option<Store>>,
 }
 
-fn code(e: gilog_core::Error) -> String {
+pub(crate) fn code(e: gilog_core::Error) -> String {
     e.code().to_string()
 }
 
-fn io<E>(_: E) -> String {
+pub(crate) fn io<E>(_: E) -> String {
     "io".to_string()
 }
 
@@ -38,7 +39,7 @@ fn io<E>(_: E) -> String {
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase", default)]
-struct Prefs {
+pub(crate) struct Prefs {
     /// 자료 폴더. 비어 있으면 문서\giLog
     data_dir: String,
     /// 시스템 / 밝게 / 어둡게
@@ -51,6 +52,8 @@ struct Prefs {
     auto_lock_min: u32,
     /// 사이드바 접힘
     side_collapsed: bool,
+    /// 윈도우 PIN으로 잠금 풀기(이 PC만). hello.rs의 명령만 바꿔요.
+    pub(crate) pin_unlock: bool,
 }
 
 impl Default for Prefs {
@@ -65,6 +68,7 @@ impl Default for Prefs {
             auto_lock: true,
             auto_lock_min: 10,
             side_collapsed: false,
+            pin_unlock: false,
         }
     }
 }
@@ -75,7 +79,7 @@ fn prefs_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir.join("prefs.json"))
 }
 
-fn read_prefs(app: &AppHandle) -> Result<Prefs, String> {
+pub(crate) fn read_prefs(app: &AppHandle) -> Result<Prefs, String> {
     let path = prefs_path(app)?;
     match fs::read_to_string(&path) {
         Ok(text) => Ok(serde_json::from_str(&text).unwrap_or_default()),
@@ -83,13 +87,13 @@ fn read_prefs(app: &AppHandle) -> Result<Prefs, String> {
     }
 }
 
-fn write_prefs(app: &AppHandle, prefs: &Prefs) -> Result<(), String> {
+pub(crate) fn write_prefs(app: &AppHandle, prefs: &Prefs) -> Result<(), String> {
     let text = serde_json::to_string_pretty(prefs).map_err(io)?;
     fs::write(prefs_path(app)?, text).map_err(io)
 }
 
 /// 자료를 두는 폴더예요. 기본은 문서\giLog
-fn data_dir(app: &AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn data_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let prefs = read_prefs(app)?;
     if !prefs.data_dir.is_empty() {
         return Ok(PathBuf::from(prefs.data_dir));
@@ -113,6 +117,8 @@ fn set_prefs(app: AppHandle, state: State<AppState>, prefs: Prefs) -> Result<(),
     let mut prefs = prefs;
     // 자료 폴더는 move_data로만 바꿔요.
     prefs.data_dir = old.data_dir.clone();
+    // PIN 풀기는 hello.rs의 켜기·끄기로만 바꿔요(화면이 보낸 값은 쓰지 않아요).
+    prefs.pin_unlock = old.pin_unlock;
     if prefs.ask_password != old.ask_password {
         if prefs.ask_password {
             keyring_delete();
@@ -499,7 +505,9 @@ fn import_backup(app: AppHandle, state: State<AppState>, path: String, password:
     keyring_delete();
     let mut prefs = read_prefs(&app)?;
     prefs.ask_password = true;
-    write_prefs(&app, &prefs)
+    write_prefs(&app, &prefs)?;
+    // 보관한 PIN 풀기용 비밀번호도 백업의 비밀번호와 다를 수 있어 꺼요.
+    hello::turn_off(&app)
 }
 
 /// 자료 폴더를 옮겨요. 옮긴 뒤 앱이 잠겨요.
@@ -552,6 +560,11 @@ pub fn run() {
             unlock,
             lock,
             change_password,
+            hello::pin_status,
+            hello::pin_enable,
+            hello::pin_disable,
+            hello::pin_unlock,
+            hello::pin_rekey,
             get_value,
             set_value,
             export_backup,

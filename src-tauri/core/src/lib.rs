@@ -222,6 +222,15 @@ impl Store {
         Ok(())
     }
 
+    /// 열려 있는 파일의 비밀번호가 맞는지만 봐요(윈도우 PIN 풀기를 켤 때).
+    pub fn check_password(&self, password: &str) -> Result<()> {
+        let current = Meta::read(&self.dir.join(META_FILE))?;
+        if current.derive(password)? != self.key {
+            return Err(Error::WrongPassword);
+        }
+        Ok(())
+    }
+
     /// 지금 암호가 맞는지 확인하고 새 암호로 바꿔요.
     pub fn change_password(&mut self, old: &str, new: &str) -> Result<()> {
         check_len(new)?;
@@ -422,6 +431,17 @@ mod tests {
         assert_eq!(s.get("note").unwrap().as_deref(), Some("남아 있어야 해요"));
         assert_eq!(s.get("after").unwrap().as_deref(), Some("ok"));
         assert!(!tmp.path().join(META_NEW_FILE).exists());
+    }
+
+    #[test]
+    fn check_password_tells_right_from_wrong() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut s = Store::create(dir.path(), "abcd1234").unwrap();
+        s.check_password("abcd1234").unwrap();
+        assert_eq!(s.check_password("틀린암호").err().unwrap().code(), "wrong_password");
+        s.change_password("abcd1234", "new-pass-1").unwrap();
+        assert_eq!(s.check_password("abcd1234").err().unwrap().code(), "wrong_password");
+        s.check_password("new-pass-1").unwrap();
     }
 
     #[test]

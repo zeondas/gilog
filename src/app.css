@@ -59,15 +59,6 @@ button:focus-visible {
   flex: none;
 }
 
-/* 잠금 화면 머리: 앱 아이콘 64px + 글자 로고 */
-.gate-brand {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-  padding: 28px var(--space-4) 8px;
-}
-
 .side-list {
   display: flex;
   flex-direction: column;
@@ -237,7 +228,8 @@ button:focus-visible {
   font-size: 12px;
 }
 
-/* 잠금 화면 */
+/* 잠금 화면 (2026-10-18 사용자 확정, 캔버스 Lock 판): 로고 → 44px → 비밀번호 칸 → 12px → 열기 → PIN으로 풀기.
+   경고는 카드 밖 아래 띠(.gate-note)라 카드·단추가 움직이지 않아요. */
 .gate {
   height: 100%;
   display: flex;
@@ -247,26 +239,110 @@ button:focus-visible {
   background: var(--surface-side);
 }
 
-.gate-card {
+.gate-wrap {
+  position: relative;
   width: 360px;
   max-width: 100%;
 }
 
-
-.gate-body {
+.gate-card {
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4);
+  padding: 40px 32px 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
 }
 
-.gate-body p,
+.gate-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 44px;
+}
+
+.gate-input {
+  height: 36px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: center;
+}
+
+.gate-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.gate-input.bad {
+  border: 1.5px solid var(--danger);
+}
+
+.gate-again {
+  margin-top: 8px;
+}
+
+.gate-open {
+  height: 36px;
+  margin-top: 12px;
+  font-size: 13px;
+}
+
+.gate-foot {
+  display: flex;
+  justify-content: center;
+  margin: 14px 0 0;
+  text-align: center;
+}
+
+.gate-link {
+  padding: 2px 4px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.gate-link:hover {
+  color: var(--ink);
+}
+
+.gate-note {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 30%, transparent);
+  border-radius: 10px;
+  background: var(--danger-wash);
+  color: var(--danger);
+  font-size: 12px;
+  line-height: round(1.42em, 1px);
+  font-weight: 600;
+  text-align: center;
+  white-space: pre-line;
+}
+
+.gate-note.info {
+  border-color: var(--line);
+  background: var(--surface-side);
+  color: var(--ink-2);
+}
+
 .pw-form p {
   margin: 0;
-}
-
-.gate-lead {
-  font-weight: 600;
 }
 
 .gate-error {
@@ -8727,4 +8803,28 @@ body.col-dragging * {
   color: var(--st-hold-fg);
   font-size: 12px;
   font-weight: 600;
+}
+
+/* 설정 "윈도우 PIN으로 잠금 풀기" 줄 (잠금 세션, 캔버스 Lock 판) */
+.row-off {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.row-off:hover {
+  background: var(--surface);
+}
+
+.pin-ask {
+  align-items: flex-end;
+  background: var(--accent-wash);
+}
+
+.pin-ask-field {
+  flex: 1 1 200px;
+}
+
+.pin-ask-msg {
+  flex-basis: 100%;
+  min-height: 0;
 }

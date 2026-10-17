@@ -36,7 +36,9 @@ lopdf = { version = "0.36", default-features = false }
 windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_UI_Input_Ime", "Win32_UI_WindowsAndMessaging", "Win32_System_Registry", "Win32_UI_Shell"] }
 # 일정 알림을 윈도우 알림으로 띄우고, 누르면 그 일정을 열어요.
 tauri-winrt-notification = "0.7"
-# 탐색기: 윈도우 우클릭 메뉴(셸 메뉴)·윈도우 아이콘·드라이브 목록
-windows = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_Shell", "Win32_UI_Shell_Common", "Win32_System_Com", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Gdi", "Win32_Storage_FileSystem", "Win32_UI_Input_KeyboardAndMouse"] }
+# 탐색기: 윈도우 우클릭 메뉴(셸 메뉴)·윈도우 아이콘·드라이브 목록 / 잠금: 윈도우 PIN(Hello) 확인·DPAPI 보관
+windows = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_Shell", "Win32_UI_Shell_Common", "Win32_System_Com", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Gdi", "Win32_Storage_FileSystem", "Win32_UI_Input_KeyboardAndMouse", "Foundation", "Security_Credentials_UI", "Win32_System_WinRT", "Win32_Security_Cryptography"] }
+# 잠금: Hello 확인 창의 결과를 기다리는 데 써요(windows 0.61이 쓰는 것과 같은 판).
+windows-future = "0.2"
 png = "0.17"
 base64 = "0.22"

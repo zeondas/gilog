@@ -94,7 +94,7 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
           </button>
         ) : (
           <span className="ask-row">
-            <span className="gate-error">설정을 모두 처음 값으로 되돌릴까요? 암호와 저장한 자료는 그대로예요.</span>
+            <span className="gate-error">설정을 모두 처음 값으로 되돌릴까요? 비밀번호와 저장한 자료는 그대로예요.</span>
             <button type="button" className="btn" onClick={() => setAsk(false)}>
               취소
             </button>
@@ -206,7 +206,7 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
       <section className="card">
         <div className="card-head">보안 · 저장</div>
         <Toggle
-          label="앱을 열 때 암호 묻기"
+          label="앱을 열 때 비밀번호 묻기"
           desc={
             prefs.askPassword
               ? "민원인 개인정보가 들어 있어 켜 두는 것을 권해요."
@@ -215,6 +215,7 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
           on={prefs.askPassword}
           onChange={(v) => setPref("askPassword", v)}
         />
+        <PinRow />
         <Toggle
           label="자동 잠금"
           desc="끄면 자리를 오래 비워도 잠기지 않아요."
@@ -920,6 +921,133 @@ function KindsGroup({ kinds, onChange }: { kinds: Kind[]; onChange: (k: Kind[]) 
   );
 }
 
+/** 비밀번호를 바꾼 뒤 PIN 줄이 다시 읽게 알려요. */
+const PIN_CHANGED = "gilog-pin-changed";
+
+/**
+ * "윈도우 PIN으로 잠금 풀기" (2026-10-18 사용자 확정, 캔버스 Lock 판). 이 PC만이고 처음엔 꺼짐.
+ * 켜기: 비밀번호 한 번 확인 → Hello 창 → 보관. 끄면 보관한 것을 지워요. 이 PC에서 못 쓰면 흐리게.
+ */
+function PinRow() {
+  const [st, setSt] = useState<{ available: boolean; on: boolean } | null>(null);
+  const [asking, setAsking] = useState(false);
+  const [pw, setPw] = useState("");
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const load = () => api.pinStatus().then(setSt, () => setSt({ available: false, on: false }));
+    load();
+    window.addEventListener(PIN_CHANGED, load);
+    return () => window.removeEventListener(PIN_CHANGED, load);
+  }, []);
+
+  const available = st?.available ?? false;
+  const on = st?.on ?? false;
+  const desc = !st
+    ? ""
+    : !available && !on
+      ? "이 PC에서는 쓸 수 없어요"
+      : on
+        ? "비밀번호를 이 PC의 윈도우 계정에 묶어 두었어요. 끄면 지워요."
+        : asking
+          ? "비밀번호를 확인한 뒤 윈도우 확인 창이 떠요."
+          : "잠금 화면에 \"PIN으로 풀기\"가 생겨요. 이 PC에서만 써요.";
+
+  async function flip() {
+    if (busy || !st) return;
+    if (on) {
+      await api.pinDisable().catch(() => {});
+      setSt({ ...st, on: false });
+      return;
+    }
+    if (!available) return;
+    setAsking(!asking);
+    setPw("");
+    setMsg("");
+  }
+
+  async function next(e?: FormEvent) {
+    e?.preventDefault();
+    if (busy) return;
+    if (!pw) {
+      setMsg("비밀번호를 넣어 주세요.");
+      return;
+    }
+    setBusy(true);
+    setMsg("");
+    try {
+      await api.pinEnable(pw);
+      setAsking(false);
+      setPw("");
+      setSt({ available: true, on: true });
+    } catch (err) {
+      if (err === "hello_canceled") {
+        setAsking(false);
+        setPw("");
+      } else setMsg(errorText(err));
+      if (err === "hello_unavailable") {
+        setAsking(false);
+        setSt({ available: false, on: false });
+      }
+    }
+    setBusy(false);
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on || asking}
+        className={"row row-btn" + (!available && !on ? " row-off" : "")}
+        disabled={!st || (!available && !on)}
+        onClick={flip}
+      >
+        <span className="row-text">
+          <span className="row-label">윈도우 PIN으로 잠금 풀기</span>
+          <span className="muted small">{desc}</span>
+        </span>
+        <span className={"switch" + (on || asking ? " on" : "")} aria-hidden="true">
+          <span className="knob" />
+        </span>
+      </button>
+      {asking && (
+        <form className="row pin-ask" onSubmit={next}>
+          <label className="field pin-ask-field">
+            <span>비밀번호를 한 번 확인해요</span>
+            <input
+              id="pin-pw"
+              className="input"
+              type="password"
+              autoFocus
+              value={pw}
+              onChange={(e) => setPw(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  setAsking(false);
+                }
+              }}
+            />
+          </label>
+          <button type="button" className="btn" onClick={() => setAsking(false)}>
+            취소
+          </button>
+          <button type="submit" className="btn-primary btn-sm" disabled={busy}>
+            다음
+          </button>
+          {msg && (
+            <span className="gate-error pin-ask-msg" role="alert">
+              {msg}
+            </span>
+          )}
+        </form>
+      )}
+    </>
+  );
+}
+
 function PasswordChange() {
   const [open, setOpen] = useState(false);
   const [oldPw, setOldPw] = useState("");
@@ -932,41 +1060,54 @@ function PasswordChange() {
     e.preventDefault();
     setOk(false);
     if (newPw !== again) {
-      setMsg("새 암호 두 개가 서로 달라요.");
+      setMsg("새 비밀번호 두 개가 서로 달라요.");
       return;
     }
     try {
       await api.changePassword(oldPw, newPw);
-      setOldPw("");
-      setNewPw("");
-      setAgain("");
-      setOk(true);
-      setMsg("암호를 바꿨어요.");
-      setOpen(false);
     } catch (err) {
-      setMsg(err === "wrong_password" ? "지금 암호가 맞지 않아요." : errorText(err));
+      setMsg(err === "wrong_password" ? "지금 비밀번호가 맞지 않아요." : errorText(err));
+      return;
     }
+    // 윈도우 PIN 풀기가 켜져 있으면 Hello를 한 번 더 받고 새 비밀번호로 바꿔 보관해요(꺼져 있으면 그냥 지나가요).
+    let done = "비밀번호를 바꿨어요.";
+    try {
+      const st = await api.pinStatus();
+      if (st.on) {
+        await api.pinRekey(newPw);
+        done = "비밀번호를 바꿨어요. PIN 풀기용도 새것으로 바꿨어요.";
+      }
+    } catch {
+      done = "비밀번호를 바꿨어요. PIN 풀기는 껐어요 — 다시 켜면 새 비밀번호로 보관해요.";
+    }
+    window.dispatchEvent(new Event(PIN_CHANGED));
+    setOldPw("");
+    setNewPw("");
+    setAgain("");
+    setOk(true);
+    setMsg(done);
+    setOpen(false);
   }
 
   return (
     <>
-      <Row label="잠금 암호" desc={ok ? msg : "앱을 열 때 묻는 암호예요. 잊으면 되찾을 수 없어요."}>
+      <Row label="잠금 비밀번호" desc={ok ? msg : "앱을 열 때 묻는 비밀번호예요. 잊으면 되찾을 수 없어요."}>
         <button type="button" className="btn" onClick={() => setOpen(!open)}>
-          암호 바꾸기
+          비밀번호 바꾸기
         </button>
       </Row>
       {open && (
         <form className="pw-form row" onSubmit={submit}>
           <label className="field">
-            <span>지금 암호</span>
+            <span>지금 비밀번호</span>
             <input id="pw-old" className="input" type="password" autoFocus value={oldPw} onChange={(e) => setOldPw(e.target.value)} />
           </label>
           <label className="field">
-            <span>새 암호</span>
+            <span>새 비밀번호</span>
             <input id="pw-new" className="input" type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} />
           </label>
           <label className="field">
-            <span>새 암호 확인</span>
+            <span>새 비밀번호 확인</span>
             <input id="pw-again" className="input" type="password" value={again} onChange={(e) => setAgain(e.target.value)} />
           </label>
           <div className="pw-foot">
@@ -1053,7 +1194,7 @@ function BackupRow({ onLocked, setNote }: { onLocked: () => void; setNote: (s: s
       await api.importBackup(importPath, pw);
       setImportPath("");
       setPw("");
-      setNote("백업을 불러왔어요. 그 백업의 암호로 다시 열어 주세요.");
+      setNote("백업을 불러왔어요. 그 백업의 비밀번호로 다시 열어 주세요.");
       onLocked();
     } catch (err) {
       setMsg(errorText(err));
@@ -1074,7 +1215,7 @@ function BackupRow({ onLocked, setNote }: { onLocked: () => void; setNote: (s: s
         <form className="pw-form row row-last" onSubmit={doImport}>
           <span className="small">{importPath}</span>
           <label className="field">
-            <span>이 백업을 만들 때의 암호</span>
+            <span>이 백업을 만들 때의 비밀번호</span>
             <input id="import-pw" className="input" type="password" autoFocus value={pw} onChange={(e) => setPw(e.target.value)} />
           </label>
           <div className="pw-foot">
