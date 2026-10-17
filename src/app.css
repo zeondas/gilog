@@ -39,7 +39,8 @@ button:focus-visible {
   width: var(--size-side);
   display: flex;
   flex-direction: column;
-  padding: 20px var(--space-3);
+  /* 위 27px: 로고(28px)가 본문 머리 줄(24~58px) 가운데 41px에 와요(사이드바 높이 1안, 2026-10-18) */
+  padding: 27px var(--space-3) 20px;
   background: var(--surface-side);
   border-right: 1px solid var(--line-soft);
 }
@@ -49,7 +50,8 @@ button:focus-visible {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 2px 4px 18px 0;
+  /* 로고 27~55px, 아래 32px 띄워 첫 메뉴가 87px부터 */
+  padding: 0 4px 32px 0;
 }
 
 .logo {
@@ -156,7 +158,8 @@ button:focus-visible {
 /* 접힘 56px: 아이콘만, 36px 칸 가운데 */
 .side-folded {
   width: 56px;
-  padding: 16px 10px;
+  /* 앱 아이콘 칸(36px) 가운데가 41px, 첫 메뉴는 펼침과 같은 87px */
+  padding: 23px 10px 16px;
   align-items: center;
 }
 
@@ -164,7 +167,7 @@ button:focus-visible {
   width: 36px;
   height: 36px;
   padding: 0;
-  margin-bottom: 12px;
+  margin-bottom: 28px;
 }
 
 .side-folded .side-list {
