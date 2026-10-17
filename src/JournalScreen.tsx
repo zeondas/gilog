@@ -1357,7 +1357,9 @@ function NewCard({ date, ctx, onAdd }: { date: string; ctx: Ctx; onAdd: (e: Entr
 
 function stripe(e: Entry, ctx: Ctx) {
   const p = e.project !== null ? ctx.byId.get(e.project) : undefined;
-  return p ? { borderLeft: `4px solid var(--pj-${projectColor(p)}-line)` } : undefined;
+  // 띠는 테두리 두께를 바꾸지 않고 카드 안쪽 왼쪽에 겹쳐 그려요(app.css의 .jcard[style*="--stripe"]::before).
+  // 테두리를 4px로 두꺼우면 그만큼 시간 기둥이 밀려 띠 없는 카드와 기둥 폭이 달라 보였어요(사용자 신고).
+  return p ? ({ "--stripe": `var(--pj-${projectColor(p)}-line)` } as React.CSSProperties) : undefined;
 }
 
 /** 대화 줄들. q가 있으면 맞은 글자를 칠하고, dim에 든 줄은 흐리게 보여요. */
