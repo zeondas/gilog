@@ -1819,7 +1819,7 @@ mark {
 /* 시간 기둥형 카드 */
 .jcard {
   display: grid;
-  grid-template-columns: 116px minmax(0, 1fr);
+  grid-template-columns: 120px minmax(0, 1fr);
   break-inside: avoid;
   margin-bottom: var(--space-3);
   border: 1px solid var(--line);
