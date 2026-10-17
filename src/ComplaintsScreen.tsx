@@ -16,6 +16,8 @@ import {
   useState,
 } from "react";
 import { DelIcon } from "./Icons";
+import { ExcelMenu } from "./ExcelMenu";
+import { complaintImports, complaintRows } from "./excel";
 import { REMOTE_CHANGE } from "./google";
 import { api, Complaint, ComplaintInput, errorText } from "./api";
 import {
@@ -232,6 +234,17 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
         <button type="button" className="btn btn-ctrl btn-text" onClick={() => setCatsOpen(true)}>
           분류 관리
         </button>
+        <ExcelMenu
+          kind="complaints"
+          total={all.length}
+          build={() => ({ rows: complaintRows(all), intake: settings.intake, status: settings.status })}
+          parse={complaintImports}
+          onImport={async (rows) => {
+            const n = await api.importComplaints(rows);
+            setList(await api.complaints());
+            return n;
+          }}
+        />
       </div>
 
       <FilterChips

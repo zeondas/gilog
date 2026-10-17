@@ -1,5 +1,7 @@
 // 업무연락처 화면이에요. 시안 Contacts.dc.html과 사양서의 "업무연락처" 절을 따라요.
 import { KeyboardEvent, RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ExcelMenu } from "./ExcelMenu";
+import { contactImports, contactRows } from "./excel";
 import { DelIcon } from "./Icons";
 import { BLine, CYCLE, isBlank, kindOf, layout, nextLine, parseLines, stringifyLines, TRIGGERS, withKind } from "./bullets";
 import { BulletView, Mark } from "./BulletParts";
@@ -161,6 +163,17 @@ export default function ContactsScreen() {
         <button type="button" className="btn btn-ctrl btn-text" onClick={() => setProjOpen(true)}>
           프로젝트 관리
         </button>
+        <ExcelMenu
+          kind="contacts"
+          total={all.length}
+          build={() => ({ rows: contactRows(all, projects), intake: [], status: [] })}
+          parse={contactImports}
+          onImport={async (rows) => {
+            const n = await api.importContacts(rows);
+            setData(await api.contactsData());
+            return n;
+          }}
+        />
       </div>
 
       <div className="ct-chips" role="group" aria-label="프로젝트로 거르기">

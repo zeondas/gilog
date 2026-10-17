@@ -42,6 +42,16 @@ pub struct ComplaintInput {
     pub status: String,
 }
 
+/// 엑셀에서 가져온 한 줄이에요. 앱이 판단하지 않고 그대로 넣어요(2026-10-17 사용자 — 비어 있어도, 날짜가 아니어도).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ComplaintImport {
+    #[serde(flatten)]
+    pub input: ComplaintInput,
+    /// 메모(JSON 글자)
+    pub memo: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Complaint {
@@ -238,6 +248,40 @@ impl Store {
     pub fn delete_complaint(&self, id: i64) -> Result<()> {
         self.conn.execute("DELETE FROM complaints WHERE id = ?1", params![id])?;
         Ok(())
+    }
+
+    /// 엑셀 가져오기: 모든 줄을 한 번에 넣어요(하나라도 실패하면 아무것도 안 들어가요).
+    /// 연번은 지금 가장 큰 연번 다음부터 줄 순서대로 매겨요. 글자는 앞뒤 빈칸만 지우고, 상태가 비면 "접수"예요.
+    pub fn import_complaints(&mut self, rows: &[ComplaintImport]) -> Result<usize> {
+        let tx = self.conn.transaction()?;
+        let mut no: i64 = tx.query_row("SELECT COALESCE(MAX(no), 0) FROM complaints", [], |r| r.get(0))?;
+        for r in rows {
+            let c = &r.input;
+            let t = |s: &str| s.trim().to_string();
+            let status = t(&c.status);
+            no += 1;
+            tx.execute(
+                "INSERT INTO complaints (no, intake, received, ctype, area, place, person, phone, body, action, due, status, memo)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                params![
+                    no,
+                    t(&c.intake),
+                    t(&c.received),
+                    t(&c.ctype),
+                    t(&c.area),
+                    t(&c.place),
+                    t(&c.person),
+                    t(&c.phone),
+                    lines(&c.body),
+                    lines(&c.action),
+                    t(&c.due),
+                    if status.is_empty() { DEFAULT_STATUS.to_string() } else { status },
+                    r.memo.trim()
+                ],
+            )?;
+        }
+        tx.commit()?;
+        Ok(rows.len())
     }
 }
 

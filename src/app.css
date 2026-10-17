@@ -398,7 +398,7 @@ select.input {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--surface);
   box-shadow: 0 1px 2px rgba(var(--shadow-rgb), 0.3);
   transition: left 0.15s;
 }
@@ -5709,4 +5709,696 @@ body.col-dragging * {
 
 .shade .cal-wk-today {
   display: block;
+}
+
+/* ---------- 엑셀 ▾ (민원대장·업무연락처, 시안 ExcelImport.dc.html) ---------- */
+.xl-wrap {
+  position: relative;
+}
+
+.xl-btn {
+  gap: 6px;
+}
+
+.xl-btn[aria-expanded="true"] {
+  border-color: var(--accent-line);
+  background: var(--accent-tint);
+}
+
+.xl-menu {
+  position: absolute;
+  z-index: 8;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(var(--shadow-rgb), 0.14);
+}
+
+.xl-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+}
+
+.xl-item:hover,
+.xl-item:focus-visible {
+  background: var(--accent-wash);
+}
+
+.xl-item-t {
+  font-weight: 600;
+}
+
+.xl-item-s {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.dialog.xl-ask {
+  width: 420px;
+}
+
+.xl-ask-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px 24px 4px;
+}
+
+.xl-ask-title {
+  margin: 0;
+  font-size: 17px;
+  line-height: 24px;
+  font-weight: 700;
+}
+
+.xl-ask-path {
+  color: var(--muted);
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.xl-ask-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: 16px 24px 20px;
+}
+
+.xl-toast {
+  position: fixed;
+  z-index: 30;
+  left: 50%;
+  bottom: 40px;
+  transform: translateX(-50%);
+  max-width: min(720px, calc(100vw - 32px));
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  background: var(--ink);
+  color: var(--surface);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- 업무일지 인쇄 — 기간 창 (시안 JournalPrint.dc.html) ---------- */
+.jn-print {
+  gap: 6px;
+}
+
+.dialog.jp-dlg {
+  width: 648px;
+  max-height: none;
+  overflow: visible;
+}
+
+.jp-head {
+  display: flex;
+  align-items: center;
+  padding: 18px 20px 0 24px;
+}
+
+.jp-title {
+  margin: 0 auto 0 0;
+  font-size: 17px;
+  line-height: 24px;
+  font-weight: 700;
+}
+
+.jp-x {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--muted);
+}
+
+.jp-x:hover {
+  background: var(--surface-band);
+}
+
+.jp-top {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 14px 24px 0;
+}
+
+.jp-chips {
+  align-self: flex-start;
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 9px;
+  background: var(--surface-band);
+}
+
+.jp-chip {
+  height: 28px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.jp-chip[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(var(--shadow-rgb), 0.14);
+}
+
+.jp-fields {
+  display: grid;
+  grid-template-columns: 1fr 20px 1fr;
+  align-items: end;
+}
+
+.jp-tilde {
+  height: 35px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+
+.jp-field {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.jp-field-l {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.jp-field.on .jp-field-l {
+  color: var(--accent);
+}
+
+.jp-field-box {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 35px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.jp-field.on .jp-field-box {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 0.5px var(--accent);
+}
+
+.jp-field-box.invalid,
+.jp-field.on .jp-field-box.invalid {
+  border-color: var(--urgent);
+  box-shadow: inset 0 0 0 0.5px var(--urgent);
+}
+
+.jp-field-box input {
+  flex: 1;
+  min-width: 0;
+  height: 20px;
+  padding: 0 0 1px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.jp-wd {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.jp-cal {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  margin: 16px 24px 0;
+  padding: 14px 12px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+}
+
+.jp-nav {
+  position: absolute;
+  top: 10px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink-2);
+}
+
+.jp-nav:hover {
+  background: var(--surface-band);
+}
+
+.jp-nav.prev {
+  left: 8px;
+}
+
+.jp-nav.next {
+  right: 8px;
+}
+
+.jp-month {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.jp-mtitle {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.jp-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  font-size: 11.5px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--muted);
+}
+
+.jp-week .red {
+  color: var(--urgent);
+}
+
+.jp-week .sat {
+  color: var(--saturday);
+}
+
+.jp-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  row-gap: 2px;
+}
+
+.jp-cell {
+  height: 36px;
+}
+
+.jp-cell.band {
+  background: var(--accent-tint);
+}
+
+.jp-cell.band-l {
+  border-radius: 8px 0 0 8px;
+}
+
+.jp-cell.band-r {
+  border-radius: 0 8px 8px 0;
+}
+
+.jp-day {
+  width: 100%;
+  height: 36px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.jp-day > span:first-child {
+  line-height: 16px;
+}
+
+.jp-day:hover {
+  outline: 1px solid var(--accent-line);
+  outline-offset: -1px;
+}
+
+.jp-day.red {
+  color: var(--urgent);
+}
+
+.jp-day.sat {
+  color: var(--saturday);
+}
+
+.jp-day.today {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+  font-weight: 700;
+}
+
+.jp-day.end {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.jp-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  corner-shape: round;
+  background: transparent;
+}
+
+.jp-day.has .jp-dot,
+.jp-legend .jp-dot {
+  background: var(--accent-line);
+}
+
+.jp-day.end.has .jp-dot {
+  background: var(--on-accent);
+  opacity: 0.75;
+}
+
+.jp-legend {
+  display: flex;
+  gap: 14px;
+  margin: 8px 24px 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.jp-legend-i {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.jp-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: 16px;
+  padding: 14px 20px 16px 24px;
+  border-top: 1px solid var(--line-row);
+}
+
+.jp-sum {
+  margin-right: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.jp-sum1 {
+  font-weight: 600;
+}
+
+.jp-sum1.bad {
+  color: var(--urgent);
+}
+
+.jp-sum2 {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.jp-go {
+  padding: 0 18px;
+}
+
+/* ---------- 업무일지 인쇄 — 종이 (시안 JournalPdf.dc.html, A4 가로) ----------
+   화면에서는 창 밖에 숨겨 두고(재기용), 인쇄할 때만 이것만 찍어요. */
+.jp-root {
+  position: fixed;
+  left: -20000px;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.jp-measure {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.jp-page {
+  position: relative;
+  width: 297mm;
+  height: 210mm;
+  padding: 5mm 5mm 15mm 25mm;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+  background: var(--surface);
+  break-after: page;
+}
+
+.jp-page:last-child {
+  break-after: auto;
+}
+
+.jp-page,
+.jp-measure {
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 17px;
+  word-break: keep-all;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+.jp-phead {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 6px 0 8px;
+  border-bottom: 1.5px solid var(--accent);
+}
+
+.jp-phead h1 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.jp-phead-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  color: var(--ink-2);
+}
+
+.jp-phead-items b {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.jp-phead-me {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.jp-cols {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.jp-col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.jp-card {
+  flex: none;
+  padding: 7.5px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  break-inside: avoid;
+}
+
+.jp-chead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+}
+
+.jp-time {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.jp-kind {
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 17px;
+}
+
+.jp-kind.send {
+  background: var(--accent-tint);
+  color: var(--accent);
+}
+
+.jp-kind.recv {
+  background: var(--st-done-bg);
+  color: var(--st-done-fg);
+}
+
+.jp-kind.meet {
+  background: var(--st-work-bg);
+  color: var(--st-work-fg);
+}
+
+.jp-kind.memo {
+  background: var(--st-hold-bg);
+  color: var(--st-hold-fg);
+}
+
+.jp-who {
+  font-weight: 600;
+}
+
+.jp-sub {
+  color: var(--muted);
+}
+
+.jp-num {
+  font-variant-numeric: tabular-nums;
+}
+
+.jp-proj {
+  margin-left: auto;
+  padding: 0 6px;
+  border: 1px solid;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.jp-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.jp-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.jp-sp {
+  flex: none;
+  min-width: 38px;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 17px;
+  text-align: center;
+}
+
+.jp-sp.me {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.jp-line-t {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* 메모 본문: 화면과 같은 그린 머릿기호(.rte-view)를 종이 글자 크기(12px)에 맞춰요. */
+.jp-memo {
+  --fs: 12px;
+  --bl-indent: 6px;
+  line-height: 18px;
+}
+
+.jp-pfoot {
+  position: absolute;
+  left: 25mm;
+  right: 5mm;
+  bottom: 6mm;
+  display: flex;
+  justify-content: space-between;
+  font-size: 10.5px;
+  line-height: 14px;
+  color: var(--muted);
+}
+
+@page {
+  size: A4 landscape;
+  margin: 0;
+}
+
+@media print {
+  html,
+  body {
+    height: auto;
+    background: var(--surface);
+  }
+
+  #root {
+    display: none !important;
+  }
+
+  .jp-root {
+    position: static;
+    visibility: visible;
+  }
+
+  .jp-measure {
+    display: none;
+  }
 }

@@ -15,11 +15,12 @@ use serde::{Deserialize, Serialize};
 mod calendar;
 mod complaints;
 mod contacts;
+pub mod excel;
 mod journal;
 mod tasks;
 pub use calendar::{CalKind, CalendarData, Event, EventInput, Holiday, BUILTIN_HOLIDAYS, KIND_COLORS, REMIND_MAX, SYSTEM_KINDS};
-pub use complaints::{Complaint, ComplaintInput, DEFAULT_STATUS};
-pub use contacts::{Contact, ContactInput, ContactsData, Project, PROJECT_COLORS};
+pub use complaints::{Complaint, ComplaintImport, ComplaintInput, DEFAULT_STATUS};
+pub use contacts::{Contact, ContactImport, ContactInput, ContactsData, Project, PROJECT_COLORS};
 pub use journal::{DayInfo, Entry, EntryInput, JournalData, JournalLine};
 pub use tasks::{Task, TaskEdit, TaskInput, TaskList, TasksData, COMPLAINT_LIST};
 

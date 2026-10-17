@@ -574,6 +574,20 @@ function fakeComplaints(cmd: string, a: Record<string, unknown>): unknown {
     case "delete_complaint":
       fake.complaints = fake.complaints.filter((x) => x.id !== a.id);
       return null;
+    case "import_complaints": {
+      // 엑셀 가져오기: 판단하지 않고 그대로 넣어요(core import_complaints와 같게).
+      const rows = a.rows as (ComplaintInput & { memo: string })[];
+      let no = fake.complaints.reduce((m, x) => Math.max(m, x.no), 0);
+      for (const r of rows) {
+        const t = (s: string) => (s ?? "").trim();
+        fake.complaints.push({
+          id: fake.nextComplaintId++, no: ++no, intake: t(r.intake), received: t(r.received), ctype: t(r.ctype), area: t(r.area),
+          place: t(r.place), person: t(r.person), phone: t(r.phone), body: lines(r.body), action: lines(r.action), due: t(r.due),
+          status: t(r.status) || "접수", memo: t(r.memo),
+        });
+      }
+      return rows.length;
+    }
   }
   return undefined;
 }
@@ -659,6 +673,18 @@ function fakeContacts(cmd: string, a: Record<string, unknown>): ContactsData | n
   switch (cmd) {
     case "contacts_data":
       return data();
+    case "import_contacts": {
+      const rows = a.rows as (ContactInput & { memo: string })[];
+      for (const r of rows) {
+        const t = (s: string) => (s ?? "").trim();
+        const names = [...new Set(r.projects.map((p) => p.trim()).filter(Boolean))];
+        fake.contacts.push({
+          id: fake.nextId++, name: t(r.name), org: t(r.org), role: t(r.role), mobile: t(r.mobile), tel: t(r.tel), email: t(r.email),
+          memo: t(r.memo), projects: names.map(projectId),
+        });
+      }
+      return rows.length as unknown as ContactsData;
+    }
     case "add_contact":
       fake.contacts.push({ id: fake.nextId++, memo: "", ...clean(a.contact as ContactInput) });
       return data();
@@ -706,8 +732,24 @@ function fakeContacts(cmd: string, a: Record<string, unknown>): ContactsData | n
   return null;
 }
 
+/** 미리 보기의 엑셀 파일 흉내 (경로 → 내용) */
+export const fakeExcel = new Map<string, unknown>();
+
 function fakeCall(cmd: string, args: Record<string, unknown>): unknown {
   const a = args as Record<string, string>;
+  // 엑셀 파일 읽기·쓰기 흉내(미리 보기 시험용): 쓴 것은 fakeExcel에 남기고, 읽기는 그것을 돌려줘요.
+  if (cmd === "excel_write") {
+    const heads = a.kind === "complaints"
+      ? ["연번", "접수유형", "접수일", "민원유형", "지역", "위치", "민원인", "연락처", "내용", "조치내용", "마감일", "상태", "메모"]
+      : ["연번", "이름", "소속", "직위", "무선", "유선", "이메일", "프로젝트", "메모"];
+    fakeExcel.set(a.path, { headers: heads, rows: (args.data as { rows: string[][] }).rows });
+    return null;
+  }
+  if (cmd === "excel_read") {
+    const d = fakeExcel.get(a.path);
+    if (!d) throw "invalid";
+    return d;
+  }
   if (cmd.includes("contact") || cmd.includes("project")) {
     if (!fake.unlocked) throw "locked";
     const r = fakeContacts(cmd, args);
@@ -836,6 +878,12 @@ export const api = {
   setComplaintStatus: (id: number, status: string) => call<Complaint>("set_complaint_status", { id, status }),
   setComplaintMemo: (id: number, memo: string) => call<Complaint>("set_complaint_memo", { id, memo }),
   deleteComplaint: (id: number) => call<null>("delete_complaint", { id }),
+  /** 엑셀에서 읽은 줄을 그대로 넣고 넣은 수를 돌려줘요. */
+  importComplaints: (rows: (ComplaintInput & { memo: string })[]) => call<number>("import_complaints", { rows }),
+  importContacts: (rows: (ContactInput & { memo: string })[]) => call<number>("import_contacts", { rows }),
+  /** 엑셀 파일 쓰기·읽기(kind: "complaints" | "contacts") */
+  excelWrite: (path: string, kind: string, data: { rows: string[][]; intake: string[]; status: string[] }) => call<null>("excel_write", { path, kind, data }),
+  excelRead: (path: string, kind: string) => call<{ headers: string[]; rows: string[][] }>("excel_read", { path, kind }),
 
   tasksData: () => call<TasksData>("tasks_data"),
   addTaskList: (name: string) => call<TaskList>("add_task_list", { name }),

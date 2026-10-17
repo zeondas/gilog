@@ -36,6 +36,7 @@ import {
 } from "./journal";
 import { useJamoGuard } from "./koInput";
 import { isEmptyMemo, MemoEditor, MemoView, sanitize } from "./RichMemo";
+import { PrintDialog } from "./JournalPrint";
 import { DEFAULT_SETTINGS, Kind, loadSettings } from "./settingsStore";
 
 const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
@@ -91,6 +92,8 @@ export default function JournalScreen({
   const [tick, setTick] = useState(0);
   /** 공휴일(캘린더가 받아 둔 것) — 달력의 빨간 날 */
   const [holidays, setHolidays] = useState<Set<string>>(new Set());
+  /** 인쇄 기간 창 */
+  const [printOpen, setPrintOpen] = useState(false);
 
   useEffect(() => {
     api.journalData().then(setData, (e) => setNote(errorText(e)));
@@ -293,7 +296,27 @@ export default function JournalScreen({
               }}
             />
           </label>
+          <button type="button" className="btn btn-ctrl btn-text jn-print" onClick={() => setPrintOpen(true)}>
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M7 9V3h10v6" />
+              <rect x="3" y="9" width="18" height="8" rx="2" />
+              <path d="M7 14h10v7H7z" />
+            </svg>
+            인쇄
+          </button>
         </div>
+        {printOpen && (
+          <PrintDialog
+            day={day}
+            today={today}
+            entries={data.entries}
+            days={data.days}
+            holidays={holidays}
+            myName={myName}
+            projects={cdata.projects}
+            onClose={() => setPrintOpen(false)}
+          />
+        )}
 
         <DayHead key={day} info={info} onSave={saveDay} />
 

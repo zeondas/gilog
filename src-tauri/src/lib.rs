@@ -7,8 +7,9 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+use gilog_core::excel::{ExcelExport, ExcelSheet, SheetKind};
 use gilog_core::{
-    Complaint, ComplaintInput, ContactInput, ContactsData, DayInfo, Entry, EntryInput, JournalData, Store, Task, TaskEdit, TaskInput,
+    Complaint, ComplaintImport, ComplaintInput, ContactImport, ContactInput, ContactsData, DayInfo, Entry, EntryInput, JournalData, Store, Task, TaskEdit, TaskInput,
     TaskList, TasksData,
 };
 use serde::{Deserialize, Serialize};
@@ -380,6 +381,29 @@ fn delete_complaint(state: State<AppState>, id: i64) -> Result<(), String> {
     with_store(&state, |s| s.delete_complaint(id))
 }
 
+// ---------- 엑셀 가져오기·내보내기 (민원대장·업무연락처) ----------
+// 파일 경로는 화면이 윈도우 열기·저장 창(dialog 플러그인)으로 받아 와요. 칸 맞추기·머릿기호 글자는 화면 쪽(src/excel.ts)이 해요.
+
+#[tauri::command]
+fn excel_write(path: String, kind: SheetKind, data: ExcelExport) -> Result<(), String> {
+    gilog_core::excel::write_xlsx(std::path::Path::new(&path), kind, &data).map_err(code)
+}
+
+#[tauri::command]
+fn excel_read(path: String, kind: SheetKind) -> Result<ExcelSheet, String> {
+    gilog_core::excel::read_xlsx(std::path::Path::new(&path), kind).map_err(code)
+}
+
+#[tauri::command]
+fn import_complaints(state: State<AppState>, rows: Vec<ComplaintImport>) -> Result<usize, String> {
+    with_store(&state, |s| s.import_complaints(&rows))
+}
+
+#[tauri::command]
+fn import_contacts(state: State<AppState>, rows: Vec<ContactImport>) -> Result<usize, String> {
+    with_store(&state, |s| s.import_contacts(&rows))
+}
+
 // ---------- 할 일 목록 ----------
 // 처음에 전체를 읽고, 바꾸는 명령은 바뀐 것만 돌려줘요. 민원은 여기 없고 화면이 민원대장을 그대로 읽어요.
 
@@ -526,6 +550,10 @@ pub fn run() {
             set_complaint_status,
             set_complaint_memo,
             delete_complaint,
+            excel_write,
+            excel_read,
+            import_complaints,
+            import_contacts,
             tasks_data,
             add_task_list,
             rename_task_list,

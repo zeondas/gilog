@@ -23,6 +23,16 @@ pub struct ContactInput {
     pub projects: Vec<String>,
 }
 
+/// 엑셀에서 가져온 한 줄이에요. 앱이 판단하지 않고 그대로 넣어요(이름이 비어 있어도).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ContactImport {
+    #[serde(flatten)]
+    pub input: ContactInput,
+    /// 메모(JSON 글자)
+    pub memo: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Contact {
@@ -210,6 +220,30 @@ impl Store {
             return Err(Error::NotFound);
         }
         Ok(())
+    }
+
+    /// 엑셀 가져오기: 모든 줄을 한 번에 넣어요(하나라도 실패하면 아무것도 안 들어가요). 없는 프로젝트는 만들어요.
+    pub fn import_contacts(&mut self, rows: &[ContactImport]) -> Result<usize> {
+        let tx = self.conn.transaction()?;
+        for r in rows {
+            let c = &r.input;
+            let t = |s: &str| s.trim().to_string();
+            let mut projects: Vec<String> = Vec::new();
+            for p in &c.projects {
+                let p = p.trim();
+                if !p.is_empty() && !projects.iter().any(|x| x == p) {
+                    projects.push(p.to_string());
+                }
+            }
+            tx.execute(
+                "INSERT INTO contacts (name, org, role, mobile, tel, email, memo) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                params![t(&c.name), t(&c.org), t(&c.role), t(&c.mobile), t(&c.tel), t(&c.email), r.memo.trim()],
+            )?;
+            let id = tx.last_insert_rowid();
+            set_projects(&tx, id, &projects)?;
+        }
+        tx.commit()?;
+        Ok(rows.len())
     }
 
     pub fn delete_contact(&mut self, id: i64) -> Result<()> {
