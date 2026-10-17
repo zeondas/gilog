@@ -238,6 +238,53 @@ struct Pic {
     ext: &'static str,
     bytes: Vec<u8>,
     size: (u32, u32),
+    /// 폰 사진의 돌림(EXIF) — 0·90·180·270도(시계 방향)
+    rot: u32,
+}
+
+/// JPEG의 EXIF 방향 값을 돌림 각도로 읽어요(3 → 180, 6 → 90, 8 → 270, 그 밖은 0 — 뒤집기는 다루지 않아요).
+pub fn jpeg_rotation(b: &[u8]) -> u32 {
+    if b.len() < 4 || b[0] != 0xFF || b[1] != 0xD8 {
+        return 0;
+    }
+    let mut i = 2;
+    while i + 4 <= b.len() && b[i] == 0xFF {
+        let m = b[i + 1];
+        let len = u16::from_be_bytes([b[i + 2], b[i + 3]]) as usize;
+        if m == 0xDA || len < 2 {
+            break;
+        }
+        let seg = &b[(i + 4).min(b.len())..(i + 2 + len).min(b.len())];
+        if m == 0xE1 && seg.len() > 14 && &seg[..6] == b"Exif\0\0" {
+            let t = &seg[6..];
+            let le = &t[..2] == b"II";
+            let u16_at = |o: usize| -> Option<u16> {
+                let x = t.get(o..o + 2)?;
+                Some(if le { u16::from_le_bytes([x[0], x[1]]) } else { u16::from_be_bytes([x[0], x[1]]) })
+            };
+            let u32_at = |o: usize| -> Option<u32> {
+                let x = t.get(o..o + 4)?;
+                Some(if le { u32::from_le_bytes([x[0], x[1], x[2], x[3]]) } else { u32::from_be_bytes([x[0], x[1], x[2], x[3]]) })
+            };
+            let Some(ifd) = u32_at(4) else { return 0 };
+            let ifd = ifd as usize;
+            let n = u16_at(ifd).unwrap_or(0) as usize;
+            for k in 0..n {
+                let e = ifd + 2 + k * 12;
+                if u16_at(e) == Some(0x0112) {
+                    return match u16_at(e + 8) {
+                        Some(3) => 180,
+                        Some(6) => 90,
+                        Some(8) => 270,
+                        _ => 0,
+                    };
+                }
+            }
+            return 0;
+        }
+        i += 2 + len;
+    }
+    0
 }
 
 /// 슬라이드에서 이름이 `name`인 도형을 그림으로 바꿔요. 바꿨으면 true.
@@ -257,14 +304,21 @@ fn put_picture(slide: &mut String, name: &str, rid: &str, id: u32, pic: &Pic) ->
         let (Some(x), Some(y), Some(w), Some(h)) = (num("<a:off", "x"), num("<a:off", "y"), num("<a:ext", "cx"), num("<a:ext", "cy")) else {
             continue;
         };
+        // 보이는 모양: 90·270도 돌린 사진은 가로세로가 바뀌어요.
+        let side = pic.rot == 90 || pic.rot == 270;
         let (iw, ih) = (pic.size.0.max(1) as f64, pic.size.1.max(1) as f64);
-        let sc = (w as f64 / iw).min(h as f64 / ih);
-        let (pw, ph) = ((iw * sc) as i64, (ih * sc) as i64);
-        let px = x + (w - pw) / 2;
+        let (vw, vh) = if side { (ih, iw) } else { (iw, ih) };
+        let sc = (w as f64 / vw).min(h as f64 / vh);
+        let (dw, dh) = ((vw * sc) as i64, (vh * sc) as i64);
+        // 보이는 상자: 위쪽 맞춤, 가로 가운데. 그림 틀은 돌리기 전 크기로 두고 가운데를 맞춰요.
+        let (cx, cy) = (x + w / 2, y + dh / 2);
+        let (pw, ph) = if side { (dh, dw) } else { (dw, dh) };
+        let (px, py) = (cx - pw / 2, cy - ph / 2);
+        let rot = if pic.rot == 0 { String::new() } else { format!(" rot=\"{}\"", pic.rot as i64 * 60000) };
         let xml = format!(
             "<p:pic><p:nvPicPr><p:cNvPr id=\"{id}\" name=\"{}\"/><p:cNvPicPr><a:picLocks noChangeAspect=\"1\"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>\
 <p:blipFill><a:blip r:embed=\"{rid}\"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>\
-<p:spPr><a:xfrm><a:off x=\"{px}\" y=\"{y}\"/><a:ext cx=\"{pw}\" cy=\"{ph}\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></p:spPr></p:pic>",
+<p:spPr><a:xfrm{rot}><a:off x=\"{px}\" y=\"{py}\"/><a:ext cx=\"{pw}\" cy=\"{ph}\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></p:spPr></p:pic>",
             esc(name)
         );
         slide.replace_range(a..b, &xml);
@@ -339,7 +393,8 @@ pub fn fill_order(tpl: &Path, out: &Path, fill: &OrderFill) -> Result<OrderRepor
                 let bytes = std::fs::read(p)?;
                 let size = image_size(&bytes).ok_or_else(|| bad(format!("그림을 읽을 수 없어요: {p}")))?;
                 let ext = if bytes.starts_with(b"\x89PNG") { "png" } else { "jpeg" };
-                Ok(Pic { name: name.clone(), ext, bytes, size })
+                let rot = if ext == "jpeg" { jpeg_rotation(&bytes) } else { 0 };
+                Ok(Pic { name: name.clone(), ext, bytes, size, rot })
             })
             .collect::<Result<_>>()?
     } else {
@@ -482,7 +537,7 @@ mod tests {
     #[test]
     fn picture_keeps_ratio_top_center() {
         let mut slide = SLIDE.to_string();
-        let pic = Pic { name: "위치도".into(), ext: "png", bytes: vec![], size: (100, 100) };
+        let pic = Pic { name: "위치도".into(), ext: "png", bytes: vec![], size: (100, 100), rot: 0 };
         assert!(put_picture(&mut slide, "위치도", "rId9", 9, &pic));
         assert!(slide.contains(r#"<a:off x="2000" y="2000"/><a:ext cx="2000" cy="2000"/>"#), "{slide}");
         assert!(!put_picture(&mut slide, "없는 자리", "rId10", 10, &pic));
@@ -502,6 +557,33 @@ mod tests {
         let s = entry(&out, "Contents/section0.xml");
         assert!(s.contains("<hp:t>주소: 봉일천리 209-10</hp:t>"), "{s}");
         assert!(s.contains("<hp:t>표<hp:tab/>칸</hp:t>"));
+    }
+
+    #[test]
+    fn rotated_photo_fits_turned() {
+        // 400×200 사진을 90도 돌리면 보이는 모양은 200×400 → 4000×2000 칸에서 높이 2000, 폭 1000
+        let mut slide = SLIDE.to_string();
+        let pic = Pic { name: "위치도".into(), ext: "jpeg", bytes: vec![], size: (400, 200), rot: 90 };
+        assert!(put_picture(&mut slide, "위치도", "rId9", 9, &pic));
+        // 틀(돌리기 전) 2000×1000, 가운데 (3000, 3000) → 왼쪽 위 (2000, 2500)
+        assert!(slide.contains(r#"<a:xfrm rot="5400000"><a:off x="2000" y="2500"/><a:ext cx="2000" cy="1000"/>"#), "{slide}");
+    }
+
+    #[test]
+    fn exif_orientation() {
+        // SOI + APP1(Exif, II, IFD 1개: 0x0112 = 6)
+        let mut t = b"II*\0\x08\0\0\0\x01\0".to_vec();
+        t.extend([0x12, 0x01, 3, 0, 1, 0, 0, 0, 6, 0, 0, 0]);
+        t.extend([0, 0, 0, 0]);
+        let mut seg = b"Exif\0\0".to_vec();
+        seg.extend(t);
+        let len = (seg.len() + 2) as u16;
+        let mut j = vec![0xFF, 0xD8, 0xFF, 0xE1];
+        j.extend(len.to_be_bytes());
+        j.extend(seg);
+        j.extend([0xFF, 0xDA, 0, 2]);
+        assert_eq!(jpeg_rotation(&j), 90);
+        assert_eq!(jpeg_rotation(&[0xFF, 0xD8, 0xFF, 0xDA, 0, 2]), 0);
     }
 
     #[test]

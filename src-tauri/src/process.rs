@@ -89,6 +89,16 @@ fn move_file(from: &Path, to: &Path) -> std::io::Result<()> {
     fs::remove_file(from)
 }
 
+/// 새 지시부 이름: 지시부 파일도, 같은 이름의 JPG도 없을 때까지 "(2)"·"(3)"을 붙여요.
+fn order_path(dir: &Path, stem: &str, ext: &str) -> PathBuf {
+    let free = |s: &str| !dir.join(format!("{s}.{ext}")).exists() && !dir.join(format!("{s}.jpg")).exists();
+    if free(stem) {
+        return dir.join(format!("{stem}.{ext}"));
+    }
+    let s = (2..).map(|n| format!("{stem} ({n})")).find(|s| free(s)).unwrap();
+    dir.join(format!("{s}.{ext}"))
+}
+
 /// 이름만 적힌 첨부를 찾아요: 절대 경로면 그대로, 아니면 받은편지함 → 다운로드 폴더.
 fn find_file(name: &str, dirs: &[&Path]) -> Option<PathBuf> {
     let n = name.trim();
@@ -253,8 +263,13 @@ pub fn make_order(state: State<AppState>, req: OrderRequest) -> Result<OrderResu
         let key = if i == 0 { "현장사진".to_string() } else { format!("현장사진{}", i + 1) };
         images.insert(key, p.clone());
     }
-    // 다시 만들면 전 파일을 덮어써요(이름이 같아요).
-    let out = folder.join(format!("{}.{ext}", case_stem(&c.received, &c.place, &c.short)));
+    // 같은 민원을 다시 만들면 그 파일을 덮어쓰고, 다른 민원과 이름이 겹치면 "(2)"를 붙여요.
+    let same_kind = Path::new(&c.order_file).extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case(&ext));
+    let out = if !c.order_file.is_empty() && same_kind && Path::new(&c.order_file).parent() == Some(folder.as_path()) {
+        PathBuf::from(&c.order_file)
+    } else {
+        order_path(&folder, &case_stem(&c.received, &c.place, &c.short), &ext)
+    };
     // 그림 자리가 없는 사진(현장사진2…)은 "없는 자리"로 알리지 않아요.
     let report = fill_order(&tpl, &out, &OrderFill { text, images }).map_err(crate::code)?;
     let missing = report.missing.into_iter().filter(|m| m.starts_with('{') || m == "위치도" || m == "현장사진").collect();
@@ -466,6 +481,17 @@ mod tests {
         assert_eq!(case_stem("2026-10-15", "봉일천리 209-10", "포트홀"), "261015_봉일천리 209-10_포트홀");
         assert_eq!(case_stem("2026-10-15", "주소불명", ""), "261015_주소불명");
         assert_eq!(case_stem("2026-10-15", "선유리_455", "균열"), "261015_선유리455_균열");
+    }
+
+    #[test]
+    fn order_names_step_aside() {
+        let d = std::env::temp_dir().join(format!("gilog_order_{}", std::process::id()));
+        fs::create_dir_all(&d).unwrap();
+        let a = order_path(&d, "261015_봉일천리 209-10_포트홀", "pptx");
+        assert!(a.ends_with("261015_봉일천리 209-10_포트홀.pptx"));
+        fs::write(d.join("261015_봉일천리 209-10_포트홀.jpg"), b"x").unwrap();
+        assert!(order_path(&d, "261015_봉일천리 209-10_포트홀", "pptx").ends_with("261015_봉일천리 209-10_포트홀 (2).pptx"));
+        let _ = fs::remove_dir_all(&d);
     }
 
     #[test]

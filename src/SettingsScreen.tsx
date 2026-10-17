@@ -3,6 +3,7 @@ import { api, DEFAULT_PREFS, errorText, inApp, Prefs, Status } from "./api";
 import { splitJamo } from "./journal";
 import { DEFAULT_SETTINGS, DONE_STATUS, Kind, loadSettings, MEMO_KIND, ProcessSettings, saveSettings, Settings, STATUS_COLORS } from "./settingsStore";
 import { PhoneInput } from "./PhoneInput";
+import { aiGuide } from "./process";
 import { SCREENS } from "./screens";
 import Logo, { AppIcon } from "./Logo";
 import { VERSION } from "./version";
@@ -950,6 +951,13 @@ const PROCESS_DIRS: { key: "root" | "inbox" | "downloads" | "outbox"; label: str
 
 function ProcessCard({ p, onChange }: { p: ProcessSettings; onChange: (p: ProcessSettings) => void }) {
   const [phone, setPhone] = useState(p.signerPhone);
+  const [copied, setCopied] = useState(false);
+  async function copyGuide() {
+    const { works } = await api.processData();
+    await navigator.clipboard.writeText(aiGuide(p, works));
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2000);
+  }
   const text = (k: keyof ProcessSettings, v: string) => {
     const t = v.trim();
     if (t !== p[k]) onChange({ ...p, [k]: t });
@@ -969,8 +977,8 @@ function ProcessCard({ p, onChange }: { p: ProcessSettings; onChange: (p: Proces
           <PhoneInput className="input" aria-label="지시자 연락처" style={{ width: 130 }} value={phone} onChange={setPhone} onBlur={() => text("signerPhone", phone)} />
         </span>
       </Row>
-      {PROCESS_DIRS.map((d, i) => (
-        <Row key={d.key} label={d.label} desc={d.desc} last={i === PROCESS_DIRS.length - 1}>
+      {PROCESS_DIRS.map((d) => (
+        <Row key={d.key} label={d.label} desc={d.desc}>
           <span className="proc-dir">
             <input
               key={p[d.key]}
@@ -989,6 +997,14 @@ function ProcessCard({ p, onChange }: { p: ProcessSettings; onChange: (p: Proces
           </span>
         </Row>
       ))}
+      <Row label="AI 지침" desc="Claude나 다른 AI에 붙여 넣으면 신문고 민원을 받은편지함에 넣고, 보낼편지함의 지시부를 대화에 올려요." last>
+        <span className="proc-dir">
+          {copied && <span className="muted small">복사했어요</span>}
+          <button type="button" className="btn btn-xs" onClick={copyGuide}>
+            지침 복사
+          </button>
+        </span>
+      </Row>
     </section>
   );
 }
