@@ -39,7 +39,23 @@ export type Settings = {
   /** 키 설정 — 처음 키와 다른 것만 (keys.ts, 2026-10-17 엔터규칙) */
   keys: Partial<Record<string, string>>;
   process: ProcessSettings;
+  /** 설정 "탐색기" 카드 (11단계, 시안 FilesSettings.dc.html) */
+  files: FilesSettings;
 };
+
+export type FilesSettings = {
+  /** 날짜 모양 0 10-16 17:40 · 1 2026-10-16 17:40 · 2 2026. 10. 16. · 3 상대 */
+  dateFmt: number;
+  /** 숨긴 드라이브 ("E:") — 드라이브 단추와 트리에서 빠져요 */
+  hiddenDrives: string[];
+  showHidden: boolean;
+  /** 새 탭이 여는 폴더. 비우면 문서 */
+  newTabDir: string;
+  /** F8 지울 때 묻기 (Shift+F8 완전 삭제는 늘 물어요) */
+  askDelete: boolean;
+};
+
+export const DEFAULT_FILES_SETTINGS: FilesSettings = { dateFmt: 0, hiddenDrives: [], showHidden: false, newTabDir: "", askDelete: true };
 
 export const DEFAULT_SETTINGS: Settings = {
   status: ["접수", "처리중", "완료", "보류"],
@@ -56,6 +72,7 @@ export const DEFAULT_SETTINGS: Settings = {
   restShade: true,
   keys: {},
   process: { ...DEFAULT_PROCESS },
+  files: { ...DEFAULT_FILES_SETTINGS },
 };
 
 /** 지울 수 없는 상태예요. 마감 계산(남은 날 숨김)과 할 일 연동이 이것을 기준으로 해요. */
@@ -87,7 +104,7 @@ export async function loadSettings(): Promise<Settings> {
   if (!raw) return structuredClone(DEFAULT_SETTINGS);
   try {
     const saved = JSON.parse(raw) as Partial<Settings>;
-    return withMemo({ ...structuredClone(DEFAULT_SETTINGS), ...saved, process: { ...DEFAULT_PROCESS, ...(saved.process ?? {}) } });
+    return withMemo({ ...structuredClone(DEFAULT_SETTINGS), ...saved, process: { ...DEFAULT_PROCESS, ...(saved.process ?? {}) }, files: { ...DEFAULT_FILES_SETTINGS, ...saved.files } });
   } catch {
     return structuredClone(DEFAULT_SETTINGS);
   }

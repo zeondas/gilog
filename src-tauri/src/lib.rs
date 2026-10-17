@@ -3,6 +3,10 @@ mod ime;
 mod google;
 mod process;
 mod window;
+mod files;
+mod files_text;
+#[cfg(windows)]
+mod files_win;
 
 use std::fs;
 use std::path::PathBuf;
@@ -508,6 +512,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState { store: Mutex::new(None) })
         .manage(calendar::Reminders::default())
+        .manage(files::Watch::default())
         .setup(|app| {
             // 창은 숨긴 채 만들고, 화면이 처음 그려지면(window_ready) 보여요.
             let theme = theme_pref(app.handle());
@@ -600,7 +605,25 @@ pub fn run() {
             process::open_path,
             process::show_in_folder,
             set_ime,
-            window::window_ready
+            window::window_ready,
+            files::fs_list,
+            files::fs_subdirs,
+            files::fs_drives,
+            files::fs_home,
+            files::fs_is_dir,
+            files::fs_mkdir,
+            files::fs_rename,
+            files::fs_rename_many,
+            files::fs_conflicts,
+            files::fs_transfer,
+            files::fs_cancel,
+            files::fs_delete,
+            files::fs_open,
+            files::fs_explorer,
+            files::fs_icons,
+            files::fs_context_menu,
+            files::fs_find,
+            files::fs_watch
         ])
         .run(tauri::generate_context!())
         .expect("기Log를 시작하지 못했어요");

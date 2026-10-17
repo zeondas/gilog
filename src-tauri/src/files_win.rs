@@ -1,0 +1,321 @@
+//! 탐색기의 윈도우 전용 부분: 드라이브 목록, 기본 프로그램으로 열기, 윈도우 아이콘, 윈도우 우클릭 메뉴.
+//!
+//! - 우클릭 메뉴(2026-10-18 사용자 2안): 윈도우 탐색기와 같은 메뉴를 그대로 띄워요(윈도우 11의 짧은 메뉴가 아니라
+//!   "더 많은 옵션 표시"의 전체 메뉴). 회사 보안 프로그램이 넣은 보안 해제 항목도 여기 나와야 해요 —
+//!   보안 프로그램이 윈도우 탐색기에서만 보이게 막았다면 안 나올 수 있어요(회사 PC DrmMenuCheck로 확인).
+//!   "보내기"처럼 하위 메뉴를 늦게 채우는 항목을 위해 메뉴가 떠 있는 동안 창 메시지를 메뉴에 넘겨요.
+//!   "이름 바꾸기"는 윈도우가 기Log 화면 안에서 할 수 없어 화면에 F2로 넘겨요.
+//! - 아이콘: 윈도우가 그 확장자(폴더)에 쓰는 아이콘을 받아 PNG로 바꿔 화면에 넘겨요(확장자마다 한 번).
+//! 리눅스 작업 공간에서는 시험할 수 없어요 — 윈도우에서 확인할 것(시험 항목).
+
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::ffi::c_void;
+
+use windows::core::{Interface, PCSTR, PCWSTR, PSTR};
+use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, WPARAM};
+use windows::Win32::Graphics::Gdi::{
+    CreateCompatibleDC, DeleteDC, DeleteObject, GetDIBits, GetObjectW, BITMAP, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS, HGDIOBJ,
+};
+use windows::Win32::Storage::FileSystem::{
+    GetDiskFreeSpaceExW, GetDriveTypeW, GetLogicalDrives, GetVolumeInformationW, FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_NORMAL,
+};
+use windows::Win32::System::Com::{CoInitializeEx, COINIT_APARTMENTTHREADED};
+use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyState, VK_SHIFT};
+use windows::Win32::UI::Shell::Common::ITEMIDLIST;
+use windows::Win32::UI::Shell::{
+    DefSubclassProc, ILFree, IContextMenu, IContextMenu2, IContextMenu3, IShellFolder, RemoveWindowSubclass, SHBindToObject,
+    SHGetFileInfoW, SHParseDisplayName, SetWindowSubclass, ShellExecuteW, CMF_EXPLORE, CMF_EXTENDEDVERBS, CMF_NORMAL, CMIC_MASK_PTINVOKE,
+    CMINVOKECOMMANDINFO, CMINVOKECOMMANDINFOEX, GCS_VERBW, SHFILEINFOW, SHGFI_ICON, SHGFI_LARGEICON, SHGFI_SMALLICON,
+    SHGFI_USEFILEATTRIBUTES,
+};
+use windows::Win32::UI::WindowsAndMessaging::{
+    CreatePopupMenu, DestroyIcon, DestroyMenu, GetCursorPos, GetIconInfo, TrackPopupMenuEx, HICON, ICONINFO, SW_SHOWNORMAL, TPM_RETURNCMD,
+    TPM_RIGHTBUTTON, WM_DRAWITEM, WM_INITMENUPOPUP, WM_MEASUREITEM, WM_MENUCHAR,
+};
+
+use crate::files::Drive;
+
+/// 유니코드 글자로 부르기(SEE_MASK_UNICODE와 같은 값, windows 크레이트에 이름이 없어요)
+const CMIC_MASK_UNICODE: u32 = 0x0000_4000;
+
+fn wide(s: &str) -> Vec<u16> {
+    s.encode_utf16().chain(std::iter::once(0)).collect()
+}
+
+fn from_wide(b: &[u16]) -> String {
+    let n = b.iter().position(|&c| c == 0).unwrap_or(b.len());
+    String::from_utf16_lossy(&b[..n])
+}
+
+pub fn drives() -> Vec<Drive> {
+    let mut out = Vec::new();
+    let mask = unsafe { GetLogicalDrives() };
+    for i in 0..26u32 {
+        if mask & (1 << i) == 0 {
+            continue;
+        }
+        let letter = (b'A' + i as u8) as char;
+        let root = format!("{letter}:\\");
+        let w = wide(&root);
+        let kind = match unsafe { GetDriveTypeW(PCWSTR(w.as_ptr())) } {
+            2 => "removable",
+            3 => "fixed",
+            4 => "network",
+            5 => "cdrom",
+            _ => "other",
+        };
+        let mut label = [0u16; 261];
+        // 빈 DVD 등은 읽지 못해요 — 이름 없이 두어요.
+        let _ = unsafe { GetVolumeInformationW(PCWSTR(w.as_ptr()), Some(&mut label), None, None, None, None) };
+        let (mut free, mut total) = (0u64, 0u64);
+        let _ = unsafe { GetDiskFreeSpaceExW(PCWSTR(w.as_ptr()), Some(&mut free), Some(&mut total), None) };
+        out.push(Drive { name: format!("{letter}:"), path: root, label: from_wide(&label), kind: kind.into(), free, total });
+    }
+    out
+}
+
+/// 윈도우 기본 프로그램으로 열기
+pub fn shell_open(path: &str) -> Result<(), String> {
+    let p = wide(path);
+    let op = wide("open");
+    let r = unsafe { ShellExecuteW(None, PCWSTR(op.as_ptr()), PCWSTR(p.as_ptr()), PCWSTR::null(), PCWSTR::null(), SW_SHOWNORMAL) };
+    // 32보다 크면 성공이에요.
+    if r.0 as isize > 32 {
+        Ok(())
+    } else {
+        Err(format!("open:{}", r.0 as isize))
+    }
+}
+
+// ---------- 아이콘 ----------
+
+/// 키: "<dir>" 폴더, ".pptx" 확장자(파일이 없어도 돼요), 그 밖에는 실제 경로(.exe·.lnk·.ico — 파일마다 아이콘이 달라요)
+pub fn icons(keys: &[String], size: u32) -> HashMap<String, String> {
+    let mut out = HashMap::new();
+    for k in keys {
+        if let Some(png) = icon_png(k, size) {
+            use base64::Engine;
+            out.insert(k.clone(), format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(png)));
+        }
+    }
+    out
+}
+
+fn icon_png(key: &str, size: u32) -> Option<Vec<u8>> {
+    let (path, attrs, use_attrs) = if key == "<dir>" {
+        ("folder".to_string(), FILE_ATTRIBUTE_DIRECTORY, true)
+    } else if key.starts_with('.') {
+        (format!("a{key}"), FILE_ATTRIBUTE_NORMAL, true)
+    } else {
+        (key.to_string(), FILE_ATTRIBUTE_NORMAL, false)
+    };
+    let w = wide(&path);
+    let mut info = SHFILEINFOW::default();
+    let mut flags = SHGFI_ICON | if size <= 16 { SHGFI_SMALLICON } else { SHGFI_LARGEICON };
+    if use_attrs {
+        flags |= SHGFI_USEFILEATTRIBUTES;
+    }
+    let ok = unsafe { SHGetFileInfoW(PCWSTR(w.as_ptr()), attrs, Some(&mut info), std::mem::size_of::<SHFILEINFOW>() as u32, flags) };
+    if ok == 0 || info.hIcon.is_invalid() {
+        return None;
+    }
+    let png = unsafe { hicon_to_png(info.hIcon) };
+    unsafe {
+        let _ = DestroyIcon(info.hIcon);
+    }
+    png
+}
+
+unsafe fn bitmap_bgra(hbm: windows::Win32::Graphics::Gdi::HBITMAP) -> Option<(u32, u32, Vec<u8>)> {
+    unsafe {
+        let mut bm = BITMAP::default();
+        if GetObjectW(HGDIOBJ(hbm.0), std::mem::size_of::<BITMAP>() as i32, Some(&mut bm as *mut _ as *mut c_void)) == 0 {
+            return None;
+        }
+        let (w, h) = (bm.bmWidth as u32, bm.bmHeight as u32);
+        let mut bmi = BITMAPINFO::default();
+        bmi.bmiHeader = BITMAPINFOHEADER {
+            biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+            biWidth: w as i32,
+            biHeight: -(h as i32),
+            biPlanes: 1,
+            biBitCount: 32,
+            biCompression: BI_RGB.0,
+            ..Default::default()
+        };
+        let mut buf = vec![0u8; (w * h * 4) as usize];
+        let dc = CreateCompatibleDC(None);
+        let n = GetDIBits(dc, hbm, 0, h, Some(buf.as_mut_ptr() as *mut c_void), &mut bmi, DIB_RGB_COLORS);
+        let _ = DeleteDC(dc);
+        if n == 0 {
+            return None;
+        }
+        Some((w, h, buf))
+    }
+}
+
+unsafe fn hicon_to_png(icon: HICON) -> Option<Vec<u8>> {
+    unsafe {
+        let mut ii = ICONINFO::default();
+        GetIconInfo(icon, &mut ii).ok()?;
+        let color = bitmap_bgra(ii.hbmColor);
+        let mask = bitmap_bgra(ii.hbmMask);
+        let _ = DeleteObject(HGDIOBJ(ii.hbmColor.0));
+        let _ = DeleteObject(HGDIOBJ(ii.hbmMask.0));
+        let (w, h, mut px) = color?;
+        // 알파가 모두 0인 옛 아이콘은 마스크로 투명을 정해요.
+        let no_alpha = px.chunks_exact(4).all(|p| p[3] == 0);
+        if no_alpha {
+            if let Some((mw, _, m)) = mask {
+                if mw == w {
+                    for (i, p) in px.chunks_exact_mut(4).enumerate() {
+                        p[3] = if m.get(i * 4).copied().unwrap_or(0) == 0 { 255 } else { 0 };
+                    }
+                }
+            }
+        }
+        // BGRA → RGBA
+        for p in px.chunks_exact_mut(4) {
+            p.swap(0, 2);
+        }
+        let mut out = Vec::new();
+        {
+            let mut enc = png::Encoder::new(&mut out, w, h);
+            enc.set_color(png::ColorType::Rgba);
+            enc.set_depth(png::BitDepth::Eight);
+            let mut wr = enc.write_header().ok()?;
+            wr.write_image_data(&px).ok()?;
+        }
+        Some(out)
+    }
+}
+
+// ---------- 우클릭 메뉴 ----------
+
+thread_local! {
+    /// 메뉴가 떠 있는 동안 창 메시지를 넘겨줄 메뉴(하위 메뉴·그림 있는 항목용)
+    static ACTIVE: RefCell<Option<IContextMenu>> = const { RefCell::new(None) };
+}
+
+unsafe extern "system" fn menu_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM, _id: usize, _data: usize) -> LRESULT {
+    if matches!(msg, WM_INITMENUPOPUP | WM_DRAWITEM | WM_MEASUREITEM | WM_MENUCHAR) {
+        let handled = ACTIVE.with(|a| {
+            let a = a.borrow();
+            let cm = a.as_ref()?;
+            if let Ok(c3) = cm.cast::<IContextMenu3>() {
+                let mut r = LRESULT(0);
+                if unsafe { c3.HandleMenuMsg2(msg, wp, lp, Some(&mut r)) }.is_ok() {
+                    return Some(r);
+                }
+            } else if let Ok(c2) = cm.cast::<IContextMenu2>() {
+                if unsafe { c2.HandleMenuMsg(msg, wp, lp) }.is_ok() {
+                    return Some(LRESULT(0));
+                }
+            }
+            None
+        });
+        if let Some(r) = handled {
+            return r;
+        }
+    }
+    unsafe { DefSubclassProc(hwnd, msg, wp, lp) }
+}
+
+struct Pidl(*mut ITEMIDLIST);
+impl Drop for Pidl {
+    fn drop(&mut self) {
+        if !self.0.is_null() {
+            unsafe { ILFree(Some(self.0)) };
+        }
+    }
+}
+
+fn parse(path: &str) -> Result<Pidl, String> {
+    let w = wide(path);
+    let mut p: *mut ITEMIDLIST = std::ptr::null_mut();
+    unsafe { SHParseDisplayName(PCWSTR(w.as_ptr()), None, &mut p, 0, None) }.map_err(|e| format!("parse:{e}"))?;
+    Ok(Pidl(p))
+}
+
+/// 윈도우 우클릭 메뉴를 띄우고 고른 것을 실행해요.
+/// 돌려주는 값: "" 아무것도 안 고름 · "done" 실행함 · "rename" 화면이 이름 바꾸기를 시작해야 해요.
+/// hwnd는 앱 창, (x, y)는 화면 안 CSS 픽셀(음수면 마우스 자리), scale은 화면 배율.
+pub fn context_menu(hwnd_raw: isize, origin: (i32, i32), scale: f64, dir: &str, names: &[String], x: f64, y: f64) -> Result<String, String> {
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        let hwnd = HWND(hwnd_raw as *mut c_void);
+        let dir_pidl = parse(dir)?;
+        let folder: IShellFolder = SHBindToObject(None, dir_pidl.0, None).map_err(|e| format!("bind:{e}"))?;
+        let cm: IContextMenu = if names.is_empty() {
+            // 빈 곳: 그 폴더의 바탕 메뉴(새로 만들기·붙여 넣기·속성 등)
+            folder.CreateViewObject(hwnd).map_err(|e| format!("view:{e}"))?
+        } else {
+            let mut kids: Vec<Pidl> = Vec::new();
+            for n in names {
+                let w = wide(n);
+                let mut p: *mut ITEMIDLIST = std::ptr::null_mut();
+                let mut attrs = 0u32;
+                folder
+                    .ParseDisplayName(hwnd, None, PCWSTR(w.as_ptr()), None, &mut p, &mut attrs)
+                    .map_err(|e| format!("child:{e}"))?;
+                kids.push(Pidl(p));
+            }
+            let raw: Vec<*const ITEMIDLIST> = kids.iter().map(|k| k.0 as *const ITEMIDLIST).collect();
+            let cm = folder.GetUIObjectOf(hwnd, &raw, None).map_err(|e| format!("ui:{e}"))?;
+            drop(kids);
+            cm
+        };
+        let menu = CreatePopupMenu().map_err(|e| format!("menu:{e}"))?;
+        let mut flags = CMF_NORMAL | CMF_EXPLORE;
+        if GetKeyState(VK_SHIFT.0 as i32) < 0 {
+            flags |= CMF_EXTENDEDVERBS;
+        }
+        const FIRST: u32 = 1;
+        let hr = cm.QueryContextMenu(menu, 0, FIRST, 0x7FFF, flags);
+        if hr.is_err() {
+            let _ = DestroyMenu(menu);
+            return Err(format!("query:{hr:?}"));
+        }
+        let pt = if x < 0.0 || y < 0.0 {
+            let mut p = POINT::default();
+            let _ = GetCursorPos(&mut p);
+            p
+        } else {
+            POINT { x: origin.0 + (x * scale).round() as i32, y: origin.1 + (y * scale).round() as i32 }
+        };
+        ACTIVE.with(|a| *a.borrow_mut() = Some(cm.clone()));
+        let _ = SetWindowSubclass(hwnd, Some(menu_proc), 0x6731, 0);
+        let cmd = TrackPopupMenuEx(menu, (TPM_RETURNCMD | TPM_RIGHTBUTTON).0, pt.x, pt.y, hwnd, None).0 as u32;
+        let _ = RemoveWindowSubclass(hwnd, Some(menu_proc), 0x6731);
+        ACTIVE.with(|a| *a.borrow_mut() = None);
+        if cmd < FIRST {
+            let _ = DestroyMenu(menu);
+            return Ok(String::new());
+        }
+        let id = (cmd - FIRST) as usize;
+        let mut verb = [0u16; 128];
+        let _ = cm.GetCommandString(id, GCS_VERBW, None, PSTR(verb.as_mut_ptr() as *mut u8), verb.len() as u32);
+        let verb = from_wide(&verb).to_lowercase();
+        if verb == "rename" {
+            let _ = DestroyMenu(menu);
+            return Ok("rename".into());
+        }
+        let dir_w = wide(dir);
+        let info = CMINVOKECOMMANDINFOEX {
+            cbSize: std::mem::size_of::<CMINVOKECOMMANDINFOEX>() as u32,
+            fMask: CMIC_MASK_UNICODE | CMIC_MASK_PTINVOKE,
+            hwnd,
+            lpVerb: PCSTR(id as *const u8),
+            lpVerbW: PCWSTR(id as *const u16),
+            lpDirectoryW: PCWSTR(dir_w.as_ptr()),
+            nShow: SW_SHOWNORMAL.0,
+            ptInvoke: pt,
+            ..Default::default()
+        };
+        let r = cm.InvokeCommand(&info as *const _ as *const CMINVOKECOMMANDINFO);
+        let _ = DestroyMenu(menu);
+        r.map_err(|e| format!("invoke:{e}"))?;
+        Ok("done".into())
+    }
+}

@@ -6,6 +6,7 @@ import CalendarScreen, { EventFocus } from "./CalendarScreen";
 import ComplaintsScreen from "./ComplaintsScreen";
 import ContactsScreen from "./ContactsScreen";
 import ProcessScreen from "./ProcessScreen";
+import FilesScreen from "./FilesScreen";
 import Gate from "./Gate";
 import Logo, { AppIcon } from "./Logo";
 import { NavIcon, NavIconName } from "./Icons";
@@ -221,9 +222,11 @@ export default function App() {
           </button>
         </div>
       </nav>
-      <main className="main">
+      <main className={current === "explorer" ? "main main-fill" : "main"}>
         {current === SETTINGS.id ? (
           <SettingsScreen prefs={prefs} onPrefs={savePrefs} status={status} onLocked={refresh} />
+        ) : current === "explorer" ? (
+          <FilesScreen />
         ) : current === "contacts" ? (
           <ContactsScreen />
         ) : current === "journal" ? (

@@ -1,10 +1,12 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { api, DEFAULT_PREFS, errorText, inApp, Prefs, Status } from "./api";
 import { splitJamo } from "./journal";
-import { DEFAULT_SETTINGS, DONE_STATUS, Kind, loadSettings, MEMO_KIND, ProcessSettings, saveSettings, Settings, STATUS_COLORS } from "./settingsStore";
+import { DEFAULT_SETTINGS, DONE_STATUS, Kind, loadSettings, MEMO_KIND, ProcessSettings, saveSettings, Settings, FilesSettings, STATUS_COLORS } from "./settingsStore";
 import { PhoneInput } from "./PhoneInput";
 import { aiGuide } from "./process";
 import { SCREENS } from "./screens";
+import { DATE_FORMATS, FsDrive } from "./files";
+import { fsApi } from "./filesApi";
 import Logo, { AppIcon } from "./Logo";
 import { VERSION } from "./version";
 import { Action, conflicts, DEFAULT_KEYS, diffKeys, isRightAlt, KEY_GROUPS, KeyMap, mergeKeys, setKeyMap } from "./keys";
@@ -141,6 +143,8 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked }: Pro
       <ProcessCard p={s.process} onChange={(process) => update({ ...s, process })} />
 
       <GoogleCard />
+
+      <FilesCard value={s.files} onChange={(files) => update({ ...s, files })} />
 
       <section className="card">
         <div className="card-head">보안 · 저장</div>
@@ -514,6 +518,82 @@ function GoogleCard() {
         <Toggle key={k} label={label} desc={desc} on={opts[k]} onChange={() => toggle(k)} />
       ))}
       <p className="g-foot small">민원인 이름과 연락처는 어떤 경우에도 구글로 내보내지 않아요. 내보낸 일정은 시청 밖 구글 서버에 저장돼요.</p>
+    </section>
+  );
+}
+
+// ---------- 탐색기 카드 (11단계, 시안 FilesSettings.dc.html) ----------
+
+function FilesCard({ value, onChange }: { value: FilesSettings; onChange: (v: FilesSettings) => void }) {
+  const [drives, setDrives] = useState<FsDrive[]>([]);
+  const [dir, setDir] = useState(value.newTabDir);
+  useEffect(() => {
+    fsApi.drives().then(setDrives, () => {});
+  }, []);
+  useEffect(() => setDir(value.newTabDir), [value.newTabDir]);
+  const set = (p: Partial<FilesSettings>) => onChange({ ...value, ...p });
+  const pick = async () => {
+    if (!inApp) return;
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const r = await open({ directory: true, defaultPath: dir || undefined });
+    if (typeof r === "string") set({ newTabDir: r });
+  };
+  return (
+    <section className="card">
+      <div className="card-head">탐색기</div>
+      <Row label="날짜 모양" desc="목록의 수정한 날 열이에요.">
+        <span className="seg" role="radiogroup" aria-label="날짜 모양">
+          {DATE_FORMATS.map((d, i) => (
+            <button key={d} type="button" role="radio" aria-checked={value.dateFmt === i} onClick={() => set({ dateFmt: i })}>
+              {d}
+            </button>
+          ))}
+        </span>
+      </Row>
+      <Row label="보이는 드라이브" desc="끈 드라이브는 드라이브 단추와 폴더 트리에서 빠져요.">
+        <span className="fx-set-drives">
+          {drives.map((d) => {
+            const on = !value.hiddenDrives.includes(d.name);
+            return (
+              <button
+                key={d.name}
+                type="button"
+                className={"chip fx-set-drive" + (on ? " on" : "")}
+                aria-pressed={on}
+                onClick={() =>
+                  set({ hiddenDrives: on ? [...value.hiddenDrives, d.name] : value.hiddenDrives.filter((x) => x !== d.name) })
+                }
+              >
+                {d.name} {d.label}
+              </button>
+            );
+          })}
+        </span>
+      </Row>
+      <Toggle label="숨김 파일 보이기" desc="켜면 흐리게 보여요." on={value.showHidden} onChange={(showHidden) => set({ showHidden })} />
+      <Row label="새 탭이 여는 폴더" desc="새 탭과 처음 켤 때 열려요. 비우면 문서 폴더예요.">
+        <span className="fx-set-dir">
+          <input
+            className="input"
+            aria-label="새 탭이 여는 폴더"
+            data-ime="en"
+            value={dir}
+            placeholder="문서"
+            onChange={(e) => setDir(e.target.value)}
+            onBlur={() => dir.trim() !== value.newTabDir && set({ newTabDir: dir.trim() })}
+            onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+          />
+          <button type="button" className="btn btn-ctrl" onClick={() => void pick()}>
+            고르기
+          </button>
+        </span>
+      </Row>
+      <Toggle
+        label="지울 때 묻기"
+        desc="끄면 Delete·F8이 묻지 않고 휴지통으로 보내요. Shift+F8 완전 삭제는 늘 물어요."
+        on={value.askDelete}
+        onChange={(askDelete) => set({ askDelete })}
+      />
     </section>
   );
 }

@@ -25,7 +25,11 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["**/*.jpg", "**/*.jpeg", "**/*.png", "**/*.gif", "**/*.bmp", "**/*.webp", "**/*.JPG", "**/*.JPEG", "**/*.PNG", "**/*.GIF", "**/*.BMP", "**/*.WEBP"]
+      }
     }
   },
   "bundle": {

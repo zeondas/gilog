@@ -1,6 +1,7 @@
-// 화면 목록. 순서는 사이드바 순서예요(2026-10-17 사이드바 아이콘 확정 — 탐색기는 그 화면이 생길 때 더해요).
+// 화면 목록. 순서는 사이드바 순서예요(2026-10-17 사이드바 아이콘 확정).
 // group: 같은 숫자끼리 묶고 묶음 사이에 희미한 선을 그어요. "bottom"은 아래쪽(설정 위)에 둬요.
 export const SCREENS = [
+  { id: "explorer", name: "탐색기", side: "탐색기", step: 11, group: 0 },
   { id: "complaints", name: "민원대장", side: "민원대장", step: 6, group: 1 },
   { id: "process", name: "민원처리", side: "민원처리", step: 10, group: 1 },
   { id: "calendar", name: "캘린더", side: "캘린더", step: 8, group: 2 },
