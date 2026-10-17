@@ -247,6 +247,22 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     }
   }
 
+  /** 접수번호 누르기: 신문고는 민원마다 바로 열리는 주소가 없어서(주소에 번호가 없어요), 신문고를 열고 번호를 복사해 둬요. */
+  async function openCase(no: string) {
+    try {
+      await navigator.clipboard.writeText(no);
+    } catch {
+      /* 복사가 막혀도 신문고는 열어요 */
+    }
+    try {
+      if (inApp) await api.openPortal(PORTAL_URL);
+      else window.open(PORTAL_URL, "_blank");
+      setNote(`접수번호를 복사했어요(${no}) · 신문고 검색 칸에 붙여 넣으세요`);
+    } catch (e) {
+      setNote(errText(e));
+    }
+  }
+
   async function openFile(path: string, select = false) {
     try {
       await (select ? api.showInFolder(path) : api.openPath(path));
@@ -389,7 +405,19 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                 onClick={() => setSel(sel === c.no ? null : c.no)}
                 onDoubleClick={() => c.complaint != null && onOpenComplaint(c.complaint)}
               >
-                <div className="pr-no">{c.no}</div>
+                <div className="pr-no">
+                  <button
+                    type="button"
+                    className="pr-no-link"
+                    title="신문고를 열고 접수번호를 복사해요. 신문고 검색 칸에 붙여 넣으세요(Ctrl+V)"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openCase(c.no);
+                    }}
+                  >
+                    {c.no}
+                  </button>
+                </div>
                 <div className="pr-date">{md(c.received)}</div>
                 <div className="pr-date pr-due">
                   <span>{md(c.due)}</span>
