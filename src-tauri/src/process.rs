@@ -603,6 +603,21 @@ fn final_state(result: &str, is_error: bool) -> (String, String) {
     }
 }
 
+/// Claude 실행 파일: 설정에 경로가 있으면 그것, "claude"(처음 값)면 설치기가 넣는 자리
+/// `%USERPROFILE%\.local\bin\claude.exe`를 먼저 봐요(설치 직후 PATH가 아직 안 잡혀도 돼요).
+fn claude_exe(set: &str) -> PathBuf {
+    if !set.is_empty() && set != "claude" {
+        return PathBuf::from(set);
+    }
+    if let Some(home) = std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME")) {
+        let p = PathBuf::from(home).join(".local").join("bin").join(if cfg!(windows) { "claude.exe" } else { "claude" });
+        if p.is_file() {
+            return p;
+        }
+    }
+    PathBuf::from("claude")
+}
+
 #[tauri::command]
 pub fn run_claude(run: State<ClaudeRun>, req: RunRequest) -> Result<(), String> {
     use std::io::{BufRead, Write};
@@ -616,8 +631,8 @@ pub fn run_claude(run: State<ClaudeRun>, req: RunRequest) -> Result<(), String> 
     let inbox = PathBuf::from(req.inbox.trim());
     fs::create_dir_all(&inbox).map_err(io)?;
     let _ = fs::remove_file(inbox.join(PROGRESS_FILE));
-    let exe = if req.exe.trim().is_empty() { "claude" } else { req.exe.trim() };
-    let mut cmd = Command::new(exe);
+    let exe = claude_exe(req.exe.trim());
+    let mut cmd = Command::new(&exe);
     cmd.current_dir(&inbox)
         .args(["-p", "아래 지침대로 국민신문고 민원을 가져와요.", "--chrome", "--output-format", "stream-json", "--verbose"])
         .args(["--permission-mode", "acceptEdits", "--permission-prompts", "none"])
