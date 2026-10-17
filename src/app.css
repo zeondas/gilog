@@ -7079,7 +7079,7 @@ body.col-dragging * {
 
 .pr-wgrid {
   display: grid;
-  grid-template-columns: 180px 130px 180px minmax(0, 1fr) 76px 170px 28px;
+  grid-template-columns: 180px 130px 170px minmax(0, 1fr) 76px 170px 52px;
   gap: 8px;
   align-items: center;
   padding: 0 20px;
@@ -7275,4 +7275,21 @@ body.col-dragging * {
 .pr-err {
   color: var(--danger);
   font-weight: 600;
+}
+
+.pr-wgrid > .pr-del,
+.pr-wgrid > .pr-add {
+  justify-self: end;
+}
+
+.pr-save {
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
 }

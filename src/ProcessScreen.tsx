@@ -10,7 +10,6 @@ import { daysBetween } from "./complaints";
 import { copyText, projectColor } from "./ContactsScreen";
 import { DelIcon } from "./Icons";
 import { koIndex, todayStr } from "./journal";
-import { PhoneInput } from "./PhoneInput";
 import {
   actionLine,
   Case,
@@ -727,8 +726,8 @@ function WorksDialog({
             const k = workColor(w, cd);
             if (editing === w.id) {
               return (
-                <div key={w.id} ref={editRef} className="pr-wgrid pr-wrow pr-wedit">
-                  <input className="cell-input" aria-label="공사명" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && saveEdit()} />
+                <div key={w.id} ref={editRef} className="pr-wgrid pr-wrow pr-wedit" onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing && (e.target as HTMLElement).tagName === "INPUT" && !document.querySelector(".pr-cmenu")) saveEdit(); }}>
+                  <input className="cell-input" aria-label="공사명" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} />
                   <input className="cell-input" aria-label="시공사" value={edit.co} onChange={(e) => setEdit({ ...edit, co: e.target.value })} />
                   <AgentInputs d={edit} contacts={cd.contacts} onChange={setEdit} />
                   <input className="cell-input" aria-label="처리 범위" value={edit.scope} onChange={(e) => setEdit({ ...edit, scope: e.target.value })} />
@@ -737,7 +736,9 @@ function WorksDialog({
                     const p = await chooseTemplate();
                     if (p) setEdit((d) => ({ ...d, tpl: p }));
                   }} />
-                  <span />
+                  <button type="button" className="pr-save" title="저장 (Enter)" onClick={saveEdit}>
+                    저장
+                  </button>
                 </div>
               );
             }
@@ -818,12 +819,12 @@ function WorksDialog({
         </div>
         <div className="pr-hints">
           {err && <span className="pr-err">{err}</span>}
-          <span>현장대리인은 업무연락처에서 골라요(어느 쪽에서 고쳐도 함께 바뀌어요). 공사명은 업무연락처 프로젝트로도 등록되고 현장대리인에게 붙어요. 번호를 누르면 복사, 줄을 두 번 누르면 고쳐요.</span>
+          <span>현장대리인은 업무연락처에서 골라요(어느 쪽에서 고쳐도 함께 바뀌어요). 공사명은 업무연락처 프로젝트로도 등록되고 현장대리인에게 붙어요. 번호를 누르면 복사, 줄을 두 번 누르면 고치고 [저장]·Enter로 저장해요(Esc 취소).</span>
           <span>양식은 pptx·hwpx 중 골라요. 양식 이름을 누르면 파일을 바꿔요. 양식에 글자 자리 {"{주소} {보수내용} {고려사항} {연번} {지시일} {지시자}"} 와 그림 자리 "위치도"·"현장사진"을 두면 돼요.</span>
         </div>
         <div className="dialog-foot">
-          <button type="button" className="btn-primary" onClick={() => (editing != null ? saveEdit() : onClose())}>
-            {editing != null ? "저장" : "닫기"}
+          <button type="button" className="btn-primary" onClick={() => (editing != null ? saveEdit().then(onClose) : onClose())}>
+            닫기
           </button>
         </div>
       </div>
@@ -893,7 +894,6 @@ function AgentInputs({ d, contacts, onChange }: { d: Draft; contacts: Contact[];
           if (e.key === "Escape") (e.stopPropagation(), setOpenList(null));
         }}
       />
-      <PhoneInput className="cell-input pr-phone" aria-label="현장대리인 번호" placeholder="번호" value={d.phone} onChange={(v) => onChange({ ...d, phone: v })} />
       {openList && (cands.length > 0 || q) && (
         <Floating rect={openList} align="left" onClose={() => setOpenList(null)}>
           <div className="pr-menu pr-cmenu" role="listbox" aria-label="업무연락처">
