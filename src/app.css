@@ -7820,6 +7820,9 @@ body.col-dragging * {
   padding: 0 10px;
 }
 .fx-hdr {
+  /* 목록에 세로 스크롤 막대가 생겨도 열 경계가 머리 줄과 맞게, 둘 다 막대 자리를 늘 비워 둬요 */
+  overflow: hidden;
+  scrollbar-gutter: stable;
   height: 26px;
   border-bottom: 1px solid var(--line-soft);
   background: var(--row-alt);
@@ -7860,6 +7863,7 @@ body.col-dragging * {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   user-select: none;
 }
 .fx-frow {
