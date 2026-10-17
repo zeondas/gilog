@@ -7560,25 +7560,30 @@ body.col-dragging * {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  height: 30px;
-  max-width: 200px;
-  padding: 0 12px;
+  height: 34px;
+  max-width: 220px;
+  padding: 0 14px;
   border: 1px solid transparent;
   border-radius: 7px;
   background: transparent;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14.5px;
   white-space: nowrap;
   cursor: pointer;
 }
 .fx-tab:hover {
   background: var(--surface-band);
 }
+/* 고른 탭·드라이브는 보라로 꽉 채워요(2026-10-18 사용자 2안 — 어둡게에서도 잘 보이게, 시안 FilesActive) */
 .fx-tab[data-on="1"] {
-  background: var(--accent-tint);
-  border-color: var(--accent-line);
-  color: var(--accent);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
   font-weight: 700;
+}
+.fx-tab[data-on="1"] .fx-pin,
+.fx-tab[data-on="1"] .fx-tx {
+  color: var(--on-accent);
 }
 .fx-tn {
   min-width: 0;
@@ -7646,12 +7651,12 @@ body.col-dragging * {
   background: var(--surface-band);
 }
 .fx-drv[data-on="1"] {
-  background: var(--accent-tint);
-  border-color: var(--accent-line);
-  color: var(--accent);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
 }
 .fx-drv[data-on="1"] svg {
-  color: var(--accent);
+  color: var(--on-accent);
 }
 .fx-filter {
   flex: 1;
