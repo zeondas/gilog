@@ -216,3 +216,42 @@ export function measureBullets(fontPx: number) {
   root.style.setProperty("--bl-indent", (space * 2).toFixed(2) + "px");
   root.style.setProperty("--bl-shift", shift.toFixed(2) + "px");
 }
+
+// ---------- Tab · Shift+Tab (업무일지 메모 편집기 글머리 목록) ----------
+
+/** 이 줄 위에 열려 있는 위계 기호들(같은 묶음 안, 위가 앞). 빈 줄에서 묶음이 끊겨요. */
+export function openKinds(lines: BLine[], i: number): BKind[] {
+  let stack: BKind[] = [];
+  for (const l of lines.slice(0, i)) {
+    if (isBlank(l)) {
+      stack = [];
+      continue;
+    }
+    const k = kindOf(l);
+    if (k === "none") continue;
+    while (stack.length && rank(stack[stack.length - 1]) >= rank(k)) stack.pop();
+    stack.push(k);
+  }
+  return stack;
+}
+
+/**
+ * Tab(한 칸 들이기)·Shift+Tab(한 위계 위로)을 누르면 이 줄이 바뀔 기호. 바뀌지 않으면 null이에요(시안 BulletRule.dc.html onKey).
+ * Tab: 바로 위 위계의 다음 기호(□ 아래 ●, ● 아래 -). Shift+Tab: 위에 있는 더 높은 위계 기호.
+ * 키를 어디에 붙일지는 엔터규칙 세션이 다시 정해요 — 규칙은 여기 하나예요.
+ */
+export function tabKind(lines: BLine[], i: number, back: boolean): BKind | null {
+  const cur = lines[i];
+  // 새 줄을 열자마자(글 없이) Tab을 누르는 일이 많아 빈 줄도 받아요. 기호를 지운 줄은 그대로예요.
+  if (!cur || kindOf(cur) === "none") return null;
+  const stack = openKinds(lines, i);
+  const k = kindOf(cur);
+  if (!back) {
+    if (i === 0 || isBlank(lines[i - 1]) || !stack.length) return null;
+    const above = stack[stack.length - 1];
+    const next: BKind | null = above === "sq" ? "ci" : above === "ci" ? "da" : null;
+    return next && next !== k ? next : null;
+  }
+  for (let j = stack.length - 1; j >= 0; j--) if (rank(stack[j]) < rank(k)) return stack[j];
+  return null;
+}

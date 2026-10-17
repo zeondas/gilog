@@ -1,7 +1,8 @@
 // 업무일지 "메모" 기록의 편집기와 보기예요.
 // 글자 꾸미기(굵게·기울임·밑줄·취소선), 문단 모양(본문·제목·인용·글머리 목록·번호 목록·들여쓰기), 간단한 표를 써요.
-// 키: Enter 등록(저장) · Shift+Enter(또는 Ctrl+Enter) 새 줄 · 표 안에서 Tab 다음 칸 · 목록에서 Tab 들여쓰기 · Esc 취소
+// 키: Enter 등록(저장) · Shift+Enter(또는 Ctrl+Enter) 새 줄 · 표 안에서 Tab 다음 칸 · 글머리 목록에서 Tab 한 위계 아래 · Esc 취소
 import { KeyboardEvent, useEffect, useRef, useState } from "react";
+import { BKind, BLine, layout, tabKind } from "./bullets";
 
 // ---------- 정리 ----------
 
@@ -40,8 +41,11 @@ function clean(node: Node, out: Node, doc: Document) {
       const w = (el as HTMLElement).style?.width ?? "";
       if (/^\d+(\.\d+)?%$/.test(w)) copy.setAttribute("style", `width: ${w}`);
     }
-    // 머릿기호를 지운 목록 줄(머릿기호 규칙)
-    if (tag === "li" && el.classList.contains("nb")) copy.className = (copy.className ? copy.className + " " : "") + "nb";
+    // 글머리 목록 줄의 머릿기호 종류(k-sq □, k-da 작대기, nb 지움 — 없으면 ●)와 지운 줄의 단계(lv1·lv2)
+    if (tag === "li") {
+      const keep = LI_CLASSES.filter((c) => el.classList.contains(c));
+      if (keep.length) copy.className = [copy.className, ...keep].filter(Boolean).join(" ");
+    }
     out.appendChild(copy);
     if (tag !== "col") clean(el, copy, doc);
   });
@@ -51,12 +55,133 @@ function clean(node: Node, out: Node, doc: Document) {
   });
 }
 
+// ---------- 글머리 목록 = 머릿기호 규칙 (2026-10-17 위계 규칙, CLAUDE.md "머릿기호 규칙") ----------
+// 목록은 한 겹(ul > li)이고 줄마다 기호 종류를 이름표로 적어요: 없음 ●(기본), k-sq □, k-da 작대기, nb 기호 지움.
+// 들여쓰기는 bullets.ts의 layout(위계 방식)으로 셈해 lv1·lv2를 붙여요. 빈 줄은 묶음을 나눠요.
+// 예전 메모(0.6.2까지)는 목록을 겹겹이 넣어 깊이로 기호를 정했어요(1단계 □, 2단계 점, 3단계 작대기).
+// 읽을 때 한 겹으로 펴고, 위계는 그대로 두되 기본이 ●가 되게 맞춰요: 깊이 1만 있으면 ●, 2단계까지면 ●·작대기, 3단계면 □·●·작대기.
+
+const LI_CLASSES = ["k-sq", "k-da", "nb", "lv1", "lv2"];
+const KIND_CLASS: Record<BKind, string> = { sq: "k-sq", ci: "", da: "k-da", none: "nb" };
+
+function liKind(li: Element): BKind {
+  return li.classList.contains("nb") ? "none" : li.classList.contains("k-sq") ? "sq" : li.classList.contains("k-da") ? "da" : "ci";
+}
+
+const liLv = (li: Element) => (li.classList.contains("lv2") ? 2 : li.classList.contains("lv1") ? 1 : 0);
+
+/** 목록 줄의 글자(아래에 든 번호 목록 글자는 빼지 않아요 — 줄의 내용이에요) */
+const liText = (li: Element) => (li.textContent ?? "").replace(/\u00a0/g, " ").trim();
+
+/** 목록 줄의 기호 종류를 바꿔요. 지울 때(none)는 지금 단계를 남겨요. */
+export function setLiKind(li: Element, k: BKind, lv = 0) {
+  li.classList.remove("k-sq", "k-da", "nb", "lv1", "lv2");
+  if (KIND_CLASS[k]) li.classList.add(KIND_CLASS[k]);
+  if (k === "none" && lv > 0) li.classList.add("lv" + Math.min(2, lv));
+  if (!li.getAttribute("class")) li.removeAttribute("class");
+}
+
+/** 한 목록의 줄들을 머릿기호 규칙 줄 목록으로 */
+function linesOf(ul: Element): BLine[] {
+  return [...ul.children].map((li) => {
+    const k = liKind(li);
+    const l: BLine = { t: liText(li) };
+    if (k !== "ci") l.k = k;
+    if (k === "none") l.lv = liLv(li);
+    return l;
+  });
+}
+
+/** 목록마다 위계 들여쓰기(lv1·lv2)를 다시 셈해요. 빈 줄에는 blank를 붙여 보기에서 기호를 숨겨요. */
+export function relayout(root: Element) {
+  root.querySelectorAll("ul").forEach((ul) => {
+    const lis = [...ul.children];
+    const lv = layout(linesOf(ul));
+    lis.forEach((li, i) => {
+      li.classList.remove("lv1", "lv2", "blank");
+      if (lv[i] > 0) li.classList.add("lv" + lv[i]);
+      if (!liText(li) && !li.querySelector("table")) li.classList.add("blank");
+      if (!li.getAttribute("class")) li.removeAttribute("class");
+    });
+  });
+}
+
+/** 겹겹이 든 글머리 목록(예전 메모, 붙여 넣은 글)이 있는지 */
+const hasNested = (root: Element) => !!root.querySelector("ul ul, ul > li ul");
+
+/**
+ * 글머리 목록을 한 겹으로 펴고 붙어 있는 목록을 합쳐요. 바꾼 게 있으면 true예요.
+ * legacy: 저장된 것을 읽을 때(예전 메모의 깊이 → 기호). 아니면(편집 중 브라우저가 겹친 것) 겹친 줄은 윗줄 기호의 한 위계 아래예요.
+ */
+export function flattenLists(root: Element, legacy = true): boolean {
+  let changed = false;
+  const doc = root.ownerDocument;
+  const tops = [...root.querySelectorAll("ul")].filter((ul) => !ul.parentElement?.closest("ul"));
+  for (const top of tops) {
+    if (!hasNested(top) && !top.querySelector(":scope > :not(li)")) continue;
+    changed = true;
+    type Item = { li: Element; depth: number; own: boolean };
+    const items: Item[] = [];
+    const walk = (ul: Element, depth: number) => {
+      for (const ch of [...ul.childNodes]) {
+        if (ch.nodeType !== Node.ELEMENT_NODE) continue;
+        const el = ch as Element;
+        if (el.tagName === "UL") walk(el, depth + 1);
+        else if (el.tagName === "LI") {
+          const li = el.cloneNode(false) as Element;
+          const subs: Element[] = [];
+          for (const c of [...el.childNodes]) {
+            if (c.nodeType === Node.ELEMENT_NODE && (c as Element).tagName === "UL") subs.push(c as Element);
+            else li.appendChild(c);
+          }
+          if (!li.firstChild) li.appendChild(doc.createElement("br"));
+          // k-sq·k-da를 적은 줄은 새 모양이에요(그대로). 이름표가 없으면 깊이로 정해요.
+          items.push({ li, depth, own: li.classList.contains("k-sq") || li.classList.contains("k-da") });
+          subs.forEach((u) => walk(u, depth + 1));
+        }
+      }
+    };
+    walk(top, 1);
+    const maxDepth = Math.min(3, Math.max(1, ...items.filter((x) => !x.own).map((x) => x.depth)));
+    const kinds: BKind[] = (["sq", "ci", "da"] as BKind[]).slice(3 - maxDepth);
+    const flat = doc.createElement("ul");
+    const byDepth: BKind[] = [];
+    const below = (k: BKind | undefined): BKind => (k === "sq" ? "ci" : "da");
+    for (const { li, depth, own } of items) {
+      if (!legacy) {
+        // 편집 중: 맨 바깥 줄은 그대로, 겹친 줄은 이름표가 없으면 윗줄의 한 위계 아래
+        if (!own && depth > 1 && !li.classList.contains("nb")) setLiKind(li, below(byDepth[depth - 2]));
+        byDepth[depth - 1] = liKind(li) === "none" ? byDepth[depth - 2] ?? "ci" : liKind(li);
+        byDepth.length = depth;
+      } else if (!own) {
+        const k = kinds[Math.min(depth, kinds.length) - 1];
+        if (li.classList.contains("nb")) setLiKind(li, "none", Math.min(2, depth - 1));
+        else setLiKind(li, k);
+      }
+      flat.appendChild(li);
+    }
+    top.replaceWith(flat);
+  }
+  // 바로 붙어 있는 목록은 하나로(묶음은 빈 줄이 나눠요)
+  for (const ul of [...root.querySelectorAll("ul")]) {
+    const next = ul.nextElementSibling;
+    if (next && next.tagName === "UL" && ul.isConnected) {
+      while (next.firstChild) ul.appendChild(next.firstChild);
+      next.remove();
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 /** 붙여 넣거나 저장할 HTML을 정해진 모양만 남겨 정리해요. */
 export function sanitize(html: string): string {
   if (!html) return "";
   const doc = new DOMParser().parseFromString(html, "text/html");
   const box = doc.createElement("div");
   clean(doc.body, box, doc);
+  flattenLists(box);
+  relayout(box);
   // 빈 문단은 끝에서만 지워요.
   while (box.lastChild && box.lastChild.nodeName === "P" && !(box.lastChild.textContent ?? "").trim() && box.childNodes.length > 1) {
     box.removeChild(box.lastChild);
@@ -219,6 +344,10 @@ export function MemoEditor({
       const node = sel?.anchorNode ?? null;
       if (!area.current || !node || !area.current.contains(node)) return;
       const el = (node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement) as Element;
+      // 빈 목록 줄은 커서가 있을 때만 기호를 그려요(묶음 나누는 빈 줄과 적는 중인 줄을 가려요).
+      const li = el.closest("li");
+      area.current.querySelectorAll("li.caret").forEach((x) => x !== li && x.classList.remove("caret"));
+      if (li && !li.classList.contains("caret")) li.classList.add("caret");
       const blockEl = el.closest("h3,blockquote,p,div,li,td");
       setFmt({
         b: document.queryCommandState("bold"),
@@ -240,7 +369,12 @@ export function MemoEditor({
   }, []);
 
   const changed = () => {
-    if (area.current) normalize(area.current);
+    if (area.current) {
+      normalize(area.current);
+      // 브라우저 명령이 목록을 겹겹이 만들면 한 겹으로 펴고, 위계 들여쓰기를 다시 셈해요.
+      flattenLists(area.current, false);
+      relayout(area.current);
+    }
     const html = area.current?.innerHTML ?? "";
     setEmpty(isEmptyMemo(html));
     onChange(html);
@@ -397,8 +531,8 @@ export function MemoEditor({
   }
 
   // ---------- 머릿기호 규칙 (글머리 목록) ----------
-  // 목록 1단계 □, 2단계 점, 3단계 작대기(모양은 CSS가 그려요). 줄 맨 앞 "] " ") " "- "로 그 단계 목록을 시작하거나 바꾸고,
-  // 목록 줄 맨 앞 Backspace는 머릿기호만 지워요(li.nb). 한 번 더 누르면 보통처럼 윗줄과 합쳐요.
+  // 새 목록은 ●, 줄 맨 앞 "] " □ · ") " ● · "- " 작대기. 들여쓰기는 위계로(relayout).
+  // 목록 줄 맨 앞 Backspace는 머릿기호만 지워요(nb). 기호 없는 줄·빈 줄에서 한 번 더 누르면 보통처럼 윗줄과 합쳐요.
 
   /** 커서가 있는 목록 줄과, 커서 앞 글자(그 줄 안) */
   function caretLine(): { li: HTMLLIElement | null; block: Element | null; before: string } | null {
@@ -414,46 +548,61 @@ export function MemoEditor({
     const pre = document.createRange();
     pre.selectNodeContents(block);
     pre.setEnd(r.startContainer, r.startOffset);
-    // 목록 줄 안에 든 아래 단계 목록 글자는 빼요.
     return { li, block, before: pre.toString() };
   }
 
-  /** 목록 단계(1부터). 목록 밖이면 0 */
-  const depthOf = (li: Element | null) => {
-    let d = 0;
-    for (let n: Element | null = li; n && n !== area.current; n = n.parentElement) if (n.tagName === "UL") d++;
-    return d;
+  /** 커서가 있는 글머리 목록 줄(번호 목록은 빼요) */
+  const bulletLi = (): HTMLLIElement | null => {
+    const n = document.getSelection()?.anchorNode;
+    const el = n && (n.nodeType === Node.ELEMENT_NODE ? (n as Element) : n.parentElement);
+    const li = (el?.closest("li") ?? null) as HTMLLIElement | null;
+    return li && area.current?.contains(li) && li.parentElement?.tagName === "UL" && !li.closest("td") ? li : null;
   };
 
   function bulletTrigger(): boolean {
     const at = caretLine();
     if (!at || at.before.length !== 1 || !"])-".includes(at.before)) return false;
-    if (at.li && at.li.closest("ol")) return false;
-    const want = at.before === "]" ? 1 : at.before === ")" ? 2 : 3;
+    if (at.li && at.li.parentElement?.tagName !== "UL") return false;
+    const want: BKind = at.before === "]" ? "sq" : at.before === ")" ? "ci" : "da";
     cmd("delete");
     if (!at.li) cmd("insertUnorderedList");
-    // 지금 줄의 목록 단계를 원하는 단계로 맞춰요.
-    for (let i = 0; i < 4; i++) {
-      const sel = document.getSelection();
-      const n = sel?.anchorNode;
-      const li = (n && (n.nodeType === Node.ELEMENT_NODE ? (n as Element) : n.parentElement))?.closest("li") ?? null;
-      if (li) li.classList.remove("nb");
-      const d = depthOf(li);
-      if (!li || d === want) break;
-      cmd(d < want ? "indent" : "outdent");
-    }
+    const li = bulletLi();
+    if (li) setLiKind(li, want);
     changed();
     return true;
   }
 
   function bulletBackspace(): boolean {
     const at = caretLine();
-    if (!at || !at.li || at.before !== "" || at.li.closest("ol")) return false;
-    if (at.li.classList.contains("nb")) return false; // 이미 지웠으면 보통처럼(윗줄과 합치기)
-    at.li.classList.add("nb");
+    if (!at || !at.li || at.before !== "" || at.li.parentElement?.tagName !== "UL") return false;
+    // 기호 없는 줄·빈 줄은 보통처럼(윗줄과 합치기)
+    if (at.li.classList.contains("nb") || !liText(at.li)) return false;
+    setLiKind(at.li, "none", liLv(at.li));
     changed();
     return true;
   }
+
+  /**
+   * 글머리 목록 줄을 한 위계 아래(Tab)·위(Shift+Tab)로. 규칙은 bullets.ts의 tabKind(시안 BulletRule.dc.html).
+   * 글머리 목록 줄이 아니면 false예요. 바꿀 수 없는 줄이어도 목록 줄이면 키는 먹어요(커서가 다음 칸으로 나가지 않게).
+   */
+  function bulletTab(back: boolean): boolean {
+    const li = bulletLi();
+    if (!li) return false;
+    const lis = [...li.parentElement!.children];
+    const k = tabKind(linesOf(li.parentElement!), lis.indexOf(li), back);
+    if (k) {
+      setLiKind(li, k);
+      changed();
+    }
+    return true;
+  }
+
+  /** 들여쓰기·내어쓰기 단추: 글머리 목록이면 위계를, 번호 목록·문단이면 보통 들여쓰기를 바꿔요. */
+  const indent = (back: boolean) => {
+    area.current?.focus();
+    if (!bulletTab(back)) run(back ? "outdent" : "indent");
+  };
 
   // ---------- 표 칸 폭 끌기 ----------
 
@@ -505,7 +654,11 @@ export function MemoEditor({
         moveCell(e.shiftKey);
         return;
       }
-      if (fmt.ul || fmt.ol) {
+      if (fmt.ul && bulletTab(e.shiftKey)) {
+        e.preventDefault();
+        return;
+      }
+      if (fmt.ol) {
         e.preventDefault();
         run(e.shiftKey ? "outdent" : "indent");
         return;
@@ -567,12 +720,12 @@ export function MemoEditor({
             <path d="M4 5h2v5M4 10h3M4 15h3l-3 4h3M10 7h10M10 17h10" />
           </svg>
         </B>
-        <B label="들여쓰기 (목록에서 Tab)" onClick={() => run("indent")}>
+        <B label="들여쓰기 (목록에서 Tab)" onClick={() => indent(false)}>
           <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M10 6h10M10 12h10M10 18h10M3 9l3 3-3 3" />
           </svg>
         </B>
-        <B label="내어쓰기 (목록에서 Shift+Tab)" onClick={() => run("outdent")}>
+        <B label="내어쓰기 (목록에서 Shift+Tab)" onClick={() => indent(true)}>
           <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M10 6h10M10 12h10M10 18h10M6 9l-3 3 3 3" />
           </svg>

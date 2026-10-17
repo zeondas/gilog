@@ -1,6 +1,6 @@
 // 업무일지 화면이에요. 시안 Journal.dc.html과 사양서의 "업무일지" 절을 따라요.
 // 누가 언제 무슨 말을 했는지 남기는 곳이라, 손을 키보드에서 떼지 않고 한 건을 끝낼 수 있게 만들었어요.
-import { KeyboardEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { KeyboardEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { DelIcon } from "./Icons";
 import { api, Complaint, Contact, ContactsData, DayInfo, Entry, EntryInput, errorText, JournalData, Project, Task, TaskList, TasksData } from "./api";
 import { firstLineOf } from "./bullets";
@@ -12,7 +12,6 @@ import { finalizePhone } from "./phone";
 import {
   contactFor,
   contactLabel,
-  dayLabel,
   dayTitle,
   DraftLine,
   expandKind,
@@ -23,7 +22,6 @@ import {
   isMemo,
   koIndex,
   matchEntry,
-  parseDate,
   normTime,
   nowHM,
   resolveDraft,
@@ -89,12 +87,17 @@ export default function JournalScreen({
   const [note, setNote] = useState("");
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [tasks, setTasks] = useState<TasksData>({ lists: [], tasks: [] });
+  /** 기록을 등록·고치기·지울 때마다 하나씩 늘어요 — 카드 두 단을 다시 나누는 신호 */
+  const [tick, setTick] = useState(0);
+  /** 공휴일(캘린더가 받아 둔 것) — 달력의 빨간 날 */
+  const [holidays, setHolidays] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     api.journalData().then(setData, (e) => setNote(errorText(e)));
     api.complaints().then(setComplaints, () => {});
     api.tasksData().then(setTasks, () => {});
     api.contactsData().then(setCdata, () => {});
+    api.calendarData().then((c) => setHolidays(new Set(c.holidays.map((h) => h.date))), () => {});
     loadSettings().then(
       (s) => {
         setMyName(s.myName || DEFAULT_SETTINGS.myName);
@@ -140,6 +143,7 @@ export default function JournalScreen({
   }, []);
 
   const putEntry = useCallback((e: Entry) => {
+    setTick((x) => x + 1);
     setData((d) => d && { ...d, entries: sortEntries([e, ...d.entries.filter((x) => x.id !== e.id)]) });
   }, []);
 
@@ -168,6 +172,7 @@ export default function JournalScreen({
         await api.deleteEntry(id);
         setNote("");
         setData((d) => d && { ...d, entries: d.entries.filter((x) => x.id !== id) });
+        setTick((x) => x + 1);
       } catch (e) {
         setNote(errorText(e));
       }
@@ -228,23 +233,42 @@ export default function JournalScreen({
   const query = q.trim().toLowerCase();
   const entries = data.entries.filter((e) => e.date === day);
   const info = data.days.find((d) => d.date === day) ?? { date: day, arrive: "", transport: "", weather: "", note: "" };
-  const dates = new Set([today, day, ...data.entries.map((e) => e.date), ...data.days.map((d) => d.date)]);
+  const counts = new Map<string, number>();
+  for (const e of data.entries) counts.set(e.date, (counts.get(e.date) ?? 0) + 1);
 
   return (
     <div className="jn">
-      <DateTree
-        dates={[...dates].sort().reverse()}
-        day={day}
-        onPick={go}
-        countOf={(d) => data.entries.filter((e) => e.date === d).length}
-        hasHead={(d) => data.days.some((x) => x.date === d)}
-        onDelete={removeDay}
-      />
+      {/* 왼쪽 열(시안 JournalCal1.dc.html 1안): 위 월 달력, 아래 챙길 일 */}
+      <div className="jn-left">
+        <JournalCalendar
+          day={day}
+          today={today}
+          counts={counts}
+          holidays={holidays}
+          onPick={go}
+          hasHead={(d) => data.days.some((x) => x.date === d)}
+          onDelete={removeDay}
+        />
+        <section className="jn-aside" aria-label="챙길 일">
+          <div className="jn-aside-head">
+            <span className="jn-aside-title">챙길 일</span>
+            <span className="muted small">마감 7일 이내</span>
+          </div>
+          <DueList
+            list={dueSoon(complaints, today)}
+            tasks={tasksDueSoon(tasks.tasks, today)}
+            lists={tasks.lists}
+            today={today}
+            urgentDays={urgentDays}
+            onOpen={onOpenComplaint}
+            onOpenTask={onOpenTask}
+          />
+        </section>
+      </div>
 
       <div className="jn-body">
         <div className="jn-head">
           <h1 className="title">{dayTitle(day)}</h1>
-          <DateJump onGo={go} />
           {day !== today && (
             <button type="button" className="btn btn-ctrl" onClick={() => go(today)}>
               오늘
@@ -280,48 +304,44 @@ export default function JournalScreen({
         ) : (
           <>
             <NewCard key={day} date={day} ctx={ctx} onAdd={add} />
-            {/* 왼쪽 단부터 채워요(사용자가 정함): 최근 것부터 앞의 절반은 왼쪽, 나머지는 오른쪽, 위에서 아래로.
-                개수로만 나누니 카드 길이가 바뀌어도 단 사이를 옮겨 다니지 않아요. */}
-            <div className="jn-cols">
-              {[entries.slice(0, Math.ceil(entries.length / 2)), entries.slice(Math.ceil(entries.length / 2))].map((col, ci) => (
-                <div key={ci} className="jn-col">
-                  {col.map((e) =>
-                    editId === e.id ? (
-                      <EditCard
-                        key={e.id}
-                        entry={e}
-                        ctx={ctx}
-                        onCancel={() => setEditId((cur) => (cur === e.id ? null : cur))}
-                        onSave={(input) => {
-                          setEditId((cur) => (cur === e.id ? null : cur));
-                          return update(e.id, input);
-                        }}
-                        onRemove={() => remove(e.id)}
-                      />
-                    ) : (
-                      <ViewCard
-                        key={e.id}
-                        entry={e}
-                        ctx={ctx}
-                        menuOpen={menuId === e.id}
-                        onMenu={(on) => setMenuId(on ? e.id : null)}
-                        onProject={(project) => {
-                          setMenuId(null);
-                          if (project !== e.project) update(e.id, { ...e, project });
-                        }}
-                        selected={selId === e.id}
-                        onSelect={() => setSelId(e.id)}
-                        onOpen={() => {
-                          setMenuId(null);
-                          setSelId(e.id);
-                          setEditId(e.id);
-                        }}
-                      />
-                    ),
-                  )}
-                </div>
-              ))}
-            </div>
+            {/* 카드 채우는 순서(2026-10-16 사용자): 왼쪽 단을 화면 아래까지 채우고 넘치는 것부터 오른쪽 단.
+                날짜를 열 때·기록을 등록·고치기·지울 때·창 크기를 바꿀 때만 다시 나눠요(CardCols). */}
+            <CardCols mode="screen" relayout={`${day}|${tick}`}>
+              {entries.map((e) =>
+                editId === e.id ? (
+                  <EditCard
+                    key={e.id}
+                    entry={e}
+                    ctx={ctx}
+                    onCancel={() => setEditId((cur) => (cur === e.id ? null : cur))}
+                    onSave={(input) => {
+                      setEditId((cur) => (cur === e.id ? null : cur));
+                      return update(e.id, input);
+                    }}
+                    onRemove={() => remove(e.id)}
+                  />
+                ) : (
+                  <ViewCard
+                    key={e.id}
+                    entry={e}
+                    ctx={ctx}
+                    menuOpen={menuId === e.id}
+                    onMenu={(on) => setMenuId(on ? e.id : null)}
+                    onProject={(project) => {
+                      setMenuId(null);
+                      if (project !== e.project) update(e.id, { ...e, project });
+                    }}
+                    selected={selId === e.id}
+                    onSelect={() => setSelId(e.id)}
+                    onOpen={() => {
+                      setMenuId(null);
+                      setSelId(e.id);
+                      setEditId(e.id);
+                    }}
+                  />
+                ),
+              )}
+            </CardCols>
             {entries.length === 0 && (
               <p className="muted small">
                 {day === today ? "오늘 기록이 아직 없어요. 위 카드에 적고 Enter를 눌러 등록해요." : "이 날 기록이 없어요."}
@@ -329,28 +349,98 @@ export default function JournalScreen({
             )}
           </>
         )}
-        <div className="muted small">
-          {day === today ? "오늘" : "이 날"} 기록 {entries.length}건 · 전체 {data.entries.length}건
-        </div>
       </div>
-
-      <aside className="jn-aside" aria-label="챙길 일">
-        <div className="jn-aside-head">
-          <span className="jn-aside-title">챙길 일</span>
-          <span className="muted small">마감 7일 이내</span>
-        </div>
-        <DueList
-          list={dueSoon(complaints, today)}
-          tasks={tasksDueSoon(tasks.tasks, today)}
-          lists={tasks.lists}
-          today={today}
-          urgentDays={urgentDays}
-          onOpen={onOpenComplaint}
-          onOpenTask={onOpenTask}
-        />
-      </aside>
     </div>
   );
+}
+
+// ---------- 카드 두 단 ----------
+
+/**
+ * 카드를 두 단에 나눠요(최근 기록이 맨 앞, 순서는 한 번만 꺾여요 — 왼쪽 단 위→아래, 그다음 오른쪽 단 위→아래).
+ * mode "screen"(그날 일지, 2026-10-16 사용자):
+ *   기준 높이 = 카드가 시작하는 곳부터 일지 화면 맨 아래(아래 여백만 빼고)까지, 지금 창 크기로 재요.
+ *   ① 모두 왼쪽 단에 들어가면 전부 왼쪽. ② 왼쪽 단을 기준 높이까지 채우고 넘치는 것부터 오른쪽 — 오른쪽도 들어가면 끝.
+ *   ③ 그래도 넘치면 화면 기준은 버리고 두 단 높이가 가장 비슷해지는 곳에서 나눠요(화면 전체가 스크롤돼요).
+ *   카드 한 장이 기준 높이보다 길면 그 카드만 왼쪽 단 맨 위, 다음 카드부터 오른쪽이에요.
+ * mode "balance"(검색 결과의 날짜 묶음): ③만 써요.
+ * 다시 나누는 때는 relayout 글자가 바뀔 때(날짜를 열 때, 기록을 등록·고치기·지울 때)와 창 크기를 바꿀 때뿐이에요.
+ * 글을 쓰는 동안(카드가 커져도)은 다시 나누지 않아 카드가 단 사이를 옮겨 다니지 않아요.
+ * 재는 동안은 모든 카드를 왼쪽 단에 보이지 않게 그리고, 화면에 그리기 전에(useLayoutEffect) 자리를 잡아요.
+ */
+function CardCols({ mode, relayout, children }: { mode: "screen" | "balance"; relayout: string; children: ReactNode[] }) {
+  const items = children;
+  const n = items.length;
+  const box = useRef<HTMLDivElement>(null);
+  const [split, setSplit] = useState<number | null>(null);
+  const [size, setSize] = useState(0);
+
+  useEffect(() => {
+    let raf = 0;
+    const onResize = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => setSize((x) => x + 1));
+    };
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  // 나눌 때가 되면 재기부터 다시 해요.
+  useLayoutEffect(() => setSplit(null), [relayout, size, n]);
+
+  useLayoutEffect(() => {
+    if (split !== null) return;
+    const el = box.current;
+    const col = el?.firstElementChild;
+    if (!el || !col) return;
+    const hs = [...col.children].map((c) => c.getBoundingClientRect().height + (parseFloat(getComputedStyle(c).marginBottom) || 0));
+    const gap = hs.length ? parseFloat(getComputedStyle(col.children[0]).marginBottom) || 0 : 0;
+    let avail = Infinity;
+    const main = mode === "screen" ? (el.closest(".main") as HTMLElement | null) : null;
+    if (main) {
+      // 화면을 맨 위로 올렸을 때 보이는 아래 끝(아래 여백만 빼고)까지. 내려 둔 채 다시 나누어도 같게 재요.
+      const pb = parseFloat(getComputedStyle(main).paddingBottom) || 0;
+      const top = el.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop;
+      avail = main.clientHeight - pb - top;
+    }
+    setSplit(splitCards(hs, gap, avail));
+  }, [split, mode]);
+
+  const k = split ?? n;
+  return (
+    <div ref={box} className="jn-cols" style={split === null ? { visibility: "hidden" } : undefined}>
+      <div className="jn-col">{items.slice(0, k)}</div>
+      <div className="jn-col">{items.slice(k)}</div>
+    </div>
+  );
+}
+
+/** 카드 높이(아래 간격 포함)로 왼쪽 단에 둘 장 수를 정해요. avail이 Infinity면 ③(높이 비슷하게)만 써요. */
+export function splitCards(hs: number[], gap: number, avail: number): number {
+  const n = hs.length;
+  if (n <= 1) return n;
+  const sum = (a: number, b: number) => hs.slice(a, b).reduce((x, y) => x + y, 0) - gap;
+  if (Number.isFinite(avail)) {
+    if (sum(0, n) <= avail) return n; // ①
+    if (sum(0, 1) > avail) return 1; // 첫 카드가 기준보다 길면 그 카드만 왼쪽
+    let k = 1;
+    while (k < n && sum(0, k + 1) <= avail) k++;
+    if (sum(k, n) <= avail) return k; // ②
+  }
+  // ③ 두 단 높이가 가장 비슷해지는 곳(같으면 왼쪽이 긴 쪽)
+  let best = 1;
+  let diff = Infinity;
+  for (let s = 1; s < n; s++) {
+    const d = Math.abs(sum(0, s) - sum(s, n));
+    if (d < diff - 0.5) {
+      diff = d;
+      best = s;
+    }
+  }
+  return best;
 }
 
 // ---------- 챙길 일 ----------
@@ -416,136 +506,185 @@ function DueList({
   );
 }
 
-// ---------- 날짜로 가기 ----------
+// ---------- 날짜 달력 (시안 JournalCal1.dc.html 1안) ----------
 
-/** 기록 없는 날로도 가는 칸. "1014"(올해), "10/14", "2026-10-14"를 받아요. 읽을 수 없으면 빨간 테두리예요. */
-function DateJump({ onGo }: { onGo: (d: string) => void }) {
-  const [v, setV] = useState("");
-  const [bad, setBad] = useState(false);
-  function go() {
-    if (!v.trim()) return;
-    const d = parseDate(v);
-    if (!d) return setBad(true);
-    setV("");
-    setBad(false);
-    onGo(d);
-  }
-  return (
-    <label className={"jjump" + (bad ? " invalid" : "")} title="1014처럼 숫자 네 자리만 쳐도 올해 그 날로 가요. 261014, 10/14, 2026-10-14도 돼요.">
-      <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="5" width="18" height="16" rx="2" />
-        <path d="M3 10h18M8 3v4M16 3v4" />
-      </svg>
-      <input
-        aria-label="날짜로 가기"
-        aria-invalid={bad || undefined}
-        placeholder="날짜로 가기"
-        inputMode="numeric"
-        value={v}
-        onChange={(e) => {
-          setV(e.target.value);
-          setBad(false);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !isComposing(e)) {
-            e.preventDefault();
-            go();
-          } else if (e.key === "Escape") {
-            setV("");
-            setBad(false);
-          }
-        }}
-      />
-    </label>
-  );
-}
+const WEEK = ["일", "월", "화", "수", "목", "금", "토"];
+const ymd = (y: number, m: number, d: number) => `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 
-// ---------- 날짜 목록 (연 → 월 → 일) ----------
-
-function DateTree({
-  dates,
+/**
+ * 왼쪽 열 위의 월 달력. 칸을 누르면 그날 일지(기록 없는 날도 열리고 그 날로 등록돼요).
+ * 머리 "2026년 10월 ▾"를 누르면 12달 고르기(달마다 기록 수, ‹ ›는 해 이동). 날짜 우클릭 = 이 날 열기·이 날 일지 지우기.
+ * 기록이 있는 날은 날짜 아래 작은 점이에요(숫자는 날짜와 헷갈려서 빼요 — 2026-10-17 사용자).
+ */
+function JournalCalendar({
   day,
+  today,
+  counts,
+  holidays,
   onPick,
-  countOf,
   hasHead,
   onDelete,
 }: {
-  dates: string[];
   day: string;
+  today: string;
+  counts: Map<string, number>;
+  holidays: Set<string>;
   onPick: (d: string) => void;
-  countOf: (d: string) => number;
   hasHead: (d: string) => boolean;
   onDelete: (d: string) => void;
 }) {
-  const [open, setOpen] = useState<Set<string>>(() => new Set([day.slice(0, 7)]));
-  /** 우클릭 메뉴: 어느 날, 화면 어디, 지울까요를 묻는 중인지 */
+  const [view, setView] = useState(() => ({ y: Number(day.slice(0, 4)), m: Number(day.slice(5, 7)) }));
+  const [picker, setPicker] = useState(false);
   const [menu, setMenu] = useState<{ date: string; x: number; y: number; ask: boolean } | null>(null);
-  useEffect(() => setOpen((s) => (s.has(day.slice(0, 7)) ? s : new Set(s).add(day.slice(0, 7)))), [day]);
+  // 다른 날로 가면(오늘 단추, 검색 결과의 "이 날짜로 이동") 그 달을 보여 줘요.
+  useEffect(() => setView({ y: Number(day.slice(0, 4)), m: Number(day.slice(5, 7)) }), [day]);
 
-  const years = new Map<string, Map<string, string[]>>();
-  for (const d of dates) {
-    const y = d.slice(0, 4);
-    const m = d.slice(0, 7);
-    if (!years.has(y)) years.set(y, new Map());
-    const months = years.get(y)!;
-    if (!months.has(m)) months.set(m, []);
-    months.get(m)!.push(d);
-  }
+  const step = (dir: number) => {
+    if (picker) return setView((v) => ({ y: v.y + dir, m: v.m }));
+    setView((v) => {
+      const d = new Date(v.y, v.m - 1 + dir, 1);
+      return { y: d.getFullYear(), m: d.getMonth() + 1 };
+    });
+  };
+
+  const off = new Date(view.y, view.m - 1, 1).getDay();
+  const dim = new Date(view.y, view.m, 0).getDate();
+  const rows = Math.ceil((off + dim) / 7);
+  let monthDays = 0;
+  let monthTotal = 0;
+  const cells = Array.from({ length: rows * 7 }, (_, i) => {
+    const dt = new Date(view.y, view.m - 1, i - off + 1);
+    const key = ymd(dt.getFullYear(), dt.getMonth() + 1, dt.getDate());
+    const n = counts.get(key) ?? 0;
+    const inMonth = dt.getMonth() + 1 === view.m;
+    if (inMonth && n) {
+      monthDays++;
+      monthTotal += n;
+    }
+    return { key, d: dt.getDate(), w: dt.getDay(), n, inMonth };
+  });
+
+  const monthCount = (m: number) => {
+    let t = 0;
+    const p = ymd(view.y, m, 1).slice(0, 8);
+    for (const [k, n] of counts) if (k.startsWith(p)) t += n;
+    return t;
+  };
 
   return (
-    <nav className="jtree" aria-label="날짜">
-      {[...years].map(([y, months]) => (
-        <div key={y} className="jtree-year">
-          <div className="jtree-y">{y}년</div>
-          {[...months].map(([m, days]) => {
-            const on = open.has(m);
-            return (
-              <div key={m} className="jtree-month">
+    <section className="jcal" aria-label="날짜 달력">
+      <div className="jcal-head">
+        <button type="button" className="jcal-title" aria-expanded={picker} title="눌러서 달 고르기" onClick={() => setPicker(!picker)}>
+          {picker ? `${view.y}년` : `${view.y}년 ${view.m}월`}
+          <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d={picker ? "M6 15l6-6 6 6" : "M6 9l6 6 6-6"} />
+          </svg>
+        </button>
+        <button type="button" className="jcal-nav" aria-label={picker ? "앞 해" : "앞 달"} onClick={() => step(-1)}>
+          <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 6l-6 6 6 6" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          className="jcal-today"
+          onClick={() => {
+            setPicker(false);
+            setView({ y: Number(today.slice(0, 4)), m: Number(today.slice(5, 7)) });
+            onPick(today);
+          }}
+        >
+          오늘
+        </button>
+        <button type="button" className="jcal-nav" aria-label={picker ? "다음 해" : "다음 달"} onClick={() => step(1)}>
+          <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 6l6 6-6 6" />
+          </svg>
+        </button>
+      </div>
+
+      {picker ? (
+        <div className="jcal-body">
+          <div className="jcal-months">
+            {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
+              const t = monthCount(m);
+              const cur = m === view.m;
+              return (
                 <button
+                  key={m}
                   type="button"
-                  className="jtree-m"
-                  aria-expanded={on}
-                  onClick={() =>
-                    setOpen((s) => {
-                      const n = new Set(s);
-                      if (on) n.delete(m);
-                      else n.add(m);
-                      return n;
-                    })
-                  }
+                  className={"jcal-mon" + (!t && !cur ? " empty" : "")}
+                  aria-pressed={cur}
+                  onClick={() => {
+                    setView({ y: view.y, m });
+                    setPicker(false);
+                  }}
                 >
-                  {Number(m.slice(5))}월
+                  <span>{m}월</span>
+                  <span className="jcal-mon-n">{t ? `${t}건` : "기록 없음"}</span>
                 </button>
-                {on &&
-                  days.map((d) => (
-                    <button
-                      key={d}
-                      type="button"
-                      className="jtree-d"
-                      aria-pressed={d === day}
-                      aria-haspopup="menu"
-                      onClick={() => onPick(d)}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        const r = e.currentTarget.getBoundingClientRect();
-                        // 마우스면 누른 자리, 키보드(메뉴 키)면 날짜 칸 오른쪽에 띄워요.
-                        const x = e.clientX || r.right;
-                        const y = e.clientY || r.top;
-                        setMenu({ date: d, x, y, ask: false });
-                      }}
-                    >
-                      {dayLabel(d)}
-                    </button>
-                  ))}
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      ))}
+      ) : (
+        <div className="jcal-body">
+          <div className="jcal-week" aria-hidden="true">
+            {WEEK.map((w, i) => (
+              <span key={w} className={i === 0 ? "sun" : i === 6 ? "sat" : ""}>
+                {w}
+              </span>
+            ))}
+          </div>
+          <div className="jcal-grid" role="grid" aria-label={`${view.y}년 ${view.m}월`}>
+            {cells.map((c) => {
+              const cls = [
+                "jcal-day",
+                !c.inMonth && "out",
+                c.key === today && "today",
+                c.n && "has",
+                c.w === 0 || holidays.has(c.key) ? "red" : c.w === 6 ? "sat" : "",
+              ]
+                .filter(Boolean)
+                .join(" ");
+              return (
+                <button
+                  key={c.key}
+                  type="button"
+                  className={cls}
+                  aria-pressed={c.key === day}
+                  aria-haspopup="menu"
+                  aria-label={`${Number(c.key.slice(5, 7))}월 ${c.d}일 ${WEEK[c.w]}요일${c.n ? `, 기록 ${c.n}건` : ""}${c.key === today ? ", 오늘" : ""}`}
+                  onClick={() => onPick(c.key)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    const r = e.currentTarget.getBoundingClientRect();
+                    // 마우스면 누른 자리, 키보드(메뉴 키)면 날짜 칸 오른쪽에 띄워요.
+                    setMenu({ date: c.key, x: e.clientX || r.right, y: e.clientY || r.top, ask: false });
+                  }}
+                >
+                  <span>{c.d}</span>
+                  <span className="jcal-dot" aria-hidden="true" />
+                </button>
+              );
+            })}
+          </div>
+          <div className="jcal-foot">
+            <span>
+              이 달 {monthDays}일 · 기록 {monthTotal}건
+            </span>
+            <span className="jcal-legend">
+              <span className="jcal-dot" aria-hidden="true" />
+              기록 있는 날
+            </span>
+          </div>
+        </div>
+      )}
+
       {menu && (
         <DayMenu
           {...menu}
-          count={countOf(menu.date)}
+          count={counts.get(menu.date) ?? 0}
           head={hasHead(menu.date)}
           onClose={() => setMenu(null)}
           onOpen={() => {
@@ -559,7 +698,7 @@ function DateTree({
           }}
         />
       )}
-    </nav>
+    </section>
   );
 }
 
@@ -1729,10 +1868,8 @@ function SearchResults({
           </button>
           <span className="muted small">{g.items.length}건</span>
         </div>
-        <div className="jn-cols">
-          {[g.items.slice(0, Math.ceil(g.items.length / 2)), g.items.slice(Math.ceil(g.items.length / 2))].map((col, ci) => (
-          <div key={ci} className="jn-col">
-          {col.map(({ e, m }) => {
+        <CardCols mode="balance" relayout={`${q}|${onlyHits}`}>
+          {g.items.map(({ e, m }) => {
             const { name, rest } = splitWho(e.who);
             const anyLine = m.some(Boolean);
             const memo = isMemo(e.kind) && (!!e.body || !e.lines.length);
@@ -1769,9 +1906,7 @@ function SearchResults({
               </article>
             );
           })}
-          </div>
-          ))}
-        </div>
+        </CardCols>
       </section>
     ));
 
