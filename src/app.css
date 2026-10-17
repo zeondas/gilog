@@ -6624,3 +6624,20 @@ body.col-dragging * {
   font-weight: 600;
   color: var(--accent);
 }
+
+/* 프로젝트 색 띠: 테두리는 모든 카드가 1px 그대로이고, 띠는 안쪽에 겹쳐 그려 시간 기둥 폭이 같아요. */
+.jcard[style*="--stripe"] {
+  position: relative;
+}
+
+.jcard[style*="--stripe"]::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  background: var(--stripe);
+  pointer-events: none;
+}
