@@ -3,7 +3,8 @@ import { KeyboardEvent, RefObject, useCallback, useEffect, useMemo, useRef, useS
 import { ExcelMenu } from "./ExcelMenu";
 import { contactImports, contactRows } from "./excel";
 import { DelIcon } from "./Icons";
-import { BLine, CYCLE, isBlank, kindOf, layout, nextLine, parseLines, stringifyLines, TRIGGERS, withKind } from "./bullets";
+import { BLine, CYCLE, isBlank, kindOf, layout, newLineFor, NewLineMode, parseLines, stringifyLines, TRIGGERS, withKind } from "./bullets";
+import { isKey, keyAction, rowKeys } from "./keys";
 import { BulletView, Mark } from "./BulletParts";
 import { koIndex } from "./journal";
 import { useJamoGuard } from "./koInput";
@@ -286,14 +287,9 @@ function NewRow({ projects, onAdd }: { projects: Project[]; onAdd: (c: ContactIn
     }
   }
 
+  // 엔터규칙: Tab·Enter 다음 칸, 마지막 칸(프로젝트)이면 등록
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
-    if (isComposing(e) || e.defaultPrevented) return;
-    const target = e.target as HTMLInputElement;
-    const lastTab = e.key === "Tab" && !e.shiftKey && target.name === "proj";
-    if ((e.key === "Enter" && target.tagName === "INPUT") || lastTab) {
-      e.preventDefault();
-      submit();
-    }
+    rowKeys(e, e.currentTarget, submit);
   }
 
   return (
@@ -685,14 +681,11 @@ function EditCard({
       ref={ref}
       className="ccard ccard-edit"
       onKeyDown={(e) => {
-        if (isComposing(e) || e.defaultPrevented) return;
-        if (e.key === "Escape") {
+        if (e.defaultPrevented) return;
+        if (isKey(e, "common.cancel")) {
           e.preventDefault();
           onCancel();
-        } else if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") {
-          e.preventDefault();
-          save();
-        }
+        } else rowKeys(e, ref.current, () => save());
       }}
     >
       <div className="edit-pair">
@@ -711,7 +704,7 @@ function EditCard({
         <ProjectInput className="cell-input" projects={projects} value={v.proj} onChange={(proj) => setV({ ...v, proj })} />
       </div>
       <div className="edit-foot">
-        <span className="hint">Tab 다음 칸 · Enter 저장 · Esc 취소</span>
+        <span className="hint">Tab·Enter 다음 칸 · 마지막 칸이면 저장 · Esc 취소</span>
         <button type="button" className="btn btn-xs" onClick={onCancel}>
           취소
         </button>
@@ -800,27 +793,35 @@ export function MemoEditor({
     const mod = e.ctrlKey || e.metaKey;
     const input = e.target as HTMLInputElement;
     const inLine = input.tagName === "INPUT";
-    if (e.key === "Escape") {
+    // 엔터규칙(keys.ts): 여러 줄 칸 규칙으로 새 줄, Tab은 저장하고 닫기(다음 칸이 없어요), Esc 취소.
+    const act = keyAction(e, "multi");
+    const mode: NewLineMode | null =
+      act === "multi.same" ? "same" : act === "multi.down" ? "down" : act === "multi.up" ? "up" : act === "multi.br" ? "br" : null;
+    if (act === "common.cancel") {
       e.preventDefault();
       onCancel();
-    } else if (e.key === "Enter" && inLine && !mod && !e.shiftKey) {
-      // Enter는 저장이에요 (사용자가 정함: Enter 저장, Ctrl+Enter 새 줄).
+    } else if (act === "common.next") {
       e.preventDefault();
       onSave(lines);
-    } else if (e.key === "Enter" && inLine) {
-      // Ctrl+Enter(또는 Shift+Enter)는 새 줄. 커서 뒤의 글은 새 줄로 넘겨요.
+    } else if (act === "common.prev") {
+      e.preventDefault();
+    } else if (mode && inLine) {
+      // 새 줄. 커서 뒤의 글은 새 줄로 넘겨요.
       e.preventDefault();
       const at = input.selectionStart ?? input.value.length;
+      const end = input.selectionEnd ?? at;
       caret.current = 0;
       edit(
         (ls, i) => {
-          const rest = ls[i].t.slice(at);
+          const rest = ls[i].t.slice(end);
           ls[i].t = ls[i].t.slice(0, at);
-          ls.splice(i + 1, 0, nextLine(ls[i], rest, lv[i]));
+          ls.splice(i + 1, 0, { ...newLineFor(ls, i, mode, rest, lv[i]) });
           return ls;
         },
         (i) => i + 1,
       );
+    } else if (e.key === "Enter") {
+      e.preventDefault();
     } else if (e.key === "Backspace" && inLine && input.selectionStart === 0 && input.selectionEnd === 0 && kindOf(cur) !== "none" && !isBlank(cur)) {
       // 머릿기호 규칙: 줄 맨 앞 Backspace는 먼저 머릿기호만 지워요(글 시작 위치는 그대로).
       e.preventDefault();
@@ -916,7 +917,7 @@ export function MemoEditor({
         ))}
       </div>
       <div className="memo-foot">
-        <span className="hint">Enter 저장 · Ctrl+Enter 새 줄</span>
+        <span className="hint">Enter 새 줄 · Tab 저장</span>
         <button type="button" className="btn btn-xs" onClick={onCancel}>
           취소
         </button>

@@ -1,11 +1,12 @@
 // 할 일 목록 (7단계). 목록마다 카드 하나예요(구글 할 일과 같은 구성). 시안: Todo.dc.html, 사양서 "할 일 목록".
 // - 왼쪽: 목록 체크(카드 보이기·숨기기), 우클릭 메뉴(이름 바꾸기·옮기기·지우기), 새 목록 만들기.
-// - 카드 맨 위 "할 일 추가"를 누르면 세부정보·날짜 칸이 펼쳐져요. 세부정보는 머릿기호 규칙(기본 □), Shift+Enter 새 줄, Enter 등록.
+// - 카드 맨 위 "할 일 추가"를 누르면 세부정보·날짜 칸이 펼쳐져요. 세부정보는 여러 줄 칸(엔터규칙), 마지막 칸(날짜)에서 Enter·Tab 등록.
 // - 항목을 한 번 누르면 골라지고 세부정보가 펼쳐져요. 두 번 누르면(또는 골라 둔 채 Enter) 고쳐요. 삭제는 "지울까요?"를 물어요.
 // - "민원" 카드에는 민원대장의 민원(마감일 있는 것)이 함께 보여요. 따로 저장하지 않고 민원을 그대로 읽어요.
 //   체크하면 민원대장의 상태가 완료로 바뀌고, 체크를 풀면 그 전 상태로 돌아가요. 제목·마감일은 민원대장에서만 고쳐요.
 import { KeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DelIcon } from "./Icons";
+import { isKey, rowKeys } from "./keys";
 import { REMOTE_CHANGE } from "./google";
 import { api, Complaint, errorText, Task, TaskEdit, TaskInput, TaskList, TasksData } from "./api";
 import { BLine, parseLines, stringifyLines } from "./bullets";
@@ -17,8 +18,6 @@ import { complaintItems, dueBadge, Item, openCount, split, treeOf } from "./task
 
 const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
 
-/** Enter 하나(Shift·Ctrl 없이)로 등록·저장할 때인지. 여러 줄 칸의 Shift+Enter·Ctrl+Enter는 새 줄이에요. */
-const plainEnter = (e: KeyboardEvent) => e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey;
 
 type Props = {
   urgentDays: number;
@@ -567,7 +566,7 @@ type Draft = { title: string; detail: string; due: string };
 
 /**
  * 카드 맨 위 "할 일 추가" (sub이면 하위 항목 입력).
- * 제목을 누르면 세부정보·날짜 칸이 펼쳐져요. Tab 다음 칸, 날짜 칸에서 Tab이나 아무 칸에서 Enter로 등록, Esc 닫기.
+ * 제목을 누르면 세부정보·날짜 칸이 펼쳐져요. Tab·Enter 다음 칸, 날짜 칸에서 Enter·Tab 등록, Esc 닫기.
  */
 function AddForm({
   open,
@@ -649,22 +648,16 @@ function AddForm({
     return () => document.removeEventListener("mousedown", down);
   }, [open]);
 
+  // 엔터규칙(keys.ts): 제목 Enter·Tab 다음 칸, 세부정보는 여러 줄 칸 규칙, 마지막 칸(날짜)에서 Enter·Tab 등록, Esc 닫기.
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
-    if (isComposing(e) || e.defaultPrevented) return;
+    if (e.defaultPrevented) return;
     const t = e.target as HTMLElement;
-    if (e.key === "Escape") {
+    if (isKey(e, "common.cancel")) {
       e.preventDefault();
       reset();
       t.blur?.();
       onClose();
-    } else if (plainEnter(e) && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) {
-      e.preventDefault();
-      submit();
-    } else if (e.key === "Tab" && !e.shiftKey && (t as HTMLInputElement).name === "due" && title.trim()) {
-      // 마지막 칸(날짜)에서 Tab도 등록이에요(시안).
-      e.preventDefault();
-      submit();
-    }
+    } else rowKeys(e, box.current, () => submit());
   }
 
   return (
@@ -691,7 +684,7 @@ function AddForm({
       {open && (
         <div className="td-add-form">
           <BulletEditor lines={lines} onChange={setLines} name="detail" label="세부정보" placeholder="세부정보" />
-          <DueField value={due} onChange={(v) => { setDue(v); if (bad === "due") setBad(""); }} bad={bad === "due"} today={today}>
+          <DueField value={due} onChange={(v) => { setDue(v); if (bad === "due") setBad(""); }} onInvalid={() => setBad("due")} bad={bad === "due"} today={today}>
             <button
               type="button"
               tabIndex={-1}
@@ -716,7 +709,22 @@ function AddForm({
 // ---------- 날짜 칸 + 작은 달력 ----------
 
 /** 날짜 칸. 직접 적거나("1016", "10/16", "261016") 달력 단추를 눌러 작은 달력에서 골라요. children은 같은 줄 오른쪽에 놓여요. */
-function DueField({ value, onChange, bad, today, children }: { value: string; onChange: (v: string) => void; bad: boolean; today: string; children?: ReactNode }) {
+function DueField({
+  value,
+  onChange,
+  onInvalid,
+  bad,
+  today,
+  children,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  /** 칸을 떠날 때 날짜를 읽을 수 없으면 (빨간 테두리) */
+  onInvalid: () => void;
+  bad: boolean;
+  today: string;
+  children?: ReactNode;
+}) {
   const [cal, setCal] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const picked = parseDate(value) ?? "";
@@ -748,8 +756,11 @@ function DueField({ value, onChange, bad, today, children }: { value: string; on
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onBlur={() => {
+            // 칸을 떠날 때 8자리로 바꿔 쓰고, 읽을 수 없으면 친 그대로 두고 빨간 테두리(공통 규칙).
+            if (!value.trim()) return;
             const d = parseDate(value);
             if (d) onChange(d);
+            else onInvalid();
           }}
         />
         {children}
@@ -1009,7 +1020,7 @@ function ItemRow({
 
 // ---------- 고치기 ----------
 
-/** 그 자리에서 고치기. Enter 저장, Shift+Enter 세부정보 새 줄, Esc 취소, 바깥을 누르면 저장. 휴지통은 저장·취소와 떨어져 있어요. */
+/** 그 자리에서 고치기. Tab·Enter 다음 칸, 마지막 칸(날짜)이면 저장, Esc 취소, 바깥을 누르면 저장. 휴지통은 저장·취소와 떨어져 있어요. */
 function TaskEditor({
   task,
   sub,
@@ -1085,16 +1096,12 @@ function TaskEditor({
       className={"td-row td-edit" + (sub ? " sub" : "")}
       data-key={"t" + task.id}
       onKeyDown={(e) => {
-        if (isComposing(e) || e.defaultPrevented) return;
-        const t = e.target as HTMLElement;
-        if (e.key === "Escape") {
+        if (e.defaultPrevented) return;
+        if (isKey(e, "common.cancel")) {
           e.preventDefault();
           if (asking) setAsking(false);
           else onCancel();
-        } else if (plainEnter(e) && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) {
-          e.preventDefault();
-          save();
-        }
+        } else rowKeys(e, ref.current, () => void save());
       }}
     >
       <span className={"td-check" + (task.done ? " on" : "")} aria-hidden="true">
@@ -1112,7 +1119,7 @@ function TaskEditor({
           }}
         />
         <BulletEditor lines={lines} onChange={setLines} name="detail" label="세부정보" placeholder="세부정보" />
-        <DueField value={due} onChange={(v) => { setDue(v); if (bad === "due") setBad(""); }} bad={bad === "due"} today={today}>
+        <DueField value={due} onChange={(v) => { setDue(v); if (bad === "due") setBad(""); }} onInvalid={() => setBad("due")} bad={bad === "due"} today={today}>
           {asking ? (
             <div ref={askRef} className="ask-band td-ask" role="alertdialog" aria-label="할 일 지우기 확인">
               <span>이 할 일을 지울까요?</span>
@@ -1136,7 +1143,7 @@ function TaskEditor({
             저장
           </button>
         </DueField>
-        <span className="hint">Enter 저장 · Shift+Enter 새 줄 · 줄 맨 앞 ] ) - 와 스페이스로 머릿기호 · Esc 취소 · 바깥을 누르면 저장</span>
+        <span className="hint">Tab·Enter 다음 칸 · 마지막 칸이면 저장 · Esc 취소 · 바깥을 누르면 저장</span>
       </div>
     </div>
   );

@@ -7,6 +7,7 @@
 // - 왼쪽: 종류 체크(보이기·숨기기), "관리"(색 24가지·새 종류·지우기), "다가오는 7일".
 import { CSSProperties, KeyboardEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { DelIcon } from "./Icons";
+import { isKey, keyAction, rowKeys } from "./keys";
 import { api, CalEvent, CalKind, CalendarData, Complaint, errorText, EventInput, NotifyStatus, Repeat, Task } from "./api";
 import { BLine, parseLines, stringifyLines } from "./bullets";
 import { BulletEditor } from "./BulletParts";
@@ -1010,14 +1011,9 @@ function QuickRow({
     focus("date");
   }
 
+  // 엔터규칙(keys.ts): Enter·Tab 다음 칸, 마지막 칸(종류)이면 등록
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
-    if (isComposing(e)) return;
-    const name = (e.target as HTMLInputElement).name;
-    const lastTab = e.key === "Tab" && !e.shiftKey && name === "kind";
-    if (!e.defaultPrevented && (plainEnter(e) || (lastTab && title.trim()))) {
-      e.preventDefault();
-      submit();
-    }
+    rowKeys(e, row.current, () => void submit());
   }
 
   const fix = (v: string, set: (s: string) => void) => {
@@ -1152,19 +1148,22 @@ function EventDialog({
   }
 
 
+  // 엔터규칙(keys.ts): 한 줄 칸 Enter·Tab 다음 칸, 마지막 칸이면 저장. 설명(여러 줄 칸)은 다음 칸이 없는 곳으로 쳐서 Tab = 저장하고 닫기.
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
-    if (isComposing(e)) return;
-    if (e.key === "Escape" && !e.defaultPrevented) {
+    if (e.defaultPrevented) return;
+    if (isKey(e, "common.cancel")) {
       e.preventDefault();
       if (asking) setAsking(false);
       else onClose();
       return;
     }
     const t = e.target as HTMLElement;
-    if (plainEnter(e) && !e.defaultPrevented && t.tagName !== "SELECT" && t.tagName !== "BUTTON") {
+    if (t.closest(".cal-desc") && keyAction(e, "multi") === "common.next") {
       e.preventDefault();
-      save();
+      void save();
+      return;
     }
+    rowKeys(e, e.currentTarget, () => void save());
   }
 
   /** 날짜 칸을 떠나면 2026-10-12 꼴로 바꿔 써요. 읽을 수 없으면 친 그대로 두고 빨간 테두리. */

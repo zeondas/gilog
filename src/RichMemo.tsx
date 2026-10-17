@@ -1,8 +1,13 @@
 // 업무일지 "메모" 기록의 편집기와 보기예요.
 // 글자 꾸미기(굵게·기울임·밑줄·취소선), 문단 모양(본문·제목·인용·글머리 목록·번호 목록·들여쓰기), 간단한 표를 써요.
-// 키: Enter 등록(저장) · Shift+Enter(또는 Ctrl+Enter) 새 줄 · 표 안에서 Tab 다음 칸 · 글머리 목록에서 Tab 한 위계 아래 · Esc 취소
+// 키(엔터규칙, keys.ts): Tab 등록(저장) · Esc 취소
+//   보통 문단: Enter 다음 문단 · Shift+Enter ● 목록 시작 · Ctrl+Enter 쓰지 않음
+//   글머리 목록: 여러 줄 칸 규칙(Enter 같은 위계 · Shift+Enter 아래 · Ctrl+Enter 위 · 왼쪽 Alt+Enter 항목 안 줄 바꿈)
+//   표: Enter 다음 칸(줄 끝이면 다음 줄 첫 칸, 마지막 칸이면 줄 추가) · Shift+Enter 아래 칸 · Ctrl+Enter 위 칸 · 왼쪽 Alt+Enter 칸 안 줄 바꿈
+//   예전 Tab 기능(표 다음 칸, 목록 들여쓰기)은 없어요. 들여쓰기는 단추로 해요.
 import { KeyboardEvent, useEffect, useRef, useState } from "react";
-import { BKind, BLine, layout, tabKind } from "./bullets";
+import { BKind, BLine, layout, newLineFor, NewLineMode, tabKind } from "./bullets";
+import { keyAction } from "./keys";
 
 // ---------- 정리 ----------
 
@@ -515,19 +520,27 @@ export function MemoEditor({
     changed();
   }
 
-  /** 표 안에서 Tab: 다음 칸(마지막 칸이면 줄을 더해요), Shift+Tab: 앞 칸 */
-  function moveCell(back: boolean) {
+  /** 표 안 Enter: 다음 칸(줄 끝이면 다음 줄 첫 칸, 마지막 칸이면 줄을 더해 그 첫 칸) */
+  function nextCell() {
     const td = cell();
-    if (!td) return false;
+    if (!td) return;
     const cells = [...td.closest("table")!.querySelectorAll("td")];
     const i = cells.indexOf(td);
-    if (back) {
-      if (i > 0) caretTo(cells[i - 1]);
-      return true;
-    }
-    if (i < cells.length - 1) caretTo(cells[i + 1]);
-    else tableOp("row");
-    return true;
+    if (i < cells.length - 1) return caretTo(cells[i + 1]);
+    tableOp("row");
+    const tr = cell()?.parentElement as HTMLTableRowElement | undefined;
+    if (tr?.cells[0]) caretTo(tr.cells[0]);
+  }
+
+  /** 표 안 Shift+Enter 아래 칸(맨 아래면 줄을 더해요) · Ctrl+Enter 위 칸 */
+  function vertCell(down: boolean) {
+    const td = cell();
+    if (!td) return;
+    const tr = td.parentElement as HTMLTableRowElement;
+    const rows = [...td.closest("table")!.querySelectorAll("tr")] as HTMLTableRowElement[];
+    const to = rows[rows.indexOf(tr) + (down ? 1 : -1)];
+    if (to) caretTo(to.cells[Math.min(td.cellIndex, to.cells.length - 1)]);
+    else if (down) tableOp("row");
   }
 
   // ---------- 머릿기호 규칙 (글머리 목록) ----------
@@ -645,26 +658,69 @@ export function MemoEditor({
     document.addEventListener("mouseup", up);
   }
 
+  /**
+   * 글머리 목록 줄에서 새 줄(여러 줄 칸 규칙). 브라우저 명령은 빈 목록 줄에서 목록을 빠져나가서 직접 나눠요.
+   * same 같은 위계 · down 한 위계 아래 · up 한 위계 위. br(항목 안 줄 바꿈)은 줄 안에 줄바꿈을 넣어요.
+   */
+  function bulletNewLine(li: HTMLLIElement, mode: NewLineMode) {
+    if (mode === "br") return run("insertLineBreak");
+    const sel = document.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    const ul = li.parentElement!;
+    const lis = [...ul.children];
+    const i = lis.indexOf(li);
+    const lines = linesOf(ul);
+    const want = newLineFor(lines, i, mode, "", layout(lines)[i]);
+    const r = sel.getRangeAt(0);
+    r.deleteContents();
+    const tail = document.createRange();
+    tail.setStart(r.startContainer, r.startOffset);
+    tail.setEnd(li, li.childNodes.length);
+    const frag = tail.extractContents();
+    const n = document.createElement("li");
+    n.appendChild(frag);
+    if (!(n.textContent ?? "") && !n.querySelector("br")) n.innerHTML = "<br>";
+    if (!(li.textContent ?? "") && !li.querySelector("br")) li.innerHTML = "<br>";
+    // 남은 줄 끝의 빈 꾸밈 태그(굵게 등)는 지워요.
+    li.querySelectorAll("b,i,u,s").forEach((x) => !(x.textContent ?? "") && !x.querySelector("br") && x.remove());
+    li.after(n);
+    setLiKind(n, want.k ?? "ci", want.lv ?? 0);
+    const c = document.createRange();
+    c.setStart(n, 0);
+    c.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(c);
+    changed();
+  }
+
+  /** 보통 문단 Shift+Enter: 다음 줄을 ● 목록으로 시작해요(지금 문단이 비어 있으면 그 자리에서). */
+  function startList() {
+    const at = caretLine();
+    if (at?.block && (at.block.textContent ?? "").trim()) run("insertParagraph");
+    run("insertUnorderedList");
+    const li = bulletLi();
+    if (li) {
+      setLiKind(li, "ci");
+      changed();
+    }
+  }
+
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     const composing = e.nativeEvent.isComposing || e.keyCode === 229;
-    const isTab = e.key === "Tab" || e.nativeEvent.code === "Tab";
-    if (isTab) {
-      if (cell()) {
-        e.preventDefault();
-        moveCell(e.shiftKey);
-        return;
-      }
-      if (fmt.ul && bulletTab(e.shiftKey)) {
-        e.preventDefault();
-        return;
-      }
-      if (fmt.ol) {
-        e.preventDefault();
-        run(e.shiftKey ? "outdent" : "indent");
-        return;
-      }
-      return; // 그 밖에는 보통처럼 다음 칸으로 가요.
+    const td = cell();
+    const li = td ? null : bulletLi();
+    const act = keyAction(e, td ? "table" : li ? "multi" : "para");
+    const stop = () => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    if (act === "common.next") {
+      // Tab = 저장(등록). 다음 칸이 없어요.
+      stop();
+      onSubmit();
+      return;
     }
+    if (act === "common.prev") return; // 카드가 앞 칸으로 옮겨요.
     if (composing) return;
     if (e.key === " " && bulletTrigger()) {
       e.preventDefault();
@@ -674,19 +730,38 @@ export function MemoEditor({
       e.preventDefault();
       return;
     }
-    if (e.key === "Escape") {
-      e.preventDefault();
-      e.stopPropagation();
-      onCancel();
-    } else if (e.key === "Enter" && (e.shiftKey || e.ctrlKey)) {
-      e.preventDefault();
-      e.stopPropagation();
-      run(cell() ? "insertLineBreak" : "insertParagraph");
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      e.stopPropagation();
-      onSubmit();
+    switch (act) {
+      case "common.cancel":
+        stop();
+        onCancel();
+        return;
+      case "table.next":
+        stop();
+        return nextCell();
+      case "table.down":
+        stop();
+        return vertCell(true);
+      case "table.up":
+        stop();
+        return vertCell(false);
+      case "table.br":
+        stop();
+        return run("insertLineBreak");
+      case "multi.same":
+      case "multi.down":
+      case "multi.up":
+      case "multi.br":
+        stop();
+        return bulletNewLine(li!, act === "multi.same" ? "same" : act === "multi.down" ? "down" : act === "multi.up" ? "up" : "br");
+      case "para.next":
+        stop();
+        return run("insertParagraph");
+      case "para.list":
+        stop();
+        return startList();
     }
+    // 정하지 않은 Enter 조합(보통 문단 Ctrl+Enter 등)은 아무것도 하지 않아요.
+    if (e.key === "Enter") stop();
   }
 
   const B = ({ on, label, onClick, children, wide }: { on?: boolean; label: string; onClick: () => void; children: React.ReactNode; wide?: boolean }) => (

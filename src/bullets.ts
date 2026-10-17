@@ -255,3 +255,45 @@ export function tabKind(lines: BLine[], i: number, back: boolean): BKind | null 
   for (let j = stack.length - 1; j >= 0; j--) if (rank(stack[j]) < rank(k)) return stack[j];
   return null;
 }
+
+// ---------- 엔터규칙의 새 줄 (2026-10-17 사용자 — CLAUDE.md "엔터규칙") ----------
+// Enter = 같은 위계로 다음 줄 · Shift+Enter = 한 위계 아래(□→●→-, 맨 아래 -는 그대로)
+// Ctrl+Enter = 한 위계 위(맨 위 □는 그대로) · 왼쪽 Alt+Enter = 같은 항목 안 줄 바꿈(기호 없이, 글 시작 위치에 맞춤)
+
+/** 한 위계 아래 기호 */
+export const downKind = (k: BKind): BKind => (k === "sq" ? "ci" : "da");
+/** 한 위계 위 기호 */
+export const upKind = (k: BKind): BKind => (k === "da" ? "ci" : "sq");
+
+/**
+ * 이 줄이 속한 항목의 기호. 기호 없는 줄(같은 항목 안 줄 바꿈)이면 위로 올라가 처음 만나는 기호예요.
+ * 빈 줄이나 맨 위까지 기호가 없으면 null(기호 없는 글)이에요.
+ */
+export function itemKind(lines: BLine[], i: number): BKind | null {
+  for (let j = i; j >= 0; j--) {
+    const l = lines[j];
+    if (j < i && isBlank(l)) return null;
+    const k = kindOf(l);
+    if (k !== "none") return k;
+  }
+  return null;
+}
+
+export type NewLineMode = "same" | "down" | "up" | "br";
+
+/**
+ * 엔터규칙으로 i번째 줄 아래에 새 줄을 만들 때의 모양(글 t는 커서 뒤 글).
+ * lv는 layout(lines)[i] — 기호 없는 줄이 글 시작 위치를 맞출 때 써요.
+ */
+export function newLineFor(lines: BLine[], i: number, mode: NewLineMode, t: string, lv: number): BLine {
+  const cur = lines[i];
+  const base = itemKind(lines, i);
+  if (mode === "br") return { t, k: "none", lv };
+  if (!base) {
+    // 기호 없는 글: Enter는 그대로 기호 없는 줄, 위·아래는 ●에서 셈해요.
+    if (mode === "same") return { ...nextLine(cur, t, lv) };
+    return withKind({ t }, mode === "down" ? "da" : "sq");
+  }
+  const k = mode === "same" ? base : mode === "down" ? downKind(base) : upKind(base);
+  return withKind({ t }, k);
+}

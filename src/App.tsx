@@ -14,6 +14,8 @@ import TasksScreen from "./TasksScreen";
 import { applyNotifyMode, refreshHolidaysDaily, syncReminders } from "./reminders";
 import { startGoogleSync } from "./google";
 import { SCREENS, SETTINGS, ScreenId } from "./screens";
+import { loadSettings } from "./settingsStore";
+import { setKeyMap } from "./keys";
 
 
 
@@ -100,6 +102,8 @@ export default function App() {
   useEffect(() => {
     if (!unlocked) return;
     applyNotifyMode();
+    // 키 설정(엔터규칙)을 읽어 모든 화면에 적용해요.
+    loadSettings().then((s) => setKeyMap(s.keys), () => {});
     syncReminders();
     refreshHolidaysDaily();
     startGoogleSync();

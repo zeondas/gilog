@@ -11,6 +11,8 @@ export type Settings = {
   kinds: Kind[];
   /** 캘린더 쉬는 날(토·일·공휴일) 붉은 음영 */
   restShade: boolean;
+  /** 키 설정 — 처음 키와 다른 것만 (keys.ts, 2026-10-17 엔터규칙) */
+  keys: Partial<Record<string, string>>;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -26,6 +28,7 @@ export const DEFAULT_SETTINGS: Settings = {
     ["회의", "ㅎㅇ"], ["협의", "ㅎㅂ"], ["출장", "ㅊㅈ"], ["메모", "ㅁㅁ"],
   ].map(([name, key]) => ({ name, key })),
   restShade: true,
+  keys: {},
 };
 
 /** 지울 수 없는 상태예요. 마감 계산(남은 날 숨김)과 할 일 연동이 이것을 기준으로 해요. */

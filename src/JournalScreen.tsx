@@ -35,6 +35,7 @@ import {
   todayStr,
 } from "./journal";
 import { useJamoGuard } from "./koInput";
+import { isKey, keyAction, moveField, rowKeys } from "./keys";
 import { isEmptyMemo, MemoEditor, MemoView, sanitize } from "./RichMemo";
 import { PrintDialog } from "./JournalPrint";
 import { DEFAULT_SETTINGS, Kind, loadSettings } from "./settingsStore";
@@ -42,15 +43,38 @@ import { DEFAULT_SETTINGS, Kind, loadSettings } from "./settingsStore";
 const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
 
 /**
- * 말 줄의 Tab. 한글을 치는 중(마지막 글자가 아직 조합 중)에 Tab을 누르면 브라우저가 키 이름을
- * "Process"로 줄 때가 있어 실제 키 자리(code)도 봐요. 같은 Tab이 두 번 들어오는 경우도 있어 한 번만 받아요.
+ * 말 줄의 키 (엔터규칙 "업무일지 말 줄", keys.ts). Enter 다음 말(사람 교대) · Shift+Enter 같은 사람이 이어서
+ * · 왼쪽 Alt+Enter 한 말 안 줄 바꿈 · Tab 등록 · Shift+Tab 앞 칸 · Esc 취소. Ctrl+Enter는 쓰지 않아요.
+ * 한글 조합 중 Tab·두 번 들어온 Tab은 keyAction이 다뤄요.
  */
-function lineTab(e: KeyboardEvent, last: { current: number }): "skip" | "tab" | null {
-  if (e.key !== "Tab" && e.nativeEvent.code !== "Tab") return null;
-  const now = e.timeStamp;
-  if (now - last.current < 25) return "skip";
-  last.current = now;
-  return "tab";
+function talkAction(e: KeyboardEvent): "next" | "same" | "br" | "submit" | "prev" | "cancel" | null {
+  switch (keyAction(e, "talk")) {
+    case "talk.next":
+      return "next";
+    case "talk.same":
+      return "same";
+    case "talk.br":
+      return "br";
+    case "common.next":
+      return "submit";
+    case "common.prev":
+      return "prev";
+    case "common.cancel":
+      return "cancel";
+    default:
+      return null;
+  }
+}
+
+/** 말 줄 안 줄 바꿈: 커서 자리에 줄바꿈 글자를 넣어요(되돌리기도 돼요). */
+function insertBreak(el: HTMLTextAreaElement) {
+  if (!document.execCommand("insertText", false, "\n")) el.setRangeText("\n", el.selectionStart, el.selectionEnd, "end");
+}
+
+/** 위·아래 화살표로 말 줄을 옮길지 (여러 줄인 말은 맨 윗줄·맨 아랫줄에서만) */
+function lineEdge(el: HTMLTextAreaElement, up: boolean) {
+  const v = el.value;
+  return up ? !v.slice(0, el.selectionStart).includes("\n") : !v.slice(el.selectionEnd).includes("\n");
 }
 
 /** 화면 전체가 함께 쓰는 값 */
@@ -846,18 +870,12 @@ function DayHead({ info, onSave }: { info: DayInfo; onSave: (d: DayInfo) => void
           setV({ ...v, [key]: e.target.value });
         }}
         onBlur={() => commit(v)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !isComposing(e)) {
-            e.preventDefault();
-            commit(v);
-          }
-        }}
       />
     </label>
   );
 
   return (
-    <div className="jday" role="group" aria-label="이 날의 머리 줄">
+    <div className="jday" role="group" aria-label="이 날의 머리 줄" onKeyDown={(e) => rowKeys(e, e.currentTarget, () => commit(v))}>
       {field("arrive", "출근", "jday-time", "08:40")}
       {field("transport", "교통", "jday-short")}
       {field("weather", "날씨", "jday-mid")}
@@ -1059,13 +1077,17 @@ function NewCard({ date, ctx, onAdd }: { date: string; ctx: Ctx; onAdd: (e: Entr
     return () => window.clearInterval(t);
   }, [timeTouched]);
 
-  // 고르고 있는 말 줄에 커서를 둬요.
+  // 고르고 있는 말 줄에 커서를 둬요. 말을 나눠 새 줄을 만들었으면 줄 맨 앞이에요.
+  const caretStart = useRef(false);
   useEffect(() => {
     if (focus === null) return;
-    const el = box.current?.querySelector<HTMLInputElement>(`[data-uline="${focus}"]`);
+    const el = box.current?.querySelector<HTMLTextAreaElement>(`[data-uline="${focus}"]`);
+    const start = caretStart.current;
+    caretStart.current = false;
     if (el && document.activeElement !== el) {
       el.focus();
-      el.setSelectionRange(el.value.length, el.value.length);
+      const at = start ? 0 : el.value.length;
+      el.setSelectionRange(at, at);
     }
   }, [focus, lines.length]);
 
@@ -1132,50 +1154,53 @@ function NewCard({ date, ctx, onAdd }: { date: string; ctx: Ctx; onAdd: (e: Entr
     if (ok) reset();
   }
 
-  const lastTab = useRef(-1000);
-
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (e.defaultPrevented) return;
-    const target = e.target as HTMLInputElement;
+    const target = e.target as HTMLTextAreaElement;
     const at = target.dataset.uline;
-    const tab = at === undefined ? null : lineTab(e, lastTab);
-    if (tab === "skip") return e.preventDefault();
-    if (tab === "tab") {
-      const i = Number(at);
-      // 빈 줄에서는 보통처럼 칸을 옮겨요.
-      if (!(target.value || lines[i].t).trim()) return;
-      e.preventDefault();
-      if (!e.shiftKey && i < lines.length - 1) return setFocus(i + 1);
+    if (at === undefined) {
+      // 머리 칸(시간·구분·상대·연락처): Enter·Tab 다음 칸, Shift+Tab 앞 칸, Esc 취소
+      if (isKey(e, "common.cancel")) {
+        e.preventDefault();
+        reset();
+        return;
+      }
+      rowKeys(e, box.current, () => void submit());
+      return;
+    }
+    const i = Number(at);
+    const act = talkAction(e);
+    if (act) e.preventDefault();
+    if (act === "cancel") return reset();
+    if (act === "submit") return void submit();
+    if (act === "prev") return void moveField(box.current!, target, -1);
+    if (act === "br") return insertBreak(target);
+    if (act === "next" || act === "same") {
+      const v = target.value;
+      if (!v.trim()) return;
+      const head = v.slice(0, target.selectionStart);
+      const tail = v.slice(target.selectionEnd);
+      // 다음 줄이 비어 있으면(앞에서 만들어 둔 줄) 거기로 가요.
+      if (!tail && act === "next" && i < lines.length - 1 && !lines[i + 1].t) return setFocus(i + 1);
       const next = lines.map((l) => ({ ...l }));
-      next[i].t = target.value || next[i].t;
-      // Tab은 다음 사람(자동), Shift+Tab은 같은 사람이 이어서 말해요.
-      next.splice(i + 1, 0, { sp: e.shiftKey ? resolved[i] : null, t: "" });
+      next[i].t = tail ? head : v;
+      // Enter는 다음 사람(자동), Shift+Enter는 같은 사람이 이어서 말해요.
+      next.splice(i + 1, 0, { sp: act === "same" ? resolved[i] : null, t: tail });
       setLines(next);
       setFocus(i + 1);
+      caretStart.current = true;
       return;
     }
-    if (isComposing(e)) return;
-    if (e.key === "Escape") {
-      e.preventDefault();
-      reset();
-      return;
-    }
-    if (e.key === "Enter" && target.tagName === "INPUT") {
-      e.preventDefault();
-      submit();
-      return;
-    }
-    if (at === undefined) return;
-    const i = Number(at);
+    if (e.key === "Enter") return e.preventDefault();
     const cur = lines[i];
     if (e.key === "Backspace" && cur.t === "" && lines.length > 1) {
       e.preventDefault();
       setLines(lines.filter((_, j) => j !== i));
       setFocus(Math.max(0, i - 1));
-    } else if (e.key === "ArrowUp" && i > 0) {
+    } else if (e.key === "ArrowUp" && i > 0 && lineEdge(target, true)) {
       e.preventDefault();
       setFocus(i - 1);
-    } else if (e.key === "ArrowDown" && i < lines.length - 1) {
+    } else if (e.key === "ArrowDown" && i < lines.length - 1 && lineEdge(target, false)) {
       e.preventDefault();
       setFocus(i + 1);
     }
@@ -1244,7 +1269,7 @@ function NewCard({ date, ctx, onAdd }: { date: string; ctx: Ctx; onAdd: (e: Entr
             onCancel={reset}
           />
           <div className="jmemo-foot">
-            <span className="hint">Enter 등록 · Shift+Enter 새 줄 · 표 안에서 Tab 다음 칸 · Esc 취소</span>
+            <span className="hint">Enter 다음 문단 · Shift+Enter 목록 · Tab 등록 · Esc 취소</span>
             <button type="button" className="btn-primary jbtn-add" onClick={submit}>
               <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
                 <path d="M12 5v14M5 12h14" />
@@ -1278,8 +1303,8 @@ function NewCard({ date, ctx, onAdd }: { date: string; ctx: Ctx; onAdd: (e: Entr
               setTelAuto(!v);
             }}
           />
-          <span className="hint jnew-hint" title="Tab 다음 말(말한 사람 자동 교대) · Shift+Tab 같은 사람이 이어서 · 배지를 누르면 사람 변경 · Enter 등록 · Esc 취소">
-            Tab 다음 말 · Shift+Tab 같은 사람 · Enter 등록
+          <span className="hint jnew-hint" title="Enter 다음 말(말한 사람 자동 교대) · Shift+Enter 같은 사람이 이어서 · Alt+Enter 한 말 안 줄 바꿈 · 배지를 누르면 사람 변경 · Tab 등록 · Esc 취소">
+            Enter 다음 말 · Shift+Enter 같은 사람 · Tab 등록
           </span>
         </div>
         <div className="jnew-bottom">
@@ -1297,11 +1322,12 @@ function NewCard({ date, ctx, onAdd }: { date: string; ctx: Ctx; onAdd: (e: Entr
                       setFocus(i);
                     }}
                   />
-                  <input
+                  <textarea
                     data-uline={i}
+                    rows={1}
                     aria-label={`${s.me ? "내" : s.who + "의"} 말`}
                     placeholder={s.me ? "내가 한 말" : `${s.who || "상대"} 말`}
-                    className="cell-input"
+                    className="cell-input jtalk"
                     value={l.t}
                     onFocus={() => setFocus(i)}
                     onChange={(e) => {
@@ -1504,7 +1530,7 @@ function ViewCard({
 function linesToBody(e: Entry): string {
   if (e.body) return e.body;
   const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  return e.lines.map((l) => `<p>${esc(l.me ? l.text : `${l.who}: ${l.text}`)}</p>`).join("");
+  return e.lines.map((l) => `<p>${esc(l.me ? l.text : `${l.who}: ${l.text}`).replace(/\n/g, "<br>")}</p>`).join("");
 }
 
 // ---------- 고치는 카드 ----------
@@ -1616,11 +1642,15 @@ function EditCard({
     return () => document.removeEventListener("mousedown", down);
   }, []);
 
+  const caretStart = useRef(false);
   useEffect(() => {
-    const el = ref.current?.querySelector<HTMLInputElement>(`[data-eline="${focus}"]`);
+    const el = ref.current?.querySelector<HTMLTextAreaElement>(`[data-eline="${focus}"]`);
+    const start = caretStart.current;
+    caretStart.current = false;
     if (el && document.activeElement !== el) {
       el.focus();
-      el.setSelectionRange(el.value.length, el.value.length);
+      const at = start ? 0 : el.value.length;
+      el.setSelectionRange(at, at);
     }
   }, [focus, lines.length]);
 
@@ -1629,50 +1659,53 @@ function EditCard({
     if (c) setTel(contactFor(c, expandKind(nextKind, ctx.kinds)));
   }
 
-  const lastTab = useRef(-1000);
-
   function onKeyDown(ev: KeyboardEvent<HTMLDivElement>) {
     if (ev.defaultPrevented || asking) return;
-    const target = ev.target as HTMLInputElement;
+    const target = ev.target as HTMLTextAreaElement;
     const at = target.dataset.eline;
-    const tab = at === undefined ? null : lineTab(ev, lastTab);
-    if (tab === "skip") return ev.preventDefault();
-    if (tab === "tab") {
-      const i = Number(at);
-      const cur = { ...lines[i], t: target.value || lines[i].t };
-      if (!cur.t.trim()) return;
-      ev.preventDefault();
-      if (!ev.shiftKey && i < lines.length - 1) return setFocus(i + 1);
-      const s = ev.shiftKey ? cur : nextOf(cur);
+    if (at === undefined) {
+      // 머리 칸: Enter·Tab 다음 칸(마지막이면 저장), Shift+Tab 앞 칸, Esc 취소
+      if (isKey(ev, "common.cancel")) {
+        ev.preventDefault();
+        onCancel();
+        return;
+      }
+      rowKeys(ev, ref.current, () => save());
+      return;
+    }
+    const i = Number(at);
+    const act = talkAction(ev);
+    if (act) ev.preventDefault();
+    if (act === "cancel") return onCancel();
+    if (act === "submit") return save();
+    if (act === "prev") return void moveField(ref.current!, target, -1);
+    if (act === "br") return insertBreak(target);
+    if (act === "next" || act === "same") {
+      const v = target.value;
+      if (!v.trim()) return;
+      const cur = { ...lines[i], t: v };
+      const head = v.slice(0, target.selectionStart);
+      const tail = v.slice(target.selectionEnd);
+      if (!tail && act === "next" && i < lines.length - 1 && !lines[i + 1].t) return setFocus(i + 1);
+      const s = act === "same" ? cur : nextOf(cur);
       const next = lines.map((l) => ({ ...l }));
-      next[i] = cur;
-      next.splice(i + 1, 0, { who: s.who, me: s.me, t: "" });
+      next[i] = { ...cur, t: tail ? head : v };
+      next.splice(i + 1, 0, { who: s.who, me: s.me, t: tail });
       setLines(next);
       setFocus(i + 1);
+      caretStart.current = true;
       return;
     }
-    if (isComposing(ev)) return;
-    if (ev.key === "Escape") {
-      ev.preventDefault();
-      onCancel();
-      return;
-    }
-    if (ev.key === "Enter" && target.tagName === "INPUT") {
-      ev.preventDefault();
-      save();
-      return;
-    }
-    if (at === undefined) return;
-    const i = Number(at);
+    if (ev.key === "Enter") return ev.preventDefault();
     const cur = lines[i];
     if (ev.key === "Backspace" && cur.t === "" && lines.length > 1) {
       ev.preventDefault();
       setLines(lines.filter((_, j) => j !== i));
       setFocus(Math.max(0, i - 1));
-    } else if (ev.key === "ArrowUp" && i > 0) {
+    } else if (ev.key === "ArrowUp" && i > 0 && lineEdge(target, true)) {
       ev.preventDefault();
       setFocus(i - 1);
-    } else if (ev.key === "ArrowDown" && i < lines.length - 1) {
+    } else if (ev.key === "ArrowDown" && i < lines.length - 1 && lineEdge(target, false)) {
       ev.preventDefault();
       setFocus(i + 1);
     }
@@ -1785,10 +1818,11 @@ function EditCard({
                   setFocus(i);
                 }}
               />
-              <input
+              <textarea
                 data-eline={i}
+                rows={1}
                 aria-label={`${l.me ? "내" : l.who + "의"} 말`}
-                className="cell-input"
+                className="cell-input jtalk"
                 value={l.t}
                 onFocus={() => setFocus(i)}
                 onChange={(ev) => {
@@ -1826,10 +1860,10 @@ function EditCard({
         ) : (
           <div className="jedit-foot">
             {memo ? (
-              <span className="hint">Enter 저장 · Shift+Enter 새 줄 · Esc 취소</span>
+              <span className="hint">Tab 저장 · Esc 취소</span>
             ) : (
-              <span className="hint" title="Tab 다음 말 · Shift+Tab 같은 사람 · Enter 저장 · Esc 취소">
-                Tab 다음 말 · Shift+Tab 같은 사람 · Enter 저장 · Esc 취소
+              <span className="hint" title="Enter 다음 말 · Shift+Enter 같은 사람 · Alt+Enter 한 말 안 줄 바꿈 · Tab 저장 · Esc 취소">
+                Enter 다음 말 · Shift+Enter 같은 사람 · Tab 저장 · Esc 취소
               </span>
             )}
             <button type="button" className="btn btn-xs" onClick={onCancel}>

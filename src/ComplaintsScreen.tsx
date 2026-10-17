@@ -1,9 +1,9 @@
 // 민원대장 화면이에요. 시안 Main.dc.html과 사양서의 "민원대장" 절을 따라요.
 //
-// - 표 맨 윗줄이 신규 입력 줄이에요. Tab 다음 칸, 상태 칸에서 Tab이나 Enter로 등록해요.
-// - 내용·조치내용은 여러 줄이에요. Enter는 등록·저장, Shift+Enter(또는 Ctrl+Enter)는 새 줄이에요(사용자가 정한 공통 규칙).
+// - 표 맨 윗줄이 신규 입력 줄이에요. 엔터규칙(keys.ts): Tab·Enter 다음 칸, 마지막 칸(상태)에서 등록해요.
+// - 내용·조치내용은 여러 줄 칸이에요. Enter 같은 위계로 새 줄, Shift+Enter 아래, Ctrl+Enter 위, 왼쪽 Alt+Enter 항목 안 줄 바꿈.
 // - 줄을 누르면 그 자리에서 고치고, 바깥을 누르면 저장해요. 삭제는 "이 민원을 지울까요?"를 물어요.
-// - 메모는 창에서 고쳐요. Enter 저장, Ctrl+Enter 새 줄, 바깥을 누르면 저장이에요.
+// - 메모는 창에서 고쳐요. 여러 줄 칸 규칙, Tab 저장하고 닫기, 바깥을 누르면 저장이에요.
 import {
   CSSProperties,
   KeyboardEvent,
@@ -16,6 +16,7 @@ import {
   useState,
 } from "react";
 import { DelIcon } from "./Icons";
+import { isKey, rowKeys } from "./keys";
 import { ExcelMenu } from "./ExcelMenu";
 import { complaintImports, complaintRows } from "./excel";
 import { REMOTE_CHANGE } from "./google";
@@ -340,7 +341,7 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
           ),
         )}
         {all.length === 0 ? (
-          <div className="cm-empty muted small">아직 민원이 없어요. 위 줄에 적고 Enter를 눌러 등록해요. 필수 칸은 내용 하나예요.</div>
+          <div className="cm-empty muted small">아직 민원이 없어요. 위 줄에 적고 상태 칸에서 Enter를 눌러 등록해요. 필수 칸은 내용 하나예요.</div>
         ) : shown.length === 0 ? (
           <div className="cm-empty muted small">맞는 민원이 없어요.</div>
         ) : null}
@@ -905,7 +906,7 @@ function Cells({
           name="body"
           label="내용"
           invalid={bad.body}
-          placeholder="민원 내용을 입력하고 Enter"
+          placeholder="민원 내용"
           lines={parseLines(d.body)}
           onChange={(ls) => set({ body: JSON.stringify(ls) })}
         />
@@ -984,13 +985,6 @@ function useDraft(init: () => Draft) {
   return { d, setD, bad, setBad, set, onDateBlur, check };
 }
 
-/** Enter 하나로 등록·저장할 칸인지 (여러 줄 칸에서 Shift+Enter·Ctrl+Enter는 새 줄이에요) */
-function isSubmitEnter(e: KeyboardEvent) {
-  if (e.key !== "Enter" || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return false;
-  const t = e.target as HTMLElement;
-  return t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT";
-}
-
 // ---------- 신규 입력 줄 ----------
 
 function NewRow({ lists, onAdd }: { lists: Lists; onAdd: (c: ComplaintInput) => Promise<boolean> }) {
@@ -1026,21 +1020,14 @@ function NewRow({ lists, onAdd }: { lists: Lists; onAdd: (c: ComplaintInput) => 
       role="row"
       className="cm-row cm-new"
       ref={rowRef}
-      onKeyDown={(e) => {
-        if (isComposing(e) || e.defaultPrevented) return;
-        const lastTab = e.key === "Tab" && !e.shiftKey && (e.target as HTMLElement).getAttribute("name") === "status";
-        if (isSubmitEnter(e) || lastTab) {
-          e.preventDefault();
-          submit();
-        }
-      }}
+      onKeyDown={(e) => rowKeys(e, rowRef.current, submit)}
     >
       <div role="cell" className="cm-c cm-new-tag">
         신규
       </div>
       <Cells d={f.d} set={f.set} bad={f.bad} lists={lists} firstRef={firstRef} onDateBlur={f.onDateBlur} />
       <div role="cell" className="cm-c cm-center">
-        <button type="button" className="btn-icon btn-add" aria-label="민원 등록" title="등록 (Enter)" tabIndex={-1} onClick={submit}>
+        <button type="button" className="btn-icon btn-add" aria-label="민원 등록" title="등록" tabIndex={-1} onClick={submit}>
           <Plus />
         </button>
       </div>
@@ -1126,15 +1113,12 @@ function EditRow({
       data-cid={c.id}
       className="cm-row cm-edit"
       onKeyDown={(e) => {
-        if (isComposing(e) || e.defaultPrevented) return;
-        if (e.key === "Escape") {
+        if (e.defaultPrevented) return;
+        if (isKey(e, "common.cancel")) {
           e.preventDefault();
           if (asking) setAsking(false);
           else onCancel();
-        } else if (isSubmitEnter(e)) {
-          e.preventDefault();
-          save();
-        }
+        } else rowKeys(e, ref.current, () => save());
       }}
     >
       <div role="cell" className="cm-c cm-no">
@@ -1160,7 +1144,7 @@ function EditRow({
             <DelIcon />
           </button>
         )}
-        <span className="hint cm-edit-hint">Tab 다음 칸 · Enter 저장 · Shift+Enter 새 줄 · 줄 맨 앞 ] ) - 와 스페이스로 머릿기호 · Esc 취소 · 바깥을 누르면 저장</span>
+        <span className="hint cm-edit-hint">Tab·Enter 다음 칸 · 마지막 칸이면 저장 · Esc 취소 · 바깥을 누르면 저장</span>
         <button type="button" className="btn btn-xs" onClick={onCancel}>
           취소
         </button>

@@ -1907,6 +1907,8 @@ mark {
   min-width: 0;
   line-height: 22px;
   overflow-wrap: anywhere;
+  /* 한 말 안 줄 바꿈(왼쪽 Alt+Enter, 엔터규칙)을 그대로 보여요 */
+  white-space: pre-wrap;
 }
 
 /* 프로젝트 고르기 목록 */
@@ -2123,8 +2125,24 @@ mark {
 
 .jline-in {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--space-2);
+}
+
+.jline-in .jsp-btn {
+  margin-top: calc((var(--size-input) - 24px) / 2);
+}
+
+/* 말 줄 칸: 한 말 안 줄 바꿈(왼쪽 Alt+Enter)이 있으면 글 높이만큼 늘어나요. 한 줄일 때는 다른 입력칸과 같은 높이·글자 자리예요. */
+.cell-input.jtalk {
+  display: block;
+  height: auto;
+  min-height: var(--size-input);
+  field-sizing: content;
+  resize: none;
+  overflow: hidden;
+  line-height: 18px;
+  padding: calc((var(--size-input) - 20px) / 2 - 1px) 6px calc((var(--size-input) - 20px) / 2 + 1px);
 }
 
 .jsp-btn {
@@ -6356,6 +6374,7 @@ body.col-dragging * {
   flex: 1;
   min-width: 0;
   overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 /* 메모 본문: 화면과 같은 그린 머릿기호(.rte-view)를 종이 글자 크기(12px)에 맞춰요. */

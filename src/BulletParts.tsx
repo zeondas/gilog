@@ -3,7 +3,8 @@
 // - BulletView: 보기 화면. 복사하면 □ ○ - 글자와 띄어쓰기로 나가요.
 // - BulletEditor: 여러 줄 입력 칸(민원 내용·조치내용, 할 일 세부정보)
 import { ClipboardEvent, KeyboardEvent, ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { BLine, isBlank, kindOf, layout, linePrefix, nextLine, textToLines, TRIGGERS, withKind } from "./bullets";
+import { BLine, isBlank, kindOf, layout, linePrefix, newLineFor, NewLineMode, textToLines, TRIGGERS, withKind } from "./bullets";
+import { keyAction } from "./keys";
 
 const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
 
@@ -78,8 +79,9 @@ type EditorProps = {
 
 /**
  * 여러 줄 입력 칸. 줄마다 머릿기호가 처음부터 보이고, 글은 그 뒤에 써져요.
- * - Enter: 막지 않고 위로 넘겨요(등록·저장은 줄을 가진 쪽이 해요). 줄바꿈 글자가 들어와도 띄어쓰기로 바꿔요.
- * - Shift+Enter, Ctrl+Enter: 새 줄 (윗줄과 같은 머릿기호)
+ * - 엔터규칙(keys.ts "여러 줄 칸"): Enter 같은 위계로 새 줄 · Shift+Enter 한 위계 아래 · Ctrl+Enter 한 위계 위
+ *   · 왼쪽 Alt+Enter 같은 항목 안 줄 바꿈(기호 없이). Tab·Shift+Tab은 위로 넘겨요(다음 칸·저장은 줄을 가진 쪽이 해요).
+ *   줄바꿈 글자가 들어와도 띄어쓰기로 바꿔요.
  * - 줄 맨 앞 Backspace: 머릿기호 지우기 → 한 번 더(또는 빈 줄): 윗줄과 합치기
  * - 줄 맨 앞 "] " ") " "- ": □·●·작대기. 들여쓰기는 위계로 정해요(bullets.ts layout).
  * - 빈 줄은 묶음을 나눠요. 커서가 없는 빈 줄은 기호를 그리지 않아요.
@@ -136,15 +138,25 @@ export function BulletEditor({ lines, onChange, placeholder, name, label, invali
     const a = el.selectionStart;
     const b = el.selectionEnd;
     const cur = ls[i];
-    if (e.key === "Enter" && (e.shiftKey || e.ctrlKey || e.metaKey)) {
+    const act = keyAction(e, "multi");
+    const mode: NewLineMode | null =
+      act === "multi.same" ? "same" : act === "multi.down" ? "down" : act === "multi.up" ? "up" : act === "multi.br" ? "br" : null;
+    if (mode) {
       // 새 줄. 커서 뒤의 글은 새 줄로 넘겨요.
       e.preventDefault();
       e.stopPropagation();
       const next = ls.slice();
       next[i] = { ...cur, t: cur.t.slice(0, a) };
-      next.splice(i + 1, 0, nextLine(cur, cur.t.slice(b), lv[i]));
+      next.splice(i + 1, 0, newLineFor(next, i, mode, cur.t.slice(b), lv[i]));
       edit(next, [i + 1, 0]);
-    } else if (e.key === "Backspace" && a === 0 && b === 0) {
+      return;
+    }
+    if (e.key === "Enter") {
+      // 정하지 않은 Enter 조합은 줄바꿈 글자를 넣지 않아요.
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "Backspace" && a === 0 && b === 0) {
       if (!isBlank(cur) && kindOf(cur) !== "none") {
         // 머릿기호만 지워요. 글 시작 위치(단계)는 그대로예요.
         e.preventDefault();
