@@ -5,6 +5,7 @@ import { measureBullets } from "./bullets";
 import CalendarScreen, { EventFocus } from "./CalendarScreen";
 import ComplaintsScreen from "./ComplaintsScreen";
 import ContactsScreen from "./ContactsScreen";
+import ProcessScreen from "./ProcessScreen";
 import Gate from "./Gate";
 import Logo, { AppIcon } from "./Logo";
 import { NavIcon, NavIconName } from "./Icons";
@@ -229,6 +230,8 @@ export default function App() {
           <JournalScreen urgentDays={prefs.urgentDays} onOpenComplaint={openComplaint} onOpenTask={openTask} />
         ) : current === "complaints" ? (
           <ComplaintsScreen urgentDays={prefs.urgentDays} focusId={focusComplaint} onFocused={clearFocus} />
+        ) : current === "process" ? (
+          <ProcessScreen urgentDays={prefs.urgentDays} onOpenComplaint={openComplaint} />
         ) : current === "calendar" ? (
           <CalendarScreen focus={focusEvent} onFocused={clearEvent} onOpenComplaint={openComplaint} onOpenTask={openTask} />
         ) : current === "todo" ? (
