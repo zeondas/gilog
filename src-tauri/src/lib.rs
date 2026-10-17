@@ -44,6 +44,8 @@ struct Prefs {
     ask_password: bool,
     auto_lock: bool,
     auto_lock_min: u32,
+    /// 사이드바 접힘
+    side_collapsed: bool,
 }
 
 impl Default for Prefs {
@@ -57,6 +59,7 @@ impl Default for Prefs {
             ask_password: true,
             auto_lock: true,
             auto_lock_min: 10,
+            side_collapsed: false,
         }
     }
 }

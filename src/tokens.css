@@ -105,7 +105,7 @@
   --size-row: 36px;
   --size-badge: 62px;
   --size-pillar: 88px;
-  --size-side: 200px;
+  --size-side: 180px;
   --size-card-min: 280px;
   /* 그림자 색(남색 기운 없는 중성 어두운 색). rgba(var(--shadow-rgb), 투명도)로 써요. */
   --shadow-rgb: 28, 27, 34;

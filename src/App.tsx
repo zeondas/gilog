@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { api, DEFAULT_PREFS, errorText, inApp, Prefs, Reminder, Status } from "./api";
 import { measureBullets } from "./bullets";
@@ -6,7 +6,8 @@ import CalendarScreen, { EventFocus } from "./CalendarScreen";
 import ComplaintsScreen from "./ComplaintsScreen";
 import ContactsScreen from "./ContactsScreen";
 import Gate from "./Gate";
-import Logo from "./Logo";
+import Logo, { AppIcon } from "./Logo";
+import { NavIcon, NavIconName } from "./Icons";
 import { VERSION } from "./version";
 import JournalScreen from "./JournalScreen";
 import SettingsScreen from "./SettingsScreen";
@@ -21,6 +22,8 @@ import { setKeyMap } from "./keys";
 
 export default function App() {
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
+  const prefsRef = useRef(prefs);
+  prefsRef.current = prefs;
   const [status, setStatus] = useState<Status | null>(null);
   const [fatal, setFatal] = useState("");
   const [current, setCurrent] = useState<ScreenId | null>(null);
@@ -95,6 +98,22 @@ export default function App() {
     api.lock().then(refresh, refresh);
   }, [refresh]);
 
+  // 사이드바 접기·펼치기(Ctrl+B). 글 칸 안의 Ctrl+B는 굵게라 건드리지 않아요.
+  const toggleSide = useCallback(() => {
+    void savePrefs({ ...prefsRef.current, sideCollapsed: !prefsRef.current.sideCollapsed });
+  }, [savePrefs]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.ctrlKey || e.shiftKey || e.altKey || e.metaKey || e.code !== "KeyB") return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.closest("input, textarea, select, [contenteditable='true'], [contenteditable='']") || t.isContentEditable)) return;
+      e.preventDefault();
+      toggleSide();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [toggleSide]);
+
   // 자동 잠금: 마우스나 키보드 입력이 없으면 잠가요.
   const unlocked = status?.unlocked ?? false;
 
@@ -145,6 +164,20 @@ export default function App() {
     return () => window.clearTimeout(t);
   }, [firstScreen]);
 
+  const collapsed = prefs.sideCollapsed;
+  const navButton = (id: ScreenId, label: string) => (
+    <button
+      type="button"
+      className="side-item"
+      title={collapsed ? label : undefined}
+      aria-current={current === id ? "page" : undefined}
+      onClick={() => setCurrent(id)}
+    >
+      <NavIcon name={id as NavIconName} size={collapsed ? 17 : 15} />
+      {!collapsed && <span>{label}</span>}
+    </button>
+  );
+
   if (fatal) return <div className="gate"><p className="gate-error">{fatal}</p></div>;
   if (!status || current === null) return <div className="gate" />;
   if (!status.unlocked) {
@@ -155,34 +188,35 @@ export default function App() {
 
   return (
     <div className="shell">
-      <nav className="side" aria-label="모듈">
-        <div className="brand">
-          <Logo height={28} variant="word" />
-        </div>
+      <nav className={collapsed ? "side side-folded" : "side"} aria-label="모듈">
+        <div className="brand">{collapsed ? <AppIcon size={32} /> : <Logo height={28} variant="word" />}</div>
         <div className="side-list">
-          {SCREENS.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              className="side-item"
-              aria-current={current === s.id ? "page" : undefined}
-              onClick={() => setCurrent(s.id)}
-            >
-              {s.name}
-            </button>
+          {SCREENS.filter((s) => s.group !== "bottom").map((s, i, list) => (
+            <Fragment key={s.id}>
+              {i > 0 && list[i - 1].group !== s.group && <div className="side-div" />}
+              {navButton(s.id, s.side)}
+            </Fragment>
           ))}
         </div>
         <div className="side-list side-bottom">
-          <button type="button" className="side-item" onClick={lockNow}>
-            잠그기
+          {SCREENS.filter((s) => s.group === "bottom").map((s) => (
+            <Fragment key={s.id}>{navButton(s.id, s.side)}</Fragment>
+          ))}
+          {navButton(SETTINGS.id, SETTINGS.side)}
+          <button type="button" className="side-item" title={collapsed ? "잠그기" : undefined} onClick={lockNow}>
+            <NavIcon name="lock" size={collapsed ? 17 : 15} />
+            {!collapsed && <span>잠그기</span>}
           </button>
-          <button
-            type="button"
-            className="side-item"
-            aria-current={current === SETTINGS.id ? "page" : undefined}
-            onClick={() => setCurrent(SETTINGS.id)}
-          >
-            {SETTINGS.name}
+        </div>
+        <div className="side-list side-toggle">
+          <button type="button" className="side-item" title={collapsed ? "펼치기 (Ctrl+B)" : "접기 (Ctrl+B)"} onClick={toggleSide}>
+            <NavIcon name={collapsed ? "unfold" : "fold"} size={collapsed ? 17 : 15} />
+            {!collapsed && (
+              <>
+                <span>접기</span>
+                <span className="side-kb">Ctrl+B</span>
+              </>
+            )}
           </button>
         </div>
       </nav>

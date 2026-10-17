@@ -6,3 +6,28 @@ export function DelIcon() {
     </svg>
   );
 }
+
+/** 사이드바 아이콘 (2026-10-17 확정, 시안 캔버스 SidebarIcons.dc.html) — 선 2px, 24 격자, 각진 모서리. */
+const NAV_PATHS = {
+  explorer: "M3 5h6l2 3h10v12H3z",
+  complaints: "M3 4h18v16H3z M3 9h18 M3 14.5h18 M9 9v11",
+  process: "M5 3h9l5 5v13H5z M14 3v5h5 M8.5 14.5l2.5 2.5 4.5-5",
+  calendar: "M3 5h18v16H3z M3 10h18 M8 3v4 M16 3v4 M7 14h2 M11 14h2 M15 14h2 M7 17.5h2 M11 17.5h2",
+  todo: "M20 12v8H4V4h11 M8 11l4 4 9-10",
+  journal: "M3 5h12 M3 10h9 M3 15h5 M12 21v-3l7-7 3 3-7 7z",
+  contacts: "M12 4a4 4 0 1 1 0 8a4 4 0 1 1 0-8z M4 21v-3l3-3h10l3 3v3",
+  settings: "M4 6h16 M4 12h16 M4 18h16 M9 4v4 M15 10v4 M7 16v4",
+  lock: "M5 11h14v10H5z M8 11V4h8v7 M12 15v2",
+  fold: "M15 6l-6 6 6 6",
+  unfold: "M9 6l6 6-6 6",
+} as const;
+
+export type NavIconName = keyof typeof NAV_PATHS;
+
+export function NavIcon({ name, size }: { name: NavIconName; size: number }) {
+  return (
+    <svg className="nav-icon" aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="miter">
+      <path d={NAV_PATHS[name]} />
+    </svg>
+  );
+}

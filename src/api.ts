@@ -14,6 +14,8 @@ export type Prefs = {
   askPassword: boolean;
   autoLock: boolean;
   autoLockMin: number;
+  /** 사이드바 접힘 */
+  sideCollapsed: boolean;
 };
 
 export const DEFAULT_PREFS: Prefs = {
@@ -25,6 +27,7 @@ export const DEFAULT_PREFS: Prefs = {
   askPassword: true,
   autoLock: true,
   autoLockMin: 10,
+  sideCollapsed: false,
 };
 
 /** 저장 쪽이 돌려주는 실패 이름이에요. */
