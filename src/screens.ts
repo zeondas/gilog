@@ -13,3 +13,29 @@ export const SCREENS = [
 export const SETTINGS = { id: "settings", name: "설정", side: "설정", step: 3 } as const;
 
 export type ScreenId = (typeof SCREENS)[number]["id"] | typeof SETTINGS.id;
+
+// ---------- 모듈 켜고 끄기 (2026-10-18 설정 세션, 사용자 확정 — 시안 Settings) ----------
+// 끄기는 "메뉴 숨기기"예요(사용자 1안): 사이드바에서 빠지고 설정의 그 모듈 카드가 접힐 뿐, 자료와 다른 모듈의 연동은 그대로예요.
+
+export type ModuleId = (typeof SCREENS)[number]["id"];
+/** 암호화 파일 settings의 modules. false인 모듈만 꺼져 있어요(없는 모듈은 켜짐). */
+export type Modules = Partial<Record<string, boolean>>;
+
+export const isOn = (m: Modules, id: string) => m[id] !== false;
+
+/** 켜 둔 화면만, 사이드바 순서로 */
+export const onScreens = (m: Modules) => SCREENS.filter((s) => isOn(m, s.id));
+
+/** 첫 켜진 화면. 하나는 늘 켜져 있지만, 혹시 모두 꺼졌으면 업무일지예요. */
+export const firstOn = (m: Modules): ModuleId => onScreens(m)[0]?.id ?? "journal";
+
+/** 모듈 카드의 한 줄 설명 */
+export const MODULE_DESC: Record<ModuleId, string> = {
+  explorer: "2창·4창 파일 관리, 일괄 이름 바꾸기",
+  complaints: "민원 접수·처리 기록",
+  process: "신문고 민원 → 지시부 → 폰으로 보내기",
+  calendar: "일정·공휴일·알림",
+  todo: "목록별 할 일·마감",
+  journal: "누가 언제 무슨 말을 했는지",
+  contacts: "사람·프로젝트 연락처",
+};

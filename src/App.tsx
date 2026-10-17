@@ -16,7 +16,7 @@ import SettingsScreen from "./SettingsScreen";
 import TasksScreen from "./TasksScreen";
 import { applyNotifyMode, refreshHolidaysDaily, syncReminders } from "./reminders";
 import { startGoogleSync } from "./google";
-import { SCREENS, SETTINGS, ScreenId } from "./screens";
+import { firstOn, isOn, Modules, onScreens, SCREENS, SETTINGS, ScreenId } from "./screens";
 import { loadSettings } from "./settingsStore";
 import { setKeyMap } from "./keys";
 
@@ -29,6 +29,9 @@ export default function App() {
   const [status, setStatus] = useState<Status | null>(null);
   const [fatal, setFatal] = useState("");
   const [current, setCurrent] = useState<ScreenId | null>(null);
+  // 모듈 켜고 끄기(설정 "모듈" 카드). 꺼진 모듈은 사이드바에서 빠져요.
+  const [modules, setModules] = useState<Modules>({});
+  const modulesRef = useRef(modules);
   // 업무일지 "챙길 일"에서 누른 민원. 민원대장이 그 줄로 가면 비워요.
   const [focusComplaint, setFocusComplaint] = useState<number | null>(null);
   const clearFocus = useCallback(() => setFocusComplaint(null), []);
@@ -116,6 +119,14 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [toggleSide]);
 
+  // 보고 있던 화면의 모듈을 끄면 첫 켜진 화면으로 가요. 다른 화면에서 눌러 온 이동(민원·할 일 열기 등)은 막지 않아요(끄기는 메뉴 숨기기, 사용자 1안).
+  const changeModules = useCallback((m: Modules) => {
+    const before = modulesRef.current;
+    modulesRef.current = m;
+    setModules(m);
+    setCurrent((c) => (c && c !== SETTINGS.id && isOn(before, c) && !isOn(m, c) ? firstOn(m) : c));
+  }, []);
+
   // 자동 잠금: 마우스나 키보드 입력이 없으면 잠가요.
   const unlocked = status?.unlocked ?? false;
 
@@ -124,7 +135,13 @@ export default function App() {
     if (!unlocked) return;
     applyNotifyMode();
     // 키 설정(엔터규칙)을 읽어 모든 화면에 적용해요.
-    loadSettings().then((s) => setKeyMap(s.keys), () => {});
+    loadSettings().then((s) => {
+      setKeyMap(s.keys);
+      modulesRef.current = s.modules;
+      setModules(s.modules);
+      // 시작 화면이 꺼진 모듈이면 첫 켜진 화면으로 열어요(처음 한 번).
+      setCurrent((c) => (c && c !== SETTINGS.id && !isOn(s.modules, c) ? firstOn(s.modules) : c));
+    }, () => {});
     syncReminders();
     refreshHolidaysDaily();
     startGoogleSync();
@@ -193,7 +210,7 @@ export default function App() {
       <nav className={collapsed ? "side side-folded" : "side"} aria-label="모듈">
         <div className="brand">{collapsed ? <AppIcon size={32} /> : <Logo height={28} variant="word" />}</div>
         <div className="side-list">
-          {SCREENS.filter((s) => s.group !== "bottom").map((s, i, list) => (
+          {onScreens(modules).filter((s) => s.group !== "bottom").map((s, i, list) => (
             <Fragment key={s.id}>
               {i > 0 && list[i - 1].group !== s.group && <div className="side-div" />}
               {navButton(s.id, s.side)}
@@ -201,7 +218,7 @@ export default function App() {
           ))}
         </div>
         <div className="side-list side-bottom">
-          {SCREENS.filter((s) => s.group === "bottom").map((s) => (
+          {onScreens(modules).filter((s) => s.group === "bottom").map((s) => (
             <Fragment key={s.id}>{navButton(s.id, s.side)}</Fragment>
           ))}
           {navButton(SETTINGS.id, SETTINGS.side)}
@@ -224,7 +241,7 @@ export default function App() {
       </nav>
       <main className={current === "explorer" ? "main main-fill" : "main"}>
         {current === SETTINGS.id ? (
-          <SettingsScreen prefs={prefs} onPrefs={savePrefs} status={status} onLocked={refresh} />
+          <SettingsScreen prefs={prefs} onPrefs={savePrefs} status={status} onLocked={refresh} onModules={changeModules} />
         ) : current === "explorer" ? (
           <FilesScreen />
         ) : current === "contacts" ? (

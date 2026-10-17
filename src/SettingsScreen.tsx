@@ -1,10 +1,11 @@
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, Fragment, useEffect, useRef, useState } from "react";
 import { api, DEFAULT_PREFS, errorText, inApp, Prefs, Status } from "./api";
 import { splitJamo } from "./journal";
 import { DEFAULT_SETTINGS, DONE_STATUS, Kind, loadSettings, MEMO_KIND, ProcessSettings, saveSettings, Settings, FilesSettings, STATUS_COLORS } from "./settingsStore";
 import { PhoneInput } from "./PhoneInput";
 import { aiGuide, phoneGuide } from "./process";
-import { SCREENS } from "./screens";
+import { isOn, MODULE_DESC, ModuleId, Modules, onScreens, SCREENS, firstOn } from "./screens";
+import { NavIcon, NavIconName } from "./Icons";
 import { DATE_FORMATS, FsDrive } from "./files";
 import { fsApi } from "./filesApi";
 import Logo, { AppIcon } from "./Logo";
@@ -34,12 +35,14 @@ type Props = {
   onPrefs: (p: Prefs) => Promise<void>;
   status: Status;
   onLocked: () => void;
+  /** 모듈을 켜고 끄면 사이드바에 알려요. */
+  onModules: (m: Modules) => void;
 };
 
 /** 지울 수 없는 상태예요. 마감 계산과 할 일 연동이 이것을 기준으로 해요. */
 export const KEEP_STATUS = DONE_STATUS;
 
-export default function SettingsScreen({ prefs, onPrefs, status, onLocked }: Props) {
+export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onModules }: Props) {
   const [s, setS] = useState<Settings | null>(null);
   const [ask, setAsk] = useState(false);
   const [note, setNote] = useState("");
@@ -72,6 +75,7 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked }: Pro
   async function resetAll() {
     setAsk(false);
     await update(structuredClone(DEFAULT_SETTINGS));
+    onModules({});
     setResetTick((n) => n + 1);
     await onPrefs({ ...DEFAULT_PREFS, dataDir: prefs.dataDir, askPassword: prefs.askPassword });
     setNote("기본값으로 되돌렸어요.");
@@ -106,24 +110,20 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked }: Pro
         </p>
       )}
 
-      <section className="card">
-        <div className="card-head">
-          민원대장 항목 <span className="muted small head-sub">입력 줄의 선택 목록에 그대로 나와요.</span>
-        </div>
-        <ListGroup
-          title="상태"
-          desc="색은 자동으로 붙어요. 완료는 지울 수 없어요."
-          items={s.status}
-          keep={KEEP_STATUS}
-          colored
-          onChange={(status) => update({ ...s, status })}
-        />
-        <ListGroup title="접수유형" items={s.intake} onChange={(intake) => update({ ...s, intake })} />
-        <ListGroup title="민원유형" items={s.ctype} onChange={(ctype) => update({ ...s, ctype })} last />
-      </section>
+      <h2 className="set-sec">
+        공통 설정<span>앱 전체에 걸친 것</span>
+      </h2>
 
-      <section className="card">
-        <div className="card-head">업무일지</div>
+      <ModulesCard
+        value={s.modules}
+        onChange={(modules) => {
+          update({ ...s, modules });
+          onModules(modules);
+        }}
+      />
+
+      <section className="card" aria-label="일반">
+        <div className="card-head">일반</div>
         <Row label="내 이름" desc="대화 기록에서 내 말에 붙는 이름이에요.">
           <input
             id="my-name"
@@ -137,14 +137,71 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked }: Pro
             onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
           />
         </Row>
-        <KindsGroup kinds={s.kinds} onChange={(kinds) => update({ ...s, kinds })} />
+        <Row label="테마" desc="시스템은 윈도우의 밝게·어둡게 설정을 따라가요.">
+          <span className="seg" role="radiogroup" aria-label="테마">
+            {(
+              [
+                ["system", "시스템"],
+                ["light", "밝게"],
+                ["dark", "어둡게"],
+              ] as const
+            ).map(([id, name]) => (
+              <button
+                key={id}
+                type="button"
+                role="radio"
+                aria-checked={prefs.theme === id}
+                onClick={() => setPref("theme", id)}
+              >
+                {name}
+              </button>
+            ))}
+          </span>
+        </Row>
+        <Row label="시작 화면" desc="앱을 켰을 때 먼저 보이는 화면이에요. 켜 둔 모듈만 골라요.">
+          <select
+            id="start-screen"
+            className="input"
+            value={isOn(s.modules, prefs.startScreen) ? prefs.startScreen : firstOn(s.modules)}
+            onChange={(e) => setPref("startScreen", e.target.value)}
+          >
+            {onScreens(s.modules).map((sc) => (
+              <option key={sc.id} value={sc.id}>
+                {sc.name}
+              </option>
+            ))}
+          </select>
+        </Row>
+        <Row label="글자 크기" desc="모든 화면에 함께 적용돼요.">
+          <select
+            id="font-size"
+            className="input"
+            value={prefs.fontSize}
+            onChange={(e) => setPref("fontSize", Number(e.target.value))}
+          >
+            <option value={12}>작게 (12)</option>
+            <option value={13}>보통 (13)</option>
+            <option value={14}>크게 (14)</option>
+            <option value={15}>아주 크게 (15)</option>
+          </select>
+        </Row>
+        <Row
+          label="민원 마감 임박 표시"
+          desc="마감이 이 날짜 안으로 들어오면 빨갛게 보여요. 민원대장·민원처리·할 일·업무일지에 함께 적용돼요."
+          last
+        >
+          <select
+            id="urgent-days"
+            className="input"
+            value={prefs.urgentDays}
+            onChange={(e) => setPref("urgentDays", Number(e.target.value))}
+          >
+            <option value={2}>2일 전부터</option>
+            <option value={3}>3일 전부터</option>
+            <option value={5}>5일 전부터</option>
+          </select>
+        </Row>
       </section>
-
-      <ProcessCard p={s.process} onChange={(process) => update({ ...s, process })} />
-
-      <GoogleCard />
-
-      <FilesCard value={s.files} onChange={(files) => update({ ...s, files })} />
 
       <section className="card">
         <div className="card-head">보안 · 저장</div>
@@ -184,80 +241,52 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked }: Pro
         <BackupRow onLocked={onLocked} setNote={setNote} />
       </section>
 
-      <section className="card">
-        <div className="card-head">화면</div>
-        <Row label="테마" desc="시스템은 윈도우의 밝게·어둡게 설정을 따라가요.">
-          <span className="seg" role="radiogroup" aria-label="테마">
-            {(
-              [
-                ["system", "시스템"],
-                ["light", "밝게"],
-                ["dark", "어둡게"],
-              ] as const
-            ).map(([id, name]) => (
-              <button
-                key={id}
-                type="button"
-                role="radio"
-                aria-checked={prefs.theme === id}
-                onClick={() => setPref("theme", id)}
-              >
-                {name}
-              </button>
-            ))}
-          </span>
-        </Row>
-        <Row label="시작 화면" desc="앱을 켰을 때 먼저 보이는 화면이에요.">
-          <select
-            id="start-screen"
-            className="input"
-            value={prefs.startScreen}
-            onChange={(e) => setPref("startScreen", e.target.value)}
-          >
-            {SCREENS.map((sc) => (
-              <option key={sc.id} value={sc.id}>
-                {sc.name}
-              </option>
-            ))}
-          </select>
-        </Row>
-        <Row label="글자 크기" desc="모든 화면에 함께 적용돼요.">
-          <select
-            id="font-size"
-            className="input"
-            value={prefs.fontSize}
-            onChange={(e) => setPref("fontSize", Number(e.target.value))}
-          >
-            <option value={12}>작게 (12)</option>
-            <option value={13}>보통 (13)</option>
-            <option value={14}>크게 (14)</option>
-            <option value={15}>아주 크게 (15)</option>
-          </select>
-        </Row>
-        <Toggle
-          label="캘린더 쉬는 날 음영"
-          desc="토·일요일과 공휴일 칸을 연한 빨강으로 칠해요."
-          on={s.restShade}
-          onChange={(restShade) => update({ ...s, restShade })}
-        />
-        <Row label="민원 마감 임박 표시" desc="마감이 이 날짜 안으로 들어오면 빨갛게 보여요." last>
-          <select
-            id="urgent-days"
-            className="input"
-            value={prefs.urgentDays}
-            onChange={(e) => setPref("urgentDays", Number(e.target.value))}
-          >
-            <option value={2}>2일 전부터</option>
-            <option value={3}>3일 전부터</option>
-            <option value={5}>5일 전부터</option>
-          </select>
-        </Row>
-      </section>
+      <GoogleCard />
 
       <KeysCard key={resetTick} saved={s.keys} onSave={(keys) => update({ ...s, keys })} />
 
-      <section className="card">
-        <div className="card-head">정보</div>
+      <h2 className="set-sec">
+        모듈별 설정<span>사이드바 순서 · 끈 모듈은 접혀요</span>
+      </h2>
+
+      {SCREENS.map((sc, i) => (
+        <ModuleCard key={sc.id} id={sc.id} name={sc.side} off={!isOn(s.modules, sc.id)} gap={i > 0 && SCREENS[i - 1].group !== sc.group}>
+          {sc.id === "explorer" ? (
+            <FilesRows value={s.files} onChange={(files) => update({ ...s, files })} />
+          ) : sc.id === "complaints" ? (
+            <>
+              <ListGroup
+                title="상태"
+                desc="색은 자동으로 붙어요. 완료는 지울 수 없어요."
+                items={s.status}
+                keep={KEEP_STATUS}
+                colored
+                onChange={(status) => update({ ...s, status })}
+              />
+              <ListGroup title="접수유형" items={s.intake} onChange={(intake) => update({ ...s, intake })} />
+              <ListGroup title="민원유형" items={s.ctype} onChange={(ctype) => update({ ...s, ctype })} last />
+            </>
+          ) : sc.id === "process" ? (
+            <ProcessRows p={s.process} onChange={(process) => update({ ...s, process })} />
+          ) : sc.id === "calendar" ? (
+            <Toggle
+              label="쉬는 날 음영"
+              desc="토·일요일과 공휴일 칸을 연한 빨강으로 칠해요."
+              on={s.restShade}
+              onChange={(restShade) => update({ ...s, restShade })}
+            />
+          ) : sc.id === "journal" ? (
+            <KindsGroup kinds={s.kinds} onChange={(kinds) => update({ ...s, kinds })} />
+          ) : (
+            <div className="row row-last">
+              <span className="muted small">따로 정할 것이 없어요.</span>
+            </div>
+          )}
+        </ModuleCard>
+      ))}
+
+      <h2 className="set-sec">정보</h2>
+      <section className="card" aria-label="정보">
         <div className="about">
           <AppIcon size={56} />
           <div className="about-text">
@@ -267,6 +296,69 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked }: Pro
         </div>
       </section>
     </>
+  );
+}
+
+// ---------- 모듈 켜고 끄기 (2026-10-18 설정 세션, 시안 Settings) ----------
+
+/** 공통 맨 위 "모듈" 카드: 사이드바 순서·묶음대로 스위치. 적어도 하나는 켜져 있어야 해요. 설정은 끌 수 없어 줄이 없어요. */
+function ModulesCard({ value, onChange }: { value: Modules; onChange: (m: Modules) => void }) {
+  const [note, setNote] = useState("");
+  const onCount = onScreens(value).length;
+  function flip(id: ModuleId) {
+    const on = isOn(value, id);
+    if (on && onCount === 1) return setNote("적어도 모듈 하나는 켜 둬야 해요.");
+    setNote("");
+    const next = { ...value };
+    if (on) next[id] = false;
+    else delete next[id];
+    onChange(next);
+  }
+  return (
+    <section className="card" aria-label="모듈">
+      <div className="card-head">
+        모듈 <span className="muted small head-sub">끄면 사이드바에서 숨겨요. 자료는 그대로이고 다시 켜면 돌아와요.</span>
+      </div>
+      {SCREENS.map((sc, i) => {
+        const on = isOn(value, sc.id);
+        return (
+          <Fragment key={sc.id}>
+            {i > 0 && SCREENS[i - 1].group !== sc.group && <div className="mod-div" aria-hidden="true" />}
+            <button type="button" role="switch" aria-checked={on} className="row row-btn" onClick={() => flip(sc.id)}>
+              <span className={"mod-icon" + (on ? "" : " off")}>
+                <NavIcon name={sc.id as NavIconName} size={15} />
+              </span>
+              <span className="row-text">
+                <span className="row-label">{sc.side}</span>
+                <span className="muted small">{on ? MODULE_DESC[sc.id] : "꺼짐 · 사이드바에서 숨겼어요"}</span>
+              </span>
+              <span className={"switch" + (on ? " on" : "") + (on && onCount === 1 ? " locked" : "")} aria-hidden="true">
+                <span className="knob" />
+              </span>
+            </button>
+          </Fragment>
+        );
+      })}
+      {note && (
+        <p className="mod-note small" role="status">
+          {note}
+        </p>
+      )}
+    </section>
+  );
+}
+
+/** 모듈별 카드: 머리에 사이드바 아이콘 + 이름. 끈 모듈은 머리만 남기고 접어요. */
+function ModuleCard({ id, name, off, gap, children }: { id: ModuleId; name: string; off: boolean; gap: boolean; children: React.ReactNode }) {
+  return (
+    <section className={"card mod-card" + (off ? " mod-off" : "") + (gap ? " mod-gap" : "")} aria-label={name}>
+      <div className="card-head mod-head">
+        <NavIcon name={id as NavIconName} size={16} />
+        {name}
+        {off && <span className="mod-tag">꺼짐 · 위 모듈 카드에서 켜요</span>}
+      </div>
+      {!off && children}
+    </section>
   );
 }
 
@@ -524,7 +616,7 @@ function GoogleCard() {
 
 // ---------- 탐색기 카드 (11단계, 시안 FilesSettings.dc.html) ----------
 
-function FilesCard({ value, onChange }: { value: FilesSettings; onChange: (v: FilesSettings) => void }) {
+function FilesRows({ value, onChange }: { value: FilesSettings; onChange: (v: FilesSettings) => void }) {
   const [drives, setDrives] = useState<FsDrive[]>([]);
   const [dir, setDir] = useState(value.newTabDir);
   useEffect(() => {
@@ -539,8 +631,7 @@ function FilesCard({ value, onChange }: { value: FilesSettings; onChange: (v: Fi
     if (typeof r === "string") set({ newTabDir: r });
   };
   return (
-    <section className="card">
-      <div className="card-head">탐색기</div>
+    <>
       <Row label="날짜 모양" desc="목록의 수정한 날 열이에요.">
         <span className="seg" role="radiogroup" aria-label="날짜 모양">
           {DATE_FORMATS.map((d, i) => (
@@ -593,7 +684,7 @@ function FilesCard({ value, onChange }: { value: FilesSettings; onChange: (v: Fi
         on={value.askDelete}
         onChange={(askDelete) => set({ askDelete })}
       />
-    </section>
+    </>
   );
 }
 
@@ -1028,7 +1119,7 @@ const PROCESS_DIRS: { key: "root" | "inbox" | "downloads" | "outbox"; label: str
   { key: "outbox", label: "보낼 폴더", desc: "[폰 전송]이 지시부 JPG를 두는 곳이에요. Claude 앱 \"민원처리\" 대화가 폰으로 올려요." },
 ];
 
-function ProcessCard({ p, onChange }: { p: ProcessSettings; onChange: (p: ProcessSettings) => void }) {
+function ProcessRows({ p, onChange }: { p: ProcessSettings; onChange: (p: ProcessSettings) => void }) {
   const [phone, setPhone] = useState(p.signerPhone);
   const [copied, setCopied] = useState<"ai" | "phone" | null>(null);
   async function copyGuide(which: "ai" | "phone") {
@@ -1048,8 +1139,7 @@ function ProcessCard({ p, onChange }: { p: ProcessSettings; onChange: (p: Proces
     if (typeof r === "string") onChange({ ...p, [k]: r });
   }
   return (
-    <section className="card" aria-label="민원처리">
-      <div className="card-head">민원처리</div>
+    <>
       <Row label="지시자" desc="지시부의 지시자 칸에 들어가요. 연락처는 이름 아래 줄에 붙어요.">
         <span className="proc-signer">
           <input className="input" aria-label="지시자 이름" style={{ width: 150 }} defaultValue={p.signer} onBlur={(e) => text("signer", e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
@@ -1105,6 +1195,6 @@ function ProcessCard({ p, onChange }: { p: ProcessSettings; onChange: (p: Proces
           </button>
         </span>
       </Row>
-    </section>
+    </>
   );
 }

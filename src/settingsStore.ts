@@ -1,5 +1,6 @@
 // 암호화된 자료 파일 안에 두는 설정이에요. (민원대장 항목, 업무일지 구분 등)
 import { api } from "./api";
+import type { Modules } from "./screens";
 
 export type Kind = { name: string; key: string };
 
@@ -44,6 +45,8 @@ export type Settings = {
   process: ProcessSettings;
   /** 설정 "탐색기" 카드 (11단계, 시안 FilesSettings.dc.html) */
   files: FilesSettings;
+  /** 모듈 켜고 끄기 — false인 모듈만 꺼짐(사이드바에서 숨김, 자료는 그대로). 2026-10-18 설정 세션 */
+  modules: Modules;
 };
 
 export type FilesSettings = {
@@ -76,6 +79,7 @@ export const DEFAULT_SETTINGS: Settings = {
   keys: {},
   process: { ...DEFAULT_PROCESS },
   files: { ...DEFAULT_FILES_SETTINGS },
+  modules: {},
 };
 
 /** 지울 수 없는 상태예요. 마감 계산(남은 날 숨김)과 할 일 연동이 이것을 기준으로 해요. */
@@ -107,7 +111,7 @@ export async function loadSettings(): Promise<Settings> {
   if (!raw) return structuredClone(DEFAULT_SETTINGS);
   try {
     const saved = JSON.parse(raw) as Partial<Settings>;
-    return withMemo({ ...structuredClone(DEFAULT_SETTINGS), ...saved, process: { ...DEFAULT_PROCESS, ...(saved.process ?? {}) }, files: { ...DEFAULT_FILES_SETTINGS, ...saved.files } });
+    return withMemo({ ...structuredClone(DEFAULT_SETTINGS), ...saved, process: { ...DEFAULT_PROCESS, ...(saved.process ?? {}) }, files: { ...DEFAULT_FILES_SETTINGS, ...saved.files }, modules: { ...(saved.modules ?? {}) } });
   } catch {
     return structuredClone(DEFAULT_SETTINGS);
   }

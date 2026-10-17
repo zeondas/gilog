@@ -8623,3 +8623,108 @@ body.col-dragging * {
   outline: 1px dashed var(--line);
   outline-offset: -1px;
 }
+
+/* ---------- 설정: 공통 / 모듈별 묶음 + 모듈 켜고 끄기 (2026-10-18 설정 세션, 시안 Settings) ---------- */
+.set-sec {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 760px;
+  margin: var(--space-2) 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.set-sec span {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.set-sec::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line-soft);
+}
+
+/* 모듈 카드: 사이드바 묶음 사이 옅은 띠 */
+.mod-div {
+  height: 6px;
+  background: var(--surface-side);
+  border-bottom: 1px solid var(--line-row);
+}
+
+.mod-icon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: var(--surface-band);
+  color: var(--ink-2);
+}
+
+.mod-icon .nav-icon {
+  color: inherit;
+}
+
+.mod-icon.off {
+  background: var(--surface-side);
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.switch.locked {
+  opacity: 0.45;
+}
+
+.mod-note {
+  margin: 0;
+  padding: 8px var(--space-4);
+  color: var(--urgent);
+  font-weight: 600;
+  border-top: 1px solid var(--line-row);
+}
+
+/* 모듈별 카드 머리: 사이드바 아이콘 + 이름 */
+.mod-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mod-head .nav-icon {
+  flex: none;
+  color: var(--muted);
+}
+
+.mod-gap {
+  margin-top: var(--space-3);
+}
+
+.mod-off {
+  box-shadow: none;
+  background: var(--row-alt);
+}
+
+.mod-off .mod-head {
+  border-bottom: 0;
+  color: var(--muted);
+}
+
+.mod-tag {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  background: var(--st-hold-bg);
+  color: var(--st-hold-fg);
+  font-size: 12px;
+  font-weight: 600;
+}
