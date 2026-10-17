@@ -3,6 +3,31 @@ import { api } from "./api";
 
 export type Kind = { name: string; key: string };
 
+/** 민원처리(10단계) 설정 — 사양서 "설정 화면 민원처리 카드" */
+export type ProcessSettings = {
+  /** 지시부의 {지시자}: 이름 */
+  signer: string;
+  /** 지시자 연락처(지시자 칸에 이름 뒤 줄바꿈으로 붙어요) */
+  signerPhone: string;
+  /** 민원 폴더: 사진·지시부를 두는 곳 */
+  root: string;
+  /** AI가 결과 파일(JSON)을 놓는 곳 */
+  inbox: string;
+  /** 엣지 다운로드 폴더(첨부 사진을 받는 곳) */
+  downloads: string;
+  /** 폰으로 보낼 JPG를 두는 곳(Claude가 대화에 올려요) */
+  outbox: string;
+};
+
+export const DEFAULT_PROCESS: ProcessSettings = {
+  signer: "도로관리과 전훈민",
+  signerPhone: "",
+  root: "D:\\민원처리",
+  inbox: "D:\\민원처리\\받은편지함",
+  downloads: "D:\\",
+  outbox: "D:\\민원처리\\보낼편지함",
+};
+
 export type Settings = {
   status: string[];
   intake: string[];
@@ -13,6 +38,7 @@ export type Settings = {
   restShade: boolean;
   /** 키 설정 — 처음 키와 다른 것만 (keys.ts, 2026-10-17 엔터규칙) */
   keys: Partial<Record<string, string>>;
+  process: ProcessSettings;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -29,6 +55,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ].map(([name, key]) => ({ name, key })),
   restShade: true,
   keys: {},
+  process: { ...DEFAULT_PROCESS },
 };
 
 /** 지울 수 없는 상태예요. 마감 계산(남은 날 숨김)과 할 일 연동이 이것을 기준으로 해요. */
@@ -59,7 +86,8 @@ export async function loadSettings(): Promise<Settings> {
   const raw = await api.get(KEY);
   if (!raw) return structuredClone(DEFAULT_SETTINGS);
   try {
-    return withMemo({ ...structuredClone(DEFAULT_SETTINGS), ...(JSON.parse(raw) as Partial<Settings>) });
+    const saved = JSON.parse(raw) as Partial<Settings>;
+    return withMemo({ ...structuredClone(DEFAULT_SETTINGS), ...saved, process: { ...DEFAULT_PROCESS, ...(saved.process ?? {}) } });
   } catch {
     return structuredClone(DEFAULT_SETTINGS);
   }

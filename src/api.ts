@@ -217,6 +217,57 @@ export type NotifyStatus = { pending: number; nextAt: number; shown: number; las
 /** 알림 한 건. at은 울릴 때(밀리초)예요. */
 export type Reminder = { at: number; title: string; body: string; event: number; date: string };
 
+// ---------- 민원처리(10단계) — core/process.rs와 같은 모양 ----------
+
+export type WorkInput = {
+  name: string;
+  /** 시공사 */
+  co: string;
+  /** 현장대리인 = 업무연락처 번호 */
+  contact: number | null;
+  /** 업무연락처 프로젝트 번호(공사명과 같은 이름) */
+  project: number | null;
+  /** 처리 범위(AI의 판단 기준) */
+  scope: string;
+  nextSeq: number;
+  /** 지시부 양식(pptx·hwpx) 경로 */
+  tpl: string;
+};
+export type Work = WorkInput & { id: number };
+
+/** new 지시부 전 · made 지시부 만듦 · sent 전송 완료 */
+export type Stage = "new" | "made" | "sent";
+
+export type Case = {
+  /** 접수번호 */
+  no: string;
+  received: string;
+  due: string;
+  area: string;
+  place: string;
+  summary: string;
+  /** 보수내용 짧은 말(파일 이름) */
+  short: string;
+  reason: string;
+  work: number | null;
+  note: string;
+  /** 비우면 공사의 다음 연번 */
+  seq: string;
+  stage: Stage;
+  complaint: number | null;
+  photos: string[];
+  map: string;
+  folder: string;
+  orderFile: string;
+  orderJpg: string;
+  sentAt: string;
+};
+
+export type CasePatch = Partial<Pick<Case, "work" | "note" | "seq" | "stage" | "complaint" | "folder" | "orderFile" | "orderJpg" | "sentAt">>;
+export type ProcessData = { works: Work[]; cases: Case[] };
+export type InboxResult = { added: Case[]; skipped: number; failed: string[]; missingFiles: string[] };
+export type OrderResult = { case: Case; seq: number; workName: string; missing: string[] };
+
 export const inApp = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 const fake = {
@@ -233,6 +284,11 @@ const fake = {
   nextEntryId: 1,
   complaints: [] as Complaint[],
   nextComplaintId: 1,
+  works: [] as Work[],
+  nextWorkId: 1,
+  cases: [] as Case[],
+  /** 미리 보기의 받은편지함: 다음 "민원 불러오기"가 읽어 갈 건들 */
+  inbox: [] as Partial<Case>[],
   taskLists: [
     { id: 1, name: "민원", visible: true, builtin: true, ord: 0 },
     { id: 2, name: "행정업무", visible: true, builtin: false, ord: 1 },
@@ -738,6 +794,114 @@ function fakeContacts(cmd: string, a: Record<string, unknown>): ContactsData | n
 /** 미리 보기의 엑셀 파일 흉내 (경로 → 내용) */
 export const fakeExcel = new Map<string, unknown>();
 
+// 브라우저 미리 보기용 민원처리 흉내예요. 저장 쪽(core/process.rs)과 같은 규칙을 따라요.
+// 파일 일(양식 채우기·JPG·폴더 열기)은 하지 않고 경로만 지어 둬요.
+function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
+  const one = (s: string) => s.split(/\s+/).filter(Boolean).join(" ");
+  const stem = (c: Case) => {
+    const d = c.received.replace(/\D/g, "");
+    const clean = (t: string) => one(t.replace(/[\\/:*?"<>|_]/g, "")).slice(0, 40);
+    return [d.length === 8 ? d.slice(2) : d, clean(c.place), clean(c.short)].filter(Boolean).join("_");
+  };
+  const findCase = (no: unknown) => {
+    const c = fake.cases.find((x) => x.no === no);
+    if (!c) throw "not_found";
+    return c;
+  };
+  const cleanWork = (w: WorkInput): WorkInput => {
+    const name = one(w.name);
+    if (!name) throw "invalid";
+    return { name, co: one(w.co), contact: w.contact, project: w.project, scope: w.scope.trim(), nextSeq: Math.max(1, Math.floor(w.nextSeq) || 1), tpl: w.tpl.trim() };
+  };
+  switch (cmd) {
+    case "process_data":
+      return structuredClone({ works: fake.works, cases: fake.cases });
+    case "save_work": {
+      const w = cleanWork(a.work as WorkInput);
+      if (a.id == null) fake.works.push({ id: fake.nextWorkId++, ...w });
+      else {
+        const x = fake.works.find((y) => y.id === a.id);
+        if (!x) throw "not_found";
+        Object.assign(x, w);
+      }
+      return structuredClone(fake.works);
+    }
+    case "delete_work":
+      fake.cases.forEach((c) => c.work === a.id && c.stage === "new" && (c.work = null));
+      fake.works = fake.works.filter((w) => w.id !== a.id);
+      return structuredClone(fake.works);
+    case "update_case": {
+      const c = findCase(a.no);
+      const p = a.patch as CasePatch;
+      if (p.work !== undefined && p.work !== c.work) Object.assign(c, { work: p.work, stage: "new", seq: "" });
+      if (p.note !== undefined) c.note = one(p.note);
+      if (p.seq !== undefined) c.seq = p.seq.replace(/\D/g, "");
+      for (const k of ["stage", "complaint", "folder", "orderFile", "orderJpg", "sentAt"] as const) if (p[k] !== undefined) (c as Record<string, unknown>)[k] = p[k];
+      return structuredClone(c);
+    }
+    case "delete_case":
+      fake.cases = fake.cases.filter((c) => c.no !== a.no);
+      return null;
+    case "read_inbox": {
+      const added: Case[] = [];
+      let skipped = 0;
+      for (const i of fake.inbox) {
+        if (!i.no || fake.cases.some((c) => c.no === i.no)) {
+          skipped++;
+          continue;
+        }
+        const c: Case = {
+          no: i.no, received: i.received ?? "", due: i.due ?? "", area: one(i.area ?? ""), place: one(i.place ?? "") || "주소불명",
+          summary: (i.summary ?? "").trim(), short: one(i.short ?? ""), reason: (i.reason ?? "").trim(),
+          work: i.work != null && fake.works.some((w) => w.id === i.work) ? i.work : null,
+          note: "", seq: "", stage: "new", complaint: null, photos: [], map: "", folder: String(a.root ?? ""), orderFile: "", orderJpg: "", sentAt: "",
+        };
+        const s = stem(c);
+        c.photos = (i.photos ?? []).map((_, n) => `${c.folder}\\${s}_사진${n + 1}.jpg`);
+        c.map = i.map ? `${c.folder}\\${s}_위치도.png` : "";
+        fake.cases.push(c);
+        added.push(structuredClone(c));
+      }
+      fake.inbox = [];
+      return { added, skipped, failed: [], missingFiles: [] };
+    }
+    case "make_order": {
+      const r = a.req as unknown as { no: string; root: string };
+      const c = findCase(r.no);
+      const w = fake.works.find((x) => x.id === c.work);
+      if (!w) throw "invalid";
+      if (!w.tpl) throw "template";
+      const seq = Number(c.seq) > 0 ? Number(c.seq) : w.nextSeq;
+      w.nextSeq = Math.max(w.nextSeq, seq + 1);
+      const ext = w.tpl.toLowerCase().endsWith(".hwpx") ? "hwpx" : "pptx";
+      const folder = c.folder || r.root;
+      Object.assign(c, { seq: String(seq), stage: "made", folder, orderFile: `${folder}\\${stem(c)}.${ext}`, orderJpg: "" });
+      return { case: structuredClone(c), seq, workName: w.name, missing: [] };
+    }
+    case "order_jpg": {
+      const c = findCase(a.no);
+      if (!c.orderFile) throw "nofile";
+      c.orderJpg = c.orderFile.replace(/\.(pptx|hwpx)$/i, ".jpg");
+      return structuredClone(c);
+    }
+    case "send_order": {
+      const c = findCase(a.no);
+      if (!c.orderJpg) throw "nojpg";
+      Object.assign(c, { stage: "sent", sentAt: String(a.now) });
+      return structuredClone(c);
+    }
+    case "open_path":
+    case "show_in_folder":
+      return null;
+  }
+  return undefined;
+}
+
+/** 미리 보기 전용: 받은편지함에 보기 민원을 넣어요(앱에서는 아무것도 안 해요). */
+export function previewInbox(list: Partial<Case>[]) {
+  if (!inApp) fake.inbox.push(...structuredClone(list));
+}
+
 function fakeCall(cmd: string, args: Record<string, unknown>): unknown {
   const a = args as Record<string, string>;
   // 엑셀 파일 읽기·쓰기 흉내(미리 보기 시험용): 쓴 것은 fakeExcel에 남기고, 읽기는 그것을 돌려줘요.
@@ -752,6 +916,13 @@ function fakeCall(cmd: string, args: Record<string, unknown>): unknown {
     const d = fakeExcel.get(a.path);
     if (!d) throw "invalid";
     return d;
+  }
+  {
+    const r = fakeProcess(cmd, args);
+    if (r !== undefined) {
+      if (!fake.unlocked) throw "locked";
+      return r;
+    }
   }
   if (cmd.includes("contact") || cmd.includes("project")) {
     if (!fake.unlocked) throw "locked";
@@ -881,6 +1052,17 @@ export const api = {
   setComplaintStatus: (id: number, status: string) => call<Complaint>("set_complaint_status", { id, status }),
   setComplaintMemo: (id: number, memo: string) => call<Complaint>("set_complaint_memo", { id, memo }),
   deleteComplaint: (id: number) => call<null>("delete_complaint", { id }),
+  processData: () => call<ProcessData>("process_data"),
+  saveWork: (id: number | null, work: WorkInput) => call<Work[]>("save_work", { id, work }),
+  deleteWork: (id: number) => call<Work[]>("delete_work", { id }),
+  updateCase: (no: string, patch: CasePatch) => call<Case>("update_case", { no, patch }),
+  deleteCase: (no: string) => call<null>("delete_case", { no }),
+  readInbox: (inbox: string, downloads: string, root: string) => call<InboxResult>("read_inbox", { inbox, downloads, root }),
+  makeOrder: (req: { no: string; root: string; signer: string; date: string }) => call<OrderResult>("make_order", { req }),
+  orderJpg: (no: string) => call<Case>("order_jpg", { no }),
+  sendOrder: (no: string, outbox: string, now: string) => call<Case>("send_order", { no, outbox, now }),
+  openPath: (path: string) => call<null>("open_path", { path }),
+  showInFolder: (path: string) => call<null>("show_in_folder", { path }),
   /** 엑셀에서 읽은 줄을 그대로 넣고 넣은 수를 돌려줘요. */
   importComplaints: (rows: (ComplaintInput & { memo: string })[]) => call<number>("import_complaints", { rows }),
   importContacts: (rows: (ContactInput & { memo: string })[]) => call<number>("import_contacts", { rows }),

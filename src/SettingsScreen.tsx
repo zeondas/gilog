@@ -1,7 +1,8 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { api, DEFAULT_PREFS, errorText, inApp, Prefs, Status } from "./api";
 import { splitJamo } from "./journal";
-import { DEFAULT_SETTINGS, DONE_STATUS, Kind, loadSettings, MEMO_KIND, saveSettings, Settings, STATUS_COLORS } from "./settingsStore";
+import { DEFAULT_SETTINGS, DONE_STATUS, Kind, loadSettings, MEMO_KIND, ProcessSettings, saveSettings, Settings, STATUS_COLORS } from "./settingsStore";
+import { PhoneInput } from "./PhoneInput";
 import { SCREENS } from "./screens";
 import Logo, { AppIcon } from "./Logo";
 import { VERSION } from "./version";
@@ -135,6 +136,8 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked }: Pro
         </Row>
         <KindsGroup kinds={s.kinds} onChange={(kinds) => update({ ...s, kinds })} />
       </section>
+
+      <ProcessCard p={s.process} onChange={(process) => update({ ...s, process })} />
 
       <GoogleCard />
 
@@ -933,5 +936,59 @@ function Plus() {
     <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
       <path d="M12 5v14M5 12h14" />
     </svg>
+  );
+}
+
+// ---------- 민원처리 카드 (10단계) ----------
+
+const PROCESS_DIRS: { key: "root" | "inbox" | "downloads" | "outbox"; label: string; desc: string }[] = [
+  { key: "root", label: "민원 폴더", desc: "사진·지시부를 이 폴더에 접수일_위치_보수내용 이름으로 둬요." },
+  { key: "inbox", label: "받은편지함", desc: "AI가 민원마다 결과 파일을 놓는 곳이에요." },
+  { key: "downloads", label: "다운로드 폴더", desc: "엣지가 신문고 첨부 사진을 받는 곳이에요." },
+  { key: "outbox", label: "보낼편지함", desc: "폰으로 보낼 지시부 JPG를 두면 Claude가 대화에 올려요." },
+];
+
+function ProcessCard({ p, onChange }: { p: ProcessSettings; onChange: (p: ProcessSettings) => void }) {
+  const [phone, setPhone] = useState(p.signerPhone);
+  const text = (k: keyof ProcessSettings, v: string) => {
+    const t = v.trim();
+    if (t !== p[k]) onChange({ ...p, [k]: t });
+  };
+  async function pick(k: "root" | "inbox" | "downloads" | "outbox", title: string) {
+    if (!inApp) return;
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const r = await open({ directory: true, title, defaultPath: p[k] || undefined });
+    if (typeof r === "string") onChange({ ...p, [k]: r });
+  }
+  return (
+    <section className="card" aria-label="민원처리">
+      <div className="card-head">민원처리</div>
+      <Row label="지시자" desc="지시부의 지시자 칸에 들어가요. 연락처는 이름 아래 줄에 붙어요.">
+        <span className="proc-signer">
+          <input className="input" aria-label="지시자 이름" style={{ width: 150 }} defaultValue={p.signer} onBlur={(e) => text("signer", e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
+          <PhoneInput className="input" aria-label="지시자 연락처" style={{ width: 130 }} value={phone} onChange={setPhone} onBlur={() => text("signerPhone", phone)} />
+        </span>
+      </Row>
+      {PROCESS_DIRS.map((d, i) => (
+        <Row key={d.key} label={d.label} desc={d.desc} last={i === PROCESS_DIRS.length - 1}>
+          <span className="proc-dir">
+            <input
+              key={p[d.key]}
+              className="input"
+              aria-label={d.label}
+              data-ime="en"
+              defaultValue={p[d.key]}
+              onBlur={(e) => text(d.key, e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+            />
+            {inApp && (
+              <button type="button" className="btn btn-xs" onClick={() => pick(d.key, d.label)}>
+                고르기
+              </button>
+            )}
+          </span>
+        </Row>
+      ))}
+    </section>
   );
 }

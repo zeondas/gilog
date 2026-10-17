@@ -6642,7 +6642,7 @@ body.col-dragging * {
   pointer-events: none;
 }
 
-/* ---------- 민원처리 (10단계, 작동하는 목업 — 시안 Process.dc.html) ---------- */
+/* ---------- 민원처리 (10단계 — 시안 Process.dc.html) ---------- */
 .pr {
   display: flex;
   flex-direction: column;
@@ -6709,7 +6709,7 @@ body.col-dragging * {
 
 .pr-row {
   display: grid;
-  grid-template-columns: 150px 128px 160px minmax(0, 1fr) 172px 168px 70px 240px;
+  grid-template-columns: 150px 64px 104px 160px minmax(0, 1fr) 172px 146px 70px 240px;
   align-items: start;
   min-height: 44px;
   border-bottom: 1px solid var(--line-row);
@@ -6769,6 +6769,20 @@ body.col-dragging * {
   font-variant-numeric: tabular-nums;
   color: var(--ink-2);
   white-space: nowrap;
+}
+
+.pr-date {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--ink-2);
+}
+
+.pr-unknown {
+  color: var(--st-work-fg);
+  font-weight: 700;
 }
 
 .pr-dates {
@@ -7293,3 +7307,7 @@ body.col-dragging * {
   font-weight: 600;
   white-space: nowrap;
 }
+
+/* 설정 — 민원처리 카드 */
+.proc-signer, .proc-dir { display: inline-flex; align-items: center; gap: 6px; }
+.proc-dir .input { width: 260px; }

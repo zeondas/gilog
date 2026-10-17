@@ -17,11 +17,15 @@ mod complaints;
 mod contacts;
 pub mod excel;
 mod journal;
+mod order;
+mod process;
 mod tasks;
 pub use calendar::{CalKind, CalendarData, Event, EventInput, Holiday, BUILTIN_HOLIDAYS, KIND_COLORS, REMIND_MAX, SYSTEM_KINDS};
 pub use complaints::{Complaint, ComplaintImport, ComplaintInput, DEFAULT_STATUS};
 pub use contacts::{Contact, ContactImport, ContactInput, ContactsData, Project, PROJECT_COLORS};
 pub use journal::{DayInfo, Entry, EntryInput, JournalData, JournalLine};
+pub use order::{fill_order, image_size, OrderFill, OrderKind, OrderReport};
+pub use process::{Case, CaseInput, CasePatch, ProcessData, Work, WorkInput, UNKNOWN_PLACE};
 pub use tasks::{Task, TaskEdit, TaskInput, TaskList, TasksData, COMPLAINT_LIST};
 
 const DB_FILE: &str = "gilog.db";
@@ -209,6 +213,7 @@ impl Store {
         self.conn.execute_batch(calendar::SCHEMA)?;
         calendar::upgrade(&self.conn)?;
         calendar::seed(&self.conn)?;
+        self.conn.execute_batch(process::SCHEMA)?;
         Ok(())
     }
 

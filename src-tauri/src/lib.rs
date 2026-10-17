@@ -1,6 +1,7 @@
 mod calendar;
 mod ime;
 mod google;
+mod process;
 mod window;
 
 use std::fs;
@@ -586,6 +587,17 @@ pub fn run() {
             google::google_wait,
             google::open_google_login,
             google::google_http,
+            process::process_data,
+            process::save_work,
+            process::delete_work,
+            process::update_case,
+            process::delete_case,
+            process::read_inbox,
+            process::make_order,
+            process::order_jpg,
+            process::send_order,
+            process::open_path,
+            process::show_in_folder,
             set_ime,
             window::window_ready
         ])
