@@ -596,6 +596,7 @@ pub fn run() {
             process::make_order,
             process::order_jpg,
             process::send_order,
+            process::check_sent,
             process::open_path,
             process::show_in_folder,
             set_ime,

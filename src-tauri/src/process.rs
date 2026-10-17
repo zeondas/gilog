@@ -5,7 +5,9 @@
 //!   `접수일_위치_보수내용_사진1.jpg`처럼 이름을 붙여 옮겨요(시안 Process·Files 판 — 파일함이 이 이름으로 찾아요).
 //!   읽은 JSON은 받은편지함의 "읽음" 폴더로 옮겨요(이미 있는 접수번호도). 못 읽은 파일은 그대로 두고 이름을 알려 줘요.
 //! - 지시부: 양식을 채워 민원 폴더에 쓰고(`make_order`), JPG는 파워포인트·한글로 따로 만들어요(`order_jpg`, 몇 초 걸려 따로 돌려요).
-//! - 폰으로 보내기: JPG를 보낼편지함 폴더에 복사해요. 그 폴더를 Claude가 대화에 올려요.
+//! - 폰으로 보내기(사용자 2안): JPG를 보낼편지함 폴더에 복사하고 "보내는 중"(queued)으로 둬요.
+//!   Claude가 대화에 올린 뒤 그 파일을 보낼편지함의 "보냄" 폴더로 옮기면 `check_sent`가 보고 전송 완료(sent)로 바꿔요.
+//!   보낼편지함에도 "보냄"에도 없으면(누가 지웠으면) 다시 보낼 수 있게 지시부 만듦(made)으로 돌려요.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -373,9 +375,9 @@ pub async fn order_jpg(state: State<'_, AppState>, no: String) -> Result<Case, S
     }
 }
 
-/// 폰으로 보내기: JPG를 보낼편지함에 복사하고 전송 완료로 적어요.
+/// 폰으로 보내기: JPG를 보낼편지함에 복사하고 "보내는 중"으로 적어요.
 #[tauri::command]
-pub fn send_order(state: State<AppState>, no: String, outbox: String, now: String) -> Result<Case, String> {
+pub fn send_order(state: State<AppState>, no: String, outbox: String) -> Result<Case, String> {
     let c = with_store(&state, |s| s.case(&no))?;
     let jpg = PathBuf::from(&c.order_jpg);
     if c.order_jpg.is_empty() || !jpg.is_file() {
@@ -384,9 +386,36 @@ pub fn send_order(state: State<AppState>, no: String, outbox: String, now: Strin
     let outbox = PathBuf::from(outbox.trim());
     fs::create_dir_all(&outbox).map_err(io)?;
     let name = jpg.file_name().and_then(|n| n.to_str()).unwrap_or("지시부.jpg").to_string();
-    fs::copy(&jpg, free_path(&outbox, &name)).map_err(io)?;
-    with_store(&state, |s| s.update_case(&no, &CasePatch { stage: Some("sent".into()), sent_at: Some(now), ..Default::default() }))
+    let to = free_path(&outbox, &name);
+    fs::copy(&jpg, &to).map_err(io)?;
+    with_store(&state, |s| {
+        s.update_case(&no, &CasePatch { stage: Some("queued".into()), outbox_file: Some(to.display().to_string()), ..Default::default() })
+    })
 }
+
+/// 보내는 중인 건을 살펴요: "보냄" 폴더에 있으면 전송 완료, 어디에도 없으면 다시 보낼 수 있게 되돌려요. 바뀐 건만 돌려줘요.
+#[tauri::command]
+pub fn check_sent(state: State<AppState>, now: String) -> Result<Vec<Case>, String> {
+    let list = with_store(&state, |s| s.process_data())?.cases;
+    let mut changed = Vec::new();
+    for c in list.into_iter().filter(|c| c.stage == "queued") {
+        let f = PathBuf::from(&c.outbox_file);
+        if f.is_file() {
+            continue;
+        }
+        let done = f.parent().zip(f.file_name()).map(|(d, n)| d.join(SENT_DIR).join(n)).is_some_and(|p| p.is_file());
+        let patch = if done {
+            CasePatch { stage: Some("sent".into()), sent_at: Some(now.clone()), ..Default::default() }
+        } else {
+            CasePatch { stage: Some("made".into()), outbox_file: Some(String::new()), ..Default::default() }
+        };
+        changed.push(with_store(&state, |s| s.update_case(&c.no, &patch))?);
+    }
+    Ok(changed)
+}
+
+/// Claude가 대화에 올린 파일을 옮겨 두는 보낼편지함 안 폴더
+pub const SENT_DIR: &str = "보냄";
 
 /// 지시부 파일이나 민원 폴더를 윈도우 기본 프로그램(파워포인트·한글·탐색기)으로 열어요.
 #[tauri::command]

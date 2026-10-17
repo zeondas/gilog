@@ -6922,6 +6922,11 @@ body.col-dragging * {
   opacity: 0.6;
 }
 
+.pr-sent.pr-queued {
+  background: var(--accent-wash);
+  color: var(--accent);
+}
+
 .pr-sent {
   width: 104px;
   height: 26px;

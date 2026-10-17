@@ -235,8 +235,8 @@ export type WorkInput = {
 };
 export type Work = WorkInput & { id: number };
 
-/** new 지시부 전 · made 지시부 만듦 · sent 전송 완료 */
-export type Stage = "new" | "made" | "sent";
+/** new 지시부 전 · made 지시부 만듦 · queued 보낼편지함에 넣음(Claude가 올리기 전) · sent 전송 완료 */
+export type Stage = "new" | "made" | "queued" | "sent";
 
 export type Case = {
   /** 접수번호 */
@@ -260,10 +260,12 @@ export type Case = {
   folder: string;
   orderFile: string;
   orderJpg: string;
+  /** 보낼편지함에 넣은 JPG */
+  outboxFile: string;
   sentAt: string;
 };
 
-export type CasePatch = Partial<Pick<Case, "work" | "note" | "seq" | "stage" | "complaint" | "folder" | "orderFile" | "orderJpg" | "sentAt">>;
+export type CasePatch = Partial<Pick<Case, "work" | "note" | "seq" | "stage" | "complaint" | "folder" | "orderFile" | "orderJpg" | "outboxFile" | "sentAt">>;
 export type ProcessData = { works: Work[]; cases: Case[] };
 export type InboxResult = { added: Case[]; skipped: number; failed: string[]; missingFiles: string[] };
 export type OrderResult = { case: Case; seq: number; workName: string; missing: string[] };
@@ -836,7 +838,7 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
       if (p.work !== undefined && p.work !== c.work) Object.assign(c, { work: p.work, stage: "new", seq: "" });
       if (p.note !== undefined) c.note = one(p.note);
       if (p.seq !== undefined) c.seq = p.seq.replace(/\D/g, "");
-      for (const k of ["stage", "complaint", "folder", "orderFile", "orderJpg", "sentAt"] as const) if (p[k] !== undefined) (c as Record<string, unknown>)[k] = p[k];
+      for (const k of ["stage", "complaint", "folder", "orderFile", "orderJpg", "outboxFile", "sentAt"] as const) if (p[k] !== undefined) (c as Record<string, unknown>)[k] = p[k];
       return structuredClone(c);
     }
     case "delete_case":
@@ -854,7 +856,7 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
           no: i.no, received: i.received ?? "", due: i.due ?? "", area: one(i.area ?? ""), place: one(i.place ?? "") || "주소불명",
           summary: (i.summary ?? "").trim(), short: one(i.short ?? ""), reason: (i.reason ?? "").trim(),
           work: i.work != null && fake.works.some((w) => w.id === i.work) ? i.work : null,
-          note: "", seq: "", stage: "new", complaint: null, photos: [], map: "", folder: String(a.root ?? ""), orderFile: "", orderJpg: "", sentAt: "",
+          note: "", seq: "", stage: "new", complaint: null, photos: [], map: "", folder: String(a.root ?? ""), orderFile: "", orderJpg: "", outboxFile: "", sentAt: "",
         };
         const s = stem(c);
         c.photos = (i.photos ?? []).map((_, n) => `${c.folder}\\${s}_사진${n + 1}.jpg`);
@@ -887,9 +889,12 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
     case "send_order": {
       const c = findCase(a.no);
       if (!c.orderJpg) throw "nojpg";
-      Object.assign(c, { stage: "sent", sentAt: String(a.now) });
+      Object.assign(c, { stage: "queued", outboxFile: `${a.outbox}\\${c.orderJpg.split("\\").pop()}` });
       return structuredClone(c);
     }
+    case "check_sent":
+      // 미리 보기에는 Claude가 없어요 — 보내는 중으로 남아요.
+      return [];
     case "open_path":
     case "show_in_folder":
       return null;
@@ -1060,7 +1065,8 @@ export const api = {
   readInbox: (inbox: string, downloads: string, root: string) => call<InboxResult>("read_inbox", { inbox, downloads, root }),
   makeOrder: (req: { no: string; root: string; signer: string; date: string }) => call<OrderResult>("make_order", { req }),
   orderJpg: (no: string) => call<Case>("order_jpg", { no }),
-  sendOrder: (no: string, outbox: string, now: string) => call<Case>("send_order", { no, outbox, now }),
+  sendOrder: (no: string, outbox: string) => call<Case>("send_order", { no, outbox }),
+  checkSent: (now: string) => call<Case[]>("check_sent", { now }),
   openPath: (path: string) => call<null>("open_path", { path }),
   showInFolder: (path: string) => call<null>("show_in_folder", { path }),
   /** 엑셀에서 읽은 줄을 그대로 넣고 넣은 수를 돌려줘요. */

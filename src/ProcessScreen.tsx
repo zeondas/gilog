@@ -4,7 +4,7 @@
 // - [민원 불러오기]는 받은편지함 폴더의 결과 파일(JSON)을 읽어요(AI가 놓아요). 사진은 민원 폴더로 옮겨요.
 // - [지시부 만들기] = 양식 채우기(민원 폴더에 접수일_위치_보수내용.pptx/hwpx) + 민원대장 등록(조치내용 "□ 공사명 지시(연번)")
 //   + JPG(파워포인트·한글). 민원대장에서 완료하면 이 표에서 숨어요.
-// - [폰으로 보내기] = JPG를 보낼편지함에 복사(Claude가 대화에 올려요) → ✓ 전송 완료.
+// - [폰으로 보내기] = JPG를 보낼편지함에 복사 → "보내는 중". Claude가 대화에 올리고 "보냄" 폴더로 옮기면 ✓ 전송 완료(사용자 2안).
 // - 대상이 아닌 건은 줄 끝 ×(작은 묻기 창). 지운 건은 다음 불러오기 때 다시 와요.
 // - 공사 관리 창: 현장대리인은 업무연락처에서 골라요(같은 연락처 하나 — 쌍방향), 공사명은 업무연락처 프로젝트로도 등록돼요.
 import { CSSProperties, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -196,8 +196,8 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     const ready = c.orderJpg ? c : await makeJpg(c.no);
     if (!ready?.orderJpg) return;
     try {
-      putCase(await api.sendOrder(c.no, ps.outbox, `${today} ${stamp().slice(6)}`));
-      setNote("보낼편지함에 넣었어요. Claude가 대화에 올리면 폰에서 카톡으로 공유해요");
+      putCase(await api.sendOrder(c.no, ps.outbox));
+      setNote("보낼편지함에 넣었어요. Claude가 대화에 올리면 전송 완료로 바뀌어요");
     } catch (e) {
       setNote(errText(e));
     }
@@ -234,6 +234,20 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     setWorks(await api.deleteWork(id));
     setCases((await api.processData()).cases);
   }, []);
+
+  // 보내는 중인 건: Claude가 올렸는지 화면을 연 동안 15초마다 봐요.
+  const queued = cases.some((c) => c.stage === "queued");
+  useEffect(() => {
+    if (!queued) return;
+    const look = () =>
+      api.checkSent(`${todayStr()} ${stamp().slice(6)}`).then(
+        (l) => l.length && setCases((all) => all.map((x) => l.find((y) => y.no === x.no) ?? x)),
+        () => {},
+      );
+    look();
+    const t = window.setInterval(look, 15000);
+    return () => window.clearInterval(t);
+  }, [queued]);
 
   // 바깥 누르기·Esc로 뜨는 것 닫기
   useEffect(() => {
@@ -383,6 +397,10 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                     <button type="button" className="pr-next go" disabled={isD} title="JPG를 보낼편지함에 넣어요. Claude가 대화에 올리면 폰에서 카톡으로 공유해요" onClick={() => send(c)}>
                       폰으로 보내기
                     </button>
+                  ) : c.stage === "queued" ? (
+                    <span className="pr-sent pr-queued" title="보낼편지함에 있어요. Claude가 대화에 올리면 전송 완료로 바뀌어요">
+                      보내는 중
+                    </span>
                   ) : (
                     <span className="pr-sent" title={isD ? "민원대장에서 완료됐어요" : "시공이 끝나면 민원대장에서 완료로 바꿔요. 그러면 이 표에서 숨어요"}>
                       <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">

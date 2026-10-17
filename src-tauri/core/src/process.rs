@@ -4,7 +4,7 @@
 //!   이름·번호는 늘 업무연락처에서 읽어요(쌍방향 — 같은 사실은 한 곳에만).
 //! - 민원 건은 접수번호로 하나예요. 불러오기에서 이미 있는 접수번호는 건너뛰어요.
 //!   ×로 지우면 줄이 없어지니 다음 불러오기 때 다시 와요(사용자 2안).
-//! - 진행(`stage`): new 지시부 전 · made 지시부 만듦 · sent 전송 완료. 완료 여부는 민원대장 상태를 읽어요.
+//! - 진행(`stage`): new 지시부 전 · made 지시부 만듦 · queued 보낼편지함에 넣음(Claude가 올리기 전) · sent 전송 완료. 완료 여부는 민원대장 상태를 읽어요.
 //! - 사진·지시부 파일은 자료 파일에 넣지 않고 경로만 둬요.
 
 use rusqlite::{params, OptionalExtension, Row};
@@ -83,6 +83,8 @@ pub struct Case {
     /// 만든 지시부 파일(pptx·hwpx)과 JPG
     pub order_file: String,
     pub order_jpg: String,
+    /// 보낼편지함에 넣은 JPG(Claude가 대화에 올리고 "보냄" 폴더로 옮기면 전송 완료)
+    pub outbox_file: String,
     pub sent_at: String,
 }
 
@@ -98,6 +100,7 @@ pub struct CasePatch {
     pub folder: Option<String>,
     pub order_file: Option<String>,
     pub order_jpg: Option<String>,
+    pub outbox_file: Option<String>,
     pub sent_at: Option<String>,
 }
 
@@ -138,6 +141,7 @@ pub(crate) const SCHEMA: &str = "
         folder     TEXT NOT NULL DEFAULT '',
         order_file TEXT NOT NULL DEFAULT '',
         order_jpg  TEXT NOT NULL DEFAULT '',
+        outbox_file TEXT NOT NULL DEFAULT '',
         sent_at    TEXT NOT NULL DEFAULT '',
         added      INTEGER NOT NULL DEFAULT 0
     );
@@ -147,7 +151,7 @@ pub(crate) const SCHEMA: &str = "
 pub const UNKNOWN_PLACE: &str = "주소불명";
 
 const WORK_COLS: &str = "id, name, co, contact, project, scope, next_seq, tpl";
-const CASE_COLS: &str = "no, received, due, area, place, summary, short, reason, work, note, seq, stage, complaint, photos, map, folder, order_file, order_jpg, sent_at";
+const CASE_COLS: &str = "no, received, due, area, place, summary, short, reason, work, note, seq, stage, complaint, photos, map, folder, order_file, order_jpg, outbox_file, sent_at";
 
 fn bad(msg: &str) -> Error {
     Error::Invalid(msg.into())
@@ -191,7 +195,8 @@ fn case_row(r: &Row) -> rusqlite::Result<Case> {
         folder: r.get(15)?,
         order_file: r.get(16)?,
         order_jpg: r.get(17)?,
-        sent_at: r.get(18)?,
+        outbox_file: r.get(18)?,
+        sent_at: r.get(19)?,
     })
 }
 
@@ -367,7 +372,7 @@ impl Store {
             c.seq = v.chars().filter(|ch| ch.is_ascii_digit()).collect();
         }
         if let Some(v) = &p.stage {
-            if !["new", "made", "sent"].contains(&v.as_str()) {
+            if !["new", "made", "queued", "sent"].contains(&v.as_str()) {
                 return Err(bad("진행 단계가 맞지 않아요"));
             }
             c.stage = v.clone();
@@ -384,12 +389,15 @@ impl Store {
         if let Some(v) = &p.order_jpg {
             c.order_jpg = v.clone();
         }
+        if let Some(v) = &p.outbox_file {
+            c.outbox_file = v.clone();
+        }
         if let Some(v) = &p.sent_at {
             c.sent_at = v.clone();
         }
         self.conn.execute(
-            "UPDATE cases SET work = ?2, note = ?3, seq = ?4, stage = ?5, complaint = ?6, folder = ?7, order_file = ?8, order_jpg = ?9, sent_at = ?10 WHERE no = ?1",
-            params![no, c.work, c.note, c.seq, c.stage, c.complaint, c.folder, c.order_file, c.order_jpg, c.sent_at],
+            "UPDATE cases SET work = ?2, note = ?3, seq = ?4, stage = ?5, complaint = ?6, folder = ?7, order_file = ?8, order_jpg = ?9, outbox_file = ?10, sent_at = ?11 WHERE no = ?1",
+            params![no, c.work, c.note, c.seq, c.stage, c.complaint, c.folder, c.order_file, c.order_jpg, c.outbox_file, c.sent_at],
         )?;
         self.case(no)
     }
@@ -454,5 +462,7 @@ mod tests {
         assert!(s.update_case("1AA-1", &CasePatch { stage: Some("done".into()), ..Default::default() }).is_err());
         s.delete_work(w2[1].id).unwrap();
         assert_eq!(s.case("1AA-1").unwrap().work, None);
+        let c = s.update_case("1AA-1", &CasePatch { stage: Some("queued".into()), outbox_file: Some("D:/보낼편지함/a.jpg".into()), ..Default::default() }).unwrap();
+        assert_eq!((c.stage.as_str(), c.outbox_file.as_str()), ("queued", "D:/보낼편지함/a.jpg"));
     }
 }
