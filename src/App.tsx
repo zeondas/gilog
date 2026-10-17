@@ -125,6 +125,22 @@ export default function App() {
     };
   }, [unlocked, prefs.autoLock, prefs.autoLockMin, lockNow]);
 
+  // 첫 화면(잠금 화면이든 앱 화면이든, 오류 글이든)이 그려지면 창을 보여요. 그 전엔 창이 숨어 있어 흰 바탕이 보이지 않아요.
+  const firstScreen = !!fatal || (status !== null && current !== null);
+  useEffect(() => {
+    if (!firstScreen) return;
+    // 그림 두 번을 기다려요. 숨긴 창은 그림을 미룰 수 있어 0.1초가 먼저면 그때 알려요(한 번만 불려도 돼요).
+    let done = false;
+    const ready = () => {
+      if (done) return;
+      done = true;
+      void api.windowReady();
+    };
+    requestAnimationFrame(() => requestAnimationFrame(ready));
+    const t = window.setTimeout(ready, 100);
+    return () => window.clearTimeout(t);
+  }, [firstScreen]);
+
   if (fatal) return <div className="gate"><p className="gate-error">{fatal}</p></div>;
   if (!status || current === null) return <div className="gate" />;
   if (!status.unlocked) {

@@ -173,6 +173,8 @@ fn due(rem: &Reminders, now: i64) -> Vec<Reminder> {
 }
 
 pub fn show_main(app: &AppHandle) {
+    // 켜는 중(화면 그리기 전)에 꺼내도 그대로 보여요. 그 뒤 "준비" 신호는 아무 일도 하지 않아요.
+    crate::window::mark_shown();
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
         let _ = w.unminimize();

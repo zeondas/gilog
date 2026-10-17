@@ -1,6 +1,7 @@
 mod calendar;
 mod ime;
 mod google;
+mod window;
 
 use std::fs;
 use std::path::PathBuf;
@@ -92,6 +93,11 @@ fn get_prefs(app: AppHandle) -> Result<Prefs, String> {
     read_prefs(&app)
 }
 
+/// 테마 설정(system / light / dark). 창 바탕색을 맞출 때 써요.
+pub(crate) fn theme_pref(app: &AppHandle) -> String {
+    read_prefs(app).map(|p| p.theme).unwrap_or_else(|_| "system".into())
+}
+
 #[tauri::command]
 fn set_prefs(app: AppHandle, state: State<AppState>, prefs: Prefs) -> Result<(), String> {
     let old = read_prefs(&app)?;
@@ -108,7 +114,9 @@ fn set_prefs(app: AppHandle, state: State<AppState>, prefs: Prefs) -> Result<(),
             keyring_save(&store.key_hex())?;
         }
     }
-    write_prefs(&app, &prefs)
+    write_prefs(&app, &prefs)?;
+    window::apply_theme(&app, &prefs.theme);
+    Ok(())
 }
 
 // ---------- 윈도우 자격 증명 관리자 ----------
@@ -473,10 +481,16 @@ pub fn run() {
         .manage(AppState { store: Mutex::new(None) })
         .manage(calendar::Reminders::default())
         .setup(|app| {
+            // 창은 숨긴 채 만들고, 화면이 처음 그려지면(window_ready) 보여요.
+            let theme = theme_pref(app.handle());
+            window::create(app, &theme)?;
             calendar::setup_tray(app)?;
             Ok(())
         })
-        .on_window_event(calendar::on_window_event)
+        .on_window_event(|w, e| {
+            window::on_window_event(w, e);
+            calendar::on_window_event(w, e);
+        })
         .invoke_handler(tauri::generate_handler![
             get_prefs,
             set_prefs,
@@ -541,7 +555,8 @@ pub fn run() {
             google::google_wait,
             google::open_google_login,
             google::google_http,
-            set_ime
+            set_ime,
+            window::window_ready
         ])
         .run(tauri::generate_context!())
         .expect("기Log를 시작하지 못했어요");

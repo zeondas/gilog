@@ -874,6 +874,8 @@ export const api = {
   setNotifyMode: (powershell: boolean) => call<null>("set_notify_mode", { powershell }),
 
   /** 윈도우 입력기를 한글(true) 또는 영문(false) 상태로 바꿔요. 앱 밖에서는 아무 일도 안 해요. */
+  /** 첫 화면을 그렸다고 알려요. 숨긴 채 만든 창이 이때 보여요(브라우저에서는 아무 일 없음). */
+  windowReady: () => (inApp ? invoke<null>("window_ready").catch(() => null) : Promise.resolve(null)),
   setIme: (korean: boolean) => (inApp ? invoke<null>("set_ime", { korean }) : Promise.resolve(null)),
 };
 

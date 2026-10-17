@@ -16,11 +16,12 @@
         "title": "기록",
         "generalAutofillEnabled": false,
         "width": 1600,
-        "height": 960,
+        "height": 900,
         "center": true,
         "minWidth": 1024,
         "minHeight": 700,
-        "maximized": true
+        "visible": false,
+        "create": false
       }
     ],
     "security": {
