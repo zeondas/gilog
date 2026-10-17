@@ -234,9 +234,6 @@ export default function ContactsScreen() {
       ) : shown.length === 0 ? (
         <p className="muted small">맞는 연락처가 없어요.</p>
       ) : null}
-      <div className="muted small">
-        표시 {shown.length}명 / 전체 {all.length}명
-      </div>
 
       {projOpen && <ProjectDialog data={data} run={run} onClose={() => setProjOpen(false)} />}
     </>
@@ -906,7 +903,7 @@ export function MemoEditor({
         ))}
       </div>
       <div className="memo-foot">
-        <span className="hint">Enter 저장 · Ctrl+Enter 새 줄 · 줄 맨 앞 ] ) - 와 스페이스로 머릿기호</span>
+        <span className="hint">Enter 저장 · Ctrl+Enter 새 줄</span>
         <button type="button" className="btn btn-xs" onClick={onCancel}>
           취소
         </button>
