@@ -41,6 +41,9 @@
   /* 할 일 마감 배지(임박) 바탕. 글자는 urgent. */
   --urgent-bg: #FBE9E7;
   --saturday: #2F55C8;
+  /* 캘린더 쉬는 날(토·일·공휴일) 칸 바탕과 주 보기 머리 줄 (설정에서 끄고 켜요) */
+  --rest-wash: #FDF0EE;
+  --rest-band: #F9E1DD;
   /* 삭제를 한 번 더 묻는 띠의 바탕. 글자는 danger. */
   --danger-wash: #FBE4EC;
   /* 검색에 맞은 글자 형광 표시 */
@@ -148,6 +151,8 @@
     --search-bg: #2A2615;
     --search-line: #5A4E22;
     --saturday: #8AB4F8;
+    --rest-wash: #261A1C;
+    --rest-band: #33201F;
     --row-alt: #1B1A21;
     --flash: #3A3416;
     color-scheme: dark;
@@ -183,6 +188,8 @@
   --urgent: #F28B82;
   --urgent-bg: #3D2220;
   --saturday: #8AB4F8;
+  --rest-wash: #261A1C;
+  --rest-band: #33201F;
   --danger-wash: #3A1D24;
   --mark: #6B5A12;
   --search-bg: #2A2615;

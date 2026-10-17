@@ -219,6 +219,12 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked }: Pro
             <option value={15}>아주 크게 (15)</option>
           </select>
         </Row>
+        <Toggle
+          label="캘린더 쉬는 날 음영"
+          desc="토·일요일과 공휴일 칸을 연한 빨강으로 칠해요."
+          on={s.restShade}
+          onChange={(restShade) => update({ ...s, restShade })}
+        />
         <Row label="민원 마감 임박 표시" desc="마감이 이 날짜 안으로 들어오면 빨갛게 보여요." last>
           <select
             id="urgent-days"

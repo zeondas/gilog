@@ -134,10 +134,12 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
   const [notifyOpen, setNotifyOpen] = useState(false);
   const wheel = useRef({ acc: 0, at: 0 });
   const [statuses, setStatuses] = useState<string[]>(DEFAULT_SETTINGS.status);
+  /** 쉬는 날(토·일·공휴일) 붉은 음영 — 설정 화면에서 켜고 꺼요(처음 값 켜짐). */
+  const [restShade, setRestShade] = useState(DEFAULT_SETTINGS.restShade);
   /** 이번에 체크한 민원의 그 전 상태 */
   const prevStatus = useRef(new Map<number, string>());
   useEffect(() => {
-    loadSettings().then((x) => setStatuses(x.status), () => {});
+    loadSettings().then((x) => (setStatuses(x.status), setRestShade(x.restShade)), () => {});
   }, []);
 
   useEffect(() => {
@@ -268,15 +270,33 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
       .sort((a, b) => (a.day !== b.day ? (a.day < b.day ? -1 : 1) : (a.allDay ? "" : a.time) < (b.allDay ? "" : b.time) ? -1 : 1));
   }, [src, today, hidden]);
 
-  // 칸 높이와 그 안에 놓을 수 있는 줄 수 (창 높이를 주 수로 나눠요)
+  // 달력은 화면 아래 여백까지 내려가요(2026-10-17 사용자). 달력 위치에서 화면(.main) 아래 여백까지를 재서
+  // 그 높이를 달력에 주고, 월 보기는 주 수로 나눠요. 왼쪽 구글 상자는 이 아래 끝에 맞춰져요(0.9.2).
   const [vh, setVh] = useState(window.innerHeight);
   useEffect(() => {
     const on = () => setVh(window.innerHeight);
     window.addEventListener("resize", on);
     return () => window.removeEventListener("resize", on);
   }, []);
-  const cellH = Math.max(110, Math.floor((vh - 218) / weeks));
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState({ h: vh - 218, dow: 33 });
+  useLayoutEffect(() => {
+    const el = gridRef.current;
+    const main = el?.closest<HTMLElement>(".main");
+    if (!el || !main) return;
+    const m = main.getBoundingClientRect();
+    const pb = parseFloat(getComputedStyle(main).paddingBottom) || 0;
+    const top = el.getBoundingClientRect().top - m.top + main.scrollTop;
+    const h = Math.floor(main.clientHeight - pb - top);
+    const dow = el.querySelector<HTMLElement>(".cal-dow")?.offsetHeight ?? fit.dow;
+    if (h !== fit.h || dow !== fit.dow) setFit({ h, dow });
+  });
+  /** 달력 테두리 위아래 2px */
+  const inner = fit.h - 2;
+  const cellH = Math.max(110, Math.floor((inner - fit.dow) / weeks));
   const lanes = Math.max(2, Math.floor((cellH - 34) / 24));
+  /** 창이 너무 낮으면 높이를 정하지 않고 화면이 스크롤돼요. */
+  const gridH = view === "week" ? (inner >= 300 ? fit.h : undefined) : cellH * weeks + fit.dow <= inner ? fit.h : undefined;
 
   if (!data) {
     return (
@@ -348,6 +368,8 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
   if (!hidden.has(data.kinds.find((k) => k.system === "holiday")?.id ?? -1)) {
     for (const o of occs) if (o.kind.system === "holiday") holidaysOf.set(o.start, [...(holidaysOf.get(o.start) ?? []), o.title]);
   }
+  /** 쉬는 날 음영은 공휴일 종류를 숨겨도 칠해요(공휴일 목록 그대로). */
+  const restDays = new Set(data.holidays.map((h) => h.date));
   const holidayLine = data.holidaysAt ? `${data.holidaysAt.slice(5, 10).replace("-", "/")} 받음` : "앱에 넣은 목록";
 
   return (
@@ -448,7 +470,14 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
           onDetail={(d) => setEd(d)}
         />
 
-        <div className="cal-grid" role="grid" aria-label={title + " 달력"} onWheel={onWheel}>
+        <div
+          ref={gridRef}
+          className={"cal-grid" + (restShade ? " shade" : "")}
+          role="grid"
+          aria-label={title + " 달력"}
+          style={{ height: gridH }}
+          onWheel={onWheel}
+        >
           {view === "week" ? (
             <WeekView
               start={wkStart}
@@ -458,7 +487,7 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
               pickKey={pick}
               q={lq}
               holidaysOf={holidaysOf}
-              height={vh - 218}
+              restDays={restDays}
               onSel={(d) => (setSel(d), setPick(null))}
               onNew={newAt}
               actsOf={actsOf}
@@ -482,7 +511,7 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
                   const inMonth = Number(d.slice(5, 7)) - 1 === ym[1];
                   const hol = holidaysOf.get(d);
                   const dow = weekday(d);
-                  const cls = ["cal-day", inMonth ? "" : "out", d === sel ? "sel" : "", d === today ? "today" : "", dow === 0 || hol ? "red" : dow === 6 ? "blue" : ""]
+                  const cls = ["cal-day", inMonth ? "" : "out", d === sel ? "sel" : "", d === today ? "today" : "", dow === 0 || hol ? "red" : dow === 6 ? "blue" : "", dow === 0 || dow === 6 || restDays.has(d) ? "rest" : ""]
                     .filter(Boolean)
                     .join(" ");
                   return (
@@ -752,7 +781,7 @@ function WeekView({
   pickKey,
   q,
   holidaysOf,
-  height,
+  restDays,
   onSel,
   onNew,
   actsOf,
@@ -764,7 +793,7 @@ function WeekView({
   pickKey: string | null;
   q: string;
   holidaysOf: Map<string, string[]>;
-  height: number;
+  restDays: Set<string>;
   onSel: (d: string) => void;
   onNew: (d: string, time: string) => void;
   actsOf: (o: Occ) => ChipActs;
@@ -773,8 +802,6 @@ function WeekView({
   const top = occs.filter((o) => o.allDay || o.start !== o.end);
   const { placed } = layoutWeek(top, start, 99);
   const lanes = placed.reduce((n, p) => Math.max(n, p.lane + 1), 0);
-  /** 시간 칸 높이: 받은 높이에서 머리 줄과 종일 줄을 뺀 만큼 */
-  const bodyH = Math.max(260, height - 40 - Math.max(1, lanes) * 26 - 8);
   const scroller = useRef<HTMLDivElement>(null);
   /** 시간 칸 오른쪽 스크롤 막대 폭. 위 두 줄도 이만큼 비워 세로선을 맞춰요(0.8.2). */
   const [bar, setBar] = useState(0);
@@ -799,9 +826,12 @@ function WeekView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [start]);
   const nowTop = (now.getHours() * 60 + now.getMinutes()) * (HOUR / 60);
+  const todayAt = days.indexOf(today);
+  /** 쉬는 날(토·일·공휴일)이면 " rest" — 음영은 달력의 .shade가 켜졌을 때만 칠해요. */
+  const rest = (d: string) => (weekday(d) === 0 || weekday(d) === 6 || restDays.has(d) ? " rest" : "");
   const dayCls = (d: string) => {
     const dow = weekday(d);
-    return ["cal-wday", d === today ? "today" : "", d === sel ? "sel" : "", dow === 0 || holidaysOf.has(d) ? "red" : dow === 6 ? "blue" : ""].filter(Boolean).join(" ");
+    return ["cal-wday", d === today ? "today" : "", d === sel ? "sel" : "", dow === 0 || holidaysOf.has(d) ? "red" : dow === 6 ? "blue" : ""].filter(Boolean).join(" ") + rest(d);
   };
   return (
     <div className="cal-wk">
@@ -822,7 +852,7 @@ function WeekView({
         {days.map((d, i) => (
           <div
             key={d}
-            className={"cal-wk-allcell" + (d === today ? " today" : "")}
+            className={"cal-wk-allcell" + (d === today ? " today" : "") + rest(d)}
             style={{ gridColumn: i + 2, gridRow: `1 / span ${Math.max(1, lanes)}` }}
             onClick={() => onSel(d)}
             onDoubleClick={() => onNew(d, "")}
@@ -839,7 +869,7 @@ function WeekView({
           />
         ))}
       </div>
-      <div className="cal-wk-scroll" ref={scroller} style={{ height: bodyH }}>
+      <div className="cal-wk-scroll" ref={scroller}>
         <div className="cal-wk-body" style={{ height: 24 * HOUR }}>
           <div className="cal-wk-hours">
             {Array.from({ length: 24 }, (_, h) => (
@@ -851,7 +881,7 @@ function WeekView({
           {days.map((d) => (
             <div
               key={d}
-              className={"cal-wk-col" + (d === today ? " today" : "")}
+              className={"cal-wk-col" + (d === today ? " today" : "") + rest(d)}
               onClick={() => onSel(d)}
               onDoubleClick={(e) => {
                 const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
@@ -883,6 +913,13 @@ function WeekView({
           ))}
         </div>
       </div>
+      {todayAt >= 0 && rest(today) && (
+        <div
+          className="cal-wk-today"
+          aria-hidden="true"
+          style={{ left: `calc(64px + (100% - 64px - ${bar}px) * ${todayAt} / 7)`, width: `calc((100% - 64px - ${bar}px) / 7 + 1px)` }}
+        />
+      )}
     </div>
   );
 }
@@ -1000,11 +1037,12 @@ function QuickRow({
           if (bad === "date") setBad("");
         }}
         onBlur={() => {
+          // 칸을 떠나면 2026-10-12 꼴로 바꿔 써요. 읽을 수 없으면 친 그대로 두고 빨간 테두리.
           const d = parseDate(date);
           if (d) {
             setDate(d);
             if (d !== sel) onSel(d);
-          }
+          } else if (date.trim()) setBad("date");
         }}
       />
       <input
@@ -1129,9 +1167,13 @@ function EventDialog({
     }
   }
 
+  /** 날짜 칸을 떠나면 2026-10-12 꼴로 바꿔 써요. 읽을 수 없으면 친 그대로 두고 빨간 테두리. */
   const dateFix = (k: "date" | "end" | "until") => {
     const d = parseDate(draft[k]);
-    if (!d) return;
+    if (!d) {
+      if (draft[k].trim()) setBad((b) => ({ ...b, [k]: true }));
+      return;
+    }
     if (k !== "date") return set(k, d);
     // 시작 날짜를 옮기면 끝 날짜도 같은 만큼 옮겨요(여러 날 일정의 길이를 지켜요).
     const prev = prevDate.current;

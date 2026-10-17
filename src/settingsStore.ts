@@ -9,6 +9,8 @@ export type Settings = {
   ctype: string[];
   myName: string;
   kinds: Kind[];
+  /** 캘린더 쉬는 날(토·일·공휴일) 붉은 음영 */
+  restShade: boolean;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -23,6 +25,7 @@ export const DEFAULT_SETTINGS: Settings = {
     ["채팅수신", "ㅊㅅ"], ["채팅발신", "ㅊㅂ"], ["구두수신", "ㄱㅅ"], ["구두발신", "ㄱㅂ"],
     ["회의", "ㅎㅇ"], ["협의", "ㅎㅂ"], ["출장", "ㅊㅈ"], ["메모", "ㅁㅁ"],
   ].map(([name, key]) => ({ name, key })),
+  restShade: true,
 };
 
 /** 지울 수 없는 상태예요. 마감 계산(남은 날 숨김)과 할 일 연동이 이것을 기준으로 해요. */

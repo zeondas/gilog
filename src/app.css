@@ -5643,3 +5643,70 @@ body.col-dragging * {
   outline: 2px solid var(--urgent);
   outline-offset: -1px;
 }
+
+/* ---------- 캘린더 아래 빈 곳 · 쉬는 날 음영 (2026-10-17 사용자) ---------- */
+/* 달력은 화면 아래 여백까지 내려가요(높이는 CalendarScreen이 재서 줘요). 주가 칸을 나눠 갖고, 남는 1~2px도 채워요. */
+.cal-grid {
+  display: flex;
+  flex-direction: column;
+}
+
+.cal-grid > .cal-week {
+  flex: 1 0 auto;
+}
+
+.cal-grid > .cal-wk {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.cal-wk-scroll {
+  flex: 1;
+  min-height: 0;
+}
+
+/* 쉬는 날(토·일·공휴일): 연한 빨강. 지난달·다음달 칸은 더 연하게. */
+.shade .cal-day.rest,
+.shade .cal-day.rest:hover {
+  background: var(--rest-wash);
+}
+
+.shade .cal-day.rest.out {
+  background: color-mix(in srgb, var(--rest-wash) 55%, var(--surface));
+}
+
+/* 오늘이 쉬는 날: 붉은 바탕은 두고 보라 테두리 2px + 보라 날짜 동그라미(2안) */
+.shade .cal-day.today.rest,
+.shade .cal-day.today.rest:hover {
+  background: var(--rest-wash);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.shade .cal-wday.rest {
+  background: var(--rest-band);
+}
+
+.shade .cal-wk-allcell.rest,
+.shade .cal-wk-col.rest {
+  background: var(--rest-wash);
+}
+
+/* 주 보기에서 오늘이 쉬는 날이면 그 날 세로 열 전체를 보라 테두리로 둘러요. */
+.shade .cal-wday.today.rest {
+  box-shadow: none;
+}
+
+.cal-wk-today {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border: 2px solid var(--accent);
+  display: none;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.shade .cal-wk-today {
+  display: block;
+}
