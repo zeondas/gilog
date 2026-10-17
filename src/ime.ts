@@ -7,6 +7,14 @@
 //    앱이 두벌식으로 직접 한글을 조립해 넣어요(hangul.ts). 입력기 상태와 상관없이 한글이 들어가요.
 //    입력기가 한글이면 키가 "조합 중"(229)으로 들어오니 앱은 끼어들지 않아요.
 //    한/영 키로 일부러 영문을 고르면 그 칸에서는 그대로 영문이에요(칸을 떠나면 다시 한글).
+//
+// 2026-10-18 사용자 신고: 한/영을 눌러도 영어가 안 써졌어요. 예전에는 한/영을 누를 때 "그 전에 본 상태"로
+// 영문을 골랐는지 짐작했는데, 앱이 한글을 조립하던 중(입력기는 영문)에 누르면 입력기만 한글로 바뀌어
+// 또 한글이 써졌고, 한/영 키가 화면에 전해지지 않으면 영문을 고른 것을 아예 몰랐어요. 그래서 이제는
+// - 한/영 키를 보면 한글 ↔ 영문을 뒤집고, 입력기도 그 쪽으로 맞춰요(누른 한 번으로 늘 바뀌어요).
+// - 이 칸에서 입력기가 한글로 쳐지는 것을 본 뒤에 영문 글자가 그대로 들어오면, 사용자가 한/영으로 영문을
+//   고른 것으로 봐요(한/영 키가 화면에 오지 않아도 영어가 써져요).
+// - 칸에 들어갈 때·앱으로 돌아올 때는 다시 한글이 기본이에요.
 import { api, inApp } from "./api";
 import { Composer, jamoOfKey } from "./hangul";
 
@@ -43,10 +51,11 @@ function endCompose() {
 
 /** 지금 칸에 맞게 입력기를 맞춰요. 칸의 data-ime가 바뀌었을 때도 불러요. */
 export function applyIme(el: Element | null = document.activeElement) {
-  if (!inApp || !isTextField(el)) return;
+  if (!isTextField(el)) return;
   englishByChoice = false;
+  seen = "?";
   endCompose();
-  api.setIme(!wantsEnglish(el)).catch(() => {});
+  if (inApp) api.setIme(!wantsEnglish(el)).catch(() => {});
 }
 
 /** 한/영 키(또는 그 자리의 오른쪽 Alt)인지 */
@@ -94,10 +103,13 @@ function onKeyDown(e: KeyboardEvent) {
     return;
   }
   if (isLangKey(e)) {
-    // 한/영을 눌렀어요. 한글이던 것을 영문으로 바꿨으면 일부러 고른 것이에요.
-    englishByChoice = seen === "ko" ? true : seen === "en" ? false : !englishByChoice;
-    seen = seen === "ko" ? "en" : seen === "en" ? "ko" : "?";
+    // 한/영을 눌렀어요. 사용자가 보던 쪽(한글/영문)을 뒤집고, 입력기가 그 키를 처리한 뒤 그 쪽으로 맞춰요.
+    // (앱이 한글을 조립하던 중이면 입력기는 영문→한글로 바뀌니, 영문으로 되돌려야 영어가 써져요.)
+    englishByChoice = !englishByChoice;
+    seen = "?";
     endCompose();
+    const korean = !englishByChoice;
+    window.setTimeout(() => api.setIme(korean).catch(() => {}), 80);
     return;
   }
   if (e.isComposing || e.keyCode === 229) {
@@ -113,7 +125,11 @@ function onKeyDown(e: KeyboardEvent) {
 
   const jamo = jamoOfKey(e.code, e.shiftKey);
   const isLetter = !!jamo && /^[a-zA-Z]$/.test(e.key);
-  if (isLetter) seen = "en";
+  if (isLetter) {
+    // 이 칸에서 입력기가 한글로 쳐지다가 영문 글자가 그대로 왔어요 → 사용자가 한/영으로 영문을 골랐어요.
+    if (seen === "ko") englishByChoice = true;
+    seen = "en";
+  }
 
   // 조립하던 글자를 Backspace로 하나씩 지워요(입력기처럼 마지막 글자 안에서).
   if (e.key === "Backspace" && comp && compEl === el) {

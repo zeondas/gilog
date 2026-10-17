@@ -992,7 +992,6 @@ export default function FilesScreen() {
               className="input fx-path-in"
               aria-label="경로"
               autoFocus
-              data-ime="en"
               value={editPath.value}
               onFocus={(e) => e.currentTarget.select()}
               onChange={(e) => setEditPath({ pane, value: e.target.value })}
@@ -1316,7 +1315,7 @@ export default function FilesScreen() {
                 <input className="input" value={form.text} placeholder="한글·오피스·PDF" onChange={(e) => setForm({ ...form, text: e.target.value })} />
                 <span className="fx-dim">어디서</span>
                 <div className="fx-hrow">
-                  <input className="input fx-grow" data-ime="en" value={form.where} onChange={(e) => setForm({ ...form, where: e.target.value })} />
+                  <input className="input fx-grow" value={form.where} onChange={(e) => setForm({ ...form, where: e.target.value })} />
                   <label className="fx-ck">
                     <input type="checkbox" checked={form.sub} onChange={(e) => setForm({ ...form, sub: e.target.checked })} /> 하위 폴더
                   </label>

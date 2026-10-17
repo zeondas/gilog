@@ -576,7 +576,6 @@ function FilesCard({ value, onChange }: { value: FilesSettings; onChange: (v: Fi
           <input
             className="input"
             aria-label="새 탭이 여는 폴더"
-            data-ime="en"
             value={dir}
             placeholder="문서"
             onChange={(e) => setDir(e.target.value)}
