@@ -6421,3 +6421,118 @@ body.col-dragging * {
     display: none;
   }
 }
+
+/* ---------- 설정 · 키 설정 (엔터규칙, 시안 KeySettings.dc.html 배치 2안) ---------- */
+.keys-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.keys-status {
+  margin-right: auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--urgent);
+}
+
+.keys-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: var(--space-3);
+  align-items: start;
+}
+
+.keys-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 8px 6px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-md);
+}
+
+.keys-title {
+  padding-bottom: 4px;
+  font-weight: 700;
+}
+
+.keys-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 32px;
+}
+
+.keys-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+
+.kb {
+  flex: none;
+  min-width: 118px;
+  height: 28px;
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.kb:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.kb.cap {
+  border: 1.5px solid var(--accent);
+  background: var(--accent-tint);
+}
+
+.kb.bad {
+  border: 1.5px solid var(--urgent);
+  background: var(--urgent-bg);
+}
+
+.kb-part {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.kb-plus {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.kb-cap {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 6px 1px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--surface-band);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.kb-wait {
+  padding: 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+}

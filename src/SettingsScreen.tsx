@@ -5,6 +5,7 @@ import { DEFAULT_SETTINGS, DONE_STATUS, Kind, loadSettings, MEMO_KIND, saveSetti
 import { SCREENS } from "./screens";
 import Logo, { AppIcon } from "./Logo";
 import { VERSION } from "./version";
+import { Action, conflicts, DEFAULT_KEYS, diffKeys, isRightAlt, KEY_GROUPS, KeyMap, mergeKeys, setKeyMap } from "./keys";
 import {
   connectGoogle,
   DEFAULT_OPTS,
@@ -36,6 +37,8 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked }: Pro
   const [s, setS] = useState<Settings | null>(null);
   const [ask, setAsk] = useState(false);
   const [note, setNote] = useState("");
+  /** 설정 전체를 되돌리면 키 설정 카드도 다시 읽어요. */
+  const [resetTick, setResetTick] = useState(0);
 
   useEffect(() => {
     loadSettings().then(setS);
@@ -43,6 +46,7 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked }: Pro
 
   async function update(next: Settings) {
     setS(next);
+    setKeyMap(next.keys);
     try {
       await saveSettings(next);
     } catch (e) {
@@ -62,6 +66,7 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked }: Pro
   async function resetAll() {
     setAsk(false);
     await update(structuredClone(DEFAULT_SETTINGS));
+    setResetTick((n) => n + 1);
     await onPrefs({ ...DEFAULT_PREFS, dataDir: prefs.dataDir, askPassword: prefs.askPassword });
     setNote("기본값으로 되돌렸어요.");
   }
@@ -239,6 +244,8 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked }: Pro
         </Row>
       </section>
 
+      <KeysCard key={resetTick} saved={s.keys} onSave={(keys) => update({ ...s, keys })} />
+
       <section className="card">
         <div className="card-head">정보</div>
         <div className="about">
@@ -250,6 +257,109 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked }: Pro
         </div>
       </section>
     </>
+  );
+}
+
+// ---------- 키 설정 (엔터규칙, 2026-10-17 사용자 — 시안 KeySettings.dc.html 키 고르기 1안 · 배치 2안) ----------
+
+const KEY_HINT = "Enter·Tab·Esc와 Shift·Ctrl·왼쪽 Alt만 골라요";
+const RALT_HINT = "오른쪽 Alt는 한/영 키라 고를 수 없어요";
+
+/**
+ * 동작마다 키를 골라요: 칸을 누르고 키를 직접 눌러요. 쓰는 곳마다 작은 상자(두 단).
+ * 같은 키가 "그 묶음 + 공통"에서 겹치면 두 칸 모두 빨간 테두리이고 저장하지 않아요(앱은 그 전 키 그대로).
+ */
+function KeysCard({ saved, onSave }: { saved: Partial<Record<string, string>>; onSave: (keys: Partial<KeyMap>) => void }) {
+  const [keys, setKeys] = useState<KeyMap>(() => mergeKeys(saved));
+  const [cap, setCap] = useState<Action | null>(null);
+  const [note, setNote] = useState("");
+  const bad = conflicts(keys);
+
+  function assign(a: Action, k: string) {
+    const next = { ...keys, [a]: k };
+    setKeys(next);
+    setCap(null);
+    setNote("");
+    if (!conflicts(next).size) onSave(diffKeys(next));
+  }
+
+  function onKey(e: React.KeyboardEvent<HTMLButtonElement>, a: Action) {
+    if (cap !== a) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (isRightAlt(e)) return setNote(RALT_HINT);
+    if (["Shift", "Control", "Alt", "Meta"].includes(e.key)) return;
+    const main = ({ Enter: "Enter", Tab: "Tab", Escape: "Esc" } as Record<string, string>)[e.key];
+    if (!main) return setNote(KEY_HINT);
+    assign(a, (e.ctrlKey ? "Ctrl+" : "") + (e.shiftKey ? "Shift+" : "") + (e.altKey ? "Alt+" : "") + main);
+  }
+
+  const status = note || (bad.size ? "같은 키가 겹쳐요 · 저장하지 않았어요" : "");
+
+  return (
+    <section className="card" aria-label="키 설정">
+      <div className="card-head keys-head">
+        <span>키 설정</span>
+        <span role="status" className="keys-status">
+          {status}
+        </span>
+        <button
+          type="button"
+          className="btn btn-xs"
+          onClick={() => {
+            setKeys({ ...DEFAULT_KEYS });
+            setCap(null);
+            setNote("");
+            onSave({});
+          }}
+        >
+          기본값으로
+        </button>
+      </div>
+      <div className="keys-grid">
+        {KEY_GROUPS.map((g) => (
+          <div key={g.scope} className="keys-box">
+            <span className="keys-title">{g.title}</span>
+            {g.rows.map(([a, label]) => {
+              const on = cap === a;
+              return (
+                <div key={a} className="keys-row">
+                  <span className="keys-label">{label}</span>
+                  <button
+                    type="button"
+                    className={"kb" + (bad.has(a) ? " bad" : on ? " cap" : "")}
+                    aria-label={`${g.title} · ${label} 키`}
+                    aria-pressed={on}
+                    data-action={a}
+                    onClick={() => {
+                      setCap(on ? null : a);
+                      setNote("");
+                    }}
+                    onKeyDown={(e) => onKey(e, a)}
+                    onBlur={() => on && setCap(null)}
+                  >
+                    {on ? (
+                      <span className="kb-wait">키를 누르세요</span>
+                    ) : (
+                      (keys[a] ? keys[a].split("+") : ["없음"]).map((t, i) => (
+                        <span key={i} className="kb-part">
+                          {i > 0 && (
+                            <span className="kb-plus" aria-hidden="true">
+                              +
+                            </span>
+                          )}
+                          <span className="kb-cap">{t}</span>
+                        </span>
+                      ))
+                    )}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

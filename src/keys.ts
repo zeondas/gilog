@@ -167,7 +167,9 @@ export function parseKey(k: string): { ctrl: boolean; shift: boolean; alt: boole
 let rightAlt = false;
 if (typeof window !== "undefined") {
   window.addEventListener("keydown", (e) => {
-    if (e.code === "AltRight" || e.key === "AltGraph") rightAlt = true;
+    // 한/영 키(HangulMode)로 들어오면 Alt가 아니라서 셈하지 않아요. 떼는 소식을 놓쳐도 Alt 없이 누른 키가 오면 풀어요.
+    if ((e.code === "AltRight" && e.key === "Alt") || e.key === "AltGraph") rightAlt = true;
+    else if (!e.altKey) rightAlt = false;
   }, true);
   window.addEventListener("keyup", (e) => {
     if (e.code === "AltRight" || e.key === "AltGraph") rightAlt = false;

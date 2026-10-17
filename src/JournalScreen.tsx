@@ -1863,7 +1863,7 @@ function EditCard({
               <span className="hint">Tab 저장 · Esc 취소</span>
             ) : (
               <span className="hint" title="Enter 다음 말 · Shift+Enter 같은 사람 · Alt+Enter 한 말 안 줄 바꿈 · Tab 저장 · Esc 취소">
-                Enter 다음 말 · Shift+Enter 같은 사람 · Tab 저장 · Esc 취소
+                Enter 다음 말 · Tab 저장 · Esc 취소
               </span>
             )}
             <button type="button" className="btn btn-xs" onClick={onCancel}>

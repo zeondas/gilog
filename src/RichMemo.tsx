@@ -596,7 +596,7 @@ export function MemoEditor({
   }
 
   /**
-   * 글머리 목록 줄을 한 위계 아래(Tab)·위(Shift+Tab)로. 규칙은 bullets.ts의 tabKind(시안 BulletRule.dc.html).
+   * 글머리 목록 줄을 한 위계 아래·위로(들여쓰기·내어쓰기 단추 — 엔터규칙 뒤로 Tab 키는 쓰지 않아요). 규칙은 bullets.ts의 tabKind(시안 BulletRule.dc.html).
    * 글머리 목록 줄이 아니면 false예요. 바꿀 수 없는 줄이어도 목록 줄이면 키는 먹어요(커서가 다음 칸으로 나가지 않게).
    */
   function bulletTab(back: boolean): boolean {
