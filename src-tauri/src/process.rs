@@ -450,6 +450,28 @@ pub fn open_path(path: String) -> Result<(), String> {
     Ok(())
 }
 
+/// 신문고(업무처리포털)를 엣지로 열어요. 엣지가 없으면 기본 브라우저로 열어요. 이 주소만 받아요.
+#[tauri::command]
+pub fn open_portal(url: String) -> Result<(), String> {
+    if !(url == "https://gov.epeople.go.kr" || url.starts_with("https://gov.epeople.go.kr/")) {
+        return Err("invalid".into());
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const NO_WINDOW: u32 = 0x0800_0000;
+        let edge = std::process::Command::new("cmd").args(["/C", "start", "", "msedge", &url]).creation_flags(NO_WINDOW).status();
+        if !edge.map(|s| s.success()).unwrap_or(false) {
+            std::process::Command::new("rundll32").args(["url.dll,FileProtocolHandler", &url]).creation_flags(NO_WINDOW).spawn().map_err(io)?;
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        std::process::Command::new("xdg-open").arg(&url).spawn().map_err(io)?;
+    }
+    Ok(())
+}
+
 /// 탐색기를 열어 그 파일을 골라 보여요(파일함이 생기기 전까지 "이 민원 파일 보기").
 #[tauri::command]
 pub fn show_in_folder(path: String) -> Result<(), String> {

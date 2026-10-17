@@ -897,6 +897,7 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
       return [];
     case "open_path":
     case "show_in_folder":
+    case "open_portal":
       return null;
   }
   return undefined;
@@ -1069,6 +1070,7 @@ export const api = {
   checkSent: (now: string) => call<Case[]>("check_sent", { now }),
   openPath: (path: string) => call<null>("open_path", { path }),
   showInFolder: (path: string) => call<null>("show_in_folder", { path }),
+  openPortal: (url: string) => call<null>("open_portal", { url }),
   /** 엑셀에서 읽은 줄을 그대로 넣고 넣은 수를 돌려줘요. */
   importComplaints: (rows: (ComplaintInput & { memo: string })[]) => call<number>("import_complaints", { rows }),
   importContacts: (rows: (ContactInput & { memo: string })[]) => call<number>("import_contacts", { rows }),

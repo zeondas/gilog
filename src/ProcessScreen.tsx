@@ -283,7 +283,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
         <button type="button" className="btn btn-ctrl btn-text" onClick={() => setWorksOpen(true)}>
           공사 관리
         </button>
-        <button type="button" className="btn btn-ctrl btn-text" title="업무처리포털을 엣지로 열어요. 처음 한 번 로그인해 두면 돼요" onClick={() => window.open(PORTAL_URL, "_blank")}>
+        <button type="button" className="btn btn-ctrl btn-text" title="업무처리포털을 엣지로 열어요. 처음 한 번 로그인해 두면 돼요" onClick={() => (inApp ? api.openPortal(PORTAL_URL).catch((e) => setNote(errText(e))) : window.open(PORTAL_URL, "_blank"))}>
           신문고 열기
           <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M14 4h6v6M20 4l-9 9M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" />

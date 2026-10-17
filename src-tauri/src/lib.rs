@@ -603,6 +603,7 @@ pub fn run() {
             process::send_order,
             process::check_sent,
             process::open_path,
+            process::open_portal,
             process::show_in_folder,
             set_ime,
             window::window_ready,
