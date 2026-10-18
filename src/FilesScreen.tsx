@@ -47,7 +47,8 @@ import { DEFAULT_FILES_SETTINGS, FilesSettings, loadSettings } from "./settingsS
 const STATE_KEY = "files.state";
 
 type FindRun = { form: FindForm; results: Found[]; running: boolean };
-type RTab = FsTab & { find?: FindRun; id: number };
+/** back·fwd: 이 탭에서 다녀온 폴더(뒤로·앞으로 — 마우스 옆 단추·Alt+←/→). 저장하지 않아요. */
+type RTab = FsTab & { find?: FindRun; id: number; back?: string[]; fwd?: string[] };
 type RPane = Omit<FsPane, "tabs"> & { tabs: RTab[] };
 type RState = Omit<FilesState, "panes"> & { panes: RPane[] };
 
@@ -237,7 +238,9 @@ export default function FilesScreen() {
       updPane(pane, (p) => {
         const t = p.tabs[p.active];
         if (t && !t.pinned && !t.find) {
-          const tabs = p.tabs.map((x, i) => (i === p.active ? { ...x, path } : x));
+          if (t.path === path) return p;
+          const back = [...(t.back ?? []), t.path].slice(-50);
+          const tabs = p.tabs.map((x, i) => (i === p.active ? { ...x, path, back, fwd: [] } : x));
           return { ...p, tabs };
         }
         const tabs = [...p.tabs];
@@ -248,6 +251,21 @@ export default function FilesScreen() {
     },
     [updPane],
   );
+
+  /** 뒤로(-1)·앞으로(+1): 이 탭에서 다녀온 폴더로 (고정 탭도 그 탭 안에서 움직여요) */
+  const stepHistory = (pane: number, dir: -1 | 1) =>
+    updPane(pane, (p) => {
+      const t = p.tabs[p.active];
+      if (!t || t.find) return p;
+      const back = [...(t.back ?? [])];
+      const fwd = [...(t.fwd ?? [])];
+      const to = dir < 0 ? back.pop() : fwd.pop();
+      if (!to) return p;
+      if (dir < 0) fwd.push(t.path);
+      else back.push(t.path);
+      const tabs = p.tabs.map((x, i) => (i === p.active ? { ...x, path: to, back, fwd } : x));
+      return { ...p, tabs };
+    });
 
   const newTab = (pane: number, path: string) =>
     updPane(pane, (p) => ({ ...p, tabs: [...p.tabs, { path, pinned: false, id: tabSeq++ }], active: p.tabs.length }));
@@ -620,6 +638,7 @@ export default function FilesScreen() {
     if (k === "F7") return handled(), void newFolder(pane);
     if (k === "F8" || k === "Delete") return handled(), askDelete(pane, e.shiftKey);
     if (k === "Backspace") return handled(), up(pane);
+    if (e.altKey && (k === "ArrowLeft" || k === "ArrowRight")) return handled(), stepHistory(pane, k === "ArrowLeft" ? -1 : 1);
     if (k === "Tab" && !ctrl) {
       handled();
       return focusPane(e.shiftKey ? (st.four ? CLOCKWISE[(CLOCKWISE.indexOf(pane) + 3) % 4] : pane === 0 ? 1 : 0) : nextPane(pane, st.four));
@@ -908,7 +927,17 @@ export default function FilesScreen() {
         className="fx-pane"
         data-on={on ? "1" : "0"}
         aria-label={`창 ${pane + 1}`}
-        onMouseDown={() => focusPane(pane)}
+        onMouseDown={(e) => {
+          focusPane(pane);
+          // 마우스 옆 단추(뒤로 3·앞으로 4): 화면이 통째로 뒤로 가지 않게 막고 이 창의 폴더만 움직여요.
+          if (e.button === 3 || e.button === 4) e.preventDefault();
+        }}
+        onMouseUp={(e) => {
+          if (e.button === 3 || e.button === 4) {
+            e.preventDefault();
+            stepHistory(pane, e.button === 3 ? -1 : 1);
+          }
+        }}
         onDragOver={(e) => dragSrc.current && e.preventDefault()}
         onDrop={(e) => dropTo(pane, e)}
       >
@@ -1187,9 +1216,6 @@ export default function FilesScreen() {
             void shellMenu(pane, e, []);
           }}
         >
-          {listing.error && !t.find && <div className="fx-empty fx-err">{listing.error}</div>}
-          {!listing.error && !t.find && !listing.loading && !rows.length && <div className="fx-empty">{filters[pane] ? "빠른 필터에 맞는 것이 없어요" : "비어 있어요"}</div>}
-          {t.find && !t.find.running && !rows.length && <div className="fx-empty">찾은 것이 없어요</div>}
           {!t.find && parentOf(t.path) && (p.view === "detail" || p.view === "brief") && (
             <div className={p.view === "brief" ? "fx-brow" : "fx-frow"} style={p.view === "detail" ? colStyle : undefined} onDoubleClick={() => up(pane)} title="두 번 누르면 위 폴더 (Backspace)">
               <span className="fx-up">
@@ -1217,6 +1243,10 @@ export default function FilesScreen() {
               <span className="fx-dim fx-strong">..</span>
             </div>
           )}
+          {/* ".." 줄 다음에 보여요(빈 폴더에서 ".."이 글 아래로 내려가지 않게) */}
+          {listing.error && !t.find && <div className="fx-empty fx-err">{listing.error}</div>}
+          {!listing.error && !t.find && !listing.loading && !rows.length && <div className="fx-empty">{filters[pane] ? "빠른 필터에 맞는 것이 없어요" : "비어 있어요"}</div>}
+          {t.find && !t.find.running && !rows.length && <div className="fx-empty">찾은 것이 없어요</div>}
           {rows.map((r, i) => {
             const isSel = s.paths.has(r.path) || (!s.paths.size && s.cursor === r.path);
             const common = {
