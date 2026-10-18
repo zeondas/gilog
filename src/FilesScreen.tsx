@@ -1857,7 +1857,7 @@ function dateColMin(fmt: string): number {
 }
 
 /** 날짜와 시각 사이를 띄어쓰기보다 넓게(2026-10-18 사용자: 붙어 보여 읽기 힘듦) */
-const DATE_TIME_GAP = 6;
+const DATE_TIME_GAP = 3;
 function dateParts(t: string) {
   const i = t.indexOf(" ");
   if (i < 0) return t;
