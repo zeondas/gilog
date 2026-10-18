@@ -290,11 +290,14 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
       <section className="card" aria-label="정보">
         <div className="about">
           <AppIcon size={56} />
-          <div className="about-text">
-            <Logo height={20} variant="word" />
+          <Logo height={56} variant="word" />
+          <div className="about-ver">
             <span className="muted small">버전 {VERSION}</span>
             <span className="muted small">WebView2 {engineVersion()}</span>
-            <span className="muted small about-dev">개발자 전훈민 · zeondas@korea.kr</span>
+          </div>
+          <div className="about-dev">
+            <span className="muted small">개발자 전훈민</span>
+            <span className="muted small">zeondas@korea.kr</span>
           </div>
         </div>
       </section>

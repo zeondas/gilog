@@ -9672,7 +9672,20 @@ button.bd-chip:hover {
   color: var(--muted);
 }
 
-/* 설정 "정보": 개발자 줄은 글자를 골라 복사할 수 있어요(2026-10-18 사용자) */
+/* 설정 "정보" (2026-10-18 사용자): 심볼 56px · 글자 로고 같은 높이 · 그 오른쪽 위 버전/WebView2 · 카드 오른쪽 아래 개발자/이메일 */
+.about-ver {
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .about-dev {
+  align-self: flex-end;
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: right;
   user-select: text;
 }
