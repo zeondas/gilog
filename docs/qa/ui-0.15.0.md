@@ -201,3 +201,56 @@
 ### G. 끝낸 뒤
 - 밝게·어둡게 1600×900 스크린샷 두 벌로 UIAudit 판과 같은 자리 다시 잘라 비교 · 디자인 시스템 아티팩트 버전 올림 · CLAUDE.md "공통 — 글자 가운데 맞춤"에 3px·1px 손질 적기 · 현황판.
 
+
+## 6. 2차 검수 — 보이는 요소 전수조사 (2026-10-18 17:36~, 사용자 신고 뒤)
+
+사용자가 1차에서 놓친 것 여섯 가지(입력칸 글자 위, 스위치 노브 네모·위, ⊕와 체크 동그라미 크기, 집행현황 단위 토글, 스크롤바 다름, 가로 스크롤)를 신고해서 방법을 바꿨어요. 1차가 "코드에 적힌 값"을 세었다면 2차는 **실제로 그려진 결과**를 다 읽었어요 — 화면·창 45개 × 밝게/어둡게 × **100%·125%** + **자료를 채운 상태**(프로젝트 20개·40자 이름·민원 60건·연번 1546·120자 내용·할 일 40·일지 14·일정 12 + 보이는 빈 칸 전부 채움) = 315장, 요소 60,035개(`getBoundingClientRect`·computed style + 글자 픽셀 재기). 전체 표는 [docs/qa/ui-0.15.0-census.md](https://github.com/zeondas/gilog/blob/main/docs/qa/ui-0.15.0-census.md), 원자료·조각은 작업 공간 `scratchpad/audit/`(census.json 78MB·shots2 315장·cells2 200쌍·census.py/analyze.py/report.py).
+
+### 6-1. 사용자 신고 여섯 가지의 판정
+| 신고 | 잰 결과 | 고치기 |
+| --- | --- | --- |
+| ① 입력칸 글자가 위 | 맞아요. placeholder는 −1이지만 **실제 한글을 넣으면 −2**(`.cell-input` 42곳·`.pr-in` 10·`.input` 5·`.input-sm` 3·`select.input` 3, `.jtalk` −4). 125%에서는 −3 | 5-E `padding-bottom: 3px` 그대로 — 실제 글자로도 확인. `.jtalk`(2306)도 넣기 |
+| ② 스위치 노브 네모·위 | squircle 맞음(1차 C항). 위치는 100%에서 2/2로 가운데, **125%에서 2.5/2.5 → 한쪽으로 반올림** | `corner-shape: round` + 노브 자리를 4의 배수로(6-5) |
+| ③ ⊕ vs 체크 동그라미 | 둘 다 18px 상자. ⊕는 svg 안 원이 r=9/24라 **그려진 지름 13.5px**(`TasksScreen.tsx:666`). 체크 동그라미는 `.td-check { margin-top: 1px }`로 글줄보다 1px 아래(192곳) | r=11로(그려진 18) + margin-top 0 |
+| ④ 단위 토글 안쪽 네모 위 | **100%에선 정확히 가운데**(3+1/3+1). 125%에서 34→42.5·26→32.5 물리 px라 아래 가장자리가 반 픽셀에 걸려 흐려지고 내려앉아 보여요 — 둥근 상자 62가지·2,062곳 공통 | 6-7(사용자 결정) |
+| ⑤ 스크롤바 다름 | 실제로 막대가 생긴 곳은 `main.main`·`.cal-wk-scroll`·`.fx-rn-body`·`.dialog-body` 넷뿐이고 **모두 브라우저 기본**. 집행현황 `.bd-scroll`의 둥근 14px 막대는 `scrollbar-width: thin`이 `::-webkit-scrollbar`를 무력화해(크로미움 121+) **안 그려지고 있었어요** | 한 규칙으로(6-10, 모양은 사용자 결정) |
+| ⑥ 가로 스크롤 | 어느 화면·상태에서도 안 생겨요(민원대장 열은 `fitWidths`가 표 폭에 맞춤). 가로 막대가 생기면 6-10 규칙이 같이 적용돼요 | — |
+
+### 6-2. 1차에 없던 새 발견
+1. **머릿기호 칸 글자가 반 픽셀에 떠 있어요** — `.bl-m { height: calc(var(--fs) * 1.5) }` = 19.5px(app.css:3485) → `.bl-line` 위 4.5/아래 3.5. 민원대장 내용·조치내용·할 일 세부정보·메모 창 모든 여러 줄 칸(108곳). `round(1.5em, 1px)`로.
+2. **125%에서만 글자가 어긋나는 18가지** — 배지·단추는 +1~2 물리 px 내려가고(`.cm-hbtn` +2 57곳, `.cm-status`·`.chip` +1, `.td-src`·`.bd-chip`·`.btn-xs`·`select.cal-select`·`.fx-drop` +2) 입력칸은 −3. 1px 보정이 1.25 물리 px가 되어 반올림이 갈리기 때문(100%에서 맞는 곳도 125%에서 틀려요).
+3. **125%에서 부모 안 자식이 .5에 걸리는 34가지** — 노브(2→2.5), 사이드바 아이콘(10→12.5), `.btn-ctrl` 안 아이콘(9→11.25), `.pbadge` 안 글자(2→2.5), `.cm-c` 안 `.cell-input`(2→2.5). 배경 있는 것(노브·배지)은 눈에 띄고 선 아이콘은 덜 보여요.
+4. **홀수 높이** — `.side-item` 35·`.jproj-badge` 21·`.prow` 45 → 125%에서 43.75·26.25·56.25 물리 px로 양쪽이 흐려요(0.9.4 결정값이라 사용자 결정).
+5. **세부정보 아이콘** `.td-note-icon { margin-top: 3px }`(4320)도 체크 동그라미와 같은 꼴(108곳) → 2px.
+6. **일괄 이름 바꾸기 창의 네이티브 체크박스**(`FilesDialogs.tsx:95·329·330`)는 `accent-color`가 없어 **크롬 기본 파란 체크**로 그려져요 → `input[type=checkbox], input[type=radio] { accent-color: var(--accent) }` 한 줄.
+7. **아이콘 svg 크기 15가지**(10~18px)가 섞여 있어요 — 같은 뜻(지우기 ×)이 `.tool` 13·`.tool-danger` 14·`.pr-del` 14·`.tool-box` 14·`.chip-x` 11, 머리 줄 단추 안 아이콘이 화면마다 16/12/14/15. 정한 값은 사이드바 15/17뿐 → 표로 정해요(6-12).
+8. 숫자 칸 `.num`(전화·날짜)은 채우면 −2 → −1로 좋아져요(그대로 둠). `.jtel`(업무일지 기둥 전화번호) 위 8/아래 0은 아래에 붙이는 설계로 봐요.
+
+### 6-3. 자료를 채운 상태에서 달라진 것
+- 늘어나도 옆 글자 위치가 흔들리지 않은 것: 위치 칸 복사 단추 `.cm-copy` 22→58(세 줄 주소), `.bl-ta` 20→40, `.bl-ed` 28→127(3줄 머릿기호), 프로젝트 칩 20개가 두 줄로 넘어가도 `.pchip` 28 유지, 40자 프로젝트 이름은 `.pbadge-t` 말줄임 유지(배지 높이 그대로).
+- 달라진 것: 입력칸 −1 → −2(위 ①), `.jtalk` −4 → 3/−4(말 줄 textarea는 글자 수에 따라 위치가 달라요 — 2306 line-height 숫자를 `round()`로), `.td-due`·`.td-due.today` 1 → 2(배지 22로 맞출 때 같이 봐요), 연번 1546은 두 줄 꺾임(5-F 폭 52).
+- 재기 한계: **뜨는 창 뒤에 흐려진(scrim+blur) 요소는 글자 픽셀 재기가 흐린 그림을 읽어 신뢰도가 낮아요** — 위 수치는 창이 없는 화면(민원대장·업무연락처·설정·업무일지 본 화면)에서 같은 값이 나온 것만 적었어요. UI 통일 세션이 다시 잴 때는 `census.py`에 "overlay 아래 요소 제외"를 더해요.
+
+### 6-4. 2차에서 더한 고칠 목록 (5절 A~G에 이어 H)
+| | 무엇 | 어디(main `1c8a981` `src/app.css`) | 고치기 |
+| --- | --- | --- | --- |
+| H1 | 머릿기호 칸 반 픽셀 | 3485 `.bl-m` | `height: round(1.5em, 1px)` — `measureBullets`가 이 높이를 읽는지 확인 |
+| H2 | 입력칸 −2 | 5768 | 3px + `.input-sm`·`.pr-in`·`select.input`·`select.cal-select`·`.fx-filter`·`textarea.cell-input.jtalk`(2306) |
+| H3 | 체크 동그라미·세부정보 아이콘 | 4273 `.td-check` margin-top 1→0 · 4320 `.td-note-icon` 3→2 | — |
+| H4 | ⊕ 크기 | `TasksScreen.tsx:666` `circle r=9` | **1안 r=11**(그려진 18, 상자 그대로 — 권함) / 2안 svg 22×22 |
+| H5 | 스위치 | 547·561·573 | `corner-shape: round` + 트랙 20→**24**·노브 16·`top/left: 4px`·켜짐 `left: 24px`(트랙 폭 44) — 100%·125% 모두 정수. 또는 트랙 20 유지·노브 12·`top: 4px` |
+| H6 | `.jcal-dot` squircle | 1697 | `corner-shape: round`(C항과 함께) |
+| H7 | 125% 둥근 상자 가장자리 흐림 | 높이 34·26·22·18·30·35·21 | **사용자 결정** — 1안 높이를 4의 배수로(단추 32/28, 배지 20 또는 24, 사이드바 36) ↔ 결정 ①④와 충돌 / **2안 결정 ①④ 그대로 두고 자식 위치만 4의 배수로**(권함 — y 위치에 따라 어차피 25%는 .5에 걸려요) |
+| H8 | 125% 자식 .5 | 노브·`.pbadge` padding 2→4 또는 0·`.cm-c` 안 입력칸 | 배경 있는 것만 고치고 선 아이콘은 두기 |
+| H9 | 125% 글자 +1~2 / −3 | 1px 보정들 | **사용자 결정** — 1안 `@media (min-resolution: 1.25dppx)`에서 보정값을 `0.8px`(=1 물리 px)로 바꾸는 규칙 한 묶음(권함, 작게 시작) / 2안 보정 대신 line-height = 상자 안쪽 높이로 가운데 맞추기(글꼴이 0.5px 떠서 완전하진 않음) |
+| H10 | 스크롤바 한 규칙 | 8955~8971 `.bd-scroll` · 188 `.main` · 1442 `.dialog-body` · 5277 `.cal-wk-scroll` · 8357 `.fx-rn-body` · 7870 `.fx-list` | **사용자 결정** — 1안 `* { scrollbar-width: thin; scrollbar-color: var(--line) transparent }`(표준, 11px 네모 막대, `::-webkit-scrollbar` 전부 삭제) / **2안 `::-webkit-scrollbar 12px` + 둥근 thumb(`var(--line)`, 안쪽 여백 3px, 모서리 6) 전역 + `scrollbar-width` 삭제**(권함 — 디자인 시스템 모서리와 맞고 WebView2는 크로미움이라 돼요). 가로 막대도 같은 규칙 |
+| H11 | 네이티브 체크박스 | `FilesDialogs.tsx:95·329·330` | app.css 공통에 `accent-color: var(--accent)` |
+| H12 | 아이콘 크기 표 | `Icons.tsx`·각 화면 svg | **사용자 결정** — 1안 세 단계(머리 줄 단추 16 · 줄 안·작은 단추 14 · 배지 안 10, 권함) / 2안 두 단계 16·14 |
+| H13 | 홀수 높이 | 68 `.side-item` 35 · 2184/5791 `.jproj-badge` 21 · 1457 `.prow` 45 | **사용자 결정** — 0.9.4 결정 그대로 두기(125% 양쪽 흐림 감수) / 36·22·44로 |
+
+적용 순서(권함): H2 → H1 → H3·H4 → H5·H6 → H10 → H11 → (결정 뒤) H7·H9·H12·H13. 고친 뒤 `census.py light 1`·`census.py light 1.25`·`census.py light 1 "" filled` → `analyze.py` → `report.py`로 다시 재서 글자 맞춤 90% 이상·자식 치우침 0·125% 전용 어긋남 0을 확인해요(`census.py`에 overlay 아래 요소 제외를 먼저 더해요).
+
+### 6-5. 도구 메모(UI 통일 세션용)
+- `tools/align/measure.py`에 `run()`이 없어 `run2.py`가 안 돌아요 → 작업 공간 `run1600.py`·`measure_ws.py`·`census.py`를 `tools/align/`에 넣고 README를 고쳐요.
+- `tools/align/seed.js`는 업무연락처 프로젝트 칸에서 `p.alias`가 없어 멈춰요(`wip/contacts` 뒤 구조) — `alias: ""` 보정 필요(`census.py`의 `BIG_JS`에 있음).
+- 헤드리스 크로미움은 스크롤바를 숨기니 `ignore_default_args=["--hide-scrollbars"]`로 켜요. 125%는 `device_scale_factor=1.25`.
