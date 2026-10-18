@@ -855,6 +855,8 @@ export default function FilesScreen() {
   if (!st) return <div className="fx-root" />;
 
   const fmt = cfg.dateFmt;
+  // 날짜 형식이 길어지면(초까지 등) 수정한 날 열이 그 글자보다 좁아지지 않게 해요.
+  const dateMin = dateColMin(fmt);
 
   // ---------- 그리기 ----------
   const renderPane = (pane: number) => {
@@ -925,7 +927,7 @@ export default function FilesScreen() {
       );
     // 보일 열: 이름은 늘, 크기·수정한 날·파일 형식은 설정에서 켜고 꺼요(2026-10-18 사용자). 찾기 결과는 폴더 열이 이름 다음에.
     const shown = (["size", "modified", "type"] as const).filter((k) => cfg.cols[k]);
-    const colStyle = { gridTemplateColumns: ["32px", "minmax(0,1fr)", ...(t.find ? [`${st.cols.folder}px`] : []), ...shown.map((k) => `${st.cols[k]}px`)].join(" ") };
+    const colStyle = { gridTemplateColumns: ["32px", "minmax(0,1fr)", ...(t.find ? [`${st.cols.folder}px`] : []), ...shown.map((k) => `${k === "modified" ? Math.max(st.cols[k], dateMin) : st.cols[k]}px`)].join(" ") };
     const resizer = (k: "size" | "modified" | "folder" | "type") => (
       <span
         className="fx-col-grip"
@@ -1369,7 +1371,7 @@ export default function FilesScreen() {
                   </span>
                 )}
                 {cfg.cols.size && <span className="fx-col fx-num">{r.note ?? (r.dir ? "" : formatSize(r.size))}</span>}
-                {cfg.cols.modified && <span className="fx-col fx-dim fx-tab-num">{formatDate(r.modified, fmt)}</span>}
+                {cfg.cols.modified && <span className="fx-col fx-dim fx-tab-num fx-nowrap">{formatDate(r.modified, fmt)}</span>}
                 {cfg.cols.type && (
                   <span className="fx-col fx-dim" title={r.kind ?? typeName(r, types)}>
                     <span className="fx-ellip">{r.kind ?? typeName(r, types)}</span>
@@ -1804,4 +1806,19 @@ function TabMenu({ x, y, tab, canClose, onAction }: { x: number; y: number; tab:
       </button>
     </div>
   );
+}
+
+const dateMinCache = new Map<string, number>();
+/** 날짜 형식 글자 폭(+여백 20px). 2026-12-28 23:58:58처럼 넓은 숫자로 재요. */
+function dateColMin(fmt: string): number {
+  const fs = getComputedStyle(document.body).fontSize;
+  const key = fmt + "|" + fs;
+  const hit = dateMinCache.get(key);
+  if (hit) return hit;
+  const c = document.createElement("canvas").getContext("2d");
+  if (!c) return 0;
+  c.font = `${fs} Pretendard, sans-serif`;
+  const w = Math.ceil(c.measureText(formatDate(new Date(2026, 11, 28, 23, 58, 58).getTime(), fmt)).width) + 20;
+  dateMinCache.set(key, w);
+  return w;
 }

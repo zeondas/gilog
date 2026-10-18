@@ -38,38 +38,24 @@ export const VIEWS: { id: ViewMode; name: string; key: string }[] = [
   { id: "thumb", name: "썸네일", key: "Ctrl+Shift+4" },
 ];
 
-/** 설정 "탐색기" 카드의 날짜 모양 (0 10-16 17:40 · 1 2026-10-16 17:40 · 2 2026. 10. 16. · 3 3분 전) */
-export const DATE_FORMATS = ["10-16 17:40", "2026-10-16 17:40", "2026. 10. 16.", "3분 전", "26-10-16 17:40"];
-// 설정에 보이는 순서(저장 번호는 그대로 — 4번은 나중에 더한 두 자리 연도 모양).
-export const DATE_FORMAT_ORDER = [0, 4, 1, 2, 3];
+/** 설정 "탐색기" 카드의 날짜 형식(FreeCommander처럼 고르기 목록, 연-월-일 순서만 — 2026-10-18 사용자). */
+export const DATE_FORMATS = ["yyyy-mm-dd hh:nn:ss", "yyyy-mm-dd hh:nn", "yy-mm-dd hh:nn", "yyyymmdd_hhnnss", "yyyy-mm-dd", "yyyymmdd", "yymmdd"];
+export const DEFAULT_DATE_FORMAT = "yy-mm-dd hh:nn";
+// 예전 저장값(번호: 0 10-16 17:40 · 1 2026-10-16 17:40 · 2 2026. 10. 16. · 3 상대 · 4 26-10-16 17:40)을 새 형식으로.
+const OLD_FORMATS = ["yy-mm-dd hh:nn", "yyyy-mm-dd hh:nn", "yyyy-mm-dd", "yy-mm-dd hh:nn", "yy-mm-dd hh:nn"];
+export function dateFormatOf(v: unknown): string {
+  if (typeof v === "number") return OLD_FORMATS[v] ?? DEFAULT_DATE_FORMAT;
+  return typeof v === "string" && DATE_FORMATS.includes(v) ? v : DEFAULT_DATE_FORMAT;
+}
 
 const p2 = (n: number) => String(n).padStart(2, "0");
 
-export function formatDate(ms: number, fmt: number, now = Date.now()): string {
+export function formatDate(ms: number, fmt: string): string {
   if (!ms) return "";
   const d = new Date(ms);
-  const md = `${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
-  const hm = `${p2(d.getHours())}:${p2(d.getMinutes())}`;
-  switch (fmt) {
-    case 1:
-      return `${d.getFullYear()}-${md} ${hm}`;
-    case 4:
-      return `${String(d.getFullYear()).slice(2)}-${md} ${hm}`;
-    case 2:
-      return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}.`;
-    case 3: {
-      const s = Math.max(0, Math.round((now - ms) / 1000));
-      if (s < 60) return "방금";
-      if (s < 3600) return `${Math.floor(s / 60)}분 전`;
-      if (s < 86400) return `${Math.floor(s / 3600)}시간 전`;
-      const days = Math.floor(s / 86400);
-      if (days < 31) return `${days}일 전`;
-      return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}.`;
-    }
-    default:
-      // 올해가 아니면 연도를 붙여요(10-16만으로는 몇 년인지 몰라요).
-      return d.getFullYear() === new Date(now).getFullYear() ? `${md} ${hm}` : `${String(d.getFullYear()).slice(2)}-${md}`;
-  }
+  const y = String(d.getFullYear());
+  const v: Record<string, string> = { yyyy: y, yy: y.slice(2), mm: p2(d.getMonth() + 1), dd: p2(d.getDate()), hh: p2(d.getHours()), nn: p2(d.getMinutes()), ss: p2(d.getSeconds()) };
+  return fmt.replace(/yyyy|yy|mm|dd|hh|nn|ss/g, (t) => v[t]);
 }
 
 export function formatSize(n: number): string {

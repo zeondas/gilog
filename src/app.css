@@ -9880,3 +9880,7 @@ button.bd-chip:hover {
 .accent-noctua { --sw: var(--sw-noctua); }
 .accent-blue { --sw: var(--sw-blue); }
 .accent-ink { --sw: var(--sw-ink); }
+
+/* 탐색기 — 날짜 형식(2026-10-18): 수정한 날은 한 줄로, 설정 고르기 목록은 가장 긴 형식이 다 보이게 */
+.fx-nowrap { white-space: nowrap; }
+select.input.fx-set-date { width: 190px; }

@@ -6,7 +6,7 @@ import { PhoneInput } from "./PhoneInput";
 import { aiGuide, phoneGuide } from "./process";
 import { isOn, MODULE_DESC, ModuleId, Modules, onScreens, SCREENS, firstOn } from "./screens";
 import { NavIcon, NavIconName } from "./Icons";
-import { DATE_FORMAT_ORDER, DATE_FORMATS, FsDrive, HOME, PC } from "./files";
+import { DATE_FORMATS, FsDrive, HOME, PC } from "./files";
 import { fsApi } from "./filesApi";
 import Logo, { AppIcon } from "./Logo";
 import { VERSION } from "./version";
@@ -850,14 +850,14 @@ function FilesRows({ value, onChange }: { value: FilesSettings; onChange: (v: Fi
   };
   return (
     <>
-      <Row label="날짜 모양" desc="목록의 수정한 날 열이에요.">
-        <span className="seg" role="radiogroup" aria-label="날짜 모양">
-          {DATE_FORMAT_ORDER.map((i) => [DATE_FORMATS[i], i] as const).map(([d, i]) => (
-            <button key={d} type="button" role="radio" aria-checked={value.dateFmt === i} onClick={() => set({ dateFmt: i })}>
-              {d}
-            </button>
+      <Row label="날짜 형식" desc="목록의 수정한 날 열이에요.">
+        <select id="files-date" className="input fx-set-date" value={value.dateFmt} onChange={(e) => set({ dateFmt: e.target.value })}>
+          {DATE_FORMATS.map((f) => (
+            <option key={f} value={f}>
+              {f}
+            </option>
           ))}
-        </span>
+        </select>
       </Row>
       <Row label="보이는 드라이브" desc="끈 것은 드라이브 단추와 폴더 트리에서 빠져요.">
         <span className="fx-set-drives">

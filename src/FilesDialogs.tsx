@@ -47,7 +47,7 @@ export function ConflictDialog({
   index: number;
   total: number;
   op: "copy" | "move";
-  dateFmt: number;
+  dateFmt: string;
   onPick: (d: Decision, rest: boolean) => void;
   onCancel: () => void;
 }) {
@@ -62,7 +62,7 @@ export function ConflictDialog({
       <span className="fx-cf-name">{e.name}</span>
       <span className="fx-cf-meta">
         <span>{formatSize(e.size)}</span>
-        <span>{formatDate(e.modified, dateFmt === 3 ? 0 : dateFmt)}</span>
+        <span>{formatDate(e.modified, dateFmt)}</span>
         {newer && <span className="fx-new">새것</span>}
       </span>
       <span className="fx-cf-dir">{e.path.slice(0, e.path.length - e.name.length - 1)}</span>
@@ -166,7 +166,7 @@ export function RenameDialog({
   rows: RenameRow[];
   where: string;
   opts: RenameOpts;
-  dateFmt: number;
+  dateFmt: string;
   onOpts: (o: RenameOpts) => void;
   onRename: (items: { path: string; name: string }[], close: boolean) => Promise<string | null>;
   onClose: () => void;
@@ -265,8 +265,8 @@ export function RenameDialog({
                   <span className="fx-dim">{r.name}</span>
                   <span className="fx-strong">{n}</span>
                   <span className="fx-r fx-dim">{r.dir ? "" : formatSize(r.size)}</span>
-                  <span className="fx-dim">{formatDate(r.modified, dateFmt === 3 ? 0 : dateFmt)}</span>
-                  <span className="fx-dim">{formatDate(r.created, dateFmt === 3 ? 0 : dateFmt)}</span>
+                  <span className="fx-dim">{formatDate(r.modified, dateFmt)}</span>
+                  <span className="fx-dim">{formatDate(r.created, dateFmt)}</span>
                   <span className="fx-dim">{r.path.slice(0, r.path.length - r.name.length - 1)}</span>
                 </div>
               );
