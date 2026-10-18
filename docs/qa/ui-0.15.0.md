@@ -101,6 +101,8 @@
 
 ### 2-6. 그 밖에 눈에 띈 것 (PC 실제 화면)
 
+- **사용자 신고(2026-10-18 17:21, 125% 배율 캡처)**: ① 입력칸 글자(placeholder "종료"·"상대 이름")가 위로 2~4px 떠 보임 — 2-5의 입력칸 −2(약 70곳)와 같은 원인이고, 125%에서는 1px이 1.25px로 반올림돼 더 커 보여요. 1순위로 고쳐요(`padding-bottom` 3px). ② 설정 스위치: 트랙이 알약이 아니라 둥근 네모, 노브가 동그라미가 아니라 둥근 네모(스퀴클 전역 적용에 `round`가 빠진 8곳 중 `.switch`·`.switch .knob`), 노브가 1px 위로 보임(`top: 2px`는 100%에서 가운데지만 125%에서 2.5px이 2/3으로 갈림 + 아래쪽 그림자) → `corner-shape: round` + `top: calc(50% - 8px)` + 그림자를 `0 0 2px`로.
+
 - 민원대장 연번 열(처음 폭 44)이 4자리(1546)에서 **두 줄로 꺾여요** — 3년치 자료에서 바로 보임. 연번 열 폭 52 또는 글자 12로.
 - 뜨는 창 폭: 분류·종류·프로젝트 관리 480(결정대로) · 일정 추가 590 · 공사 관리 1220(표라 예외) · 일괄 이름 바꾸기 ≈ 1100.
 - 뜨는 창 아래 단추: 관리 창은 "닫기" 보라 하나, 일정 창은 취소+저장 — 뜻이 달라 괜찮아요. 다만 "닫기"가 주 단추(보라)인 것은 애매함(1안 보라 그대로 / 2안 보조 단추).
@@ -173,7 +175,7 @@
 - 7px→sm/md: 6050 `.jp-chip` · 6149 `.jp-nav` · 6636 `.kb` · 7559 `.fx-tab`(md) · 8744 `.mod-icon`.
 - 10px→md 또는 lg: `.gate-note` `.cm-fdd` `.td-cal` `.g-box` `.xl-menu` `.jp-cal` `.pr-ask` `.fx-pane` `.fx-tree` `.fx-cf-card`(판은 lg 14, 메뉴·상자는 md 8).
 - 6px 숫자→토큰: 5053 `.cal-kbadge` · 6434 `.jp-card` · 9261 `.bd-chip` · 9297 `.bd-memo` · 9330 `.bd-in` · 9357 `.bd-selk` · 9414 `.bd-mi` · 9596 `.bd-sumbar button` · 8018 `.fx-up-big`.
-- `corner-shape: round` 추가: 547 `.switch` · 561 `.switch .knob` · 1697 `.jcal-dot` · 2714 `.rte-area ul>li::before,.rte-view ul>li::before` · 5342 `.cal-now::before` · 5608 `.g-dot` · 6748 `.pr-run-dot` · 8921 `.search-x`.
+- `corner-shape: round` 추가(**사용자 신고 — 먼저**): 547 `.switch` · 561 `.switch .knob`(+ `top: calc(50% - 8px)`, 그림자 `0 0 2px`) · 1697 `.jcal-dot` · 2714 `.rte-area ul>li::before,.rte-view ul>li::before` · 5342 `.cal-now::before` · 5608 `.g-dot` · 6748 `.pr-run-dot` · 8921 `.search-x`.
 
 ### D. app.css — 글자·여백·간격
 - 글자 11→11.5: 3952 `.td-src,.td-link-badge` · 2184 `.jproj-badge` · 6944 `.pr-d` · 7604 `.fx-target` · 8287 `.fx-new` · 6455 `.jp-kind`·6495 `.jp-proj`·6516 `.jp-sp`(인쇄는 그대로 둬도 됨) · 142 `.side-kb`. 13.5→13: 7631 `.fx-drv` · 1744 `.jcal-mon` · 7204 `.pr-ask-t`. 10.5→11.5: 5358 `.cal-cbtn`. 창 제목 5959 `.xl-ask-title`·6011 `.jp-title` 17→16, 4905 `.cal-dlg-title input` 19→16.
