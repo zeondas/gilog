@@ -4486,7 +4486,7 @@ body.col-dragging * {
   min-width: 0;
 }
 
-/* 왼쪽: 종류와 다음 일정 */
+/* 왼쪽: 종류와 주간일정 */
 .cal-side {
   flex: 1 0 200px;
   max-width: 250px;
