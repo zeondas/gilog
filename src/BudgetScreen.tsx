@@ -21,8 +21,6 @@ import {
   memoToText,
   okWon,
   parseWon,
-  rowAvail,
-  rowLow,
   rowRate,
   sortRows,
   STAGES,
@@ -65,7 +63,7 @@ type Money = { text: string; orig: number | null };
 type Form =
   | { level: "project"; id: number | null; after: number | null; name: string; budget: Money }
   | { level: "item"; id: number | null; project: number; name: string; budget: Money }
-  | { level: "row"; id: number | null; item: number; name: string; kind: string; co: string; budget: Money; cmt: Money; exp: Money; act: Money; stage: string };
+  | { level: "row"; id: number | null; item: number; name: string; kind: string; co: string; cmt: Money; exp: Money; act: Money; stage: string };
 
 type Pop =
   | { t: "menu"; x: number; y: number; level: BudgetLevel; id: number }
@@ -228,9 +226,9 @@ export default function BudgetScreen() {
     };
     try {
       if (f.level === "row") {
-        const cmt = check("cmt", f.cmt), exp = check("exp", f.exp), act = check("act", f.act), rb = check("budget", f.budget);
-        if (cmt === undefined || exp === undefined || act === undefined || rb === undefined) return false;
-        const [y, id] = await api.saveBudgetRow(f.item, f.id, { name, kind: f.kind, co: f.co, budget: rb, cmt: cmt ?? 0, exp: exp ?? 0, act: act ?? 0, stage: f.stage });
+        const cmt = check("cmt", f.cmt), exp = check("exp", f.exp), act = check("act", f.act);
+        if (cmt === undefined || exp === undefined || act === undefined) return false;
+        const [y, id] = await api.saveBudgetRow(f.item, f.id, { name, kind: f.kind, co: f.co, cmt: cmt ?? 0, exp: exp ?? 0, act: act ?? 0, stage: f.stage });
         setData(y);
         setSel(selKey("row", id));
         if (isNew) setFlash(id);
@@ -270,7 +268,7 @@ export default function BudgetScreen() {
     if (level === "row") {
       const r = findRow(id)?.r;
       if (!r) return;
-      setForm({ level, id, item: findRow(id)!.it.id, name: r.name, kind: r.kind, co: r.co, budget: money(r.budget, unit), cmt: money(r.cmt, unit), exp: money(r.exp, unit), act: money(r.act, unit), stage: r.stage });
+      setForm({ level, id, item: findRow(id)!.it.id, name: r.name, kind: r.kind, co: r.co, cmt: money(r.cmt, unit), exp: money(r.exp, unit), act: money(r.act, unit), stage: r.stage });
     } else if (level === "item") {
       const x = findItem(id);
       if (!x) return;
@@ -309,7 +307,6 @@ export default function BudgetScreen() {
     name: "",
     kind: "공사",
     co: "",
-    budget: { text: "", orig: null },
     cmt: { text: "", orig: null },
     exp: { text: "", orig: null },
     act: { text: "", orig: null },
@@ -584,7 +581,6 @@ export default function BudgetScreen() {
           " n",
         );
   };
-  const rowAvailCell = (r: BudgetRow) => cell(fmt(rowAvail(r), unit), " n" + (rowLow(r) ? " red" : ""));
   const memoBtn = (level: BudgetLevel, id: number, memo: string) => {
     const has = !isEmptyMemo(memo);
     return (
@@ -693,7 +689,7 @@ export default function BudgetScreen() {
   };
   const draftRow: BudgetRow | null =
     form?.level === "row"
-      ? { id: form.id ?? -1, name: form.name, kind: form.kind, co: form.co, budget: moneyOf(form.budget, unit) ?? null, cmt: live(form.cmt), exp: live(form.exp), act: live(form.act), stage: form.stage, memo: "" }
+      ? { id: form.id ?? -1, name: form.name, kind: form.kind, co: form.co, cmt: live(form.cmt), exp: live(form.exp), act: live(form.act), stage: form.stage, memo: "" }
       : null;
   const rowsOf = (it: { id: number; rows: BudgetRow[] }) => {
     if (!draftRow || form?.level !== "row") return it.rows;
@@ -764,13 +760,13 @@ export default function BudgetScreen() {
             onChange={(e) => setF({ co: e.target.value })}
           />,
         )}
-        {cell(moneyInput("budget", "예산", f.budget))}
+        {cell("")}
         {cell(moneyInput("cmt", "원인행위", f.cmt))}
         {cell(moneyInput("exp", "지출액", f.exp))}
         {cell(moneyInput("act", "실집행액", f.act))}
         {draftRow && cell(fmt(balance(draftRow), unit), " n" + (balance(draftRow) < 0 ? " red" : ""))}
         {draftRow && rowRateCell(draftRow)}
-        {draftRow && rowAvailCell(draftRow)}
+        {cell("")}
         {cell(stageChip(f.stage, (r, from) => setPop({ t: "stage", x: r.left, y: r.bottom + 4, id: "form", from }), "form-stage"))}
         {cell(existing ? memoBtn("row", existing.id, existing.memo) : "")}
       </div>
@@ -916,13 +912,13 @@ export default function BudgetScreen() {
                 {r.co}
               </span>,
             )}
-            {cell(fmt(r.budget, unit), " n")}
+            {cell("")}
             {cell(fmt(r.cmt, unit), " n")}
             {cell(fmt(r.exp, unit), " n")}
             {cell(fmt(r.act, unit), " n")}
             {cell(fmt(balance(r), unit), " n" + (balance(r) < 0 ? " red" : ""))}
             {rowRateCell(r)}
-            {rowAvailCell(r)}
+            {cell("")}
             {cell(
               stageChip(
                 r.stage,

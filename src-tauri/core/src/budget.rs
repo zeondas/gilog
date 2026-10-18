@@ -1,8 +1,7 @@
 //! 집행현황(12단계): 해마다 세부사업 → 부기사업(산출항목) → 공사(용역·물품) 세 겹이에요.
 //!
 //! - 금액은 모두 원 단위 정수예요(십원 단위부터 — 1원 자리는 0). 화면의 원/천원은 보기만 바꿔요.
-//! - 예산은 세부사업·부기사업·공사 모두 적을 수 있어요(비어 있을 수 있음). 공사 예산이 있으면 그 줄 가용액 = 예산 − (끝났으면 지출액, 아니면 실집행액)
-//!   (2026-10-18 사용자). 공사는 원인행위·지출액·실집행액도 있어요.
+//! - 예산은 세부사업·부기사업에만 있어요(비어 있을 수 있음). 공사는 원인행위·지출액·실집행액.
 //! - 잔액·집행률·가용액은 저장하지 않고 화면·엑셀이 계산해요(src/budget.ts).
 //! - 바꾸는 명령은 그 해 전체를 돌려줘요(한 해가 수백 줄이라 가벼워요).
 //! - 메모는 메모 편집기의 HTML(머릿기호 □●-, 표 없음)이에요. 글자가 없으면 빈 글자로 둬요(화면이 판단).
@@ -25,8 +24,6 @@ pub struct BudgetRow {
     pub kind: String,
     /// 업체(하도)
     pub co: String,
-    /// 공사 예산(없으면 그 줄 가용액은 빈칸)
-    pub budget: Option<i64>,
     /// 원인행위
     pub cmt: i64,
     /// 지출액
@@ -68,7 +65,6 @@ pub struct BudgetRowInput {
     pub name: String,
     pub kind: String,
     pub co: String,
-    pub budget: Option<i64>,
     pub cmt: i64,
     pub exp: i64,
     pub act: i64,
@@ -140,7 +136,6 @@ pub(crate) const SCHEMA: &str = "
         name  TEXT NOT NULL,
         kind  TEXT NOT NULL DEFAULT '공사',
         co    TEXT NOT NULL DEFAULT '',
-        budget INTEGER,
         cmt   INTEGER NOT NULL DEFAULT 0,
         exp   INTEGER NOT NULL DEFAULT 0,
         act   INTEGER NOT NULL DEFAULT 0,
@@ -148,15 +143,6 @@ pub(crate) const SCHEMA: &str = "
         memo  TEXT NOT NULL DEFAULT ''
     );
 ";
-
-/// 예전 파일(공사 예산 칸 없음)에 칸을 더해요.
-pub(crate) fn upgrade(conn: &Connection) -> Result<()> {
-    let has: bool = conn.prepare("SELECT 1 FROM pragma_table_info('budget_rows') WHERE name = 'budget'")?.exists([])?;
-    if !has {
-        conn.execute_batch("ALTER TABLE budget_rows ADD COLUMN budget INTEGER;")?;
-    }
-    Ok(())
-}
 
 fn bad(msg: &str) -> Error {
     Error::Invalid(msg.into())
@@ -199,7 +185,6 @@ fn clean_row(r: &BudgetRowInput) -> Result<BudgetRowInput> {
         name: name_of(&r.name)?,
         kind,
         co: one_line(&r.co),
-        budget: won_opt(r.budget)?,
         cmt: won(r.cmt)?,
         exp: won(r.exp)?,
         act: won(r.act)?,
@@ -224,7 +209,7 @@ fn read_year(conn: &Connection, year: i64) -> Result<Vec<BudgetProject>> {
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;
     let mut is = conn.prepare("SELECT id, name, budget, open, memo FROM budget_items WHERE project = ?1 ORDER BY ord, id")?;
-    let mut rs = conn.prepare("SELECT id, name, kind, co, cmt, exp, act, stage, memo, budget FROM budget_rows WHERE item = ?1 ORDER BY ord, id")?;
+    let mut rs = conn.prepare("SELECT id, name, kind, co, cmt, exp, act, stage, memo FROM budget_rows WHERE item = ?1 ORDER BY ord, id")?;
     for p in projects.iter_mut() {
         p.items = is
             .query_map(params![p.id], |r| {
@@ -251,7 +236,6 @@ fn read_year(conn: &Connection, year: i64) -> Result<Vec<BudgetProject>> {
                         act: r.get(6)?,
                         stage: r.get(7)?,
                         memo: r.get(8)?,
-                        budget: r.get(9)?,
                     })
                 })?
                 .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -304,8 +288,8 @@ fn ids(tx: &Transaction, sql: &str, parent: i64) -> Result<Vec<i64>> {
 
 fn insert_row(tx: &Transaction, item: i64, ord: i64, r: &BudgetRowInput, memo: &str) -> Result<i64> {
     tx.execute(
-        "INSERT INTO budget_rows (item, ord, name, kind, co, cmt, exp, act, stage, memo, budget) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-        params![item, ord, r.name, r.kind, r.co, r.cmt, r.exp, r.act, r.stage, memo, r.budget],
+        "INSERT INTO budget_rows (item, ord, name, kind, co, cmt, exp, act, stage, memo) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        params![item, ord, r.name, r.kind, r.co, r.cmt, r.exp, r.act, r.stage, memo],
     )?;
     Ok(tx.last_insert_rowid())
 }
@@ -387,8 +371,8 @@ impl Store {
         let id = match id {
             Some(id) => {
                 let n = tx.execute(
-                    "UPDATE budget_rows SET name = ?2, kind = ?3, co = ?4, cmt = ?5, exp = ?6, act = ?7, stage = ?8, budget = ?9 WHERE id = ?1",
-                    params![id, r.name, r.kind, r.co, r.cmt, r.exp, r.act, r.stage, r.budget],
+                    "UPDATE budget_rows SET name = ?2, kind = ?3, co = ?4, cmt = ?5, exp = ?6, act = ?7, stage = ?8 WHERE id = ?1",
+                    params![id, r.name, r.kind, r.co, r.cmt, r.exp, r.act, r.stage],
                 )?;
                 if n == 0 {
                     return Err(Error::NotFound);
@@ -639,9 +623,7 @@ mod tests {
         assert_eq!(p.items[0].name, "시도");
         let it = p.items[0].id;
         let (_, r1) = s.save_budget_row(it, None, &row("하반기", 87_239_870)).unwrap();
-        let (y, r2) = s.save_budget_row(it, None, &BudgetRowInput { kind: "관급".into(), stage: "추진".into(), budget: Some(90_000_000), ..row("상반기", 10) }).unwrap();
-        assert_eq!(y.iter().find(|p| p.id == a).unwrap().items[0].rows[1].budget, Some(90_000_000));
-        assert!(s.save_budget_row(it, None, &BudgetRowInput { budget: Some(5), ..row("x", 10) }).is_err());
+        let (y, r2) = s.save_budget_row(it, None, &BudgetRowInput { kind: "관급".into(), stage: "추진".into(), ..row("상반기", 10) }).unwrap();
         let rows = &y.iter().find(|p| p.id == a).unwrap().items[0].rows;
         assert_eq!(rows.iter().map(|r| (r.id, r.kind.as_str(), r.stage.as_str())).collect::<Vec<_>>(), [(r1, "공사", "준비"), (r2, "관급", "추진")]);
         // 금액은 십원 단위, 구분·단계는 정해진 것만

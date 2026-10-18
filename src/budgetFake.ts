@@ -24,7 +24,7 @@ function cleanRow(r: BudgetRowInput): BudgetRowInput {
   const kind = r.kind?.trim() || "공사";
   const stage = r.stage?.trim() || "준비";
   if (!(KINDS as readonly string[]).includes(kind) || !(STAGES as readonly string[]).includes(stage)) throw "invalid";
-  return { name: nameOf(r.name), kind, co: one(r.co ?? ""), budget: won(r.budget ?? null), cmt: won(r.cmt) ?? 0, exp: won(r.exp) ?? 0, act: won(r.act) ?? 0, stage };
+  return { name: nameOf(r.name), kind, co: one(r.co ?? ""), cmt: won(r.cmt) ?? 0, exp: won(r.exp) ?? 0, act: won(r.act) ?? 0, stage };
 }
 
 const byOrd = <T extends { ord: number; id: number }>(a: T[]) => [...a].sort((x, y) => x.ord - y.ord || x.id - y.id);

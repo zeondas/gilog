@@ -223,7 +223,6 @@ impl Store {
         self.conn.execute_batch(process::SCHEMA)?;
         process::upgrade(&self.conn)?;
         self.conn.execute_batch(budget::SCHEMA)?;
-        budget::upgrade(&self.conn)?;
         Ok(())
     }
 
