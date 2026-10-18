@@ -21,17 +21,19 @@ use windows::Win32::Storage::FileSystem::{
     GetDiskFreeSpaceExW, GetDriveTypeW, GetLogicalDrives, GetVolumeInformationW, FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_NORMAL,
 };
 use windows::Win32::System::Com::{CoInitializeEx, COINIT_APARTMENTTHREADED};
-use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyState, VK_SHIFT};
+use windows::Win32::UI::Input::KeyboardAndMouse::{
+    GetKeyState, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, VK_APPS, VK_SHIFT,
+};
 use windows::Win32::UI::Shell::Common::ITEMIDLIST;
 use windows::Win32::UI::Shell::{
     DefSubclassProc, ILFree, IContextMenu, IContextMenu2, IContextMenu3, IShellFolder, RemoveWindowSubclass, SHBindToObject,
-    SHGetFileInfoW, SHParseDisplayName, SetWindowSubclass, ShellExecuteW, CMF_EXPLORE, CMF_EXTENDEDVERBS, CMF_NORMAL, CMIC_MASK_PTINVOKE,
+    SHGetFileInfoW, SHOpenFolderAndSelectItems, SHParseDisplayName, SetWindowSubclass, ShellExecuteW, CMF_EXPLORE, CMF_EXTENDEDVERBS, CMF_NORMAL, CMIC_MASK_PTINVOKE,
     CMINVOKECOMMANDINFO, CMINVOKECOMMANDINFOEX, GCS_VERBW, SHFILEINFOW, SHGFI_ICON, SHGFI_LARGEICON, SHGFI_SMALLICON,
     SHGFI_USEFILEATTRIBUTES,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreatePopupMenu, DestroyIcon, DestroyMenu, GetCursorPos, GetIconInfo, TrackPopupMenuEx, HICON, ICONINFO, SW_SHOWNORMAL, TPM_RETURNCMD,
-    TPM_RIGHTBUTTON, WM_DRAWITEM, WM_INITMENUPOPUP, WM_MEASUREITEM, WM_MENUCHAR,
+    AppendMenuW, CreatePopupMenu, DestroyIcon, DestroyMenu, GetClassNameW, GetCursorPos, GetForegroundWindow, GetIconInfo, TrackPopupMenuEx,
+    HICON, ICONINFO, MF_SEPARATOR, MF_STRING, SW_SHOWNORMAL, TPM_RETURNCMD, TPM_RIGHTBUTTON, WM_DRAWITEM, WM_INITMENUPOPUP, WM_MEASUREITEM, WM_MENUCHAR,
 };
 
 use crate::files::Drive;
@@ -238,8 +240,12 @@ fn parse(path: &str) -> Result<Pidl, String> {
     Ok(Pidl(p))
 }
 
+/// 기Log가 메뉴 맨 아래에 더하는 줄 "윈도우 탐색기에서 열기 · 보안 해제"의 번호(윈도우 항목 번호와 겹치지 않게 그 범위 밖)
+const ID_REVEAL: u32 = 0x7F00;
+
 /// 윈도우 우클릭 메뉴를 띄우고 고른 것을 실행해요.
-/// 돌려주는 값: "" 아무것도 안 고름 · "done" 실행함 · "rename" 화면이 이름 바꾸기를 시작해야 해요.
+/// 돌려주는 값: "" 아무것도 안 고름 · "done" 실행함 · "rename" 화면이 이름 바꾸기를 시작해야 해요
+/// · "reveal" 화면이 윈도우 탐색기로 넘겨야 해요(회사 보안 프로그램 메뉴는 윈도우 탐색기에서만 나와요, 2026-10-18).
 /// hwnd는 앱 창, (x, y)는 화면 안 CSS 픽셀(음수면 마우스 자리), scale은 화면 배율.
 pub fn context_menu(hwnd_raw: isize, origin: (i32, i32), scale: f64, dir: &str, names: &[String], x: f64, y: f64) -> Result<String, String> {
     unsafe {
@@ -272,10 +278,15 @@ pub fn context_menu(hwnd_raw: isize, origin: (i32, i32), scale: f64, dir: &str, 
             flags |= CMF_EXTENDEDVERBS;
         }
         const FIRST: u32 = 1;
-        let hr = cm.QueryContextMenu(menu, 0, FIRST, 0x7FFF, flags);
+        let hr = cm.QueryContextMenu(menu, 0, FIRST, ID_REVEAL - 1, flags);
         if hr.is_err() {
             let _ = DestroyMenu(menu);
             return Err(format!("query:{hr:?}"));
+        }
+        if !names.is_empty() {
+            let label = wide("윈도우 탐색기에서 열기 · 보안 해제");
+            let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
+            let _ = AppendMenuW(menu, MF_STRING, ID_REVEAL as usize, PCWSTR(label.as_ptr()));
         }
         let pt = if x < 0.0 || y < 0.0 {
             let mut p = POINT::default();
@@ -292,6 +303,10 @@ pub fn context_menu(hwnd_raw: isize, origin: (i32, i32), scale: f64, dir: &str, 
         if cmd < FIRST {
             let _ = DestroyMenu(menu);
             return Ok(String::new());
+        }
+        if cmd == ID_REVEAL {
+            let _ = DestroyMenu(menu);
+            return Ok("reveal".into());
         }
         let id = (cmd - FIRST) as usize;
         let mut verb = [0u16; 128];
@@ -318,4 +333,62 @@ pub fn context_menu(hwnd_raw: isize, origin: (i32, i32), scale: f64, dir: &str, 
         r.map_err(|e| format!("invoke:{e}"))?;
         Ok("done".into())
     }
+}
+
+// ---------- 윈도우 탐색기로 넘기기 (보안 해제) ----------
+
+/// 윈도우 탐색기 창을 열어 dir 안의 names를 골라 두고, 그 창이 앞에 오면 우클릭 메뉴(메뉴 키)를 대신 눌러 줘요.
+/// 회사 보안 프로그램(소프트캠프 문서보안)은 윈도우 탐색기에서만 메뉴를 보여 줘서 이렇게 넘겨요(2026-10-18 사용자 1안).
+/// 메뉴 키는 탐색기 창이 3초 안에 앞에 올 때만 눌러요 — 안 오면 창만 열려 있고 우클릭은 사용자가 해요.
+pub fn reveal(dir: &str, names: &[String], popup: bool) -> Result<(), String> {
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        let dir_pidl = parse(dir)?;
+        let folder: IShellFolder = SHBindToObject(None, dir_pidl.0, None).map_err(|e| format!("bind:{e}"))?;
+        let mut kids: Vec<Pidl> = Vec::new();
+        for n in names {
+            let w = wide(n);
+            let mut p: *mut ITEMIDLIST = std::ptr::null_mut();
+            let mut attrs = 0u32;
+            if folder.ParseDisplayName(HWND::default(), None, PCWSTR(w.as_ptr()), None, &mut p, &mut attrs).is_ok() {
+                kids.push(Pidl(p));
+            }
+        }
+        let raw: Vec<*const ITEMIDLIST> = kids.iter().map(|k| k.0 as *const ITEMIDLIST).collect();
+        let before = GetForegroundWindow();
+        SHOpenFolderAndSelectItems(dir_pidl.0, if raw.is_empty() { None } else { Some(&raw) }, 0).map_err(|e| format!("open:{e}"))?;
+        if popup && !raw.is_empty() {
+            let before = before.0 as isize;
+            std::thread::spawn(move || {
+                for _ in 0..30 {
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                    let fg = GetForegroundWindow();
+                    if fg.0 as isize == before || fg.0.is_null() {
+                        continue;
+                    }
+                    let mut cls = [0u16; 64];
+                    let n = GetClassNameW(fg, &mut cls) as usize;
+                    if String::from_utf16_lossy(&cls[..n]) == "CabinetWClass" {
+                        // 고른 파일이 화면에 자리 잡을 때까지 조금 기다렸다가 메뉴 키를 눌러요.
+                        std::thread::sleep(std::time::Duration::from_millis(350));
+                        if GetForegroundWindow() == fg {
+                            press_menu_key();
+                        }
+                        return;
+                    }
+                }
+            });
+        }
+        Ok(())
+    }
+}
+
+/// 메뉴 키(Shift+F10과 같은 일)를 한 번 눌렀다 떼요.
+unsafe fn press_menu_key() {
+    let key = |up: bool| INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_APPS, dwFlags: if up { KEYEVENTF_KEYUP } else { Default::default() }, ..Default::default() } },
+    };
+    let inputs = [key(false), key(true)];
+    unsafe { SendInput(&inputs, std::mem::size_of::<INPUT>() as i32) };
 }

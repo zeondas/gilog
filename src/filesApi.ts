@@ -23,7 +23,7 @@ export type FindSpec = {
   showHidden: boolean;
 };
 /** 우클릭 메뉴 결과: "" 안 고름 · "done" 실행함 · "rename" 이름 바꾸기 시작 */
-export type MenuResult = "" | "done" | "rename";
+export type MenuResult = "" | "done" | "rename" | "reveal";
 
 // ---------- 브라우저 흉내 ----------
 
@@ -247,6 +247,8 @@ export const fsApi = {
   explorer: (path: string, select: boolean) => (inApp ? call<null>("fs_explorer", { path, select }) : Promise.resolve(null)),
   icons: (keys: string[], size: number) => call<Record<string, string>>("fs_icons", { keys, size }),
   contextMenu: (dir: string, names: string[], x: number, y: number) => call<MenuResult>("fs_context_menu", { dir, names, x, y }),
+  /** 윈도우 탐색기로 넘기기(보안 해제) — dir을 열어 names를 골라 두고 우클릭 메뉴를 띄워요 */
+  reveal: (dir: string, names: string[]) => (inApp ? call<null>("fs_reveal", { dir, names, popup: true }) : Promise.resolve(null)),
   find: (spec: FindSpec) => call<Found[]>("fs_find", { spec }),
   watch: (dirs: string[]) => (inApp ? call<null>("fs_watch", { dirs }) : Promise.resolve(null)),
 };

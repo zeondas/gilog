@@ -593,6 +593,20 @@ pub fn fs_explorer(path: String, select: bool) -> Result<(), String> {
     }
 }
 
+/// 윈도우 탐색기로 넘기기(보안 해제): dir을 열어 names를 골라 두고, popup이면 그 파일의 우클릭 메뉴를 띄워요.
+#[tauri::command]
+pub fn fs_reveal(dir: String, names: Vec<String>, popup: bool) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        crate::files_win::reveal(&dir, &names, popup)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (names, popup);
+        std::process::Command::new("xdg-open").arg(&dir).spawn().map(|_| ()).map_err(|e| e.to_string())
+    }
+}
+
 /// 윈도우 아이콘(PNG 데이터 주소). 폴더는 "<dir>", 그 밖에는 확장자(".pptx")나 경로(.exe·.lnk·.ico).
 #[tauri::command]
 pub async fn fs_icons(keys: Vec<String>, size: u32) -> HashMap<String, String> {

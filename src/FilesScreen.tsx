@@ -460,6 +460,20 @@ export default function FilesScreen() {
     void navigator.clipboard.writeText(text).then(() => flash("경로를 복사했어요"), () => flash("복사하지 못했어요"));
   };
 
+  // 보안 해제: 회사 보안 프로그램(소프트캠프) 메뉴는 윈도우 탐색기에서만 나와요. 윈도우 탐색기를 고른 파일을 골라 둔 채
+  // 새로 열고 그 파일의 우클릭 메뉴를 띄워요(2026-10-18 사용자 1안, 시안 FilesDrm). 여러 폴더면 첫 파일의 폴더만.
+  const revealRows = async (rs: Row[]) => {
+    if (!rs.length) return;
+    const dir = parentOf(rs[0].path);
+    if (!dir) return;
+    const names = rs.filter((r) => parentOf(r.path) === dir).map((r) => r.name);
+    try {
+      await fsApi.reveal(dir, names);
+    } catch {
+      flash("윈도우 탐색기를 열지 못했어요");
+    }
+  };
+
   const shellMenu = async (pane: number, e: React.MouseEvent | null, rowsForMenu: Row[]) => {
     if (!st) return;
     const t = activeTab(st.panes[pane]);
@@ -476,6 +490,7 @@ export default function FilesScreen() {
     try {
       const r: MenuResult = await fsApi.contextMenu(dir, names, e ? e.clientX : -1, e ? e.clientY : -1);
       if (r === "rename") startRename(pane);
+      else if (r === "reveal") void revealRows(rowsForMenu);
       else if (r === "done") window.setTimeout(refreshAll, 300);
     } catch (er) {
       if (String(er) === "windows_only") flash("우클릭 메뉴는 윈도우에서 떠요(미리 보기에서는 안 돼요)");
@@ -1266,7 +1281,7 @@ export default function FilesScreen() {
     );
   };
 
-  const anyLocked = st.panes.slice(0, paneCount).some((_, i) => selected(i).some((r) => r.locked));
+  const anySelected = selected(st.active).length > 0;
 
   return (
     <div className="fx-root">
@@ -1396,7 +1411,13 @@ export default function FilesScreen() {
             </div>
           )}
         </div>
-        <button type="button" className="btn btn-ctrl" title="보안 해제 — 회사 PC에서 확인한 뒤 동작을 정해요. 지금은 우클릭 메뉴에서 풀어요" disabled={!anyLocked}>
+        <button
+          type="button"
+          className="btn btn-ctrl"
+          title="고른 파일을 윈도우 탐색기에서 열고 우클릭 메뉴를 띄워요(보안 해제는 윈도우 탐색기에서만 돼요)"
+          disabled={!anySelected}
+          onClick={() => void revealRows(selected(st.active))}
+        >
           <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <rect x="4" y="11" width="16" height="10" rx="2" />
             <path d="M8 11V7a4 4 0 0 1 7.5-2" />
