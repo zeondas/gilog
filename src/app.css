@@ -68,8 +68,8 @@ button:focus-visible {
 .side-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: 35px;
+  gap: var(--space-2);
+  height: 36px;
   padding: 0 8px;
   border: 0;
   border-radius: var(--radius-md);
@@ -119,7 +119,7 @@ button:focus-visible {
 
 .side-bottom .side-item,
 .side-toggle .side-item {
-  height: 33px;
+  height: 36px;
   color: var(--muted);
 }
 
@@ -141,7 +141,7 @@ button:focus-visible {
 
 .side-kb {
   margin-left: auto;
-  font-size: 11px;
+  font-size: var(--fs-badge);
   color: var(--muted);
   font-weight: 400;
 }
@@ -267,7 +267,7 @@ button:focus-visible {
 .gate-input {
   height: 36px;
   box-sizing: border-box;
-  padding: 0 10px;
+  padding: 0 8px;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   background: var(--surface);
@@ -325,7 +325,7 @@ button:focus-visible {
   padding: 10px 14px;
   border: 1px solid var(--danger);
   border-color: color-mix(in srgb, var(--danger) 30%, transparent);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--danger-wash);
   color: var(--danger);
   font-size: 12px;
@@ -380,7 +380,7 @@ button:focus-visible {
 
 .btn-primary {
   height: var(--size-ctrl);
-  padding: 0 var(--space-4);
+  padding: 0 14px;
   border: 0;
   border-radius: var(--radius-md);
   background: var(--accent);
@@ -429,9 +429,9 @@ button:focus-visible {
 .btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 var(--space-3);
+  gap: var(--space-1h);
+  height: 28px;
+  padding: 0 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface);
@@ -456,10 +456,10 @@ button:focus-visible {
 }
 
 .btn-sm {
-  height: 30px;
+  height: 28px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1h);
   border-radius: var(--radius-sm);
 }
 
@@ -467,8 +467,8 @@ button:focus-visible {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
@@ -477,7 +477,7 @@ button:focus-visible {
 }
 
 .input {
-  height: 30px;
+  height: 28px;
   padding: 0 8px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
@@ -493,7 +493,7 @@ button:focus-visible {
 
 .input-sm {
   width: 110px;
-  height: 26px;
+  height: 28px;
 }
 
 select.input {
@@ -552,6 +552,7 @@ select.input {
   border-radius: 999px;
   background: var(--line);
   transition: background 0.15s;
+  corner-shape: round;
 }
 
 .switch.on {
@@ -568,6 +569,7 @@ select.input {
   background: var(--surface);
   box-shadow: 0 1px 2px rgba(var(--shadow-rgb), 0.3);
   transition: left 0.15s;
+  corner-shape: round;
 }
 
 .switch.on .knob {
@@ -592,14 +594,14 @@ select.input {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1h);
 }
 
 .chip {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  height: 26px;
+  height: var(--size-mini);
   padding: 0 3px 0 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
@@ -620,7 +622,7 @@ select.input {
   height: 20px;
   padding: 0;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: inherit;
   opacity: 0.6;
@@ -638,14 +640,14 @@ select.input {
 .kinds {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 6px;
+  gap: var(--space-1h);
 }
 
 .kind {
   display: flex;
   align-items: center;
-  gap: 6px;
-  height: 30px;
+  gap: var(--space-1h);
+  height: var(--size-mini);
   padding: 0 3px 0 10px;
   border: 1px solid var(--line-soft);
   border-radius: var(--radius-sm);
@@ -663,33 +665,33 @@ select.input {
 .kind-key {
   display: inline-flex;
   align-items: center;
-  height: 20px;
-  padding: 0 6px;
-  border-radius: 5px;
+  height: var(--size-badge-h);
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
   background: var(--surface-band);
   color: var(--ink-2);
-  font-size: 12px;
+  font-size: var(--fs-badge);
   font-weight: 700;
 }
 
 .kind-add {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-1h);
   padding-top: var(--space-1);
 }
 
 .seg {
   display: inline-flex;
-  padding: 2px;
+  padding: 3px;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   background: var(--surface-band);
 }
 
 .seg button {
-  height: 26px;
-  padding: 0 12px;
+  height: 28px;
+  padding: 0 10px;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -800,7 +802,7 @@ mark {
 }
 
 .btn-xs {
-  height: 26px;
+  height: 28px;
   padding: 0 10px;
   font-size: 12px;
   display: inline-flex;
@@ -818,7 +820,7 @@ mark {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1h);
 }
 
 .ct-chips-label {
@@ -831,12 +833,11 @@ mark {
 .pchip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1h);
   height: 28px;
   padding: 0 10px;
   border: 1px solid var(--line);
-  border-radius: 999px;
-  corner-shape: round;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--ink-2);
   font-size: 12.5px;
@@ -870,8 +871,8 @@ mark {
 .pbadge {
   display: inline-flex;
   align-items: center;
-  height: 22px;
-  padding: 0 9px;
+  height: var(--size-badge-h);
+  padding: 0 8px;
   border-radius: var(--radius-sm);
   font-size: 11.5px;
   font-weight: 600;
@@ -1081,8 +1082,8 @@ mark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
@@ -1138,7 +1139,7 @@ mark {
 .ccard-projs {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-1h);
 }
 
 .ccard-lines {
@@ -1247,9 +1248,9 @@ mark {
 
 .memo-add {
   align-self: flex-start;
-  height: 22px;
+  height: 28px;
   margin: -4px -6px;
-  padding: 0 6px;
+  padding: 0 10px;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -1324,7 +1325,7 @@ mark {
   align-items: center;
   gap: 7px;
   padding: 0 6px;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
 }
 
 .memo-row .memo-dot {
@@ -1419,7 +1420,7 @@ mark {
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background: var(--surface-raised);
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 24px 64px rgba(var(--shadow-rgb), 0.35);
   overflow: hidden;
 }
 
@@ -1472,7 +1473,7 @@ mark {
 .swatches {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1h);
 }
 
 .swatch {
@@ -1567,7 +1568,7 @@ mark {
 .jcal-title {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1h);
   height: 30px;
   margin-right: auto;
   padding: 0 8px 0 4px;
@@ -1589,7 +1590,7 @@ mark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 30px;
+  height: 28px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface);
@@ -1597,7 +1598,7 @@ mark {
 }
 
 .jcal-nav {
-  width: 30px;
+  width: 28px;
   padding: 0;
 }
 
@@ -1700,6 +1701,7 @@ mark {
   border-radius: 50%;
   background: var(--accent-line);
   visibility: hidden;
+  corner-shape: round;
 }
 
 .jcal-day.has .jcal-dot {
@@ -1737,7 +1739,7 @@ mark {
 .jcal-months {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
+  gap: var(--space-1h);
   padding-top: var(--space-1);
 }
 
@@ -1752,7 +1754,7 @@ mark {
   border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--ink);
-  font-size: 13.5px;
+  font-size: var(--fs);
   font-weight: 600;
 }
 
@@ -1801,7 +1803,7 @@ mark {
 }
 
 .jn-search {
-  width: 240px;
+  width: 260px;
 }
 
 /* 날짜 머리 줄 */
@@ -1827,7 +1829,7 @@ mark {
 }
 
 .jday-in {
-  height: 26px;
+  height: 28px;
   padding: 0 6px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
@@ -2033,7 +2035,7 @@ mark {
 .jlines {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-1h);
   padding: var(--space-3) var(--space-4) 14px;
 }
 
@@ -2053,7 +2055,7 @@ mark {
   align-items: center;
   justify-content: center;
   width: var(--size-badge);
-  height: 22px;
+  height: var(--size-badge-h);
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   font-size: 11.5px;
@@ -2072,7 +2074,7 @@ mark {
 .jline-t {
   flex: 1;
   min-width: 0;
-  line-height: 22px;
+  line-height: round(1.7em, 1px);
   overflow-wrap: anywhere;
   /* 한 말 안 줄 바꿈(왼쪽 Alt+Enter, 엔터규칙)을 그대로 보여요 */
   white-space: pre-wrap;
@@ -2167,7 +2169,7 @@ mark {
 
 .jcard-new > .jpillar {
   /* 구분 칸을 오른쪽 말 줄과 같은 높이에 맞춰요(위아래 줄 사이 6px) */
-  gap: 6px;
+  gap: var(--space-1h);
   border-right: 1px dashed var(--accent-line);
 }
 
@@ -2185,15 +2187,15 @@ mark {
   display: inline-flex;
   align-items: center;
   max-width: 100%;
-  min-height: 20px;
-  padding: 2px 5px;
+  min-height: var(--size-badge-h);
+  padding: 3px 8px;
   border: 1px dashed var(--line);
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-badge);
   font-weight: 700;
-  line-height: round(1.25em, 1px);
+  line-height: round(1.4em, 1px);
   text-align: left;
   overflow-wrap: anywhere;
 }
@@ -2201,7 +2203,7 @@ mark {
 .jnew-main {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-1h);
   min-width: 0;
   padding: 10px var(--space-3);
 }
@@ -2303,7 +2305,7 @@ mark {
   field-sizing: content;
   resize: none;
   overflow: hidden;
-  line-height: 18px;
+  line-height: round(1.4em, 1px);
   padding: calc((var(--size-input) - 20px) / 2 - 1px) 6px calc((var(--size-input) - 20px) / 2 + 1px);
 }
 
@@ -2313,7 +2315,7 @@ mark {
   align-items: center;
   justify-content: center;
   min-width: var(--size-badge);
-  height: 24px;
+  height: 28px;
   padding: 0 var(--space-2);
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
@@ -2332,9 +2334,9 @@ mark {
   flex: none;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1h);
   height: var(--size-input);
-  padding: 0 var(--space-3);
+  padding: 0 10px;
   border-radius: var(--radius-sm);
 }
 
@@ -2353,7 +2355,7 @@ mark {
 }
 
 .jedit-foot .btn-primary.btn-xs {
-  height: 26px;
+  height: 28px;
   padding: 0 var(--space-3);
   border-radius: var(--radius-sm);
 }
@@ -2402,10 +2404,9 @@ mark {
 .jonly {
   margin-left: auto;
   height: 28px;
-  padding: 0 var(--space-3);
+  padding: 0 10px;
   border: 1px solid var(--line);
-  border-radius: 999px;
-  corner-shape: round;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--ink-2);
   font-size: 12.5px;
@@ -2721,6 +2722,7 @@ mark {
   height: 4px;
   border-radius: 50%;
   background: var(--muted);
+  corner-shape: round;
 }
 
 /* □ */
@@ -3044,9 +3046,9 @@ body.col-dragging * {
 .cm-status {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 22px;
-  padding: 0 9px;
+  gap: var(--space-1h);
+  height: var(--size-badge-h);
+  padding: 0 8px;
   border-radius: var(--radius-sm);
   font-size: 11.5px;
   font-weight: 700;
@@ -3163,8 +3165,7 @@ body.col-dragging * {
   align-items: center;
   height: 28px;
   border: 1px solid var(--accent);
-  border-radius: 999px;
-  corner-shape: round;
+  border-radius: var(--radius-sm);
   background: var(--accent-tint);
   color: var(--accent);
   font-size: 12.5px;
@@ -3174,12 +3175,11 @@ body.col-dragging * {
 .cm-fpill-open {
   display: flex;
   align-items: center;
-  gap: 6px;
-  height: 26px;
+  gap: var(--space-1h);
+  height: var(--size-mini);
   padding: 0 4px 0 10px;
   border: 0;
-  border-radius: 999px;
-  corner-shape: round;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: inherit;
   font-size: 12.5px;
@@ -3239,9 +3239,9 @@ body.col-dragging * {
   gap: var(--space-2);
   padding: 10px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--surface-raised);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--shadow-pop);
   color: var(--ink);
   font-size: var(--fs);
   font-weight: 400;
@@ -3273,7 +3273,7 @@ body.col-dragging * {
   width: auto;
   height: 30px;
   padding: 0 var(--space-2);
-  gap: 6px;
+  gap: var(--space-1h);
   border-radius: var(--radius-sm);
 }
 
@@ -3395,7 +3395,7 @@ body.col-dragging * {
 
 .cm-memo-body .memo-row input {
   font-size: 14px;
-  height: 32px;
+  height: 28px;
 }
 
 /* 업무일지 "챙길 일"의 민원 */
@@ -3598,7 +3598,7 @@ body.col-dragging * {
 .cm-copy {
   display: inline-flex;
   align-items: baseline;
-  gap: 6px;
+  gap: var(--space-1h);
   max-width: 100%;
   padding: 2px 4px;
   margin: 0 -4px;
@@ -3702,7 +3702,7 @@ body.col-dragging * {
 }
 
 .cpick-btn {
-  gap: 6px;
+  gap: var(--space-1h);
 }
 
 .cpick-dot {
@@ -3728,7 +3728,7 @@ body.col-dragging * {
 .cpick-grid {
   display: grid;
   grid-template-columns: repeat(4, 22px);
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .cpick-grid .swatch {
@@ -3841,7 +3841,7 @@ body.col-dragging * {
   height: 16px;
   box-sizing: border-box;
   border: 1.5px solid var(--accent);
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--on-accent);
 }
@@ -3879,8 +3879,8 @@ body.col-dragging * {
 
 .td-newlist-add {
   flex: none;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
 }
 
 .dmenu-note {
@@ -3891,7 +3891,7 @@ body.col-dragging * {
 
 .td-rename {
   display: flex;
-  gap: 6px;
+  gap: var(--space-1h);
   padding: 2px;
 }
 
@@ -3953,12 +3953,12 @@ body.col-dragging * {
 .td-src {
   display: inline-flex;
   align-items: center;
-  height: 20px;
-  padding: 0 7px;
-  border-radius: 5px;
+  height: var(--size-badge-h);
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
   background: var(--accent-tint);
   color: var(--accent);
-  font-size: 11px;
+  font-size: var(--fs-badge);
   font-weight: 700;
 }
 
@@ -3972,7 +3972,7 @@ body.col-dragging * {
 .td-add {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-1h);
   padding: var(--space-2) var(--space-3);
   background: var(--surface);
   border-bottom: 1px solid var(--line-soft);
@@ -4037,7 +4037,7 @@ body.col-dragging * {
 .td-add-form {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-1h);
   padding-left: 26px;
 }
 
@@ -4045,7 +4045,7 @@ body.col-dragging * {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1h);
 }
 
 .td-cal-btn {
@@ -4070,11 +4070,10 @@ body.col-dragging * {
 .td-due-input {
   flex: none;
   width: 104px;
-  height: 26px;
+  height: 28px;
   padding: 0 8px;
   border: 1px solid var(--line);
-  border-radius: 999px;
-  corner-shape: round;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--ink);
   font: inherit;
@@ -4108,9 +4107,9 @@ body.col-dragging * {
   max-width: 100%;
   padding: var(--space-2);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--surface);
-  box-shadow: 0 4px 14px rgba(var(--shadow-rgb), 0.1);
+  box-shadow: var(--shadow-pop);
 }
 
 .td-cal-head {
@@ -4131,8 +4130,8 @@ body.col-dragging * {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
@@ -4304,7 +4303,7 @@ body.col-dragging * {
 .td-row-title {
   display: flex;
   align-items: flex-start;
-  gap: 6px;
+  gap: var(--space-1h);
   font-weight: 500;
 }
 
@@ -4341,19 +4340,19 @@ body.col-dragging * {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1h);
 }
 
 .td-due {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 20px;
-  padding: 0 7px;
-  border-radius: 5px;
+  gap: var(--space-1h);
+  height: var(--size-badge-h);
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
   background: var(--st-hold-bg);
   color: var(--st-hold-fg);
-  font-size: 11.5px;
+  font-size: var(--fs-badge);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -4386,7 +4385,7 @@ body.col-dragging * {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1h);
   margin-top: 2px;
 }
 
@@ -4502,7 +4501,7 @@ body.col-dragging * {
 
 .cal-manage {
   gap: 4px;
-  height: 24px;
+  height: 28px;
   color: var(--ink-2);
 }
 
@@ -4538,7 +4537,7 @@ body.col-dragging * {
   height: 16px;
   box-sizing: border-box;
   border: 1.5px solid;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
 }
 
@@ -4636,7 +4635,7 @@ body.col-dragging * {
 
 .cal-nav .btn {
   height: var(--size-ctrl);
-  padding: 0 var(--space-3);
+  padding: 0 14px;
   border-radius: var(--radius-md);
   font-size: var(--fs);
 }
@@ -4742,7 +4741,7 @@ body.col-dragging * {
 .cal-dhead {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1h);
   min-height: 24px;
   padding: 6px 10px 0;
 }
@@ -4752,7 +4751,7 @@ body.col-dragging * {
   align-items: center;
   justify-content: center;
   min-width: 24px;
-  height: 24px;
+  height: var(--size-badge-h);
   padding: 0 5px;
   box-sizing: border-box;
   border-radius: 999px;
@@ -4803,7 +4802,7 @@ body.col-dragging * {
   margin: 0 6px;
   padding: 0 6px;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--ink);
   font-size: 12px;
@@ -4876,7 +4875,7 @@ body.col-dragging * {
   margin: 0 6px;
   padding: 0 6px;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--muted);
   font-size: 11.5px;
@@ -4912,7 +4911,7 @@ body.col-dragging * {
   background: transparent;
   color: var(--ink);
   font: inherit;
-  font-size: 19px;
+  font-size: 16px;
   font-weight: 700;
 }
 
@@ -4948,11 +4947,11 @@ body.col-dragging * {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1h);
 }
 
 .cal-dlg-grid .cell-input {
-  height: 32px;
+  height: 28px;
 }
 
 .cal-in-date {
@@ -4968,9 +4967,8 @@ body.col-dragging * {
 }
 
 .cal-allday {
-  height: 32px;
-  border-radius: 999px;
-  corner-shape: round;
+  height: var(--size-mini);
+  border-radius: var(--radius-sm);
 }
 
 .cal-allday[aria-pressed="true"] {
@@ -4980,7 +4978,7 @@ body.col-dragging * {
 }
 
 .cal-select {
-  height: 32px;
+  height: 28px;
   padding: 0 6px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
@@ -5054,9 +5052,9 @@ body.col-dragging * {
   display: inline-flex;
   align-items: center;
   height: 22px;
-  padding: 0 9px;
-  border-radius: 6px;
-  font-size: 12px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-badge);
   font-weight: 600;
 }
 
@@ -5069,7 +5067,7 @@ body.col-dragging * {
 
 .cal-knew {
   flex: 1;
-  height: 32px;
+  height: 34px;
 }
 
 .link-btn {
@@ -5312,7 +5310,7 @@ body.col-dragging * {
   padding: 2px 6px;
   overflow: hidden;
   color: var(--ink);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   line-height: round(1.35em, 1px);
 }
 
@@ -5348,6 +5346,7 @@ body.col-dragging * {
   height: 10px;
   border-radius: 50%;
   background: var(--urgent);
+  corner-shape: round;
 }
 
 /* 색 단추 하나 + 펼쳐지는 24색 */
@@ -5366,7 +5365,7 @@ body.col-dragging * {
   border-radius: 50%;
   corner-shape: round;
   box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--line);
-  font-size: 10.5px;
+  font-size: var(--fs-badge);
   font-weight: 700;
   cursor: pointer;
 }
@@ -5402,7 +5401,7 @@ body.col-dragging * {
 .cal-cgrid {
   display: grid;
   grid-template-columns: repeat(8, 22px);
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .cal-cgrid .swatch {
@@ -5469,7 +5468,7 @@ body.col-dragging * {
 }
 
 .cal-notify-body {
-  gap: 8px;
+  gap: var(--space-2);
   padding-bottom: var(--space-4);
 }
 
@@ -5547,7 +5546,7 @@ body.col-dragging * {
 }
 
 .cal-dlg-grid .cal-kp-btn {
-  height: 32px;
+  height: 28px;
 }
 
 .cal-kp-list {
@@ -5569,7 +5568,7 @@ body.col-dragging * {
 .cal-kp-opt {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   min-height: 30px;
   padding: 0 6px;
   border-radius: var(--radius-sm);
@@ -5597,7 +5596,7 @@ body.col-dragging * {
 .about-text {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .cal-push {
@@ -5611,6 +5610,7 @@ body.col-dragging * {
   height: 8px;
   border-radius: 50%;
   background: var(--st-done-fg);
+  corner-shape: round;
 }
 .g-dot.bad {
   background: var(--danger);
@@ -5643,7 +5643,7 @@ body.col-dragging * {
   gap: var(--space-2);
   padding: var(--space-3);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--surface);
 }
 .g-box-head {
@@ -5730,7 +5730,7 @@ body.col-dragging * {
   flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1h);
 }
 
 .mgr-group {
@@ -5789,7 +5789,6 @@ body.col-dragging * {
 }
 
 .jproj-badge {
-  padding-top: 3px;
 }
 
 .td-done-toggle {
@@ -5894,7 +5893,7 @@ body.col-dragging * {
 }
 
 .xl-btn {
-  gap: 6px;
+  gap: var(--space-1h);
 }
 
 .xl-btn[aria-expanded="true"] {
@@ -5913,9 +5912,9 @@ body.col-dragging * {
   gap: 2px;
   padding: 6px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--surface);
-  box-shadow: 0 8px 24px rgba(var(--shadow-rgb), 0.14);
+  box-shadow: var(--shadow-pop);
 }
 
 .xl-item {
@@ -5952,20 +5951,20 @@ body.col-dragging * {
 .xl-ask-body {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 20px 24px 4px;
+  gap: var(--space-2);
+  padding: 20px 20px 4px;
 }
 
 .xl-ask-title {
   margin: 0;
-  font-size: 17px;
-  line-height: 24px;
+  font-size: 16px;
+  line-height: round(1.5em, 1px);
   font-weight: 700;
 }
 
 .xl-ask-path {
   color: var(--muted);
-  line-height: 20px;
+  line-height: round(1.55em, 1px);
   overflow-wrap: anywhere;
 }
 
@@ -5973,7 +5972,7 @@ body.col-dragging * {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
-  padding: 16px 24px 20px;
+  padding: 16px 20px 20px;
 }
 
 .xl-toast {
@@ -5993,7 +5992,7 @@ body.col-dragging * {
 
 /* ---------- 업무일지 인쇄 — 기간 창 (시안 JournalPrint.dc.html) ---------- */
 .jn-print {
-  gap: 6px;
+  gap: var(--space-1h);
 }
 
 .dialog.jp-dlg {
@@ -6005,13 +6004,13 @@ body.col-dragging * {
 .jp-head {
   display: flex;
   align-items: center;
-  padding: 18px 20px 0 24px;
+  padding: 18px 20px 0;
 }
 
 .jp-title {
   margin: 0 auto 0 0;
-  font-size: 17px;
-  line-height: 24px;
+  font-size: 16px;
+  line-height: round(1.5em, 1px);
   font-weight: 700;
 }
 
@@ -6043,15 +6042,15 @@ body.col-dragging * {
   display: flex;
   gap: 4px;
   padding: 3px;
-  border-radius: 9px;
+  border-radius: var(--radius-md);
   background: var(--surface-band);
 }
 
 .jp-chip {
   height: 28px;
-  padding: 0 14px;
+  padding: 0 10px;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--muted);
   font-size: 12.5px;
@@ -6099,7 +6098,7 @@ body.col-dragging * {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  height: 35px;
+  height: 34px;
   padding: 0 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
@@ -6143,7 +6142,7 @@ body.col-dragging * {
   margin: 16px 24px 0;
   padding: 14px 12px 10px;
   border: 1px solid var(--line-soft);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
 }
 
 .jp-nav {
@@ -6155,7 +6154,7 @@ body.col-dragging * {
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--ink-2);
 }
@@ -6175,7 +6174,7 @@ body.col-dragging * {
 .jp-month {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-1h);
 }
 
 .jp-mtitle {
@@ -6308,7 +6307,7 @@ body.col-dragging * {
   align-items: center;
   gap: var(--space-2);
   margin-top: 16px;
-  padding: 14px 20px 16px 24px;
+  padding: 14px 20px 16px;
   border-top: 1px solid var(--line-row);
 }
 
@@ -6349,7 +6348,7 @@ body.col-dragging * {
 .jp-measure {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .jp-page {
@@ -6428,14 +6427,14 @@ body.col-dragging * {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .jp-card {
   flex: none;
   padding: 7.5px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   break-inside: avoid;
 }
 
@@ -6443,7 +6442,7 @@ body.col-dragging * {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1h);
   margin-bottom: 5px;
 }
 
@@ -6510,7 +6509,7 @@ body.col-dragging * {
 .jp-line {
   display: flex;
   align-items: flex-start;
-  gap: 6px;
+  gap: var(--space-1h);
 }
 
 .jp-sp {
@@ -6643,7 +6642,7 @@ body.col-dragging * {
   justify-content: flex-end;
   gap: 3px;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--ink);
   font: inherit;
@@ -6679,13 +6678,13 @@ body.col-dragging * {
 .kb-cap {
   display: inline-flex;
   align-items: center;
-  height: 20px;
-  padding: 0 6px 1px;
+  height: var(--size-badge-h);
+  padding: 0 8px 1px;
   border: 1px solid var(--line);
   border-bottom-width: 2px;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: var(--surface-band);
-  font-size: 11.5px;
+  font-size: var(--fs-badge);
   font-weight: 600;
 }
 
@@ -6717,7 +6716,7 @@ body.col-dragging * {
 .pr {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
   height: calc(100vh - 48px);
   min-height: 420px;
 }
@@ -6729,7 +6728,7 @@ body.col-dragging * {
 .pr-fetch {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .pr-run {
@@ -6751,6 +6750,7 @@ body.col-dragging * {
   border-radius: 50%;
   background: var(--accent);
   box-shadow: 0 0 0 4px var(--accent-tint);
+  corner-shape: round;
 }
 
 .pr-run-bar {
@@ -6907,7 +6907,7 @@ body.col-dragging * {
 .pr-date {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1h);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   color: var(--ink-2);
@@ -6923,7 +6923,7 @@ body.col-dragging * {
   grid-template-columns: auto auto;
   justify-content: start;
   align-items: center;
-  column-gap: 6px;
+  column-gap: var(--space-1h);
   row-gap: 3px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -6938,18 +6938,18 @@ body.col-dragging * {
 .pr-due {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1h);
 }
 
 .pr-d {
   display: inline-flex;
   align-items: center;
-  height: 18px;
-  padding: 0 6px;
-  border-radius: 5px;
+  height: var(--size-badge-h);
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
   background: var(--st-hold-bg);
   color: var(--st-hold-fg);
-  font-size: 11px;
+  font-size: var(--fs-badge);
   font-weight: 700;
 }
 
@@ -6981,16 +6981,16 @@ body.col-dragging * {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   max-width: 100%;
-  min-height: 24px;
+  min-height: var(--size-badge-h);
   margin-top: -2px;
-  padding: 3px 9px;
+  padding: 3px 8px;
   overflow: hidden;
   border: 1px solid var(--wc, var(--line));
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--wf, var(--muted));
-  font-size: 11.5px;
-  line-height: 16px;
+  font-size: var(--fs-badge);
+  line-height: round(1.4em, 1px);
   font-weight: 700;
   text-align: left;
   word-break: keep-all;
@@ -7023,7 +7023,7 @@ body.col-dragging * {
 .pr-acts {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1h);
   padding-top: 8px !important;
 }
 
@@ -7140,14 +7140,14 @@ body.col-dragging * {
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   background: var(--surface-raised);
-  box-shadow: 0 8px 24px rgba(20, 18, 38, 0.16);
+  box-shadow: var(--shadow-pop);
 }
 
 .pr-opt,
 .pr-copt {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   width: 100%;
   min-height: 30px;
   padding: 4px 8px;
@@ -7192,17 +7192,17 @@ body.col-dragging * {
   width: max-content;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 14px 14px 12px;
+  gap: var(--space-2);
+  padding: 14px 20px 12px;
   border: 1px solid var(--line-soft);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--surface-raised);
-  box-shadow: 0 12px 32px rgba(20, 18, 38, 0.18), 0 2px 6px rgba(20, 18, 38, 0.08);
+  box-shadow: var(--shadow-pop);
   text-align: center;
 }
 
 .pr-ask-t {
-  font-size: 13.5px;
+  font-size: var(--fs);
   font-weight: 700;
   color: var(--ink);
 }
@@ -7210,7 +7210,7 @@ body.col-dragging * {
 .pr-ask-btns {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px;
+  gap: var(--space-1h);
 }
 
 .pr-ask-btns > .btn {
@@ -7231,7 +7231,7 @@ body.col-dragging * {
 .pr-wgrid {
   display: grid;
   grid-template-columns: 180px 130px 170px minmax(0, 1fr) 76px 170px 52px;
-  gap: 8px;
+  gap: var(--space-2);
   align-items: center;
   padding: 0 20px;
 }
@@ -7358,7 +7358,7 @@ body.col-dragging * {
 .pr-tpl {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1h);
   min-width: 0;
   max-width: 100%;
   height: 26px;
@@ -7460,14 +7460,14 @@ body.col-dragging * {
 .fx-root {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--space-4);
   min-height: 0;
   --fx-ctl: var(--size-input);
 }
 .fx-top {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .fx-title {
   margin-right: auto;
@@ -7538,7 +7538,7 @@ body.col-dragging * {
   display: flex;
   flex-direction: column;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   overflow: hidden;
 }
@@ -7564,7 +7564,7 @@ body.col-dragging * {
   max-width: 220px;
   padding: 0 14px;
   border: 1px solid transparent;
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--muted);
   font-size: 14.5px;
@@ -7605,19 +7605,19 @@ body.col-dragging * {
   margin-left: auto;
   display: inline-flex;
   align-items: center;
-  height: 18px;
-  padding: 0 6px;
-  border-radius: 5px;
+  height: var(--size-badge-h);
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
   background: var(--accent-tint);
   color: var(--accent);
-  font-size: 11px;
+  font-size: var(--fs-badge);
   font-weight: 600;
 }
 .fx-row1,
 .fx-row2 {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1h);
   padding: 0 8px;
 }
 .fx-row1 {
@@ -7640,7 +7640,7 @@ body.col-dragging * {
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--ink-2);
-  font-size: 13.5px;
+  font-size: var(--fs);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -7670,7 +7670,7 @@ body.col-dragging * {
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
+  gap: var(--space-1h);
   padding: 0 8px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
@@ -7741,7 +7741,7 @@ body.col-dragging * {
   background: var(--surface-raised);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  box-shadow: 0 8px 24px rgba(20, 18, 38, 0.16);
+  box-shadow: var(--shadow-pop);
 }
 .fx-menu-r {
   right: 0;
@@ -7750,7 +7750,7 @@ body.col-dragging * {
 .fx-mi {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   width: 100%;
   min-height: 30px;
   padding: 0 8px;
@@ -7788,7 +7788,7 @@ body.col-dragging * {
 .fx-findband {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   height: 30px;
   padding: 0 10px;
   border-bottom: 1px solid var(--line-soft);
@@ -7800,8 +7800,8 @@ body.col-dragging * {
 .fx-fk {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 26px;
+  gap: var(--space-1h);
+  height: 28px;
   padding: 0 10px;
   border: 1px solid var(--line-soft);
   border-radius: var(--radius-sm);
@@ -7811,8 +7811,8 @@ body.col-dragging * {
   white-space: nowrap;
 }
 .fx-findband .fx-fk {
-  height: 22px;
-  padding: 0 8px;
+  height: 28px;
+  padding: 0 10px;
 }
 .fx-fk b {
   color: var(--accent);
@@ -7828,7 +7828,7 @@ body.col-dragging * {
   /* 목록에 세로 스크롤 막대가 생겨도 열 경계가 머리 줄과 맞게, 둘 다 막대 자리를 늘 비워 둬요 */
   overflow: hidden;
   scrollbar-gutter: stable;
-  height: 26px;
+  height: 28px;
   border-bottom: 1px solid var(--line-soft);
   background: var(--row-alt);
 }
@@ -7903,7 +7903,7 @@ body.col-dragging * {
 .fx-ncell {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1h);
   min-width: 0;
   padding: 3px 8px 3px 0;
 }
@@ -7913,7 +7913,7 @@ body.col-dragging * {
   -webkit-box-orient: vertical;
   overflow: hidden;
   word-break: break-all;
-  line-height: 17px;
+  line-height: round(1.3em, 1px);
 }
 .fx-num {
   justify-content: flex-end;
@@ -7932,21 +7932,21 @@ body.col-dragging * {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 4px;
-  background: #fff3d6;
-  color: #b7791f;
+  width: var(--size-badge-h);
+  height: var(--size-badge-h);
+  border-radius: var(--radius-sm);
+  background: var(--up-bg);
+  color: var(--up-fg);
 }
 .fx-up-big {
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 .fx-lock {
   display: inline-flex;
   align-items: center;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 5px;
+  height: var(--size-badge-h);
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
   background: var(--danger-wash);
   color: var(--danger);
   flex: none;
@@ -7969,7 +7969,7 @@ body.col-dragging * {
 .fx-brow {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   height: 26px;
   padding: 0 10px;
   font-size: 12.5px;
@@ -7993,7 +7993,7 @@ body.col-dragging * {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1h);
   width: 96px;
   padding: 8px 4px;
   border-radius: var(--radius-md);
@@ -8015,7 +8015,7 @@ body.col-dragging * {
 .fx-thumb {
   max-width: 100%;
   max-height: 100%;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   object-fit: cover;
 }
 .fx-thumb-ph {
@@ -8046,7 +8046,7 @@ body.col-dragging * {
 .fx-keys {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1h);
   height: 32px;
   flex: none;
 }
@@ -8054,7 +8054,7 @@ body.col-dragging * {
   margin-left: auto;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   font-size: 12px;
   color: var(--muted);
 }
@@ -8073,7 +8073,7 @@ body.col-dragging * {
   display: flex;
   flex-direction: column;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   overflow: hidden;
 }
@@ -8172,14 +8172,14 @@ body.col-dragging * {
   right: 0;
   top: 40px;
   width: 460px;
-  padding: 14px;
+  padding: 14px 20px;
   gap: 10px;
   font-size: 12.5px;
 }
 .fx-fgrid {
   display: grid;
   grid-template-columns: 72px 1fr;
-  gap: 8px;
+  gap: var(--space-2);
   align-items: center;
 }
 .fx-fgrid .input {
@@ -8188,7 +8188,7 @@ body.col-dragging * {
 .fx-hrow {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1h);
 }
 .fx-date {
   width: 108px;
@@ -8211,14 +8211,14 @@ body.col-dragging * {
 .fx-ffoot {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   padding-top: 10px;
   border-top: 1px solid var(--line-row);
 }
 .fx-saved {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-1h);
 }
 .fx-chip {
   display: inline-flex;
@@ -8228,8 +8228,8 @@ body.col-dragging * {
   overflow: hidden;
 }
 .fx-chip button {
-  height: 24px;
-  padding: 0 8px;
+  height: 28px;
+  padding: 0 10px;
   border: 0;
   background: transparent;
   color: var(--ink-2);
@@ -8245,22 +8245,22 @@ body.col-dragging * {
   display: flex;
   align-items: baseline;
   gap: 10px;
-  padding: 16px 18px 6px;
+  padding: 16px 20px 6px;
 }
 .fx-cf-cards {
   display: flex;
   gap: 10px;
-  padding: 8px 18px 0;
+  padding: 8px 20px 0;
 }
 .fx-cf-card {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
   padding: 12px;
   border: 1px solid var(--line-soft);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
 }
 .fx-cf-cap {
   font-size: 11.5px;
@@ -8287,12 +8287,12 @@ body.col-dragging * {
 .fx-new {
   display: inline-flex;
   align-items: center;
-  height: 18px;
-  padding: 0 6px;
-  border-radius: 5px;
+  height: var(--size-badge-h);
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
   background: var(--accent-tint);
   color: var(--accent);
-  font-size: 11px;
+  font-size: var(--fs-badge);
   font-weight: 700;
 }
 .fx-cf-both {
@@ -8306,14 +8306,14 @@ body.col-dragging * {
 .fx-cf-foot {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 16px 18px;
+  gap: var(--space-2);
+  padding: 16px 20px;
 }
 .fx-warn {
   color: var(--danger);
 }
 .fx-gap {
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 /* 일괄 이름 바꾸기 (FilesRename) */
@@ -8321,7 +8321,7 @@ body.col-dragging * {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 14px 18px 10px;
+  padding: 14px 20px 10px;
 }
 .fx-rn-list {
   margin: 0 18px;
@@ -8366,7 +8366,7 @@ body.col-dragging * {
   display: grid;
   grid-template-columns: 1fr 250px 190px;
   gap: 12px;
-  padding: 12px 18px 0;
+  padding: 12px 20px 0;
 }
 .fx-rn-col {
   display: flex;
@@ -8376,7 +8376,7 @@ body.col-dragging * {
 .fx-grp {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
   padding: 10px 12px 12px;
   border: 1px solid var(--line-soft);
   border-radius: var(--radius-md);
@@ -8401,19 +8401,19 @@ body.col-dragging * {
 .fx-rn-pat {
   display: grid;
   grid-template-columns: 1fr var(--fx-ctl) 1fr var(--fx-ctl);
-  gap: 6px;
+  gap: var(--space-1h);
   align-items: center;
 }
 .fx-rn-case {
   display: grid;
   grid-template-columns: 1fr 100px;
-  gap: 6px;
+  gap: var(--space-1h);
   align-items: center;
 }
 .fx-rn-fr {
   display: grid;
   grid-template-columns: 1fr var(--fx-ctl);
-  gap: 6px;
+  gap: var(--space-1h);
   align-items: center;
 }
 .fx-rn-cks {
@@ -8424,7 +8424,7 @@ body.col-dragging * {
 .fx-rn-num {
   display: grid;
   grid-template-columns: 1fr 84px;
-  gap: 6px;
+  gap: var(--space-1h);
   align-items: center;
 }
 .fx-num.input {
@@ -8455,7 +8455,7 @@ body.col-dragging * {
 .fx-rn-side {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .fx-rn-side .btn {
   justify-content: center;
@@ -8467,7 +8467,7 @@ body.col-dragging * {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 18px 12px;
+  padding: 10px 20px 12px;
   font-size: 12px;
   color: var(--muted);
 }
@@ -8500,7 +8500,7 @@ body.col-dragging * {
 .fx-set-drives {
   display: inline-flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-1h);
 }
 
 .fx-set-drive.chip {
@@ -8520,7 +8520,7 @@ body.col-dragging * {
 
 .fx-set-dir {
   display: inline-flex;
-  gap: 6px;
+  gap: var(--space-1h);
 }
 
 .fx-set-dir .input {
@@ -8669,7 +8669,7 @@ body.col-dragging * {
   height: 16px;
   padding: 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: none;
   color: inherit;
   cursor: pointer;
@@ -8682,7 +8682,7 @@ body.col-dragging * {
 .pin-new {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1h);
   min-width: 0;
   font-size: 12.5px;
 }
@@ -8748,7 +8748,7 @@ body.col-dragging * {
   justify-content: center;
   width: 28px;
   height: 28px;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   background: var(--surface-band);
   color: var(--ink-2);
 }
@@ -8779,7 +8779,7 @@ body.col-dragging * {
 .mod-head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .mod-head .nav-icon {
@@ -8810,7 +8810,7 @@ body.col-dragging * {
   border-radius: var(--radius-sm);
   background: var(--st-hold-bg);
   color: var(--st-hold-fg);
-  font-size: 12px;
+  font-size: var(--fs-badge);
   font-weight: 600;
 }
 
@@ -8846,7 +8846,7 @@ body.col-dragging * {
 .bd {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--space-4);
   min-width: 0;
   position: relative;
 }
@@ -8882,7 +8882,7 @@ body.col-dragging * {
 .bd-year b {
   padding: 0 10px;
   font-size: 14px;
-  line-height: 32px;
+  line-height: round(2.3em, 1px);
   font-variant-numeric: tabular-nums;
   border-inline: 1px solid var(--line-soft);
 }
@@ -8899,10 +8899,10 @@ body.col-dragging * {
   background: var(--surface-side);
 }
 .bd-unit button {
-  height: 26px;
+  height: 28px;
   padding: 0 10px;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--muted);
   font-size: 12.5px;
@@ -8914,7 +8914,7 @@ body.col-dragging * {
   font-weight: 700;
 }
 .bd-search {
-  width: 240px;
+  width: 260px;
   padding-right: 6px;
 }
 /* 검색창 끝 × (2026-10-18 공통 규칙: 글자가 있을 때만, 누르면 한 번에 지우고 커서는 검색창에) */
@@ -8930,6 +8930,7 @@ body.col-dragging * {
   border-radius: 50%;
   background: transparent;
   color: var(--muted);
+  corner-shape: round;
 }
 .search-x:hover {
   background: var(--accent-tint);
@@ -9149,7 +9150,7 @@ body.col-dragging * {
   padding: 0;
   background: transparent;
   color: var(--muted);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   position: relative;
   z-index: 1;
 }
@@ -9266,8 +9267,8 @@ body.col-dragging * {
   height: 22px;
   padding: 0 8px;
   border: 0;
-  border-radius: 6px;
-  font-size: 12px;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-badge);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -9302,7 +9303,7 @@ button.bd-chip:hover {
   height: 26px;
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--bd-ghost);
 }
@@ -9316,7 +9317,7 @@ button.bd-chip:hover {
 .bd-carry {
   display: flex;
   align-items: center;
-  height: 32px;
+  height: 34px;
   padding: 0 12px;
   background: var(--surface-side);
   border-top: 1px solid var(--line);
@@ -9333,7 +9334,7 @@ button.bd-chip:hover {
   height: 28px;
   padding: 0 6px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--ink);
   font: inherit;
@@ -9361,7 +9362,7 @@ button.bd-chip:hover {
   height: 28px;
   padding: 0 6px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--ink);
   font-size: 12.5px;
@@ -9404,7 +9405,7 @@ button.bd-chip:hover {
   background: var(--surface-raised);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  box-shadow: 0 8px 24px rgba(var(--shadow-rgb), 0.16);
+  box-shadow: var(--shadow-pop);
   font-size: 13px;
   color: var(--ink);
 }
@@ -9415,10 +9416,10 @@ button.bd-chip:hover {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   height: 32px;
   padding: 0 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   white-space: nowrap;
   cursor: pointer;
   user-select: none;
@@ -9496,12 +9497,12 @@ button.bd-chip:hover {
 }
 .bd-confirm p {
   margin: 0 0 12px;
-  line-height: 20px;
+  line-height: round(1.55em, 1px);
 }
 .bd-crow {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .btn.bd-dg {
   background: var(--danger);
@@ -9533,7 +9534,7 @@ button.bd-chip:hover {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   margin-top: 8px;
 }
 .bd-kh {
@@ -9542,14 +9543,14 @@ button.bd-chip:hover {
 }
 .bd-mbtns {
   display: flex;
-  gap: 6px;
+  gap: var(--space-1h);
 }
 .bd-checks {
   margin: 10px 0 0;
   padding-left: 18px;
   font-size: 12px;
   color: var(--muted);
-  line-height: 18px;
+  line-height: round(1.5em, 1px);
 }
 .bd-toast {
   position: absolute;
@@ -9583,7 +9584,7 @@ button.bd-chip:hover {
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   background: var(--surface);
-  box-shadow: 0 4px 14px rgba(var(--shadow-rgb), 0.12);
+  box-shadow: var(--shadow-pop);
   font-size: 13px;
   color: var(--muted);
 }
@@ -9596,10 +9597,10 @@ button.bd-chip:hover {
 .bd-sumbar button {
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--muted);
   cursor: pointer;

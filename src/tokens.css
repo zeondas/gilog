@@ -97,11 +97,18 @@
   --space-4: 16px;
   --space-6: 24px;
   --space-7: 28px;
+  /* 6px 간격 (UI 통일 2026-10-18) */
+  --space-1h: 6px;
+  /* 모서리 규칙: 높이 34면 md 8, 28이면 sm 6, 카드·뜨는 창 lg 14, 원·알약만 round (2026-10-18 결정 ③) */
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 14px;
   --size-input: 28px;
   --size-ctrl: 34px;
+  /* 줄 안·카드 안 단추·입력칸·칩 (단추 높이는 34·28 둘뿐 — 결정 ①②⑤) */
+  --size-mini: 28px;
+  /* 배지 높이 하나 (결정 ④ — 모서리 sm·글자 11.5) */
+  --size-badge-h: 22px;
   --size-row: 36px;
   --size-badge: 62px;
   --size-pillar: 88px;
@@ -110,6 +117,15 @@
   /* 그림자 색(남색 기운 없는 중성 어두운 색). rgba(var(--shadow-rgb), 투명도)로 써요. */
   --shadow-rgb: 28, 27, 34;
   --shadow-card: 0 1px 2px rgba(var(--shadow-rgb), 0.06), 0 6px 16px rgba(var(--shadow-rgb), 0.06);
+  /* 뜨는 메뉴·작은 묻기 창 그림자 하나 */
+  --shadow-pop: 0 8px 24px rgba(var(--shadow-rgb), 0.16);
+  /* 탐색기 "위 폴더" 배지 */
+  --up-bg: #FFF3D6; --up-fg: #8A6400;
+  /* 파일 아이콘 색(윈도우 아이콘 흉내 — 예외, 결정 ⑦ 1안: 값은 FileIcon.tsx 그림 안에 그대로, 여기는 모아 적기만) */
+  --fi-folder: #E3A33A; --fi-folder-front: #F7C95C;
+  --fi-ppt: #D24726; --fi-xls: #1F7A45; --fi-doc: #2B5797; --fi-hwp: #2B6CC4;
+  --fi-pdf: #C2262E; --fi-img: #2E8B57; --fi-zip: #8A6D3B; --fi-etc: #8A88A0;
+  --fi-paper: #FFFFFF; --fi-edge: #A9A7B8; --fi-sheet: #4B9A5B;
   /* 집행현황(12단계, 2026-10-18 시안 목업 확정): 구분 배지·단계 배지·집행률 막대·트리 선·세부사업 줄 */
   --bk-gong-bg: #E6F0FF; --bk-gong-fg: #1D5FC4;
   --bk-gwan-bg: #E2F7F6; --bk-gwan-fg: #0B8580;
@@ -125,7 +141,11 @@
   --bd-pj-bg: #E9E4FF; --bd-pj-line: #CFC6F5; --bd-sel-bg: #E6E1FB;
   --bd-faint: #8E8C99; --bd-ghost: #A3A1AE; --bd-alt: #F4F3F8;
   --font-sans: Pretendard, "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+  /* 글자 단계: 13 본문 · 12.5 단추 · 12 작은 글 · 11.5 배지·안내 */
   --fs: 13px;
+  --fs-sm: 12.5px;
+  --fs-xs: 12px;
+  --fs-badge: 11.5px;
   color-scheme: light;
 }
 
@@ -183,6 +203,7 @@
     --bd-tree: #4A4758; --bd-col-hl: rgba(182, 170, 255, 0.08);
     --bd-pj-bg: #25203F; --bd-pj-line: #3E3670; --bd-sel-bg: #2E2856;
     --bd-faint: #86839A; --bd-ghost: #6E6B7E; --bd-alt: #1B1A21;
+    --up-bg: #3A3012; --up-fg: #F0CF6A;
   }
 }
 
@@ -239,4 +260,5 @@
   --bd-tree: #4A4758; --bd-col-hl: rgba(182, 170, 255, 0.08);
   --bd-pj-bg: #25203F; --bd-pj-line: #3E3670; --bd-sel-bg: #2E2856;
   --bd-faint: #86839A; --bd-ghost: #6E6B7E; --bd-alt: #1B1A21;
+  --up-bg: #3A3012; --up-fg: #F0CF6A;
 }
