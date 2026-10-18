@@ -399,6 +399,8 @@ export type FilesState = {
   perm?: number[];
   /** 2창 나눈 비율(왼쪽 창 몫, 0.2~0.8) */
   split: number;
+  /** 4창 위아래 나눈 비율(위 창 몫, 0.2~0.8) */
+  splitV?: number;
   active: number;
   panes: FsPane[];
   cols: { size: number; modified: number; folder: number; type: number };

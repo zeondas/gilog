@@ -9931,3 +9931,11 @@ select.input.fx-set-date { width: 190px; }
 .fx-pane[data-target="1"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 /* 수정한 날: 날짜와 시각 사이 = 띄어쓰기 + 3px(FilesScreen DATE_TIME_GAP과 같은 값) */
 .fx-dt-time { margin-left: calc(0.28em + 3px); }
+/* 창 사이 끌기(2026-10-18 사용자): 12px 틈 위에 겹쳐 놓아요. 트리 경계와 같은 모양 */
+.fx-panes { position: relative; }
+.fx-psplit { position: absolute; z-index: 2; }
+.fx-psplit-x { top: 0; bottom: 0; width: 12px; cursor: col-resize; }
+.fx-psplit-y { left: 0; right: 0; height: 12px; cursor: row-resize; }
+.fx-psplit-x:hover { background: linear-gradient(var(--accent-line), var(--accent-line)) center / 2px 100% no-repeat; }
+.fx-psplit-y:hover { background: linear-gradient(var(--accent-line), var(--accent-line)) center / 100% 2px no-repeat; }
+.fx-top .fx-sq { width: 34px; padding: 0; justify-content: center; flex: none; }
