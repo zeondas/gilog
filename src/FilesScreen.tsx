@@ -785,7 +785,7 @@ export default function FilesScreen() {
     refreshAll();
     for (let i = 0; i < (st.four ? 4 : 2); i++) if (activeTab(st.panes[i]).find) void rerunFind(i);
   };
-  // 다른 프로그램에서 기Log 창으로 돌아오면 보고 있던 폴더를 다시 읽어요(다운로드 등 윈도우가 바뀜을 빠뜨릴 때)
+  // 다른 프로그램에서 기록 창으로 돌아오면 보고 있던 폴더를 다시 읽어요(다운로드 등 윈도우가 바뀜을 빠뜨릴 때)
   const refreshAllRef = useRef(refreshAll);
   refreshAllRef.current = refreshAll;
   useEffect(() => {
