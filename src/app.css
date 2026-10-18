@@ -9950,26 +9950,14 @@ select.input.fx-set-date { width: 190px; }
 .fx-tools .fx-tool:last-child { flex: 1 1 0; width: auto; }
 /* 상자 모서리 가까이 붙은 것은 높이와 상관없이 6px(2026-10-19 사용자 1안, 공통 결정) — 탐색기 폴더 탭 */
 .fx-tab { border-radius: var(--radius-sm); }
-/* 지금 창·대상 창 2px 테두리: 그림자(0 0 0 1px)는 스퀴클 모서리를 따르지 않고 둥글게 그려져요 → 테두리 2px + 바깥으로 1px(margin -1px)로 같은 자리에 그려요(2026-10-19) */
-.fx-pane[data-on="1"],
-.fx-pane[data-target="1"] { box-shadow: none; border-width: 2px; margin: -1px; }
 /* 탐색기 두 상자 곡률 = 머리 줄 단추와 같은 8px(2026-10-19 사용자 1안: 위아래로 붙은 단추와 상자 모서리를 같게) */
 .fx-pane,
 .fx-tree { border-radius: var(--radius-md); }
-/* 지금 창·대상 창 2px 테두리를 안쪽으로(2026-10-19 사용자: 창 바깥 끝이 머리 줄 단추 끝과 어긋남).
-   바깥 1px = 테두리, 안쪽 1px = 같은 곡률을 따르는 덧그림(내용 자리는 그대로). */
-.fx-pane { position: relative; }
+/* 지금 창·대상 창 2px 테두리(2026-10-19 사용자): 한 겹 테두리로 그려야 스퀴클 모서리에 틈이 없어요.
+   보통 창은 테두리 1px + 안쪽 여백 1px, 켜진 창은 테두리 2px + 여백 0 → 바깥 끝·내용 자리가 늘 같아요. */
+.fx-pane,
+.fx-tree { padding: 1px; }
 .fx-pane[data-on="1"],
-.fx-pane[data-target="1"] { border-width: 1px; margin: 0; }
-.fx-pane[data-on="1"]::after,
-.fx-pane[data-target="1"]::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border: 1px solid var(--accent);
-  border-radius: calc(var(--radius-md) - 1px);
-  pointer-events: none;
-  z-index: 3;
-}
+.fx-pane[data-target="1"] { border-width: 2px; padding: 0; margin: 0; box-shadow: none; }
 /* 머리 줄과 상자 사이 = 파일 찾기와 단추 줄 사이와 같은 12px(2026-10-19 사용자). 상자는 4px 위로·4px 길게 */
 .fx-top + .fx-body { margin-top: -4px; }
