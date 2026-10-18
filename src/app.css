@@ -394,7 +394,7 @@ button:focus-visible {
 }
 
 .field > input {
-  height: var(--size-ctrl);
+  --fld-h: var(--size-ctrl);
   padding: 0 var(--space-2);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
@@ -507,7 +507,6 @@ button:focus-visible {
 }
 
 .input {
-  height: 28px;
   padding: 0 8px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
@@ -523,7 +522,6 @@ button:focus-visible {
 
 .input-sm {
   width: 110px;
-  height: 28px;
 }
 
 select.input {
@@ -975,7 +973,6 @@ mark {
 .cell-input {
   width: 100%;
   min-width: 0;
-  height: var(--size-input);
   padding: 0 6px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
@@ -1373,13 +1370,11 @@ mark {
 .memo-row input {
   flex: 1;
   min-width: 0;
-  height: var(--size-input);
   border: 0;
   outline: 0;
   background: transparent;
   color: var(--ink);
   font: inherit;
-  font-size: 12.5px;
 }
 
 .memo-foot,
@@ -1426,10 +1421,6 @@ mark {
   gap: 6px var(--space-2);
   font-size: 12px;
   color: var(--muted);
-}
-
-.edit-grid .cell-input {
-  font-size: var(--fs);
 }
 
 /* 프로젝트 관리 창 */
@@ -1863,14 +1854,12 @@ mark {
 }
 
 .jday-in {
-  height: 28px;
   padding: 0 6px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--ink);
   font: inherit;
-  font-size: var(--fs);
   font-weight: 400;
 }
 
@@ -3427,11 +3416,6 @@ body.col-dragging * {
   align-content: start;
 }
 
-.cm-memo-body .memo-row input {
-  font-size: 14px;
-  height: 28px;
-}
-
 /* 업무일지 "챙길 일"의 민원 */
 .jn-due {
   display: flex;
@@ -3908,7 +3892,6 @@ body.col-dragging * {
 
 .td-newlist .cell-input {
   flex: 1;
-  height: 30px;
 }
 
 .td-newlist-add {
@@ -4041,7 +4024,6 @@ body.col-dragging * {
 .td-add-title {
   flex: 1;
   min-width: 0;
-  height: calc(var(--size-row) - 8px);
   padding: 0 6px;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
@@ -4109,14 +4091,12 @@ body.col-dragging * {
 .td-due-input {
   flex: none;
   width: 104px;
-  height: 28px;
   padding: 0 8px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--ink);
   font: inherit;
-  font-size: 12.5px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -4989,10 +4969,6 @@ body.col-dragging * {
   gap: var(--space-1h);
 }
 
-.cal-dlg-grid .cell-input {
-  height: 28px;
-}
-
 .cal-in-date {
   width: 112px;
 }
@@ -5017,7 +4993,6 @@ body.col-dragging * {
 }
 
 .cal-select {
-  height: 28px;
   padding: 0 6px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
@@ -5761,7 +5736,7 @@ body.col-dragging * {
 }
 
 .mgr .padd .input {
-  height: var(--size-ctrl);
+  --fld-h: var(--size-ctrl);
   border-radius: var(--radius-md);
 }
 
@@ -5807,10 +5782,6 @@ body.col-dragging * {
 /* 입력칸: 0.9.4의 padding-bottom 2px은 Pretendard에서 한글을 1px 위로 띄웠어요(−2). 위아래 여백 0이 한글 0·숫자 +1로 맞아요
    (2026-10-18 UI 통일 — 재 보니 1px 바꾸면 위−아래가 2씩 바뀌어 0/−1 사이 값은 없어요). */
 
-.search input {
-  padding: 0 0 1px;
-  height: 20px;
-}
 
 .cm-bullets {
   gap: 4px;
@@ -5847,7 +5818,6 @@ body.col-dragging * {
 .mgr-name-in {
   flex: 1 1 auto;
   min-width: 0;
-  height: 28px;
 }
 
 .input.invalid {
@@ -7700,7 +7670,6 @@ body.col-dragging * {
   flex: 1;
   min-width: 60px;
   height: var(--fx-ctl);
-  font-size: 12.5px;
 }
 .fx-vb {
   width: calc(var(--fx-ctl) * 3 + 12px);
@@ -7767,7 +7736,6 @@ body.col-dragging * {
   flex: 1;
   min-width: 0;
   height: var(--fx-ctl);
-  font-size: 12px;
 }
 .fx-menu {
   position: absolute;
@@ -8221,9 +8189,6 @@ body.col-dragging * {
   gap: var(--space-2);
   align-items: center;
 }
-.fx-fgrid .input {
-  height: var(--fx-ctl);
-}
 .fx-hrow {
   display: flex;
   align-items: center;
@@ -8419,10 +8384,6 @@ body.col-dragging * {
   padding: 10px 12px 12px;
   border: 1px solid var(--line-soft);
   border-radius: var(--radius-md);
-}
-.fx-grp .input {
-  height: var(--fx-ctl);
-  font-size: 12.5px;
 }
 .fx-gt {
   font-size: 12px;
@@ -8685,7 +8646,7 @@ body.col-dragging * {
   flex: 1 1 60px;
   min-width: 60px;
   height: 22px;
-  padding: 0 2px 1px;
+  padding: 0 2px;
   border: 0;
   background: none;
   color: var(--ink);
@@ -9352,7 +9313,6 @@ button.bd-chip:hover {
 .bd-in {
   width: 100%;
   min-width: 0;
-  height: 28px;
   padding: 0 6px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
@@ -9644,19 +9604,51 @@ button.bd-chip:hover {
   min-width: 0;
 }
 
+/* ---------- 한 줄 칸 한 규칙 (2026-10-18 UI 통일, 공통 결정 로그 21:42) ----------
+   보통 입력칸·고르기 칸·날짜 칸·전화 칸·검색칸·자리글은 모두 이 규칙 하나를 따라요.
+   바깥 높이 28(큰 칸 34 — --fld-h)은 그대로, 줄 높이 = 안 높이(테두리 뺀 값), 글자 13.
+   칸마다 여백·줄 높이·글자 크기를 따로 적지 않아요(새 칸은 class "fld"). .input·.cell-input은 이 규칙을 쓰는 칸 종류예요.
+   아래 여백 1px의 까닭(재 보고 정함): 크로미움의 input은 줄 높이를 쓰지 않고 글자 상자(Pretendard 13px = 정수로 15px)를
+   안 높이 가운데에 놓아요. 안 높이가 짝수(26·32)면 글자가 늘 0.5px 아래에 걸려(여러 줄 칸·배지는 정수 자리) 100%에서 1px,
+   125%에서 반올림이 칸마다 갈려요. 아래 1px로 안 높이를 홀수(25·31)로 만들어 글자 상자 위를 정수 자리에 둬요.
+   재기: 주소 끝 ?ruler (src/ruler.ts — 글자 상자는 caretPositionFromPoint로 실제 자리를 읽어요). */
+:is(.fld, .input, .cell-input:not(.bl-ed):not(.jtalk), .jday-in, .td-due-input, .td-add-title, .bd-in, .cal-select, .field > input) {
+  height: var(--fld-h, var(--size-input));
+  padding-top: 0;
+  padding-bottom: 1px;
+  font-size: var(--fs);
+  line-height: calc(var(--fld-h, var(--size-input)) - 2px);
+}
+
+:is(.fld, .input, .cell-input, .jday-in, .td-due-input, .td-add-title, .bd-in, .field > input, .search input, .pchips-in)::placeholder {
+  line-height: inherit;
+}
+
+/* 테두리 없는 안쪽 칸(검색칸은 34 상자 안 32, 프로젝트 배지 칸은 28 상자 안 22, 메모 창 줄 28)도 아래 1px로 안 높이를 홀수로 */
+.search input {
+  height: calc(var(--size-ctrl) - 2px);
+  padding-top: 0;
+  padding-bottom: 1px;
+  line-height: calc(var(--size-ctrl) - 2px);
+}
+
+.pchips-in {
+  padding-bottom: 1px;
+  line-height: 22px;
+}
+
+.memo-row input {
+  height: var(--size-input);
+  padding-top: 0;
+  padding-bottom: 1px;
+  font-size: var(--fs);
+  line-height: calc(var(--size-input) - 2px);
+}
+
 /* ---------- 125% 배율 보정 (2026-10-18 UI 통일, 결정 H9 1안) ----------
    100%에서 맞춘 1px 보정이 125%에서는 1.25 물리 px가 되어 반올림이 갈려요. 125%에서만 물리 1px 단위로 다시 맞춘 값이에요
    (tools/align/census.py light 1.25 filled로 잰 값 — 0.8px = 물리 1px, 글자 상자 가운데는 여백의 반만 움직여요). */
 @media (min-resolution: 1.25dppx) {
-  .cell-input,
-  .input,
-  .jday-in,
-  .td-due-input,
-  .pr-in,
-  .td-add-title {
-    padding-bottom: 1.6px;
-  }
-
   .cm-hbtn,
   .fx-tab,
   .fx-vb {

@@ -861,7 +861,7 @@ function DayHead({ info, onSave }: { info: DayInfo; onSave: (d: DayInfo) => void
     <label className={"jday-f " + cls}>
       {label}
       <input
-        className={"jday-in" + (key === "arrive" && bad ? " invalid" : "")}
+        className={"fld jday-in" + (key === "arrive" && bad ? " invalid" : "")}
         aria-invalid={key === "arrive" && bad ? true : undefined}
         placeholder={ph}
         value={v[key]}

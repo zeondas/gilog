@@ -639,7 +639,7 @@ export default function BudgetScreen() {
 
   const moneyInput = (k: "budget" | "cmt" | "exp" | "act", label: string, m: Money, bold = false) => (
     <input
-      className={"bd-in n" + (bold ? " b" : "") + (bad === k ? " bad" : "")}
+      className={"fld bd-in n" + (bold ? " b" : "") + (bad === k ? " bad" : "")}
       aria-label={label}
       placeholder={label}
       value={m.text}
@@ -652,7 +652,7 @@ export default function BudgetScreen() {
   );
   const nameInput = (label: string, bold = false) => (
     <input
-      className={"bd-in" + (bold ? " b" : "") + (bad === "name" ? " bad" : "")}
+      className={"fld bd-in" + (bold ? " b" : "") + (bad === "name" ? " bad" : "")}
       aria-label={label}
       placeholder={label}
       value={form?.name ?? ""}
@@ -848,7 +848,7 @@ export default function BudgetScreen() {
         )}
         {cell(
           <input
-            className="bd-in"
+            className="fld bd-in"
             aria-label="업체"
             placeholder="업체"
             value={f.co}
