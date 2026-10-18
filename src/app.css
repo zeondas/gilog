@@ -9956,3 +9956,18 @@ select.input.fx-set-date { width: 190px; }
 /* 탐색기 두 상자 곡률 = 머리 줄 단추와 같은 8px(2026-10-19 사용자 1안: 위아래로 붙은 단추와 상자 모서리를 같게) */
 .fx-pane,
 .fx-tree { border-radius: var(--radius-md); }
+/* 지금 창·대상 창 2px 테두리를 안쪽으로(2026-10-19 사용자: 창 바깥 끝이 머리 줄 단추 끝과 어긋남).
+   바깥 1px = 테두리, 안쪽 1px = 같은 곡률을 따르는 덧그림(내용 자리는 그대로). */
+.fx-pane { position: relative; }
+.fx-pane[data-on="1"],
+.fx-pane[data-target="1"] { border-width: 1px; margin: 0; }
+.fx-pane[data-on="1"]::after,
+.fx-pane[data-target="1"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--accent);
+  border-radius: calc(var(--radius-md) - 1px);
+  pointer-events: none;
+  z-index: 3;
+}
