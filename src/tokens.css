@@ -360,3 +360,9 @@
   --sw-ink: #C9C7D4;
   --sw-check: #17161C;
 }
+
+/* 잠금 화면 앱 아이콘 색(강조색 따라감, 두 테마 같은 그림 — 바탕 = 밝게 강조색, L = 어둡게 강조색). */
+:root { --icon-bg: #4B37C4; --icon-l: #B6AAFF; }
+:root[data-accent="noctua"] { --icon-bg: #531705; --icon-l: #E7CEB5; }
+:root[data-accent="blue"] { --icon-bg: #2457C5; --icon-l: #9DBBFF; }
+:root[data-accent="ink"] { --icon-bg: #3F3E4A; --icon-l: #C9C7D4; }
