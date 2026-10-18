@@ -236,6 +236,28 @@ export default function FilesScreen() {
   /** 대상 창: 2창은 반대 창, 4창은 바로 전에 있던 창 */
   const targetOf = (pane: number) => (st?.four ? (prev === pane ? CLOCKWISE[(CLOCKWISE.indexOf(pane) + 1) % 4] : prev) : pane === 0 ? 1 : 0);
 
+  /** 네칸 → 두칸: 지금 창과 대상 창을 네칸 자리 순서대로 두 칸에 남기고, 나머지는 뒤로(2026-10-18 사용자 1안) */
+  const toTwo = () => {
+    if (!st || !st.four) return;
+    const a = st.active;
+    const t = targetOf(a);
+    const keep = [a, t].sort((x, y) => x - y);
+    const perm = [...keep, ...[0, 1, 2, 3].filter((i) => !keep.includes(i))];
+    setPrev(perm.indexOf(t));
+    setSt({ ...st, four: false, perm, panes: perm.map((i) => st.panes[i]), active: perm.indexOf(a) });
+  };
+  /** 두칸 → 네칸: 옮겨 둔 자리를 되돌려 창마다 원래 자리로 */
+  const toFour = () => {
+    if (!st || st.four) return;
+    const perm = st.perm;
+    if (!perm) return setSt({ ...st, four: true });
+    const panes = [...st.panes];
+    perm.forEach((orig, k) => (panes[orig] = st.panes[k]));
+    const other = perm[st.active === 0 ? 1 : 0];
+    setPrev(other);
+    setSt({ ...st, four: true, perm: undefined, panes, active: perm[st.active] });
+  };
+
   /** 폴더 열기. 고정 탭이면 새 탭으로 열어요. */
   const go = useCallback(
     (pane: number, path: string, select?: string) => {
@@ -748,6 +770,7 @@ export default function FilesScreen() {
     [tree, cfg.showHidden],
   );
   const visibleDrives = drives.filter((d) => !cfg.hiddenDrives.includes(d.name));
+  const [mock, setMock] = useState({ preview: false, hidden: false, flat: false });
   const curPath = st ? (activeTab(st.panes[st.active]).find ? "" : activeTab(st.panes[st.active]).path) : "";
 
   // 트리는 활성 창을 따라가요: 지금 폴더까지 위 폴더들을 펼쳐요.
@@ -965,6 +988,8 @@ export default function FilesScreen() {
         key={pane}
         className="fx-pane"
         data-on={on ? "1" : "0"}
+        data-target={isTarget && st.four ? "1" : "0"}
+        data-rest={!on && !isTarget ? "1" : "0"}
         aria-label={`창 ${pane + 1}`}
         onMouseDown={(e) => {
           focusPane(pane);
@@ -1019,7 +1044,7 @@ export default function FilesScreen() {
           <button type="button" className="fx-tab fx-tab-add" title="새 탭 (Ctrl+T)" onClick={() => newTab(pane, t.find ? home : t.path)}>
             ＋
           </button>
-          {isTarget && <span className="fx-target">대상</span>}
+          {isTarget && st.four && <span className="fx-target">대상</span>}
         </div>
         <div className="fx-row1">
           {/* 드라이브 줄: [내 PC] C: D: F: [홈] — 모두 같은 정사각형(2026-10-18 사용자, 시안 FilesDrives) */}
@@ -1401,8 +1426,6 @@ export default function FilesScreen() {
     );
   };
 
-  const anySelected = selected(st.active).length > 0;
-
   return (
     <div className="fx-root">
       <div className="fx-top">
@@ -1531,39 +1554,50 @@ export default function FilesScreen() {
             </div>
           )}
         </div>
-        <button
-          type="button"
-          className="btn btn-ctrl"
-          title="고른 파일을 윈도우 탐색기에서 열고 우클릭 메뉴를 띄워요(보안 해제는 윈도우 탐색기에서만 돼요)"
-          disabled={!anySelected}
-          onClick={() => void revealRows(selected(st.active))}
-        >
-          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="4" y="11" width="16" height="10" rx="2" />
-            <path d="M8 11V7a4 4 0 0 1 7.5-2" />
-          </svg>
-          보안 해제
-        </button>
-        <button type="button" className="btn btn-ctrl" onClick={() => void openBatch(st.active)}>
-          일괄 이름 바꾸기
+        <span className="fx-vsep" />
+        <button type="button" className="btn btn-ctrl fx-tool" title="새로 고침 (Ctrl+R)">
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7" /><path d="M20 4v7h-7" /></svg>
+          새로고침
         </button>
         <span className="fx-vsep" />
-        <button type="button" className="btn btn-ctrl fx-sq" aria-label="폴더 트리" title="폴더 트리" aria-pressed={st.tree.on} onClick={() => setSt({ ...st, tree: { ...st.tree, on: !st.tree.on } })}>
-          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 5h6M8 12h8M12 19h8M8 5v14" />
-          </svg>
+        <button type="button" className="btn btn-ctrl fx-tool" title="폴더 트리" aria-pressed={st.tree.on} onClick={() => setSt({ ...st, tree: { ...st.tree, on: !st.tree.on } })}>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="5" rx="1" /><rect x="14" y="10" width="7" height="5" rx="1" /><rect x="14" y="17" width="7" height="5" rx="1" /><path d="M6.5 8v11.5H14M6.5 12.5H14" /></svg>
+          트리보기
         </button>
-        <button type="button" className="btn btn-ctrl fx-sq" aria-label="2창" title="2창" aria-pressed={!st.four} onClick={() => setSt({ ...st, four: false, active: Math.min(st.active, 1) })}>
-          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <rect x="3" y="4" width="18" height="16" rx="2" />
-            <path d="M12 4v16" />
-          </svg>
+        <button type="button" className="btn btn-ctrl fx-tool" title="2창" aria-pressed={!st.four} onClick={() => toTwo()}>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M12 4v16" /></svg>
+          두칸보기
         </button>
-        <button type="button" className="btn btn-ctrl fx-sq" aria-label="4창" title="4창" aria-pressed={st.four} onClick={() => setSt({ ...st, four: true })}>
-          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <rect x="3" y="4" width="18" height="16" rx="2" />
-            <path d="M12 4v16M3 12h18" />
-          </svg>
+        <button type="button" className="btn btn-ctrl fx-tool" title="4창" aria-pressed={st.four} onClick={() => toFour()}>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M12 4v16M3 12h18" /></svg>
+          네칸보기
+        </button>
+        <span className="fx-vsep" />
+        <button type="button" className="btn btn-ctrl fx-tool" title="하위 폴더 파일까지 한 목록으로" aria-pressed={mock.flat} onClick={() => setMock({ ...mock, flat: !mock.flat })}>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5h6l2 2h10v4M3 5v14h8M14 14h7M14 18h7M14 22h7" /></svg>
+          펼쳐보기
+        </button>
+        <button type="button" className="btn btn-ctrl fx-tool" title="미리 보기 칸" aria-pressed={mock.preview} onClick={() => setMock({ ...mock, preview: !mock.preview })}>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M14 4v16M16.5 9h2M16.5 12h2" /></svg>
+          미리보기
+        </button>
+        <button type="button" className="btn btn-ctrl fx-tool" title="숨김 파일 보이기" aria-pressed={mock.hidden} onClick={() => setMock({ ...mock, hidden: !mock.hidden })}>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></svg>
+          숨긴파일
+        </button>
+        <span className="fx-vsep" />
+        <button type="button" className="btn btn-ctrl fx-tool" title="반대 창을 지금 창과 같은 폴더로">
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h12l-3-3M20 17H8l3 3" /></svg>
+          같은폴더
+        </button>
+        <button type="button" className="btn btn-ctrl fx-tool" title="두 창의 폴더를 서로 바꾸기">
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 4L3 8l4 4M3 8h14M17 12l4 4-4 4M21 16H7" /></svg>
+          창바꾸기
+        </button>
+        <span className="fx-vsep" />
+        <button type="button" className="btn btn-ctrl fx-tool fx-tool-wide" onClick={() => void openBatch(st.active)}>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h10M4 12h7M4 17h5" /><path d="M14 20v-3l6-6 3 3-6 6z" /></svg>
+          일괄이름변경
         </button>
       </div>
 
@@ -1571,7 +1605,7 @@ export default function FilesScreen() {
         {st.tree.on && (
           <>
             <aside className="fx-tree" aria-label="폴더 트리" style={{ width: st.tree.width }}>
-              <div className="fx-tree-head">폴더</div>
+              <div className="fx-tree-head">폴더트리</div>
               <div className="fx-tree-list">
                 {treeRows.map((r, ri) => {
                   const on = curPath.toLowerCase() === r.path.toLowerCase();

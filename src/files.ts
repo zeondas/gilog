@@ -395,6 +395,8 @@ export const EMPTY_FIND: FindForm = { name: "", text: "", where: "", sub: true, 
 
 export type FilesState = {
   four: boolean;
+  /** 네칸 → 두칸으로 바꿀 때 옮긴 자리(두칸 자리 k에 네칸 자리 perm[k]의 창). 다시 네칸으로 갈 때 되돌려요. */
+  perm?: number[];
   /** 2창 나눈 비율(왼쪽 창 몫, 0.2~0.8) */
   split: number;
   active: number;
