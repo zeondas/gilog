@@ -3808,6 +3808,14 @@ body.col-dragging * {
 }
 
 /* ---------- 할 일 목록 (7단계, 시안 Todo.dc.html) ---------- */
+/* 제목 줄을 맨 위에 두고 그 아래 목록·카드 (2026-10-19 사용자) */
+.td-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
 .td-screen {
   display: flex;
   align-items: flex-start;
