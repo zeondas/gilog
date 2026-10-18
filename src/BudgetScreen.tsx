@@ -58,6 +58,12 @@ const UNIT_KEY = "budget.unit";
 type Sel = string | null;
 const selKey = (level: BudgetLevel, id: number) => (level === "project" ? "p" : level === "item" ? "i" : "g") + id;
 
+/** 숫자 칸 여러 개 고르기(엑셀처럼) — 칸 = "고른 줄:열 번호"(예 g7:5), anchor = Shift 기준 칸 (2026-10-18 사용자) */
+type Cells = { keys: string[]; anchor: string | null };
+const NO_CELLS: Cells = { keys: [], anchor: null };
+const NUM_COLS: ColId[] = ["bud", "cmt", "exp", "act", "bal", "avail"];
+const NUM_IX = NUM_COLS.map((c) => COLS.findIndex(([x]) => x === c));
+
 /** 줄 안 입력(새로 더하기·고치기). 금액은 적은 글자와 원래 값(손대지 않았으면 원래 원 값 그대로) */
 type Money = { text: string; orig: number | null };
 type Form =
@@ -100,6 +106,7 @@ export default function BudgetScreen() {
   const [unit, setUnitState] = useState<Unit>(1);
   const [q, setQ] = useState("");
   const [sel, setSel] = useState<Sel>(null);
+  const [cs, setCs] = useState<Cells>(NO_CELLS);
   const [form, setForm] = useState<Form | null>(null);
   const [bad, setBad] = useState<string | null>(null);
   const [pop, setPop] = useState<Pop | null>(null);
@@ -367,6 +374,7 @@ export default function BudgetScreen() {
           setAsk(null);
           return;
         }
+        if (!form) setCs((c) => (c.keys.length || c.anchor ? NO_CELLS : c));
       }
       if (e.key === "Delete" && !form && !pop && sel?.startsWith("g")) {
         const t = e.target as HTMLElement;
@@ -411,6 +419,7 @@ export default function BudgetScreen() {
     if (!(await commit())) return;
     setSel(null);
     setPop(null);
+    setCs(NO_CELLS);
     setYear(y);
   };
 
@@ -699,6 +708,92 @@ export default function BudgetScreen() {
   const budgetOf = (level: "project" | "item", o: { id: number; budget: number | null }) =>
     form && form.level === level && form.id === o.id ? (moneyOf(form.budget, unit) ?? null) : o.budget;
   const pRows = (p: BudgetProject) => p.items.flatMap(rowsOf);
+
+  // ---------- 숫자 칸 여러 개 고르기 ----------
+  /** 칸 값(원). 화면에 보이는 계산과 같아요(고치는 중이면 치는 값으로). */
+  const cellVal = (k: string, ci: number): number | null => {
+    const col = COLS[ci]?.[0];
+    const id = Number(k.slice(1));
+    if (k[0] === "g") {
+      const x = findRow(id);
+      if (!x) return null;
+      const r = x.r;
+      const v: Partial<Record<ColId, number>> = { cmt: r.cmt, exp: r.exp, act: r.act, bal: balance(r) };
+      return v[col] ?? null;
+    }
+    let budget: number | null;
+    let rows: BudgetRow[];
+    if (k[0] === "p") {
+      const p = findP(id);
+      if (!p) return null;
+      budget = budgetOf("project", p);
+      rows = pRows(p);
+    } else {
+      const x = findItem(id);
+      if (!x) return null;
+      budget = budgetOf("item", x.it);
+      rows = rowsOf(x.it);
+    }
+    const t = sums(budget, rows);
+    const v: Partial<Record<ColId, number | null>> = { bud: budget, cmt: t.cmt, exp: t.exp, act: t.act, bal: t.bal, avail: t.avail };
+    return v[col] ?? null;
+  };
+  /** 그냥 누르기 = 그 칸 하나(기준), Ctrl = 하나씩 더하기·빼기, Shift = 기준에서 여기까지 네모(Ctrl+Shift = 더하기) */
+  const pickCell = (e: RMouseEvent) => {
+    const c = (e.target as Element).closest(".bd-c");
+    const rw = c?.parentElement;
+    const sk = rw?.getAttribute("data-sel");
+    const mod = e.ctrlKey || e.metaKey;
+    if (!c || !rw || !sk || rw.classList.contains("edit") || (e.target as Element).closest("button, input, [contenteditable]")) {
+      if (!mod && !e.shiftKey && e.detail === 1) setCs(NO_CELLS);
+      return;
+    }
+    if (mod || e.shiftKey) {
+      e.stopPropagation(); // 줄 고르기·고치기로 가지 않게
+      if (form) return;
+    } else if (e.detail !== 1) return;
+    const ci = Array.prototype.indexOf.call(rw.children, c) as number;
+    if (!NUM_IX.includes(ci)) {
+      if (!mod && !e.shiftKey) setCs(NO_CELLS);
+      return;
+    }
+    const key = sk + ":" + ci;
+    if (e.shiftKey && cs.anchor) {
+      const order = [...document.querySelectorAll(".bd-body .bd-rw[data-sel]:not(.edit)")].map((x) => x.getAttribute("data-sel"));
+      const [ak, aci] = cs.anchor.split(":");
+      const a = order.indexOf(ak);
+      const b = order.indexOf(sk);
+      if (a < 0 || b < 0) {
+        setCs({ keys: [key], anchor: key });
+        return;
+      }
+      const [r0, r1] = [Math.min(a, b), Math.max(a, b)];
+      const [c0, c1] = [Math.min(+aci, ci), Math.max(+aci, ci)];
+      const keys = new Set(mod ? cs.keys : []);
+      for (let i = r0; i <= r1; i++) for (const n of NUM_IX) if (n >= c0 && n <= c1) keys.add(order[i] + ":" + n);
+      setCs({ keys: [...keys], anchor: cs.anchor });
+    } else if (mod) {
+      setCs({ keys: cs.keys.includes(key) ? cs.keys.filter((x) => x !== key) : [...cs.keys, key], anchor: key });
+    } else setCs({ keys: [key], anchor: key });
+  };
+  let csN = 0;
+  let csSum = 0;
+  for (const k of cs.keys) {
+    const [sk, ci] = k.split(":");
+    const v = cellVal(sk, Number(ci));
+    if (v != null) {
+      csN++;
+      csSum += v;
+    }
+  }
+  const csStyle = cs.keys.length
+    ? cs.keys
+        .map((k) => {
+          const [sk, ci] = k.split(":");
+          return `.bd-body .bd-rw[data-sel="${sk}"]>.bd-c:nth-child(${Number(ci) + 1})`;
+        })
+        .join(",") + "{background:var(--accent-tint);box-shadow:inset 0 0 0 1px var(--accent);color:var(--ink)}"
+    : "";
 
   const rowsOut: ReactNode[] = [];
   let carryShown = false;
@@ -1367,11 +1462,20 @@ export default function BudgetScreen() {
 
       <div className="bd-tbl">
         <style>{colHl == null ? "" : `.bd-body .bd-rw>.bd-c:nth-child(${colHl + 1}){background-image:linear-gradient(var(--bd-col-hl),var(--bd-col-hl))}`}</style>
+        <style>{csStyle}</style>
         <div className="bd-scroll" ref={scroller}>
           <div className="bd-hd" role="row" onContextMenu={resetCols}>
             {head}
           </div>
-          <div className="bd-body" role="rowgroup">
+          <div
+            className="bd-body"
+            role="rowgroup"
+            onMouseDownCapture={(e) => {
+              // Shift·Ctrl 누르기에 글자가 칠해지지 않게
+              if ((e.shiftKey || e.ctrlKey || e.metaKey) && (e.target as Element).closest(".bd-rw[data-sel]:not(.edit) > .bd-c")) e.preventDefault();
+            }}
+            onClickCapture={pickCell}
+          >
             {rowsOut}
             {!list.length && !(form?.level === "project") && (
               <div className="bd-empty">
@@ -1392,6 +1496,19 @@ export default function BudgetScreen() {
             {!!list.length && q && !rowsOut.length && <div className="bd-none">"{q}"에 맞는 공사가 없어요</div>}
           </div>
         </div>
+        {cs.keys.length >= 2 && (
+          <div className="bd-sumbar" role="status">
+            <span>
+              개수<b>{csN.toLocaleString("ko-KR")}</b>
+            </span>
+            <span>
+              합계<b>{(fmt(csSum, unit) || "0") + (unit === 1000 ? " 천원" : " 원")}</b>
+            </span>
+            <button type="button" title="고르기 풀기 · Esc" aria-label="고르기 풀기" onClick={() => setCs(NO_CELLS)}>
+              {ICON("M6 6l12 12M18 6L6 18", 12, 2.4)}
+            </button>
+          </div>
+        )}
       </div>
 
       {pop && (

@@ -9556,3 +9556,46 @@ button.bd-chip:hover {
   z-index: 60;
   pointer-events: none;
 }
+
+/* 집행현황 — 숫자 칸 여러 개 고르기: 개수·합계 띠(표 오른쪽 아래, 2026-10-18 사용자) */
+.bd-tbl {
+  position: relative;
+}
+.bd-sumbar {
+  position: absolute;
+  right: 22px;
+  bottom: 18px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 32px;
+  padding: 0 6px 0 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: 0 4px 14px rgba(var(--shadow-rgb), 0.12);
+  font-size: 13px;
+  color: var(--muted);
+}
+.bd-sumbar b {
+  margin-left: 6px;
+  color: var(--ink);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.bd-sumbar button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.bd-sumbar button:hover {
+  background: var(--line-soft);
+  color: var(--ink);
+}
