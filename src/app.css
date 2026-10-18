@@ -9671,3 +9671,8 @@ button.bd-chip:hover {
   font-weight: 700;
   color: var(--muted);
 }
+
+/* 설정 "정보": 개발자 줄은 글자를 골라 복사할 수 있어요(2026-10-18 사용자) */
+.about-dev {
+  user-select: text;
+}

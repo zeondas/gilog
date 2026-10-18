@@ -294,6 +294,7 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
             <Logo height={20} variant="word" />
             <span className="muted small">버전 {VERSION}</span>
             <span className="muted small">WebView2 {engineVersion()}</span>
+            <span className="muted small about-dev">개발자 전훈민 · zeondas@korea.kr</span>
           </div>
         </div>
       </section>
