@@ -42,7 +42,7 @@ const COLS: [ColId, string, number][] = [
   ["bud", "예산", 112],
   ["cmt", "원인행위", 112],
   ["exp", "집행액", 112],
-  ["act", "시공량·사용량", 112],
+  ["act", "시공량(사용량)", 112],
   ["bal", "잔액", 118],
   ["rate", "집행률", 90],
   ["avail", "가용액", 118],
@@ -763,7 +763,7 @@ export default function BudgetScreen() {
         {cell("")}
         {cell(moneyInput("cmt", "원인행위", f.cmt))}
         {cell(moneyInput("exp", "집행액", f.exp))}
-        {cell(moneyInput("act", "시공량·사용량", f.act))}
+        {cell(moneyInput("act", "시공량(사용량)", f.act))}
         {draftRow && cell(fmt(balance(draftRow), unit), " n" + (balance(draftRow) < 0 ? " red" : ""))}
         {draftRow && rowRateCell(draftRow)}
         {cell("")}

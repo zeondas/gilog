@@ -1,9 +1,9 @@
 // 집행현황(12단계) 규칙 함수. 계산은 저장하지 않고 여기서 해요(엑셀은 같은 규칙을 수식으로 — core budget_xlsx.rs).
 // 정한 것(2026-10-18 사용자):
 //   완료·타절 = 끝난 공사(FINAL), 준비·추진·중지 = 진행 중
-//   잔액 = 원인행위 − (끝났으면 집행액, 아니면 시공량·사용량)
-//   집행률 = Σ(끝났으면 집행액, 아니면 시공량·사용량) ÷ 예산
-//   가용액 = 예산 − Σ(끝났으면 max(원인행위, 집행액), 아니면 원인행위) — 예산의 10% 아래면 붉게
+//   잔액 = 원인행위 − (끝났으면 집행액, 아니면 시공량(사용량))
+//   집행률 = Σ(끝났으면 집행액, 아니면 시공량(사용량)) ÷ 예산
+//   가용액 = 예산 − Σ(끝났으면 max(원인행위, 집행액), 아니면 원인행위) — 0 아래(초과)면 붉게(2026-10-18 사용자: 아슬아슬한 것은 칠하지 않음)
 //   공사 줄 집행률은 원인행위 대비(회색 막대), 공사 줄 가용액은 빈칸
 //   금액은 원 단위 정수(십원 단위부터). 화면 단위 원/천원 — 천원은 반올림한 정수만 보여요.
 import { BKind, linesToText, BLine } from "./bullets";
@@ -41,7 +41,7 @@ export function sums(budget: number | null, rows: BudgetRow[]): Sums {
     if (FINAL(r.stage)) done++;
   }
   const avail = budget == null ? null : budget - t;
-  return { cmt, exp, act, bal, rate: budget ? (sp / budget) * 100 : null, avail, low: budget ? (avail as number) < budget * 0.1 : false, done, n: rows.length };
+  return { cmt, exp, act, bal, rate: budget ? (sp / budget) * 100 : null, avail, low: avail != null && avail < 0, done, n: rows.length };
 }
 
 export const allRows = (p: BudgetProject) => p.items.flatMap((i) => i.rows);

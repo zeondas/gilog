@@ -47,7 +47,7 @@ const COLS: [(&str, f64); 12] = [
     ("예산", 15.0),
     ("원인행위", 15.0),
     ("집행액", 15.0),
-    ("시공량·사용량", 15.0),
+    ("시공량(사용량)", 15.0),
     ("잔액", 15.0),
     ("집행률", 8.0),
     ("가용액", 15.0),
@@ -276,9 +276,9 @@ pub fn write_budget_xlsx(path: &Path, data: &BudgetExport) -> Result<()> {
     }
     let last = row.max(4) - 1;
     let _ = low_rows;
-    // 가용액이 예산의 10% 아래면 붉은 굵은 글자(화면과 같게)
+    // 가용액이 0 아래(초과)면 붉은 굵은 글자(화면과 같게)
     let red = Format::new().set_font_color(Color::RGB(0xC00000)).set_bold();
-    let cf = ConditionalFormatFormula::new().set_rule("=AND(ISNUMBER($J4),ISNUMBER($D4),$J4<$D4*0.1)").set_format(red);
+    let cf = ConditionalFormatFormula::new().set_rule("=AND(ISNUMBER($J4),ISNUMBER($D4),$J4<0)").set_format(red);
     ws.add_conditional_format(3, 9, last, 9, &cf).map_err(xerr)?;
 
     ws.set_freeze_panes(3, 1).map_err(xerr)?;
