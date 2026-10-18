@@ -86,6 +86,8 @@ pub struct Case {
     /// 보낼편지함에 넣은 JPG(Claude가 대화에 올리고 "보냄" 폴더로 옮기면 전송 완료)
     pub outbox_file: String,
     pub sent_at: String,
+    /// 신문고 위치가 도로명주소라 지번으로 바꿨으면 바꾸기 전 글(판단 근거 옆 작은 글)
+    pub road: String,
 }
 
 /// 줄에서 고치는 칸이에요. None은 그대로 둬요.
@@ -96,6 +98,8 @@ pub struct CasePatch {
     /// 주소(지역·위치)를 고치면 지시부 전으로 돌아가요(지시부를 다시 만들어요). 연번은 그대로예요.
     pub area: Option<String>,
     pub place: Option<String>,
+    /// 바꾸기 전 도로명주소. 위치를 고치면서 이 값을 보내지 않으면 비워요.
+    pub road: Option<String>,
     pub note: Option<String>,
     pub seq: Option<String>,
     pub stage: Option<String>,
@@ -146,15 +150,25 @@ pub(crate) const SCHEMA: &str = "
         order_jpg  TEXT NOT NULL DEFAULT '',
         outbox_file TEXT NOT NULL DEFAULT '',
         sent_at    TEXT NOT NULL DEFAULT '',
-        added      INTEGER NOT NULL DEFAULT 0
+        added      INTEGER NOT NULL DEFAULT 0,
+        road       TEXT NOT NULL DEFAULT ''
     );
 ";
+
+/// 예전 자료 파일에 도로명주소 칸(road)을 더해요(2026-10-18 주소 변환).
+pub(crate) fn upgrade(conn: &rusqlite::Connection) -> Result<()> {
+    let has: bool = conn.prepare("SELECT 1 FROM pragma_table_info('cases') WHERE name = 'road'")?.exists([])?;
+    if !has {
+        conn.execute_batch("ALTER TABLE cases ADD COLUMN road TEXT NOT NULL DEFAULT '';")?;
+    }
+    Ok(())
+}
 
 /// 주소가 분명하지 않으면 적는 말(사용자 2026-10-17)
 pub const UNKNOWN_PLACE: &str = "주소불명";
 
 const WORK_COLS: &str = "id, name, co, contact, project, scope, next_seq, tpl";
-const CASE_COLS: &str = "no, received, due, area, place, summary, short, reason, work, note, seq, stage, complaint, photos, map, folder, order_file, order_jpg, outbox_file, sent_at";
+const CASE_COLS: &str = "no, received, due, area, place, summary, short, reason, work, note, seq, stage, complaint, photos, map, folder, order_file, order_jpg, outbox_file, sent_at, road";
 
 fn bad(msg: &str) -> Error {
     Error::Invalid(msg.into())
@@ -200,6 +214,7 @@ fn case_row(r: &Row) -> rusqlite::Result<Case> {
         order_jpg: r.get(17)?,
         outbox_file: r.get(18)?,
         sent_at: r.get(19)?,
+        road: r.get(20)?,
     })
 }
 
@@ -314,15 +329,17 @@ impl Store {
                 Some(w) if tx.prepare("SELECT 1 FROM works WHERE id = ?1")?.exists(params![w])? => Some(w),
                 _ => None,
             };
+            // 위치가 파주시 도로명주소면 받을 때 지번으로 바꾸고 원래 글을 남겨요(2026-10-18 사용자).
+            let (area, place, road) = crate::complaints::convert(&one_line(&c.area), &one_line(&c.place), "");
             tx.execute(
-                "INSERT INTO cases (no, received, due, area, place, summary, short, reason, work, photos, map, folder, added)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                "INSERT INTO cases (no, received, due, area, place, summary, short, reason, work, photos, map, folder, added, road)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
                 params![
                     no,
                     date_or_empty(&c.received),
                     date_or_empty(&c.due),
-                    one_line(&c.area),
-                    clean_place(&c.place),
+                    area,
+                    clean_place(&place),
                     c.summary.trim(),
                     one_line(&c.short),
                     c.reason.trim(),
@@ -330,7 +347,8 @@ impl Store {
                     serde_json::to_string(&c.photos).unwrap_or_else(|_| "[]".into()),
                     c.map.trim(),
                     c.folder.trim(),
-                    base + 1 + i as i64
+                    base + 1 + i as i64,
+                    road
                 ],
             )?;
             added.push(no);
@@ -375,6 +393,9 @@ impl Store {
             c.area = v;
         }
         if let Some(v) = place {
+            if v != c.place || p.road.is_some() {
+                c.road = p.road.as_ref().map(|r| one_line(r)).filter(|r| *r != v).unwrap_or_default();
+            }
             c.place = v;
         }
         if moved && p.stage.is_none() {
@@ -411,8 +432,8 @@ impl Store {
             c.sent_at = v.clone();
         }
         self.conn.execute(
-            "UPDATE cases SET work = ?2, note = ?3, seq = ?4, stage = ?5, complaint = ?6, folder = ?7, order_file = ?8, order_jpg = ?9, outbox_file = ?10, sent_at = ?11, area = ?12, place = ?13 WHERE no = ?1",
-            params![no, c.work, c.note, c.seq, c.stage, c.complaint, c.folder, c.order_file, c.order_jpg, c.outbox_file, c.sent_at, c.area, c.place],
+            "UPDATE cases SET work = ?2, note = ?3, seq = ?4, stage = ?5, complaint = ?6, folder = ?7, order_file = ?8, order_jpg = ?9, outbox_file = ?10, sent_at = ?11, area = ?12, place = ?13, road = ?14 WHERE no = ?1",
+            params![no, c.work, c.note, c.seq, c.stage, c.complaint, c.folder, c.order_file, c.order_jpg, c.outbox_file, c.sent_at, c.area, c.place, c.road],
         )?;
         self.case(no)
     }
@@ -432,6 +453,21 @@ mod tests {
         let d = tempfile::tempdir().unwrap();
         let s = Store::create(d.path(), "1234").unwrap();
         (d, s)
+    }
+
+    #[test]
+    fn inbox_road_address_is_converted() {
+        let (_d, mut s) = store();
+        let added = s
+            .add_cases(&[CaseInput { area: "문산읍".into(), place: "경기도 파주시 문산읍 문향로 61".into(), ..input("2AA-1") }, input("2AA-2")])
+            .unwrap();
+        assert_eq!((added[0].area.as_str(), added[0].place.as_str(), added[0].road.as_str()), ("문산읍", "문산리 10-108", "경기도 파주시 문산읍 문향로 61"));
+        assert_eq!((added[1].place.as_str(), added[1].road.as_str()), ("등원리 230-1", ""));
+        // 위치를 손으로 고치면 원래 글은 지워져요. 화면이 바꾼 위치면 원래 글을 함께 보내요.
+        let c = s.update_case("2AA-1", &CasePatch { place: Some("문산리 11".into()), ..Default::default() }).unwrap();
+        assert_eq!(c.road, "");
+        let c = s.update_case("2AA-1", &CasePatch { place: Some("봉일천리 5-31".into()), road: Some("통일로 136".into()), ..Default::default() }).unwrap();
+        assert_eq!(c.road, "통일로 136");
     }
 
     fn input(no: &str) -> CaseInput {

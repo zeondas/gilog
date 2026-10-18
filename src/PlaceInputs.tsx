@@ -3,7 +3,12 @@
 // - 지역 칸은 직접 치지 않고 위치에서만 채워요(2026-10-16 사용자 지시). 파주 목록에 없는 위치면 지역은 비워요.
 // 겹치면(2안): 첫 후보가 골라진 목록이 떠요. ↑↓로 바꾸고 Tab(또는 Enter)으로 확정해요.
 //   위치 칸은 "봉일천리 "까지 채운 뒤 커서가 남아 지번을 이어 써요.
-import { KeyboardEvent, Ref, useLayoutEffect, useRef, useState } from "react";
+// 도로명주소(2026-10-18 사용자): 칸을 떠날 때 파주시 도로명주소면 "리·동 지번"으로 바꾸고 지역도 채워요.
+//   번호가 표에 없으면 가까운 번호 후보(Tab 확정 · Esc 친 그대로), 법정동이 행정동 여럿에 걸치면 지역 고르기.
+//   바꾸기 전 글은 onRoad로 넘겨 마우스를 올리면 보여요(title). 칸에 다시 치면 지워요.
+import { KeyboardEvent, Ref, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { areaFor, looksRoad, RoadHit, RoadLookup } from "./address";
+import { api } from "./api";
 import { useJamoGuard } from "./koInput";
 import { emdsOf, findNames, Place, PLACES, splitPlace } from "./paju";
 
@@ -40,6 +45,8 @@ export function PlaceInput({
   area,
   onChange,
   onArea,
+  road = "",
+  onRoad,
   placeholder = "리·동 지번",
   className,
   autoFocus,
@@ -55,6 +62,10 @@ export function PlaceInput({
   area: string;
   onChange: (v: string) => void;
   onArea: (emd: string) => void;
+  /** 바꾸기 전 도로명주소(마우스를 올리면 보여요) */
+  road?: string;
+  /** 도로명주소를 바꿨으면 바꾸기 전 글, 손으로 고치면 "" */
+  onRoad?: (orig: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(0);
@@ -62,15 +73,73 @@ export function PlaceInput({
   const caret = useRef<number | null>(null);
   const guard = useJamoGuard((v) => {
     onChange(v);
+    onRoad?.("");
     setOpen(true);
     setHi(0);
   });
   guard.follow(value);
 
+  // 도로명주소: 치는 동안 미리 물어 둬요(칸을 떠나는 순간 바로 쓰게).
+  const look = useRef<{ text: string; r: RoadLookup } | null>(null);
+  const done = useRef("");
+  const [roadPick, setRoadPick] = useState<
+    { kind: "cands"; list: RoadHit[]; original: string } | { kind: "area"; name: string; areas: string[] } | null
+  >(null);
+  const [phi, setPhi] = useState(0);
+  useEffect(() => {
+    const t = value.trim();
+    if (!looksRoad(t) || look.current?.text === t) return;
+    let live = true;
+    api.roadToJibun(t).then(
+      (r) => live && (look.current = { text: t, r }),
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [value]);
+
+  /** 바꾼 위치를 넣어요. 지역을 골라야 하면 목록을 띄우고 true(칸에 남아요). */
+  function applyHit(h: RoadHit, original: string, canStay: boolean): boolean {
+    done.current = value.trim();
+    guard.sync(h.place);
+    onChange(h.place);
+    onRoad?.(original);
+    const a = areaFor(h, area);
+    onArea(a);
+    setOpen(false);
+    if (!a && h.areas.length > 1 && canStay) {
+      setRoadPick({ kind: "area", name: h.name, areas: h.areas });
+      setPhi(0);
+      return true;
+    }
+    setRoadPick(null);
+    return false;
+  }
+
+  /** 지금 글의 찾은 결과(미리 물어 둔 것) */
+  const lookNow = () => {
+    const t = value.trim();
+    return t && t !== done.current && look.current?.text === t ? look.current.r : null;
+  };
+
   const { head, rest } = splitPlace(value);
   // 리·동 자리를 치는 동안(아직 띄어쓰기 전)만 목록을 보여요.
-  const opts = rest === "" ? placeOptions(head) : [];
+  const opts = rest === "" && !roadPick ? placeOptions(head) : [];
   const show = open && opts.length > 0;
+  const pickN = roadPick ? (roadPick.kind === "cands" ? roadPick.list.length : roadPick.areas.length) : 0;
+
+  function choose(i: number) {
+    if (!roadPick) return;
+    if (roadPick.kind === "cands") {
+      const h = roadPick.list[i] ?? roadPick.list[0];
+      setRoadPick(null);
+      applyHit(h, roadPick.original, true);
+    } else {
+      onArea(roadPick.areas[i] ?? roadPick.areas[0]);
+      setRoadPick(null);
+    }
+  }
 
   useLayoutEffect(() => {
     if (caret.current !== null && ref.current) {
@@ -108,24 +177,63 @@ export function PlaceInput({
         autoFocus={autoFocus}
         className={"cell-input" + (className ? " " + className : "")}
         role="combobox"
-        aria-expanded={show}
+        aria-expanded={show || !!roadPick}
         aria-autocomplete="list"
+        title={road || undefined}
         value={value}
         onChange={guard.onChange}
         onCompositionEnd={guard.onCompositionEnd}
         onFocus={() => {
           setOpen(true);
           setHi(0);
+          done.current = "";
         }}
         onBlur={() => {
           setOpen(false);
+          // 고르는 목록을 두고 떠나면 친 그대로(지역 고르기면 지역은 비워 둬요).
+          if (roadPick) return setRoadPick(null);
+          // 방금 Tab·Enter로 바꿨으면(그리기 전에 떠나요) 다시 손대지 않아요.
+          if (done.current && value.trim() === done.current) return;
+          const L = lookNow();
+          if (L?.kind === "exact") return void applyHit(L.hit, L.original, false);
+          if (L?.kind === "cands") return;
+          const t = value.trim();
+          if (t && t !== done.current && looksRoad(t) && !look.current) {
+            // 아직 답이 오지 않았으면 받은 뒤 꼭 맞을 때만 바꿔요.
+            api.roadToJibun(t).then((r) => r.kind === "exact" && applyHit(r.hit, r.original, false), () => undefined);
+            return;
+          }
           settle();
         }}
         onKeyDown={(e) => {
           guard.onKeyDown(e);
           if (isComposing(e)) return;
+          if (roadPick) {
+            if (moveKey(e, pickN, phi, setPhi)) return;
+            if ((e.key === "Tab" && !e.shiftKey) || e.key === "Enter") {
+              e.preventDefault();
+              e.stopPropagation();
+              choose(phi);
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              e.stopPropagation();
+              setRoadPick(null);
+            }
+            return;
+          }
           if (!show) {
-            // 고르지 않고 지번으로 넘어가려 띄어쓰기를 쳤을 때도 하나뿐이면 채워요.
+            if ((e.key === "Tab" && !e.shiftKey) || e.key === "Enter") {
+              const L = lookNow();
+              if (L?.kind === "cands" && L.list.length) {
+                e.preventDefault();
+                e.stopPropagation();
+                setRoadPick({ kind: "cands", list: L.list, original: L.original });
+                setPhi(0);
+              } else if (L?.kind === "exact" && applyHit(L.hit, L.original, true)) {
+                e.preventDefault();
+                e.stopPropagation();
+              }
+            }
             return;
           }
           if (moveKey(e, opts.length, hi, setHi)) return;
@@ -161,6 +269,42 @@ export function PlaceInput({
             </div>
           ))}
           {opts.length > 1 && <div className="pin-hint">↑↓ 고르기 · Tab 확정</div>}
+        </div>
+      )}
+      {roadPick && (
+        <div className="pin-list pin-road" role="listbox" aria-label={roadPick.kind === "cands" ? "가까운 번호" : "지역 고르기"}>
+          {roadPick.kind === "cands"
+            ? roadPick.list.map((h, i) => (
+                <div
+                  key={h.road}
+                  role="option"
+                  aria-selected={i === phi}
+                  className="pin-opt pin-place"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    choose(i);
+                  }}
+                >
+                  <span>{h.road}</span>
+                  <span className="pin-sub">{[h.place, h.bldg].filter(Boolean).join(" · ")}</span>
+                </div>
+              ))
+            : roadPick.areas.map((a, i) => (
+                <div
+                  key={a}
+                  role="option"
+                  aria-selected={i === phi}
+                  className="pin-opt pin-place"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    choose(i);
+                  }}
+                >
+                  <span>{roadPick.name}</span>
+                  <span className="pin-sub">{a}</span>
+                </div>
+              ))}
+          <div className="pin-hint">{roadPick.kind === "cands" ? "↑↓ 고르기 · Tab 확정 · Esc 친 그대로" : "↑↓ 고르기 · Tab 확정"}</div>
         </div>
       )}
     </div>

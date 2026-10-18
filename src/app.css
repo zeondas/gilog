@@ -8446,3 +8446,22 @@ body.col-dragging * {
 .fx-set-dir .input {
   width: 280px;
 }
+
+/* 민원처리: 신문고 위치를 도로명주소에서 바꿨을 때 원래 글(판단 근거 옆 작은 글) — 주소 변환 2026-10-18 */
+.pr-road {
+  margin-left: 8px;
+  opacity: 0.8;
+}
+.pr-road::before {
+  content: "· ";
+}
+
+/* 위치 칸 도로명주소 후보 — 줄바꿈 없이 넓게(주소 변환 2026-10-18) */
+.pin-list.pin-road {
+  min-width: 300px;
+  right: auto;
+}
+.pin-road .pin-opt,
+.pin-road .pin-hint {
+  white-space: nowrap;
+}

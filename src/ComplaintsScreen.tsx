@@ -730,6 +730,7 @@ const emptyDraft = (lists: Lists): Draft => ({
   ctype: "",
   area: "",
   place: "",
+  road: "",
   person: "",
   phone: "",
   body: "",
@@ -893,7 +894,7 @@ function Cells({
         {d.area}
       </div>
       <div role="cell" className="cm-c">
-        <PlaceInput value={d.place} area={d.area} onChange={(place) => set({ place })} onArea={(area) => set({ area })} />
+        <PlaceInput value={d.place} area={d.area} road={d.road} onChange={(place) => set({ place })} onArea={(area) => set({ area })} onRoad={(road) => set({ road })} />
       </div>
       <div role="cell" className="cm-c">
         <input name="person" aria-label="민원인" placeholder="민원인" className="cell-input" value={d.person} onChange={(e) => set({ person: e.target.value })} />
@@ -1058,6 +1059,7 @@ function EditRow({
     ctype: c.ctype,
     area: c.area,
     place: c.place,
+    road: c.road ?? "",
     person: c.person,
     phone: c.phone,
     body: c.body,
@@ -1231,7 +1233,7 @@ function ViewRow({
         {t(c.area)}
       </div>
       <div role="cell" className="cm-c">
-        {c.place && <CopyCell value={c.place} what="위치" render={t} />}
+        {c.place && <CopyCell value={c.place} what="위치" render={t} title={c.road || undefined} />}
       </div>
       <div role="cell" className="cm-c">
         {t(c.person)}
@@ -1281,7 +1283,8 @@ function MemoButton({ has, memo, onClick }: { has: boolean; memo: string; onClic
 }
 
 /** 연락처·위치 칸: 누르면 그 글자를 복사하고 "복사했어요"를 잠깐 보여요(줄 고르기·고치기로 넘어가지 않아요). */
-function CopyCell({ value, what, render }: { value: string; what: string; render: (s: string) => ReactNode }) {
+/** title을 주면 "눌러서 복사" 대신 그 글을 보여요(위치: 바꾸기 전 도로명주소). */
+function CopyCell({ value, what, render, title }: { value: string; what: string; render: (s: string) => ReactNode; title?: string }) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<number>();
   useEffect(() => () => window.clearTimeout(timer.current), []);
@@ -1290,7 +1293,7 @@ function CopyCell({ value, what, render }: { value: string; what: string; render
       type="button"
       className={"cm-copy" + (copied ? " copied" : "")}
       onDoubleClick={(e) => e.stopPropagation()}
-      title="눌러서 복사"
+      title={title ?? "눌러서 복사"}
       aria-label={`${what} ${value} 복사`}
       onClick={async (e) => {
         e.stopPropagation();

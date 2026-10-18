@@ -1,6 +1,7 @@
 // 화면에서 저장 쪽(Rust)을 부르는 곳이에요.
 // 앱 밖(브라우저)에서 화면만 볼 때는 메모리에만 저장하는 흉내를 써요.
 import { invoke } from "@tauri-apps/api/core";
+import { areaFor, fakeRoadToJibun, RoadLookup } from "./address";
 
 export type Status = { exists: boolean; unlocked: boolean; folder: string };
 
@@ -123,6 +124,8 @@ export type ComplaintInput = {
   /** 마감일. 비어 있으면 마감이 없어요. */
   due: string;
   status: string;
+  /** 위치를 도로명주소에서 바꿨으면 바꾸기 전 글(마우스를 올리면 보여요). 직접 친 위치면 비어요. */
+  road?: string;
 };
 
 export type Complaint = ComplaintInput & {
@@ -263,9 +266,11 @@ export type Case = {
   /** 보낼 폴더에 넣은 JPG */
   outboxFile: string;
   sentAt: string;
+  /** 신문고 위치가 도로명주소라 바꿨으면 바꾸기 전 글 */
+  road: string;
 };
 
-export type CasePatch = Partial<Pick<Case, "work" | "area" | "place" | "note" | "seq" | "stage" | "complaint" | "folder" | "orderFile" | "orderJpg" | "outboxFile" | "sentAt">>;
+export type CasePatch = Partial<Pick<Case, "work" | "area" | "place" | "road" | "note" | "seq" | "stage" | "complaint" | "folder" | "orderFile" | "orderJpg" | "outboxFile" | "sentAt">>;
 export type ProcessData = { works: Work[]; cases: Case[] };
 export type InboxResult = { added: Case[]; skipped: number; failed: string[]; missingFiles: string[] };
 export type RunStatus = { state: "idle" | "running" | "done" | "login" | "stopped" | "error"; total: number | null; done: number | null; message: string };
@@ -605,6 +610,7 @@ function fakeComplaints(cmd: string, a: Record<string, unknown>): unknown {
     return {
       intake: t(c.intake), received, ctype: t(c.ctype), area: t(c.area), place: t(c.place),
       person: t(c.person), phone: t(c.phone), body, action: lines(c.action), due, status: t(c.status) || "접수",
+      road: t(c.place) && t(c.road ?? "") !== t(c.place) ? t(c.road ?? "") : "",
     };
   };
   const find = () => {
@@ -645,9 +651,12 @@ function fakeComplaints(cmd: string, a: Record<string, unknown>): unknown {
       let no = fake.complaints.reduce((m, x) => Math.max(m, x.no), 0);
       for (const r of rows) {
         const t = (s: string) => (s ?? "").trim();
+        // 위치가 파주시 도로명주소면 바꿔요(core convert와 같게)
+        const L = fakeRoadToJibun(t(r.place));
+        const conv = L.kind === "exact" ? { area: areaFor(L.hit, t(r.area)), place: L.hit.place, road: L.original } : { area: t(r.area), place: t(r.place), road: "" };
         fake.complaints.push({
-          id: fake.nextComplaintId++, no: ++no, intake: t(r.intake), received: t(r.received), ctype: t(r.ctype), area: t(r.area),
-          place: t(r.place), person: t(r.person), phone: t(r.phone), body: lines(r.body), action: lines(r.action), due: t(r.due),
+          id: fake.nextComplaintId++, no: ++no, intake: t(r.intake), received: t(r.received), ctype: t(r.ctype), area: conv.area,
+          place: conv.place, road: conv.road, person: t(r.person), phone: t(r.phone), body: lines(r.body), action: lines(r.action), due: t(r.due),
           status: t(r.status) || "접수", memo: t(r.memo),
         });
       }
@@ -843,6 +852,7 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
       const area = p.area !== undefined ? one(p.area) : c.area;
       const place = p.place !== undefined ? one(p.place) || "주소불명" : c.place;
       if ((area !== c.area || place !== c.place) && p.stage === undefined) c.stage = "new";
+      if (p.place !== undefined && (place !== c.place || p.road !== undefined)) c.road = p.road && one(p.road) !== place ? one(p.road) : "";
       Object.assign(c, { area, place });
       if (p.note !== undefined) c.note = one(p.note);
       if (p.seq !== undefined) c.seq = p.seq.replace(/\D/g, "");
@@ -864,8 +874,10 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
           no: i.no, received: i.received ?? "", due: i.due ?? "", area: one(i.area ?? ""), place: one(i.place ?? "") || "주소불명",
           summary: (i.summary ?? "").trim(), short: one(i.short ?? ""), reason: (i.reason ?? "").trim(),
           work: i.work != null && fake.works.some((w) => w.id === i.work) ? i.work : null,
-          note: "", seq: "", stage: "new", complaint: null, photos: [], map: "", folder: String(a.root ?? ""), orderFile: "", orderJpg: "", outboxFile: "", sentAt: "",
+          note: "", seq: "", stage: "new", complaint: null, photos: [], map: "", folder: String(a.root ?? ""), orderFile: "", orderJpg: "", outboxFile: "", sentAt: "", road: "",
         };
+        const L = fakeRoadToJibun(c.place);
+        if (L.kind === "exact") Object.assign(c, { area: areaFor(L.hit, c.area), place: L.hit.place, road: L.original });
         const s = stem(c);
         c.photos = (i.photos ?? []).map((_, n) => `${c.folder}\\${s}_사진${n + 1}.jpg`);
         c.map = i.map ? `${c.folder}\\${s}_위치도.png` : "";
@@ -1080,6 +1092,8 @@ export const api = {
   deleteDay: (date: string) => call<number>("delete_journal_day", { date }),
 
   complaints: () => call<Complaint[]>("complaints"),
+  /** 위치 글이 파주시 도로명주소면 법정동 지번으로 (core address.rs) */
+  roadToJibun: (text: string): Promise<RoadLookup> => (inApp ? invoke<RoadLookup>("road_to_jibun", { text }) : Promise.resolve(fakeRoadToJibun(text))),
   addComplaint: (complaint: ComplaintInput) => call<Complaint>("add_complaint", { complaint }),
   updateComplaint: (id: number, complaint: ComplaintInput) => call<Complaint>("update_complaint", { id, complaint }),
   setComplaintStatus: (id: number, status: string) => call<Complaint>("set_complaint_status", { id, status }),

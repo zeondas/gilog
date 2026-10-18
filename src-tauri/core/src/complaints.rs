@@ -40,6 +40,8 @@ pub struct ComplaintInput {
     /// 마감일. 비어 있으면 마감이 없어요.
     pub due: String,
     pub status: String,
+    /// 위치를 도로명주소에서 바꿨으면 바꾸기 전 글(마우스를 올리면 보여요). 직접 친 위치면 비어 있어요.
+    pub road: String,
 }
 
 /// 엑셀에서 가져온 한 줄이에요. 앱이 판단하지 않고 그대로 넣어요(2026-10-17 사용자 — 비어 있어도, 날짜가 아니어도).
@@ -71,6 +73,8 @@ pub struct Complaint {
     pub status: String,
     /// 메모(JSON 글자). 비어 있으면 메모가 없어요.
     pub memo: String,
+    /// 바꾸기 전 도로명주소(위치를 바꾼 민원만)
+    pub road: String,
 }
 
 pub(crate) const SCHEMA: &str = "
@@ -88,11 +92,21 @@ pub(crate) const SCHEMA: &str = "
         action   TEXT NOT NULL DEFAULT '',
         due      TEXT NOT NULL DEFAULT '',
         status   TEXT NOT NULL DEFAULT '',
-        memo     TEXT NOT NULL DEFAULT ''
+        memo     TEXT NOT NULL DEFAULT '',
+        road     TEXT NOT NULL DEFAULT ''
     );
 ";
 
-const COLS: &str = "id, no, intake, received, ctype, area, place, person, phone, body, action, due, status, memo";
+/// 예전 자료 파일에 도로명주소 칸(road)을 더해요(2026-10-18 주소 변환).
+pub(crate) fn upgrade(conn: &rusqlite::Connection) -> Result<()> {
+    let has: bool = conn.prepare("SELECT 1 FROM pragma_table_info('complaints') WHERE name = 'road'")?.exists([])?;
+    if !has {
+        conn.execute_batch("ALTER TABLE complaints ADD COLUMN road TEXT NOT NULL DEFAULT '';")?;
+    }
+    Ok(())
+}
+
+const COLS: &str = "id, no, intake, received, ctype, area, place, person, phone, body, action, due, status, memo, road";
 
 fn bad(msg: &str) -> Error {
     Error::Invalid(msg.into())
@@ -159,6 +173,11 @@ fn clean(input: &ComplaintInput) -> Result<ComplaintInput> {
         action: lines(&input.action),
         due,
         status: if status.is_empty() { DEFAULT_STATUS.into() } else { status },
+        // 위치가 비었거나 바꾸기 전 글과 같으면 남길 것이 없어요.
+        road: {
+            let (p, r) = (t(&input.place), t(&input.road));
+            if p.is_empty() || r == p { String::new() } else { r }
+        },
     })
 }
 
@@ -178,7 +197,26 @@ fn row(r: &Row) -> rusqlite::Result<Complaint> {
         due: r.get(11)?,
         status: r.get(12)?,
         memo: r.get(13)?,
+        road: r.get(14)?,
     })
+}
+
+/// 위치가 파주시 도로명주소이고 표에 꼭 맞으면 (지역, 지번 위치, 바꾸기 전 글)을 돌려줘요. 아니면 받은 그대로예요.
+/// 지역은 후보가 하나면 그것, 여럿이면 받은 지역이 그 안에 있을 때만 두고 아니면 비워요.
+pub(crate) fn convert(area: &str, place: &str, road: &str) -> (String, String, String) {
+    match crate::address::road_to_jibun(place) {
+        crate::address::RoadLookup::Exact { hit, original } => {
+            let a = if hit.areas.len() == 1 {
+                hit.areas[0].clone()
+            } else if hit.areas.iter().any(|x| x == area) {
+                area.to_string()
+            } else {
+                String::new()
+            };
+            (a, hit.place, original)
+        }
+        _ => (area.to_string(), place.to_string(), road.to_string()),
+    }
 }
 
 impl Store {
@@ -202,9 +240,9 @@ impl Store {
         let tx = self.conn.transaction()?;
         let no: i64 = tx.query_row("SELECT COALESCE(MAX(no), 0) + 1 FROM complaints", [], |r| r.get(0))?;
         tx.execute(
-            "INSERT INTO complaints (no, intake, received, ctype, area, place, person, phone, body, action, due, status)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
-            params![no, c.intake, c.received, c.ctype, c.area, c.place, c.person, c.phone, c.body, c.action, c.due, c.status],
+            "INSERT INTO complaints (no, intake, received, ctype, area, place, person, phone, body, action, due, status, road)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+            params![no, c.intake, c.received, c.ctype, c.area, c.place, c.person, c.phone, c.body, c.action, c.due, c.status, c.road],
         )?;
         let id = tx.last_insert_rowid();
         tx.commit()?;
@@ -216,9 +254,9 @@ impl Store {
         let c = clean(input)?;
         let n = self.conn.execute(
             "UPDATE complaints SET intake = ?2, received = ?3, ctype = ?4, area = ?5, place = ?6, person = ?7,
-                    phone = ?8, body = ?9, action = ?10, due = ?11, status = ?12
+                    phone = ?8, body = ?9, action = ?10, due = ?11, status = ?12, road = ?13
              WHERE id = ?1",
-            params![id, c.intake, c.received, c.ctype, c.area, c.place, c.person, c.phone, c.body, c.action, c.due, c.status],
+            params![id, c.intake, c.received, c.ctype, c.area, c.place, c.person, c.phone, c.body, c.action, c.due, c.status, c.road],
         )?;
         if n == 0 {
             return Err(Error::NotFound);
@@ -259,24 +297,27 @@ impl Store {
             let c = &r.input;
             let t = |s: &str| s.trim().to_string();
             let status = t(&c.status);
+            // 위치가 파주시 도로명주소면 지번으로 바꿔요(표에 꼭 맞을 때만, 후보가 필요하면 그대로).
+            let (area, place, road) = convert(&t(&c.area), &t(&c.place), &t(&c.road));
             no += 1;
             tx.execute(
-                "INSERT INTO complaints (no, intake, received, ctype, area, place, person, phone, body, action, due, status, memo)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                "INSERT INTO complaints (no, intake, received, ctype, area, place, person, phone, body, action, due, status, memo, road)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
                 params![
                     no,
                     t(&c.intake),
                     t(&c.received),
                     t(&c.ctype),
-                    t(&c.area),
-                    t(&c.place),
+                    area,
+                    place,
                     t(&c.person),
                     t(&c.phone),
                     lines(&c.body),
                     lines(&c.action),
                     t(&c.due),
                     if status.is_empty() { DEFAULT_STATUS.to_string() } else { status },
-                    r.memo.trim()
+                    r.memo.trim(),
+                    road
                 ],
             )?;
         }
@@ -302,7 +343,33 @@ mod tests {
             action: String::new(),
             due: "2026-10-21".into(),
             status: "처리중".into(),
+            road: String::new(),
         }
+    }
+
+    #[test]
+    fn road_is_kept_and_import_converts() {
+        let d = tempfile::tempdir().unwrap();
+        let mut s = Store::create(d.path(), "1234").unwrap();
+        // 화면이 바꾼 위치: 바꾸기 전 글을 함께 남겨요. 위치를 바꾸기 전 글과 같게 보내면 비워요.
+        let c = s
+            .add_complaint(&ComplaintInput { place: "봉일천리 5-31".into(), road: "조리읍 통일로 136".into(), ..input("가") })
+            .unwrap();
+        assert_eq!(c.road, "조리읍 통일로 136");
+        let c = s.update_complaint(c.id, &ComplaintInput { place: "봉일천리 7".into(), road: "봉일천리 7".into(), ..input("가") }).unwrap();
+        assert_eq!(c.road, "");
+        // 엑셀 가져오기: 표에 꼭 맞으면 바꾸고, 후보가 필요하거나 파주시 밖이면 그대로
+        let rows: Vec<ComplaintImport> = ["조리읍 통일로 136", "금정로 20-3", "서울특별시 은평구 통일로 136", "경의로 1246"]
+            .iter()
+            .map(|p| ComplaintImport { input: ComplaintInput { area: String::new(), place: p.to_string(), ..input("나") }, memo: String::new() })
+            .collect();
+        s.import_complaints(&rows).unwrap();
+        let all = s.complaints().unwrap();
+        let got: Vec<(String, String, String)> = all[..4].iter().rev().map(|c| (c.area.clone(), c.place.clone(), c.road.clone())).collect();
+        assert_eq!(got[0], ("조리읍".into(), "봉일천리 5-31".into(), "조리읍 통일로 136".into()));
+        assert_eq!(got[1], ("".into(), "금정로 20-3".into(), "".into()));
+        assert_eq!(got[2].1, "서울특별시 은평구 통일로 136");
+        assert_eq!(got[3], ("운정1동".into(), "와동동 1454-1".into(), "경의로 1246".into()));
     }
 
     #[test]

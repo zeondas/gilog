@@ -374,6 +374,12 @@ fn update_complaint(state: State<AppState>, id: i64, complaint: ComplaintInput) 
     with_store(&state, |s| s.update_complaint(id, &complaint))
 }
 
+/// 위치 글이 파주시 도로명주소면 법정동 지번으로 바꿔 봐요(잠금과 상관없이 앱에 넣은 표를 읽어요).
+#[tauri::command]
+async fn road_to_jibun(text: String) -> gilog_core::RoadLookup {
+    gilog_core::road_to_jibun(&text)
+}
+
 #[tauri::command]
 fn set_complaint_status(state: State<AppState>, id: i64, status: String) -> Result<Complaint, String> {
     with_store(&state, |s| s.set_complaint_status(id, &status))
@@ -519,6 +525,10 @@ pub fn run() {
             let theme = theme_pref(app.handle());
             window::create(app, &theme)?;
             calendar::setup_tray(app)?;
+            // 도로명주소 표를 미리 풀어 둬요(처음 바꿀 때 기다리지 않게).
+            std::thread::spawn(|| {
+                gilog_core::road_to_jibun("");
+            });
             Ok(())
         })
         .on_window_event(|w, e| {
@@ -558,6 +568,7 @@ pub fn run() {
             add_complaint,
             update_complaint,
             set_complaint_status,
+            road_to_jibun,
             set_complaint_memo,
             delete_complaint,
             excel_write,

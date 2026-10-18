@@ -12,6 +12,7 @@ use rand::RngCore;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
+pub mod address;
 mod calendar;
 mod complaints;
 mod contacts;
@@ -20,6 +21,7 @@ mod journal;
 mod order;
 mod process;
 mod tasks;
+pub use address::{road_to_jibun, RoadHit, RoadLookup};
 pub use calendar::{CalKind, CalendarData, Event, EventInput, Holiday, BUILTIN_HOLIDAYS, KIND_COLORS, REMIND_MAX, SYSTEM_KINDS};
 pub use complaints::{Complaint, ComplaintImport, ComplaintInput, DEFAULT_STATUS};
 pub use contacts::{Contact, ContactImport, ContactInput, ContactsData, Project, PROJECT_COLORS};
@@ -208,12 +210,14 @@ impl Store {
         self.conn.execute_batch(journal::SCHEMA)?;
         journal::upgrade(&self.conn)?;
         self.conn.execute_batch(complaints::SCHEMA)?;
+        complaints::upgrade(&self.conn)?;
         self.conn.execute_batch(tasks::SCHEMA)?;
         tasks::seed(&self.conn)?;
         self.conn.execute_batch(calendar::SCHEMA)?;
         calendar::upgrade(&self.conn)?;
         calendar::seed(&self.conn)?;
         self.conn.execute_batch(process::SCHEMA)?;
+        process::upgrade(&self.conn)?;
         Ok(())
     }
 

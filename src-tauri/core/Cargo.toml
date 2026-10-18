@@ -16,5 +16,8 @@ rust_xlsxwriter = { version = "0.99", default-features = false }
 calamine = { version = "0.36", default-features = false }
 zip = { version = "8", default-features = false, features = ["deflate"] }
 
+[build-dependencies]
+zip = { version = "8", default-features = false, features = ["deflate"] }
+
 [dev-dependencies]
 tempfile = "3"

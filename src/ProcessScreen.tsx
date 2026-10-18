@@ -157,6 +157,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     ctype: "",
     area: c.area,
     place: c.place,
+    road: c.road,
     person: "",
     phone: "",
     body: JSON.stringify([{ t: c.summary }]),
@@ -180,14 +181,14 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   }
 
   /** 주소를 고쳐요. 민원대장에 넣은 건이면 그 줄의 지역·위치도 고치고, 지시부를 만든 건은 다시 만들어요. */
-  async function saveAddress(c: Case, area: string, place: string) {
-    const n = await patch(c.no, { area, place });
+  async function saveAddress(c: Case, area: string, place: string, road: string) {
+    const n = await patch(c.no, { area, place, road });
     if (!n) return;
     const old = linked(n);
     try {
       if (old && (old.area !== n.area || old.place !== n.place)) {
         const { id, no: _n, memo: _m, ...input } = old;
-        const m = await api.updateComplaint(id, { ...input, area: n.area, place: n.place });
+        const m = await api.updateComplaint(id, { ...input, area: n.area, place: n.place, road: n.road });
         setComplaints((l) => l.map((x) => (x.id === m.id ? m : x)));
       }
     } catch (e) {
@@ -297,7 +298,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
       let m: Complaint;
       if (old) {
         const { id, no: _n, memo: _m, ...input } = old;
-        m = await api.updateComplaint(id, { ...input, area: c.area, place: c.place, action });
+        m = await api.updateComplaint(id, { ...input, area: c.area, place: c.place, road: c.road, action });
         setComplaints((l) => l.map((x) => (x.id === m.id ? m : x)));
       } else {
         m = await api.addComplaint(complaintOf(c, action));
@@ -514,10 +515,13 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                     </span>
                   )}
                 </div>
-                <PlaceCell c={c} disabled={isD || !!b} onSave={(a, p) => saveAddress(c, a, p)} />
+                <PlaceCell c={c} disabled={isD || !!b} onSave={(a, p, r) => saveAddress(c, a, p, r)} />
                 <div className="pr-sum">
                   <span>{c.summary}</span>
-                  <span className="pr-sub">{c.reason}</span>
+                  <span className="pr-sub">
+                    {c.reason}
+                    {c.road && <span className="pr-road">원래 주소 {c.road}</span>}
+                  </span>
                 </div>
                 <div>
                   <button
@@ -778,16 +782,18 @@ function HeadRow({
 
 // ---------- 위치 칸: 그 자리에서 고쳐요(법정리·동 + 지번, 리·동을 고르면 지역이 채워져요 — 민원대장 위치 칸과 같은 부품) ----------
 
-function PlaceCell({ c, disabled, onSave }: { c: Case; disabled: boolean; onSave: (area: string, place: string) => void }) {
+function PlaceCell({ c, disabled, onSave }: { c: Case; disabled: boolean; onSave: (area: string, place: string, road: string) => void }) {
   const start = c.place === UNKNOWN ? "" : c.place;
   const [place, setPlace] = useState(start);
   const [area, setArea] = useState(c.area);
-  const now = useRef({ place, area });
-  now.current = { place, area };
+  const [road, setRoad] = useState(c.road);
+  const now = useRef({ place, area, road });
+  now.current = { place, area, road };
   useEffect(() => {
     setPlace(c.place === UNKNOWN ? "" : c.place);
     setArea(c.area);
-  }, [c.place, c.area]);
+    setRoad(c.road);
+  }, [c.place, c.area, c.road]);
 
   const [editing, setEditing] = useState(false);
   if (disabled || !editing) {
@@ -802,7 +808,9 @@ function PlaceCell({ c, disabled, onSave }: { c: Case; disabled: boolean; onSave
         }}
       >
         <span className="pr-sub">{c.area || "\u00a0"}</span>
-        <span className={c.place === UNKNOWN ? "pr-unknown" : undefined}>{c.place}</span>
+        <span className={c.place === UNKNOWN ? "pr-unknown" : undefined} title={c.road || undefined}>
+          {c.place}
+        </span>
       </div>
     );
   }
@@ -810,6 +818,7 @@ function PlaceCell({ c, disabled, onSave }: { c: Case; disabled: boolean; onSave
   const revert = () => {
     setPlace(start);
     setArea(c.area);
+    setRoad(c.road);
   };
 
   return (
@@ -821,7 +830,7 @@ function PlaceCell({ c, disabled, onSave }: { c: Case; disabled: boolean; onSave
         if (e.key === "Enter") (e.target as HTMLElement).blur();
         if (e.key === "Escape") {
           revert();
-          now.current = { place: start, area: c.area };
+          now.current = { place: start, area: c.area, road: c.road };
           setEditing(false);
           (e.target as HTMLElement).blur();
         }
@@ -831,15 +840,15 @@ function PlaceCell({ c, disabled, onSave }: { c: Case; disabled: boolean; onSave
         setEditing(false);
         // 위치 칸이 떠날 때 지역을 맞춘 뒤(같은 순간) 저장해요.
         window.setTimeout(() => {
-          const { place: p, area: a } = now.current;
+          const { place: p, area: a, road: r } = now.current;
           const np = p.trim();
           // 지역은 위치를 따라 바뀌어요. 위치를 그대로 두고 떠나면 저장하지 않아요.
-          if (np !== start) onSave(a, np);
+          if (np !== start) onSave(a, np, r);
         }, 0);
       }}
     >
       <span className="pr-sub">{area || "\u00a0"}</span>
-      <PlaceInput value={place} area={area} onChange={setPlace} onArea={setArea} placeholder={UNKNOWN} className={place.trim() ? undefined : "pr-unknown-in"} autoFocus />
+      <PlaceInput value={place} area={area} road={road} onChange={setPlace} onArea={setArea} onRoad={setRoad} placeholder={UNKNOWN} className={place.trim() ? undefined : "pr-unknown-in"} autoFocus />
     </div>
   );
 }
