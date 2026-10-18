@@ -670,7 +670,7 @@ function AddForm({
         <input
           ref={titleRef}
           name="title"
-          className={"td-add-title" + (bad === "title" ? " invalid" : "")}
+          className={"fld td-add-title" + (bad === "title" ? " invalid" : "")}
           aria-label={sub ? "하위 항목 제목" : "할 일 제목"}
           placeholder={open && !sub ? "제목" : placeholder}
           value={title}
@@ -749,7 +749,7 @@ function DueField({
           ref={input}
           name="due"
           inputMode="numeric"
-          className={"td-due-input" + (bad ? " invalid" : "")}
+          className={"fld td-due-input" + (bad ? " invalid" : "")}
           aria-label="마감일"
           aria-invalid={bad || undefined}
           placeholder="날짜 1016"
