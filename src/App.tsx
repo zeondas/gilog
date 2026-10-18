@@ -184,6 +184,16 @@ export default function App() {
     return () => window.clearTimeout(t);
   }, [firstScreen]);
 
+  // 설정을 닫으면(사이드바 "설정" 다시 누르기·× 단추) 마지막으로 보던 화면으로 가요(2026-10-18 사용자, 시안 Settings).
+  const lastScreen = useRef<ScreenId | null>(null);
+  useEffect(() => {
+    if (current && current !== SETTINGS.id) lastScreen.current = current;
+  }, [current]);
+  const closeSettings = useCallback(() => {
+    const last = lastScreen.current;
+    setCurrent(last && isOn(modulesRef.current, last) ? last : firstOn(modulesRef.current));
+  }, []);
+
   const collapsed = prefs.sideCollapsed;
   const navButton = (id: ScreenId, label: string) => (
     <button
@@ -191,7 +201,7 @@ export default function App() {
       className="side-item"
       title={collapsed ? label : undefined}
       aria-current={current === id ? "page" : undefined}
-      onClick={() => setCurrent(id)}
+      onClick={() => (id === SETTINGS.id && current === SETTINGS.id ? closeSettings() : setCurrent(id))}
     >
       <NavIcon name={id as NavIconName} size={collapsed ? 18 : 16} />
       {!collapsed && <span>{label}</span>}
@@ -242,7 +252,7 @@ export default function App() {
       </nav>
       <main className={current === "explorer" || current === "budget" ? "main main-fill" : "main"}>
         {current === SETTINGS.id ? (
-          <SettingsScreen prefs={prefs} onPrefs={savePrefs} status={status} onLocked={refresh} onModules={changeModules} />
+          <SettingsScreen prefs={prefs} onPrefs={savePrefs} status={status} onLocked={refresh} onModules={changeModules} onClose={closeSettings} />
         ) : current === "explorer" ? (
           <FilesScreen />
         ) : current === "contacts" ? (

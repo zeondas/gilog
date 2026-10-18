@@ -1,4 +1,4 @@
-import { FormEvent, Fragment, useEffect, useRef, useState } from "react";
+import { FormEvent, Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api, DEFAULT_PREFS, errorText, inApp, Prefs, Status } from "./api";
 import { splitJamo } from "./journal";
 import { DEFAULT_SETTINGS, DONE_STATUS, Kind, loadSettings, MEMO_KIND, ProcessSettings, saveSettings, Settings, FilesSettings, STATUS_COLORS } from "./settingsStore";
@@ -37,17 +37,51 @@ type Props = {
   onLocked: () => void;
   /** 모듈을 켜고 끄면 사이드바에 알려요. */
   onModules: (m: Modules) => void;
+  /** 설정 닫기(× 단추) — 마지막으로 보던 화면으로 */
+  onClose: () => void;
 };
+
+/** 설정이 있는 모듈만 "모듈별 설정"에 카드를 둬요(사이드바 순서). 없는 모듈(집행현황·할 일·업무연락처)은 빼요 — 2026-10-18 사용자. */
+const SET_SCREENS = SCREENS.filter((sc) => (["explorer", "complaints", "process", "calendar", "journal"] as string[]).includes(sc.id));
 
 /** 지울 수 없는 상태예요. 마감 계산과 할 일 연동이 이것을 기준으로 해요. */
 export const KEEP_STATUS = DONE_STATUS;
 
-export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onModules }: Props) {
+export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onModules, onClose }: Props) {
   const [s, setS] = useState<Settings | null>(null);
   const [ask, setAsk] = useState(false);
   const [note, setNote] = useState("");
   /** 설정 전체를 되돌리면 키 설정 카드도 다시 읽어요. */
   const [resetTick, setResetTick] = useState(0);
+  /** 설정 찾기(2026-10-18 사용자, 시안 Settings) */
+  const [q, setQ] = useState("");
+  const [found, setFound] = useState<number | null>(null);
+  const body = useRef<HTMLDivElement>(null);
+  const findBox = useRef<HTMLInputElement>(null);
+  const [scrolled, setScrolled] = useState(false);
+  useLayoutEffect(() => {
+    setFound(applyFind(body.current, q));
+  });
+  // 본문을 내리면 오른쪽 아래 "맨 위로" 단추, 머리 줄 아래 선
+  useEffect(() => {
+    const main = body.current?.closest(".main");
+    if (!main) return;
+    const on = () => setScrolled(main.scrollTop > 240);
+    main.addEventListener("scroll", on, { passive: true });
+    return () => main.removeEventListener("scroll", on);
+  }, [s === null]);
+  // Ctrl+F = 찾기 칸
+  useEffect(() => {
+    const key = (e: globalThis.KeyboardEvent) => {
+      if (e.ctrlKey && !e.shiftKey && !e.altKey && e.code === "KeyF") {
+        e.preventDefault();
+        findBox.current?.focus();
+        findBox.current?.select();
+      }
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, []);
 
   useEffect(() => {
     loadSettings().then(setS);
@@ -85,24 +119,65 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
 
   return (
     <>
-      <div className="title-row">
-        <h1 className="title">설정</h1>
-        <span className="muted small title-sub">바꾸면 바로 저장돼요.</span>
-        {!ask ? (
-          <button type="button" className="btn btn-ctrl btn-text" onClick={() => setAsk(true)}>
-            기본값으로 되돌리기
+      <div className={"set-head" + (scrolled ? " set-head-line" : "")}>
+        <div className="set-head-in">
+          <h1 className="title">설정</h1>
+          {!ask && (
+            <label className="set-find">
+              <FindIcon />
+              <input
+                ref={findBox}
+                aria-label="설정 찾기"
+                placeholder="설정 찾기 — 잠금, 폴더, 구분…"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape" && !e.nativeEvent.isComposing && q) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setQ("");
+                  }
+                }}
+              />
+              {q && (
+                <button
+                  type="button"
+                  className="set-find-x"
+                  aria-label="찾는 글 지우기"
+                  onClick={() => {
+                    setQ("");
+                    findBox.current?.focus();
+                  }}
+                >
+                  <X />
+                </button>
+              )}
+            </label>
+          )}
+          {!ask && q.trim() && (
+            <span className="muted small set-find-n" role="status">
+              {found ? `설정 ${found}개` : "없어요"}
+            </span>
+          )}
+          {!ask ? (
+            <button type="button" className="btn btn-ctrl btn-text set-reset" onClick={() => setAsk(true)}>
+              기본값으로 되돌리기
+            </button>
+          ) : (
+            <span className="ask-row set-reset">
+              <span className="gate-error">설정을 모두 처음 값으로 되돌릴까요? 비밀번호와 저장한 자료는 그대로예요.</span>
+              <button type="button" className="btn btn-ctrl btn-text" onClick={() => setAsk(false)}>
+                취소
+              </button>
+              <button type="button" className="btn btn-ctrl btn-text btn-danger" onClick={resetAll}>
+                되돌리기
+              </button>
+            </span>
+          )}
+          <button type="button" className="btn btn-ctrl set-close" aria-label="설정 닫기" title="닫기 · 보던 화면으로" onClick={onClose}>
+            <X />
           </button>
-        ) : (
-          <span className="ask-row">
-            <span className="gate-error">설정을 모두 처음 값으로 되돌릴까요? 비밀번호와 저장한 자료는 그대로예요.</span>
-            <button type="button" className="btn btn-ctrl btn-text" onClick={() => setAsk(false)}>
-              취소
-            </button>
-            <button type="button" className="btn btn-ctrl btn-text btn-danger" onClick={resetAll}>
-              되돌리기
-            </button>
-          </span>
-        )}
+        </div>
       </div>
       {note && (
         <p className="muted small" role="status">
@@ -110,6 +185,7 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
         </p>
       )}
 
+      <div className="set-body" ref={body}>
       <h2 className="set-sec">
         공통 설정<span>앱 전체에 걸친 것</span>
       </h2>
@@ -137,7 +213,7 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
             onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
           />
         </Row>
-        <Row label="테마" desc="시스템은 윈도우의 밝게·어둡게 설정을 따라가요.">
+        <Row k="다크 라이트 어둡게 밝게 색" label="테마" desc="시스템은 윈도우의 밝게·어둡게 설정을 따라가요.">
           <span className="seg" role="radiogroup" aria-label="테마">
             {(
               [
@@ -158,7 +234,7 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
             ))}
           </span>
         </Row>
-        <Row label="시작 화면" desc="앱을 켰을 때 먼저 보이는 화면이에요. 켜 둔 모듈만 골라요.">
+        <Row k="처음" label="시작 화면" desc="앱을 켰을 때 먼저 보이는 화면이에요. 켜 둔 모듈만 골라요.">
           <select
             id="start-screen"
             className="input"
@@ -172,7 +248,7 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
             ))}
           </select>
         </Row>
-        <Row label="글자 크기" desc="모든 화면에 함께 적용돼요.">
+        <Row k="폰트 글꼴" label="글자 크기" desc="모든 화면에 함께 적용돼요.">
           <select
             id="font-size"
             className="input"
@@ -206,6 +282,7 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
       <section className="card">
         <div className="card-head">보안 · 저장</div>
         <Toggle
+          k="암호 잠금"
           label="앱을 열 때 비밀번호 묻기"
           desc={
             prefs.askPassword
@@ -223,7 +300,7 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
           onChange={(v) => setPref("autoLock", v)}
         />
         {prefs.autoLock && (
-          <Row label="잠기기까지 시간" desc="자리를 비운 뒤 이 시간이 지나면 잠겨요.">
+          <Row k="자동 잠금" label="잠기기까지 시간" desc="자리를 비운 뒤 이 시간이 지나면 잠겨요.">
             <select
               id="auto-lock-min"
               className="input"
@@ -250,8 +327,8 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
         모듈별 설정<span>사이드바 순서 · 끈 모듈은 접혀요</span>
       </h2>
 
-      {SCREENS.map((sc, i) => (
-        <ModuleCard key={sc.id} id={sc.id} name={sc.side} off={!isOn(s.modules, sc.id)} gap={i > 0 && SCREENS[i - 1].group !== sc.group}>
+      {SET_SCREENS.map((sc, i) => (
+        <ModuleCard key={sc.id} id={sc.id} name={sc.side} off={!isOn(s.modules, sc.id)} gap={i > 0 && SET_SCREENS[i - 1].group !== sc.group}>
           {sc.id === "explorer" ? (
             <FilesRows value={s.files} onChange={(files) => update({ ...s, files })} />
           ) : sc.id === "complaints" ? (
@@ -271,23 +348,20 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
             <ProcessRows p={s.process} onChange={(process) => update({ ...s, process })} />
           ) : sc.id === "calendar" ? (
             <Toggle
+              k="공휴일 토요일 일요일 빨강"
               label="쉬는 날 음영"
               desc="토·일요일과 공휴일 칸을 연한 빨강으로 칠해요."
               on={s.restShade}
               onChange={(restShade) => update({ ...s, restShade })}
             />
-          ) : sc.id === "journal" ? (
-            <KindsGroup kinds={s.kinds} onChange={(kinds) => update({ ...s, kinds })} />
           ) : (
-            <div className="row row-last">
-              <span className="muted small">따로 정할 것이 없어요.</span>
-            </div>
+            <KindsGroup kinds={s.kinds} onChange={(kinds) => update({ ...s, kinds })} />
           )}
         </ModuleCard>
       ))}
 
       <h2 className="set-sec">정보</h2>
-      <section className="card" aria-label="정보">
+      <section className="card" aria-label="정보" data-k="정보 버전 개발자 이메일">
         <div className="about">
           <AppIcon size={56} />
           <Logo height={38} variant="word" />
@@ -301,6 +375,21 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
           </div>
         </div>
       </section>
+        {q.trim() && found === 0 && <p className="set-none">“{q.trim()}”에 맞는 설정이 없어요.</p>}
+      </div>
+      {scrolled && (
+        <button
+          type="button"
+          className="set-top"
+          aria-label="맨 위로"
+          title="맨 위로"
+          onClick={() => body.current?.closest(".main")?.scrollTo({ top: 0, behavior: "smooth" })}
+        >
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 19V5 M6 11l6-6 6 6" />
+          </svg>
+        </button>
+      )}
     </>
   );
 }
@@ -309,6 +398,98 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
 function engineVersion(): string {
   const ua = navigator.userAgent;
   return (ua.match(/Edg\/([\d.]+)/) ?? ua.match(/Chrome\/([\d.]+)/))?.[1] ?? "알 수 없음";
+}
+
+// ---------- 설정 찾기 (2026-10-18 사용자, 시안 Settings) ----------
+// 화면을 다시 짜지 않고, 그린 뒤 줄마다 글자(이름·설명·숨은 낱말 data-k)를 보고 안 맞는 줄·카드·묶음 머리글을 숨겨요.
+// 맞은 글자는 CSS Custom Highlight(::highlight(set-find))로 칠해요 — 글자를 고치지 않아 입력 중인 칸이 흔들리지 않아요.
+
+const squash = (t: string) => t.toLowerCase().replace(/\s+/g, "");
+
+/** el 안 글자에서 n(띄어쓰기 없앤 찾는 글)을 찾아 칠할 자리(Range)를 더해요. 맞았으면 true. */
+function markIn(el: Element, n: string, out: Range[]): boolean {
+  const pos: [Text, number][] = [];
+  let flat = "";
+  const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  for (let t = walk.nextNode() as Text | null; t; t = walk.nextNode() as Text | null) {
+    const v = t.data;
+    for (let i = 0; i < v.length; i++) {
+      if (/\s/.test(v[i])) continue;
+      pos.push([t, i]);
+      flat += v[i].toLowerCase();
+    }
+  }
+  let hit = false;
+  for (let i = flat.indexOf(n); i >= 0; i = flat.indexOf(n, i + n.length)) {
+    const [a, ai] = pos[i];
+    const [b, bi] = pos[i + n.length - 1];
+    const r = document.createRange();
+    r.setStart(a, ai);
+    r.setEnd(b, bi + 1);
+    out.push(r);
+    hit = true;
+  }
+  return hit;
+}
+
+const keysOf = (el: Element) => [el.getAttribute("data-k") ?? "", ...[...el.querySelectorAll("[data-k]")].map((x) => x.getAttribute("data-k") ?? "")].join(" ");
+
+/** 찾기를 적용하고 보이는 설정 줄 수를 돌려줘요(찾는 글이 없으면 null). */
+function applyFind(root: HTMLElement | null, q: string): number | null {
+  const reg = (globalThis as unknown as { CSS?: { highlights?: Map<string, unknown> } }).CSS?.highlights;
+  const HL = (globalThis as unknown as { Highlight?: new (...r: Range[]) => unknown }).Highlight;
+  if (!root) return null;
+  root.querySelectorAll("[data-find-hide]").forEach((el) => el.removeAttribute("data-find-hide"));
+  const n = squash(q);
+  if (!n) {
+    reg?.delete("set-find");
+    return null;
+  }
+  const ranges: Range[] = [];
+  const hide = (el: Element) => el.setAttribute("data-find-hide", "");
+  let count = 0;
+  let lastHead: Element | null = null;
+  let headHasCard = false;
+  const closeHead = () => {
+    if (lastHead && !headHasCard) hide(lastHead);
+  };
+  for (const el of [...root.children]) {
+    if (el.matches("h2.set-sec")) {
+      closeHead();
+      lastHead = el;
+      headHasCard = false;
+      continue;
+    }
+    if (!el.matches("section.card")) continue;
+    const head = el.querySelector(":scope > .card-head");
+    const cardHit = (head ? markIn(head, n, ranges) : false) || squash(el.getAttribute("data-k") ?? "").includes(n);
+    const keys = el.matches("[aria-label='키 설정']");
+    const units = keys ? [...el.querySelectorAll(".keys-row")] : [...el.children].filter((c) => c !== head);
+    let shown = 0;
+    for (const u of units) {
+      const own = markIn(u, n, ranges) || squash(keysOf(u)).includes(n);
+      if (own || (cardHit && (u.textContent ?? "").trim())) {
+        shown++;
+      } else hide(u);
+    }
+    if (keys) el.querySelectorAll(".keys-box").forEach((b) => !b.querySelector(".keys-row:not([data-find-hide])") && hide(b));
+    if (!shown && !cardHit) hide(el);
+    else {
+      headHasCard = true;
+      count += Math.max(shown, 1);
+    }
+  }
+  closeHead();
+  if (reg && HL) reg.set("set-find", new HL(...ranges));
+  return count;
+}
+
+function FindIcon() {
+  return (
+    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+      <path d="M10.5 3a7.5 7.5 0 1 1 0 15a7.5 7.5 0 1 1 0-15z M16 16l5 5" />
+    </svg>
+  );
 }
 
 // ---------- 모듈 켜고 끄기 (2026-10-18 설정 세션, 시안 Settings) ----------
@@ -411,7 +592,7 @@ function KeysCard({ saved, onSave }: { saved: Partial<Record<string, string>>; o
   const status = note || (bad.size ? "같은 키가 겹쳐요 · 저장하지 않았어요" : "");
 
   return (
-    <section className="card" aria-label="키 설정">
+    <section className="card" aria-label="키 설정" data-k="단축키 엔터 Enter Tab">
       <div className="card-head keys-head">
         <span>키 설정</span>
         <span role="status" className="keys-status">
@@ -715,6 +896,7 @@ function FilesRows({ value, onChange }: { value: FilesSettings; onChange: (v: Fi
         </span>
       </Row>
       <Toggle
+        k="삭제 휴지통"
         label="지울 때 묻기"
         desc="끄면 Delete·F8이 묻지 않고 휴지통으로 보내요. Shift+F8 완전 삭제는 늘 물어요."
         on={value.askDelete}
@@ -731,14 +913,17 @@ function Row({
   desc,
   children,
   last,
+  k,
 }: {
   label: string;
   desc: string;
   children: React.ReactNode;
   last?: boolean;
+  /** 찾기에만 쓰는 숨은 낱말 */
+  k?: string;
 }) {
   return (
-    <div className={"row" + (last ? " row-last" : "")}>
+    <div className={"row" + (last ? " row-last" : "")} data-k={k}>
       <span className="row-text">
         <span className="row-label">{label}</span>
         <span className="muted small">{desc}</span>
@@ -753,14 +938,16 @@ function Toggle({
   desc,
   on,
   onChange,
+  k,
 }: {
   label: string;
   desc: string;
   on: boolean;
   onChange: (v: boolean) => void;
+  k?: string;
 }) {
   return (
-    <button type="button" role="switch" aria-checked={on} className="row row-btn" onClick={() => onChange(!on)}>
+    <button type="button" role="switch" aria-checked={on} className="row row-btn" onClick={() => onChange(!on)} data-k={k}>
       <span className="row-text">
         <span className="row-label">{label}</span>
         <span className="muted small">{desc}</span>
@@ -1126,7 +1313,7 @@ function PasswordChange() {
 
   return (
     <>
-      <Row label="잠금 비밀번호" desc={ok ? msg : "앱을 열 때 묻는 비밀번호예요. 잊으면 되찾을 수 없어요."}>
+      <Row k="암호" label="잠금 비밀번호" desc={ok ? msg : "앱을 열 때 묻는 비밀번호예요. 잊으면 되찾을 수 없어요."}>
         <button type="button" className="btn" onClick={() => setOpen(!open)}>
           비밀번호 바꾸기
         </button>
@@ -1182,7 +1369,7 @@ function FolderRow({ folder, onLocked, setNote }: { folder: string; onLocked: ()
     }
   }
   return (
-    <Row label="저장 위치" desc={`${folder} · 암호화해서 이 PC에만 저장해요.`}>
+    <Row k="자료 파일 폴더" label="저장 위치" desc={`${folder} · 암호화해서 이 PC에만 저장해요.`}>
       <button type="button" className="btn" onClick={change} disabled={!inApp}>
         폴더 바꾸기
       </button>
@@ -1238,7 +1425,7 @@ function BackupRow({ onLocked, setNote }: { onLocked: () => void; setNote: (s: s
 
   return (
     <>
-      <Row label="백업" desc="암호화된 파일 하나로 내보내고 다시 불러와요. 불러오면 지금 자료가 백업 내용으로 바뀌어요." last={!importPath}>
+      <Row k="복원" label="백업" desc="암호화된 파일 하나로 내보내고 다시 불러와요. 불러오면 지금 자료가 백업 내용으로 바뀌어요." last={!importPath}>
         <button type="button" className="btn" onClick={doExport} disabled={!inApp}>
           백업 내보내기
         </button>
