@@ -4,7 +4,7 @@
 // - "상세 입력"이나 달력의 내 일정을 누르면 상세 창: 제목, 일시·종일, 반복(종료일 필수), 장소, 설명(머릿기호), 종류, 알림.
 // - 민원 마감·할 일 마감은 저장하지 않고 민원대장·할 일 목록을 읽어 그려요. 누르면 원래 화면의 그 항목으로 가요.
 // - 공휴일은 칸 위쪽에 빨간 글자로 보여요(앱이 인터넷에서 받아 저장해 둔 것).
-// - 왼쪽: 종류 체크(보이기·숨기기), "관리"(색 24가지·새 종류·지우기), "다가오는 7일".
+// - 왼쪽: 종류 체크(보이기·숨기기), "관리"(색 24가지·새 종류·지우기), "다음 일정"(앞으로 7일).
 import { CSSProperties, KeyboardEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { DelIcon } from "./Icons";
 import { isKey, keyAction, rowKeys } from "./keys";
@@ -404,14 +404,14 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
         </div>
         <div className="cal-upcoming">
           <div className="cal-side-head">
-            <span>다가오는 7일</span>
+            <span>다음 일정</span>
           </div>
           {upcoming.length ? (
             upcoming.slice(0, 12).map((o) => (
               <button key={o.key + o.day} type="button" className="cal-up" onClick={() => (goDay(o.day), openOcc(o))}>
                 <span className="cal-up-dot" aria-hidden="true" style={{ background: colorBg(o.color) }} />
                 <span className="cal-up-text">
-                  <span className="cal-up-title">{o.title}</span>
+                  <span className="cal-up-title" title={o.title}>{o.title}</span>
                   <span className="cal-up-when">
                     {shortDay(o.day)}
                     {o.allDay ? "" : " " + o.time} · {o.kind.name}

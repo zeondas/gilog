@@ -4486,7 +4486,7 @@ body.col-dragging * {
   min-width: 0;
 }
 
-/* 왼쪽: 종류와 다가오는 7일 */
+/* 왼쪽: 종류와 다음 일정 */
 .cal-side {
   flex: 1 0 200px;
   max-width: 250px;
@@ -4608,13 +4608,18 @@ body.col-dragging * {
   flex-direction: column;
 }
 
+/* 한 줄로 두고 넘치면 … (2026-10-18 사용자) */
 .cal-up-title {
   font-weight: 500;
-  word-break: keep-all;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .cal-up-when {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 12px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
