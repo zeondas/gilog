@@ -289,7 +289,6 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
         <Row
           label="민원 마감 임박 표시"
           desc="마감이 이 날짜 안으로 들어오면 빨갛게 보여요. 민원대장·민원처리·할 일·업무일지에 함께 적용돼요."
-          last
         >
           <select
             id="urgent-days"
@@ -301,6 +300,37 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
             <option value={3}>3일 전부터</option>
             <option value={5}>5일 전부터</option>
           </select>
+        </Row>
+        <Row
+          k="닫기 X 종료 끝내기 트레이 최소화 작업표시줄 창"
+          label="닫기(X) 단추"
+          desc={
+            <>
+              창의 X를 누르면 이렇게 해요.
+              {prefs.closeAction === "quit" && <span className="row-note">앱이 꺼져 알림이 오지 않아요.</span>}
+            </>
+          }
+          last
+        >
+          <span className="seg" role="radiogroup" aria-label="닫기(X) 단추">
+            {(
+              [
+                ["minimize", "작업표시줄로 내림"],
+                ["tray", "트레이로 보냄"],
+                ["quit", "프로그램 종료"],
+              ] as const
+            ).map(([id, name]) => (
+              <button
+                key={id}
+                type="button"
+                role="radio"
+                aria-checked={(prefs.closeAction || "tray") === id}
+                onClick={() => setPref("closeAction", id)}
+              >
+                {name}
+              </button>
+            ))}
+          </span>
         </Row>
       </section>
 
@@ -941,7 +971,7 @@ function Row({
   k,
 }: {
   label: string;
-  desc: string;
+  desc: React.ReactNode;
   children: React.ReactNode;
   last?: boolean;
   /** 찾기에만 쓰는 숨은 낱말 */

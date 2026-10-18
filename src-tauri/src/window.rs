@@ -3,7 +3,8 @@
 //! - 켤 때 화면 전체 크기로 떴다가 줄어들며 흰 바탕이 보이던 것(2026-10-17 사용자)을 없애요.
 //!   창 설정은 `tauri.conf.json`(1600×900, 가운데, `create: false` — 여기서 바탕색을 붙여 만들어요).
 //! - 창 바탕색은 앱 테마 바탕색(`--surface`)과 같아요. 설정에서 테마를 바꾸거나 윈도우 테마가 바뀌면 따라가요.
-//! - 마지막 자리·크기·최대화를 `prefs.json` 옆 `window.json`에 기억해요(옮기거나 크기를 바꾸면 조금 뒤, 트레이로 숨길 때).
+//! - 마지막 자리·크기·최대화를 `prefs.json` 옆 `window.json`에 기억해요(옮기거나 크기를 바꾸면 조금 뒤,
+//!   X를 누를 때 — 작업표시줄로·트레이로·끝내기 세 경우 모두, 묻는 창에서 끝내기를 누를 때 한 번 더).
 //!   저장된 자리가 지금 모니터 밖이면(모니터를 뺐을 때) 처음처럼 1600×900 가운데로 열어요.
 //! - 화면이 `window_ready`를 부르면 보여요. 화면에 오류가 나도 창이 영영 안 보이지 않게 몇 초 뒤엔 그냥 보여요.
 
@@ -195,19 +196,17 @@ pub fn window_ready(app: AppHandle) {
     reveal(&app);
 }
 
-/// 지금 창 모양을 읽어 기억해 둬요. 최소화 중이면 그대로 두고, 최대화 중이면 되돌릴 크기는 그대로 두고 최대화만 적어요.
-fn capture(w: &Window) -> Option<Saved> {
-    if !SHOWN.load(Ordering::SeqCst) || w.is_minimized().unwrap_or(false) {
+/// 지금 창 모양을 기억해 둬요. 최소화 중이면 그대로 두고, 최대화 중이면 되돌릴 크기는 그대로 두고 최대화만 적어요.
+fn capture(minimized: bool, maximized: bool, place: impl FnOnce() -> Option<(PhysicalPosition<i32>, PhysicalSize<u32>)>) -> Option<Saved> {
+    if !SHOWN.load(Ordering::SeqCst) || minimized {
         return None;
     }
-    let maximized = w.is_maximized().unwrap_or(false);
     let mut g = STATE.lock().ok()?;
     let next = if maximized {
         let base = (*g)?;
         Saved { maximized: true, ..base }
     } else {
-        let pos = w.outer_position().ok()?;
-        let size = w.inner_size().ok()?;
+        let (pos, size) = place()?;
         Saved { x: pos.x, y: pos.y, width: size.width, height: size.height, maximized: false }
     };
     *g = Some(next);
@@ -215,8 +214,18 @@ fn capture(w: &Window) -> Option<Saved> {
 }
 
 fn save_now(w: &Window) {
-    if let Some(s) = capture(w) {
+    let got = capture(w.is_minimized().unwrap_or(false), w.is_maximized().unwrap_or(false), || Some((w.outer_position().ok()?, w.inner_size().ok()?)));
+    if let Some(s) = got {
         store(w.app_handle(), &s);
+    }
+}
+
+/// 앱을 끝내기 직전에 창 모양을 저장해요(묻는 창의 끝내기).
+pub fn save_main(app: &AppHandle) {
+    let Some(w) = app.get_webview_window(LABEL) else { return };
+    let got = capture(w.is_minimized().unwrap_or(false), w.is_maximized().unwrap_or(false), || Some((w.outer_position().ok()?, w.inner_size().ok()?)));
+    if let Some(s) = got {
+        store(app, &s);
     }
 }
 
@@ -248,7 +257,7 @@ pub fn on_window_event(window: &Window, event: &WindowEvent) {
     }
     match event {
         WindowEvent::Moved(_) | WindowEvent::Resized(_) => save_soon(window),
-        // X는 트레이로 숨기기예요(calendar.rs). 숨기기 전에 자리를 저장해요.
+        // X는 설정대로 작업표시줄로·트레이로·끝내기(calendar.rs). 그 전에 자리를 저장해요.
         WindowEvent::CloseRequested { .. } => save_now(window),
         WindowEvent::ThemeChanged(_) => {
             let pref = crate::theme_pref(window.app_handle());

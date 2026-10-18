@@ -344,16 +344,37 @@ pub fn setup_tray(app: &mut App) -> tauri::Result<()> {
     Ok(())
 }
 
-/// 창의 X를 누르면 끝내지 않고 트레이로 숨겨요. 처음 한 번은 알림으로 알려 줘요.
+/// 창의 X(Alt+F4도)를 누르면 설정 "닫기(X) 단추"대로 해요(prefs.json `closeAction`, 잠금 화면에서도 같아요).
+/// - minimize: 작업표시줄로 내려요.
+/// - tray(처음 값): 트레이로 숨겨요. 처음 한 번은 알림으로 알려 줘요.
+/// - quit: 화면에 "기Log를 끝낼까요?"를 띄워요(close-ask). 끝내기를 누르면 화면이 quit_app을 불러요.
+/// 창 자리·크기는 세 경우 모두 window.rs가 먼저 저장해요.
 pub fn on_window_event(window: &Window, event: &WindowEvent) {
+    use tauri::Emitter;
     static TOLD: Mutex<bool> = Mutex::new(false);
+    if window.label() != "main" {
+        return;
+    }
     if let WindowEvent::CloseRequested { api, .. } = event {
         api.prevent_close();
-        let _ = window.hide();
-        if let Ok(mut told) = TOLD.lock() {
-            if !*told {
-                *told = true;
-                let _ = toast(window.app_handle(), "기Log는 계속 켜져 있어요", "일정 알림을 띄우려고 작업 표시줄 구석(트레이)에 남아 있어요. 완전히 끝내려면 트레이 아이콘을 우클릭해 \"끝내기\"를 누르세요.", None);
+        match crate::close_action(window.app_handle()).as_str() {
+            "minimize" => {
+                let _ = window.minimize();
+            }
+            "quit" => {
+                // 작업표시줄 우클릭 "창 닫기"처럼 내려가 있을 때도 묻는 창이 보이게 꺼내요.
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+                let _ = window.emit("close-ask", ());
+            }
+            _ => {
+                let _ = window.hide();
+                if let Ok(mut told) = TOLD.lock() {
+                    if !*told {
+                        *told = true;
+                        let _ = toast(window.app_handle(), "기Log는 계속 켜져 있어요", "일정 알림을 띄우려고 작업 표시줄 구석(트레이)에 남아 있어요. 완전히 끝내려면 트레이 아이콘을 우클릭해 \"끝내기\"를 누르세요.", None);
+                    }
+                }
             }
         }
     }

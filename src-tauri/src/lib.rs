@@ -57,6 +57,8 @@ pub(crate) struct Prefs {
     side_collapsed: bool,
     /// 윈도우 PIN으로 잠금 풀기(이 PC만). hello.rs의 명령만 바꿔요.
     pub(crate) pin_unlock: bool,
+    /// 창 닫기(X) 단추: minimize(작업표시줄로) / tray(트레이로, 처음 값) / quit(묻고 끝내기). 2026-10-18 앱 창 세션
+    close_action: String,
 }
 
 impl Default for Prefs {
@@ -73,6 +75,7 @@ impl Default for Prefs {
             auto_lock_min: 10,
             side_collapsed: false,
             pin_unlock: false,
+            close_action: "tray".into(),
         }
     }
 }
@@ -113,6 +116,22 @@ fn get_prefs(app: AppHandle) -> Result<Prefs, String> {
 /// 테마 설정(system / light / dark). 창 바탕색을 맞출 때 써요.
 pub(crate) fn theme_pref(app: &AppHandle) -> String {
     read_prefs(app).map(|p| p.theme).unwrap_or_else(|_| "system".into())
+}
+
+/// 창 닫기(X) 단추 동작. 모르는 값이면 트레이예요.
+pub(crate) fn close_action(app: &AppHandle) -> String {
+    match read_prefs(app).map(|p| p.close_action).as_deref() {
+        Ok("minimize") => "minimize".into(),
+        Ok("quit") => "quit".into(),
+        _ => "tray".into(),
+    }
+}
+
+/// "기Log를 끝낼까요?"에서 끝내기를 누르면 불러요. 창 자리·크기를 저장한 뒤 끝내요.
+#[tauri::command]
+fn quit_app(app: AppHandle) {
+    window::save_main(&app);
+    app.exit(0);
 }
 
 #[tauri::command]
@@ -558,6 +577,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_prefs,
             set_prefs,
+            quit_app,
             status,
             auto_unlock,
             create_store,

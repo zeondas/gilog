@@ -9884,3 +9884,18 @@ button.bd-chip:hover {
 /* 탐색기 — 날짜 형식(2026-10-18): 수정한 날은 한 줄로, 설정 고르기 목록은 가장 긴 형식이 다 보이게 */
 .fx-nowrap { white-space: nowrap; }
 select.input.fx-set-date { width: 190px; }
+
+/* 닫기(X) 단추 "프로그램 종료" — 끝낼지 묻는 창(2026-10-18 앱 창 세션). 다른 창 위에도 떠요. */
+.overlay.close-ask-ov {
+  z-index: 100;
+}
+
+.dialog.close-ask {
+  width: 360px;
+}
+
+/* 설정 "닫기(X) 단추" 줄 — 종료를 고르면 설명 아래 한 줄 */
+.row-note {
+  display: block;
+  color: var(--danger);
+}

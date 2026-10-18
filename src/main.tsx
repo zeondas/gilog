@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import CloseAsk from "./CloseAsk";
 import { installNoAutofill } from "./autofill";
 import { installIme, installImeForTest } from "./ime";
 import { installSnap } from "./snap";
@@ -19,5 +20,6 @@ if (location.search.includes("ruler")) installRuler();
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <App />
+    <CloseAsk />
   </React.StrictMode>,
 );
