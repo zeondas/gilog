@@ -3816,6 +3816,15 @@ body.col-dragging * {
   min-width: 0;
 }
 
+/* 목록 칸의 "목록" 글자·체크박스를 제목 왼쪽 끝선에 맞춰요. 마우스를 올린 회색 바탕은 양쪽으로 8px 넓게(2026-10-19 사용자) */
+.td-page .td-lists-head {
+  padding-left: 0;
+}
+
+.td-page .td-list {
+  margin: 0 calc(var(--space-2) * -1);
+}
+
 .td-screen {
   display: flex;
   align-items: flex-start;
