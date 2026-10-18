@@ -2294,10 +2294,6 @@ mark {
   gap: var(--space-2);
 }
 
-.jline-in .jsp-btn {
-  margin-top: calc((var(--size-input) - 24px) / 2);
-}
-
 /* 말 줄 칸: 한 말 안 줄 바꿈(왼쪽 Alt+Enter)이 있으면 글 높이만큼 늘어나요. 한 줄일 때는 다른 입력칸과 같은 높이·글자 자리예요. */
 .cell-input.jtalk {
   display: block;
