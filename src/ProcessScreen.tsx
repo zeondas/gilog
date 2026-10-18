@@ -416,7 +416,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   if (!works) {
     return (
       <>
-        <h1 className="title">민원처리</h1>
+        <h1 className="title">국민신문고 민원 불러오기</h1>
         {note && <p className="note" role="status">{note}</p>}
       </>
     );
@@ -430,7 +430,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   return (
     <div className="pr">
       <div className="ct-head">
-        <h1 className="title">민원처리</h1>
+        <h1 className="title">국민신문고 민원 불러오기</h1>
         <label className="search">
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <circle cx="11" cy="11" r="7" />
