@@ -378,7 +378,6 @@ function ListPanel({
 
   return (
     <nav className="td-lists" aria-label="목록">
-      <div className="td-lists-head">목록</div>
       {lists.map((l) => (
         <button
           key={l.id}
