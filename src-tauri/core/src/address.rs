@@ -121,7 +121,8 @@ pub enum RoadLookup {
     Cands { list: Vec<RoadHit>, original: String },
 }
 
-fn hit(name: &str, r: &Row, rest: &str) -> RoadHit {
+// 위치 글은 지번(숫자)으로 끝나요 — 주소 뒤 글("앞", "일원" 등)은 붙이지 않아요(2026-10-18 사용자).
+fn hit(name: &str, r: &Row, _rest: &str) -> RoadHit {
     let place_name = if r.ri.is_empty() { r.emd.clone() } else { r.ri.clone() };
     let mut jibun = String::new();
     if r.san {
@@ -132,11 +133,7 @@ fn hit(name: &str, r: &Row, rest: &str) -> RoadHit {
         jibun.push('-');
         jibun.push_str(&r.jsub);
     }
-    let mut place = format!("{place_name} {jibun}");
-    if !rest.is_empty() {
-        place.push(' ');
-        place.push_str(rest);
-    }
+    let place = format!("{place_name} {jibun}");
     let areas = if !r.ri.is_empty() {
         vec![r.emd.clone()]
     } else if !r.adm.is_empty() {
@@ -282,7 +279,8 @@ mod tests {
 
     #[test]
     fn prefixes_and_rest() {
-        assert_eq!(exact("경기도 파주시 조리읍 통일로 136 앞").place, "봉일천리 5-31 앞");
+        assert_eq!(exact("경기도 파주시 조리읍 통일로 136 앞").place, "봉일천리 5-31");
+        assert_eq!(exact("통일로 136번지 앞 도로 파임").place, "봉일천리 5-31");
         assert_eq!(exact("통일로136").place, "봉일천리 5-31");
         assert_eq!(exact("문향로 61-1").place, "문산리 8-4");
         // 산 지번
