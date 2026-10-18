@@ -49,8 +49,6 @@ const COLS: [ColId, string, number][] = [
   ["stage", "단계", 64],
   ["memo", "메모", 36],
 ];
-/** 열 제목 아래 작은 설명(2026-10-18 사용자) */
-const COL_NOTE: Partial<Record<ColId, string>> = { exp: "선금, 기성금, 준공금", act: "시공사 시공량" };
 const FIXED = new Set<ColId>(["kind", "rate", "stage", "memo"]);
 const START_W = Object.fromEntries(COLS.map(([c, , w]) => [c, w])) as Record<ColId, number>;
 const COLS_KEY = "budget.cols";
@@ -1247,20 +1245,13 @@ export default function BudgetScreen() {
           key={c}
           className={"bd-h" + (colHl === i ? " on" : "")}
           role="columnheader"
-          title={COL_NOTE[c] ? `${label}: ${COL_NOTE[c]}` : "누르면 이 열을 칠해요"}
+          title="누르면 이 열을 칠해요"
           onClick={(e) => {
             if ((e.target as Element).closest(".bd-grip")) return;
             setColHl(colHl === i ? null : i);
           }}
         >
-          {COL_NOTE[c] ? (
-            <span className="bd-hl">
-              <span>{label}</span>
-              <small>{COL_NOTE[c]}</small>
-            </span>
-          ) : (
-            label
-          )}
+          {label}
           {!FIXED.has(c) && <span className="bd-grip" title="끌어서 너비 · 두 번 누르면 내용에 맞춤" onMouseDown={(e) => startDrag(e, c)} onDoubleClick={(e) => autoFit(e, c)} />}
         </div>
       )),
