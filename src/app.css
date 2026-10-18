@@ -6743,6 +6743,15 @@ body.col-dragging * {
   margin-left: auto;
 }
 
+/* 제목 옆에 [신문고 열기]·[민원 불러오기], 검색·공사 관리는 오른쪽 (2026-10-19 사용자) */
+.pr .ct-head .title {
+  margin-right: var(--space-2);
+}
+
+.pr .ct-head .pr-push {
+  margin-left: auto;
+}
+
 .pr-fetch {
   display: inline-flex;
   align-items: center;
