@@ -9948,3 +9948,5 @@ select.input.fx-set-date { width: 190px; }
 /* 단추 폭은 정수 90px, 마지막(이름변경)이 남는 폭을 맡아 오른쪽 끝을 창 끝에 맞춰요(1600×900에서 88px) */
 .fx-tools .fx-tool { flex: none; width: 90px; }
 .fx-tools .fx-tool:last-child { flex: 1 1 0; width: auto; }
+/* 상자 모서리 가까이 붙은 것은 높이와 상관없이 6px(2026-10-19 사용자 1안, 공통 결정) — 탐색기 폴더 탭 */
+.fx-tab { border-radius: var(--radius-sm); }
