@@ -858,6 +858,7 @@ export default function FilesScreen() {
 
   // 트리 폭 끌기
   const dragW = useRef<{ x: number; w: number } | null>(null);
+  const panesRef = useRef<HTMLDivElement>(null);
 
   // ---------- 끌어다 놓기(창 사이, 윈도우 탐색기에서) ----------
   const dragSrc = useRef<{ pane: number; rows: Row[] } | null>(null);
@@ -1571,6 +1572,15 @@ export default function FilesScreen() {
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M12 4v16M3 12h18" /></svg>
           네칸보기
         </button>
+        <button
+          type="button"
+          className="btn btn-ctrl fx-sq"
+          title="칸 크기 처음대로 (트리 폭·창 사이)"
+          aria-label="칸 크기 처음대로"
+          onClick={() => setSt({ ...st, split: 0.5, splitV: 0.5, tree: { ...st.tree, width: TREE_W.start } })}
+        >
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5v14M21 5v14M7 12h10M10 9l-3 3 3 3M14 9l3 3-3 3" /></svg>
+        </button>
         <span className="fx-vsep" />
         <button type="button" className="btn btn-ctrl fx-tool" title="하위 폴더 파일까지 한 목록으로" aria-pressed={mock.flat} onClick={() => setMock({ ...mock, flat: !mock.flat })}>
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5h6l2 2h10v4M3 5v14h8M14 14h7M14 18h7M14 22h7" /></svg>
@@ -1707,7 +1717,50 @@ export default function FilesScreen() {
             />
           </>
         )}
-        <div className={st.four ? "fx-panes fx-four" : "fx-panes"}>{Array.from({ length: paneCount }, (_, i) => renderPane(i))}</div>
+        <div
+          ref={panesRef}
+          className={st.four ? "fx-panes fx-four" : "fx-panes"}
+          style={{
+            gridTemplateColumns: `minmax(0, ${st.split}fr) minmax(0, ${1 - st.split}fr)`,
+            ...(st.four ? { gridTemplateRows: `minmax(0, ${st.splitV ?? 0.5}fr) minmax(0, ${1 - (st.splitV ?? 0.5)}fr)` } : {}),
+          }}
+        >
+          {Array.from({ length: paneCount }, (_, i) => renderPane(i))}
+          <div
+            className="fx-psplit fx-psplit-x"
+            role="separator"
+            aria-label="창 사이 폭"
+            title="끌어서 폭 바꾸기 · 두 번 누르면 처음대로"
+            style={{ left: `calc((100% - 12px) * ${st.split})` }}
+            onPointerDown={(e) => e.currentTarget.setPointerCapture(e.pointerId)}
+            onPointerMove={(e) => {
+              if (!e.currentTarget.hasPointerCapture(e.pointerId) || !panesRef.current) return;
+              const r = panesRef.current.getBoundingClientRect();
+              const m = Math.min(0.5, PANE_MIN_W / (r.width - 12));
+              const v = Math.max(m, Math.min(1 - m, (e.clientX - r.left - 6) / (r.width - 12)));
+              setSt((S) => (S ? { ...S, split: Math.round(v * 1000) / 1000 } : S));
+            }}
+            onDoubleClick={() => setSt({ ...st, split: 0.5 })}
+          />
+          {st.four && (
+            <div
+              className="fx-psplit fx-psplit-y"
+              role="separator"
+              aria-label="창 사이 높이"
+              title="끌어서 높이 바꾸기 · 두 번 누르면 처음대로"
+              style={{ top: `calc((100% - 12px) * ${st.splitV ?? 0.5})` }}
+              onPointerDown={(e) => e.currentTarget.setPointerCapture(e.pointerId)}
+              onPointerMove={(e) => {
+                if (!e.currentTarget.hasPointerCapture(e.pointerId) || !panesRef.current) return;
+                const r = panesRef.current.getBoundingClientRect();
+                const m = Math.min(0.5, PANE_MIN_H / (r.height - 12));
+                const v = Math.max(m, Math.min(1 - m, (e.clientY - r.top - 6) / (r.height - 12)));
+                setSt((S) => (S ? { ...S, splitV: Math.round(v * 1000) / 1000 } : S));
+              }}
+              onDoubleClick={() => setSt({ ...st, splitV: 0.5 })}
+            />
+          )}
+        </div>
       </div>
 
       <div className="fx-keys">
@@ -1868,3 +1921,7 @@ function dateParts(t: string) {
     </>
   );
 }
+
+/** 창 사이를 끌 때 창 하나가 줄어들 수 있는 끝(이름 열이 보일 만큼) */
+const PANE_MIN_W = 460;
+const PANE_MIN_H = 200;
