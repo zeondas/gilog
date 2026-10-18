@@ -6709,7 +6709,7 @@ body.col-dragging * {
 
 .pr-row {
   display: grid;
-  grid-template-columns: var(--pr-cols, 140px 60px 100px 180px minmax(140px, 1fr) 160px 140px 64px 292px);
+  grid-template-columns: var(--pr-cols, 140px 60px 100px 180px minmax(140px, 1fr) 160px 140px 64px 216px);
   align-items: start;
   min-height: 44px;
   border-bottom: 1px solid var(--line-row);
@@ -6755,6 +6755,10 @@ body.col-dragging * {
   padding-left: 9px;
 }
 
+.pr-place:not(.pr-place-edit) {
+  cursor: default;
+}
+
 .pr-unknown-in::placeholder {
   color: var(--st-work-fg);
   font-weight: 700;
@@ -6764,7 +6768,7 @@ body.col-dragging * {
 /* [대장 등록] → 넣은 뒤 [대장 N번] */
 .pr-reg {
   flex: none;
-  min-width: 64px;
+  min-width: 72px;
   height: 26px;
   padding: 0 8px;
   border: 1px solid var(--line);
@@ -6956,14 +6960,26 @@ body.col-dragging * {
 
 .pr-acts {
   display: flex;
-  align-items: center;
-  justify-content: flex-end;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 6px;
   padding-top: 8px !important;
 }
 
+.pr-acts-top,
+.pr-acts-bot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pr-acts-bot .pr-icon {
+  width: 26px;
+  height: 24px;
+}
+
 .pr-next {
-  width: 104px;
+  width: 84px;
   height: 26px;
   padding: 0;
   border: 1px solid var(--line);
@@ -6995,7 +7011,7 @@ body.col-dragging * {
 }
 
 .pr-sent {
-  width: 104px;
+  width: 84px;
   height: 26px;
   box-sizing: border-box;
   display: inline-flex;

@@ -40,7 +40,7 @@ const COLUMNS: { label: string; w: number | null; center?: boolean }[] = [
   { label: "판단 공사", w: 160 },
   { label: "고려사항", w: 140 },
   { label: "연번", w: 64 },
-  { label: "지시부 작성", w: 292, center: true },
+  { label: "지시부 작성", w: 216 },
 ];
 const defaultWidths = () => COLUMNS.map((c) => c.w);
 
@@ -272,7 +272,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
 
   // ---------- 지시부 만들기 · 폰으로 보내기 ----------
   async function makeJpg(no: string): Promise<Case | null> {
-    setBusy((b) => ({ ...b, [no]: "JPG 만드는 중…" }));
+    setBusy((b) => ({ ...b, [no]: "JPG 만드는 중" }));
     try {
       const c = await api.orderJpg(no);
       putCase(c);
@@ -288,7 +288,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   async function makeOrder(c: Case) {
     const w = works?.find((x) => x.id === c.work);
     if (!w || busy[c.no]) return;
-    setBusy((b) => ({ ...b, [c.no]: "만드는 중…" }));
+    setBusy((b) => ({ ...b, [c.no]: "만드는 중" }));
     try {
       const r = await api.makeOrder({ no: c.no, root: ps.root, signer: signerText(ps.signer, ps.signerPhone), date: orderDate(today) });
       // 민원대장: 처음이면 등록, 다시 만들면(공사를 바꾼 뒤) 그 줄의 조치내용을 고쳐요.
@@ -550,6 +550,8 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                   />
                 </div>
                 <div className="pr-acts" onClick={(e) => e.stopPropagation()}>
+                  {/* 위: 진행 단추 · 대장 등록 · ×, 아래: 지시부 파일 · 폴더 (2026-10-18 사용자) */}
+                  <div className="pr-acts-top">
                   {b ? (
                     <button type="button" className="pr-next go" disabled>
                       {b}
@@ -562,11 +564,11 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                       title={w ? "지시부 파일·JPG를 만들고 민원대장에 등록해요" : "먼저 공사를 골라요"}
                       onClick={() => makeOrder(c)}
                     >
-                      지시부 만들기
+                      지시부
                     </button>
                   ) : c.stage === "made" ? (
                     <button type="button" className="pr-next go" disabled={isD} title="JPG를 보낼 폴더에 넣어요. Claude가 대화에 올리면 폰에서 카톡으로 공유해요" onClick={() => send(c)}>
-                      폰으로 보내기
+                      폰 전송
                     </button>
                   ) : c.stage === "queued" ? (
                     <span className="pr-sent pr-queued" title="보낼 폴더에 있어요. Claude가 대화에 올리면 전송 완료로 바뀌어요">
@@ -588,6 +590,21 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                   >
                     {linked(c) ? `대장 ${linked(c)!.no}번` : "대장 등록"}
                   </button>
+                  <button
+                    type="button"
+                    className={"pr-del" + (asking ? " on" : "")}
+                    aria-label="이 민원 지우기"
+                    aria-expanded={asking}
+                    title="지시부를 만들 건이 아니면 지워요"
+                    onClick={(e) => {
+                      setPick(null);
+                      setAsk(asking ? null : { no: c.no, rect: e.currentTarget.getBoundingClientRect() });
+                    }}
+                  >
+                    <DelIcon />
+                  </button>
+                  </div>
+                  <div className="pr-acts-bot">
                   <button
                     type="button"
                     className="pr-icon"
@@ -615,19 +632,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                       <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
                     </svg>
                   </button>
-                  <button
-                    type="button"
-                    className={"pr-del" + (asking ? " on" : "")}
-                    aria-label="이 민원 지우기"
-                    aria-expanded={asking}
-                    title="지시부를 만들 건이 아니면 지워요"
-                    onClick={(e) => {
-                      setPick(null);
-                      setAsk(asking ? null : { no: c.no, rect: e.currentTarget.getBoundingClientRect() });
-                    }}
-                  >
-                    <DelIcon />
-                  </button>
+                  </div>
                 </div>
               </div>
             );
@@ -785,9 +790,18 @@ function PlaceCell({ c, disabled, onSave }: { c: Case; disabled: boolean; onSave
     setArea(c.area);
   }, [c.place, c.area]);
 
-  if (disabled) {
+  const [editing, setEditing] = useState(false);
+  if (disabled || !editing) {
     return (
-      <div className="pr-place">
+      <div
+        className="pr-place"
+        title={disabled ? undefined : "두 번 누르면 주소를 고쳐요"}
+        onDoubleClick={(e) => {
+          if (disabled) return;
+          e.stopPropagation();
+          setEditing(true);
+        }}
+      >
         <span className="pr-sub">{c.area || "\u00a0"}</span>
         <span className={c.place === UNKNOWN ? "pr-unknown" : undefined}>{c.place}</span>
       </div>
@@ -809,11 +823,13 @@ function PlaceCell({ c, disabled, onSave }: { c: Case; disabled: boolean; onSave
         if (e.key === "Escape") {
           revert();
           now.current = { place: start, area: c.area };
+          setEditing(false);
           (e.target as HTMLElement).blur();
         }
       }}
       onBlur={(e) => {
         if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+        setEditing(false);
         // 위치 칸이 떠날 때 지역을 맞춘 뒤(같은 순간) 저장해요.
         window.setTimeout(() => {
           const { place: p, area: a } = now.current;
@@ -824,7 +840,7 @@ function PlaceCell({ c, disabled, onSave }: { c: Case; disabled: boolean; onSave
       }}
     >
       <span className="pr-sub">{area || "\u00a0"}</span>
-      <PlaceInput value={place} area={area} onChange={setPlace} onArea={setArea} placeholder={UNKNOWN} className={place.trim() ? undefined : "pr-unknown-in"} />
+      <PlaceInput value={place} area={area} onChange={setPlace} onArea={setArea} placeholder={UNKNOWN} className={place.trim() ? undefined : "pr-unknown-in"} autoFocus />
     </div>
   );
 }

@@ -42,12 +42,15 @@ export function PlaceInput({
   onArea,
   placeholder = "리·동 지번",
   className,
+  autoFocus,
 }: {
   value: string;
   /** 빈 칸에 보이는 글 (민원처리는 "주소불명 — 리·동 지번") */
   placeholder?: string;
   /** 칸에 더할 모양 이름 */
   className?: string;
+  /** 나타나자마자 커서를 둬요(민원처리: 두 번 눌러 고칠 때) */
+  autoFocus?: boolean;
   /** 지금 지역 값 (여러 행정동에 걸친 법정동이면 이미 고른 행정동을 지켜요) */
   area: string;
   onChange: (v: string) => void;
@@ -102,6 +105,7 @@ export function PlaceInput({
         name="place"
         aria-label="위치 (법정리·동과 지번)"
         placeholder={placeholder}
+        autoFocus={autoFocus}
         className={"cell-input" + (className ? " " + className : "")}
         role="combobox"
         aria-expanded={show}
