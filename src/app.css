@@ -9964,3 +9964,18 @@ select.input.fx-set-date { width: 190px; }
 .fx-keys { height: 28px; gap: 8px; }
 /* 이름변경 단추 오른쪽 끝 1px 안으로(2026-10-19 사용자: 아래 창보다 튀어나와 보이는 착시 보정) */
 .fx-tools .fx-tool:last-child { margin-right: 1px; }
+/* 미리보기 칸(2026-10-19): 폴더트리와 같은 상자, 탐색기 창들 오른쪽 */
+/* 미리보기는 대상 창 자리에(FreeCommander의 빠른 보기와 같게) */
+.fx-pv-title { cursor: default; color: var(--ink-2); font-weight: 700; border-color: transparent; background: transparent; padding-left: 4px; }
+.fx-pv-pic { min-height: 240px; max-height: none; }
+.fx-pv-img { max-height: 520px; }
+.fx-pv-empty { padding: 24px 16px; color: var(--muted); text-align: center; }
+.fx-pv { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding: 12px; }
+.fx-pv-pic { display: flex; align-items: center; justify-content: center; min-height: 160px; max-height: 320px; background: var(--surface-band); border-radius: var(--radius-sm); overflow: hidden; }
+.fx-pv-img { max-width: 100%; max-height: 320px; object-fit: contain; }
+.fx-pv-ph { color: var(--muted); font-size: 12px; }
+.fx-pv-name { font-weight: 700; word-break: break-all; }
+.fx-pv-info { margin: 0; display: grid; grid-template-columns: 72px 1fr; gap: 6px 8px; font-size: 12.5px; }
+.fx-pv-info dt { color: var(--muted); }
+.fx-pv-info dd { margin: 0; }
+.fx-pv-path { word-break: break-all; color: var(--muted); }
