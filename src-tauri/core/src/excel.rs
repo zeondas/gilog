@@ -219,7 +219,7 @@ fn two(n: u8) -> String {
 }
 
 /// 칸 하나를 글자로. 날짜는 2026-10-15, 정수는 소수점 없이.
-fn text_of(d: &Data) -> String {
+pub(crate) fn text_of(d: &Data) -> String {
     match d {
         Data::Empty => String::new(),
         Data::String(s) => s.replace("\r\n", "\n").replace('\r', "\n"),

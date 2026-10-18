@@ -1,3 +1,4 @@
+mod budget;
 mod calendar;
 mod ime;
 mod google;
@@ -626,6 +627,21 @@ pub fn run() {
             google::google_wait,
             google::open_google_login,
             google::google_http,
+            budget::budget_data,
+            budget::save_budget_project,
+            budget::save_budget_item,
+            budget::save_budget_row,
+            budget::set_budget_stage,
+            budget::set_budget_memo,
+            budget::set_budget_open,
+            budget::move_budget,
+            budget::move_budget_item,
+            budget::move_budget_row,
+            budget::delete_budget,
+            budget::copy_budget_year,
+            budget::import_budget,
+            budget::budget_excel_write,
+            budget::budget_excel_read,
             process::process_data,
             process::save_work,
             process::delete_work,

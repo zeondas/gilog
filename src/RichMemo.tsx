@@ -323,6 +323,7 @@ export function MemoEditor({
   onCancel,
   placeholder,
   editorRef,
+  lite = false,
 }: {
   initial: string;
   onChange: (html: string) => void;
@@ -330,6 +331,8 @@ export function MemoEditor({
   onCancel: () => void;
   placeholder: string;
   editorRef?: React.MutableRefObject<HTMLDivElement | null>;
+  /** 표·제목·인용 단추 없이(집행현황 메모 — 2026-10-18 사용자: 표 빼고) */
+  lite?: boolean;
 }) {
   const area = useRef<HTMLDivElement | null>(null);
   const [fmt, setFmt] = useState<Fmt>(NO_FMT);
@@ -773,6 +776,7 @@ export function MemoEditor({
   return (
     <div className="rte">
       <div className="rte-bar" role="toolbar" aria-label="메모 꾸미기">
+        {!lite && (<>
         <B label="본문" wide on={fmt.block === "p" && !fmt.ul && !fmt.ol && !fmt.inTable} onClick={() => block("p")}>
           본문
         </B>
@@ -783,6 +787,7 @@ export function MemoEditor({
           인용
         </B>
         <span className="rte-sep" />
+        </>)}
         <B label="글머리 목록 (줄 맨 앞 ] ) - 와 스페이스로도 돼요)" on={fmt.ul} onClick={() => run("insertUnorderedList")}>
           <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <circle cx="5" cy="7" r="1.4" fill="currentColor" />
@@ -834,6 +839,7 @@ export function MemoEditor({
         <B label="취소선" on={fmt.s} onClick={() => run("strikeThrough")}>
           <s>가</s>
         </B>
+        {!lite && (<>
         <span className="rte-sep" />
         <span className="rte-grid-wrap">
           <B label="표 넣기" wide on={grid} onClick={() => setGrid(!grid)}>
@@ -864,6 +870,7 @@ export function MemoEditor({
             </B>
           </>
         )}
+        </>)}
       </div>
       <div
         ref={(el) => {

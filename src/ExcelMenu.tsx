@@ -6,19 +6,19 @@ import { api, errorText, inApp } from "./api";
 import { ExcelExport, ExcelSheet, SHEET_TITLE, SheetKind, defaultName } from "./excel";
 import { todayStr } from "./journal";
 
-const DIR_KEY = "excel.lastDir";
+export const DIR_KEY = "excel.lastDir";
 
 /** 미리 보기(브라우저)에서는 윈도우 창이 없어 정해진 경로를 써요. */
-const FAKE_DIR = "C:\\Users\\사용자\\Documents";
+export const FAKE_DIR = "C:\\Users\\사용자\\Documents";
 
-function dirOf(path: string): string {
+export function dirOf(path: string): string {
   const i = Math.max(path.lastIndexOf("\\"), path.lastIndexOf("/"));
   return i > 0 ? path.slice(0, i) : "";
 }
 
-const joinPath = (dir: string, name: string) => (dir ? dir.replace(/[\\/]+$/, "") + (dir.includes("/") && !dir.includes("\\") ? "/" : "\\") + name : name);
+export const joinPath = (dir: string, name: string) => (dir ? dir.replace(/[\\/]+$/, "") + (dir.includes("/") && !dir.includes("\\") ? "/" : "\\") + name : name);
 
-async function lastDir(): Promise<string> {
+export async function lastDir(): Promise<string> {
   const saved = await api.get(DIR_KEY).catch(() => "");
   if (saved) return saved;
   if (!inApp) return FAKE_DIR;

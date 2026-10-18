@@ -2,6 +2,9 @@
 // 앱 밖(브라우저)에서 화면만 볼 때는 메모리에만 저장하는 흉내를 써요.
 import { invoke } from "@tauri-apps/api/core";
 import { areaFor, fakeRoadToJibun, RoadLookup } from "./address";
+import type { BudgetLevel, BudgetProject, BudgetRowInput } from "./budget";
+import type { GridSheet, ImportProject } from "./budgetExcel";
+import { fakeBudget } from "./budgetFake";
 
 export type Status = { exists: boolean; unlocked: boolean; folder: string };
 
@@ -986,6 +989,24 @@ function fakeCall(cmd: string, args: Record<string, unknown>): unknown {
     if (!d) throw "invalid";
     return d;
   }
+  if (cmd === "budget_excel_write") {
+    fakeExcel.set(a.path, args.data);
+    (window as unknown as { __budgetLastExport?: unknown }).__budgetLastExport = args.data;
+    return null;
+  }
+  if (cmd === "budget_excel_read") {
+    // 미리 보기 시험: window.__budgetGrid에 넣어 둔 시트를 읽어요.
+    const d = fakeExcel.get(a.path) ?? (window as unknown as { __budgetGrid?: unknown }).__budgetGrid;
+    if (!d) throw "io";
+    return d;
+  }
+  {
+    const r = fakeBudget(cmd, args);
+    if (r !== undefined) {
+      if (!fake.unlocked) throw "locked";
+      return r;
+    }
+  }
   {
     const r = fakeProcess(cmd, args);
     if (r !== undefined) {
@@ -1160,6 +1181,26 @@ export const api = {
   setComplaintMemo: (id: number, memo: string) => call<Complaint>("set_complaint_memo", { id, memo }),
   deleteComplaint: (id: number) => call<null>("delete_complaint", { id }),
   processData: () => call<ProcessData>("process_data"),
+
+  // 집행현황(12단계) — 바꾸는 명령은 그 해 전체를 돌려줘요.
+  budgetData: (year: number) => call<BudgetProject[]>("budget_data", { year }),
+  saveBudgetProject: (year: number, id: number | null, after: number | null, name: string, budget: number | null) =>
+    call<BudgetProject[]>("save_budget_project", { year, id, after, name, budget }),
+  saveBudgetItem: (project: number, id: number | null, name: string, budget: number | null) => call<BudgetProject[]>("save_budget_item", { project, id, name, budget }),
+  /** 바뀐 해와 그 공사 번호 */
+  saveBudgetRow: (item: number, id: number | null, row: BudgetRowInput) => call<[BudgetProject[], number]>("save_budget_row", { item, id, row }),
+  setBudgetStage: (id: number, stage: string) => call<BudgetProject[]>("set_budget_stage", { id, stage }),
+  setBudgetMemo: (level: BudgetLevel, id: number, memo: string) => call<BudgetProject[]>("set_budget_memo", { level, id, memo }),
+  setBudgetOpen: (level: BudgetLevel, id: number, open: boolean, all = false) => call<BudgetProject[]>("set_budget_open", { level, id, open, all }),
+  moveBudget: (level: BudgetLevel, id: number, dir: number) => call<BudgetProject[]>("move_budget", { level, id, dir }),
+  moveBudgetItem: (id: number, to: number) => call<BudgetProject[]>("move_budget_item", { id, to }),
+  moveBudgetRow: (id: number, to: number) => call<BudgetProject[]>("move_budget_row", { id, to }),
+  deleteBudget: (level: BudgetLevel, id: number) => call<BudgetProject[]>("delete_budget", { level, id }),
+  copyBudgetYear: (from: number, to: number) => call<BudgetProject[]>("copy_budget_year", { from, to }),
+  /** 바뀐 해와 넣은 공사 수 */
+  importBudget: (year: number, projects: ImportProject[]) => call<[BudgetProject[], number]>("import_budget", { year, projects }),
+  budgetExcelWrite: (path: string, data: { year: number; unit: number; date: string; projects: BudgetProject[] }) => call<null>("budget_excel_write", { path, data }),
+  budgetExcelRead: (path: string) => call<GridSheet[]>("budget_excel_read", { path }),
   saveWork: (id: number | null, work: WorkInput) => call<Work[]>("save_work", { id, work }),
   deleteWork: (id: number) => call<Work[]>("delete_work", { id }),
   updateCase: (no: string, patch: CasePatch) => call<Case>("update_case", { no, patch }),

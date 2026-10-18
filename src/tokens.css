@@ -110,6 +110,20 @@
   /* 그림자 색(남색 기운 없는 중성 어두운 색). rgba(var(--shadow-rgb), 투명도)로 써요. */
   --shadow-rgb: 28, 27, 34;
   --shadow-card: 0 1px 2px rgba(var(--shadow-rgb), 0.06), 0 6px 16px rgba(var(--shadow-rgb), 0.06);
+  /* 집행현황(12단계, 2026-10-18 시안 목업 확정): 구분 배지·단계 배지·집행률 막대·트리 선·세부사업 줄 */
+  --bk-gong-bg: #E6F0FF; --bk-gong-fg: #1D5FC4;
+  --bk-gwan-bg: #E2F7F6; --bk-gwan-fg: #0B8580;
+  --bk-yong-bg: #FFF6D6; --bk-yong-fg: #8A6400;
+  --bk-il-bg: #EEEDF2; --bk-il-fg: #4E4C5A;
+  --bs-jun-bg: #EEEDF2; --bs-jun-fg: #4E4C5A;
+  --bs-chu-bg: #FDEBD3; --bs-chu-fg: #8A4B00;
+  --bs-wan-bg: #1F7A45; --bs-wan-fg: #FFFFFF;
+  --bs-jung-bg: #FBE9E7; --bs-jung-fg: #B3261E;
+  --bs-ta-bg: #3B3A45; --bs-ta-fg: #FFFFFF;
+  --bd-bar-track: #E4E3EA; --bd-bar-fill: #4A4956; --bd-bar-line: #C4C2CF;
+  --bd-tree: #C9C6D6; --bd-col-hl: rgba(75, 55, 196, 0.07);
+  --bd-pj-bg: #E9E4FF; --bd-pj-line: #CFC6F5; --bd-sel-bg: #E6E1FB;
+  --bd-faint: #8E8C99; --bd-ghost: #A3A1AE; --bd-alt: #F4F3F8;
   --font-sans: Pretendard, "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
   --fs: 13px;
   color-scheme: light;
@@ -156,6 +170,19 @@
     --row-alt: #1B1A21;
     --flash: #3A3416;
     color-scheme: dark;
+    --bk-gong-bg: #16294A; --bk-gong-fg: #8EB8FF;
+    --bk-gwan-bg: #123532; --bk-gwan-fg: #7FD6D0;
+    --bk-yong-bg: #3A3012; --bk-yong-fg: #F0CF6A;
+    --bk-il-bg: #2C2B34; --bk-il-fg: #BAB7C6;
+    --bs-jun-bg: #2C2B34; --bs-jun-fg: #BAB7C6;
+    --bs-chu-bg: #40300F; --bs-chu-fg: #F2C078;
+    --bs-wan-bg: #2E8B57; --bs-wan-fg: #FFFFFF;
+    --bs-jung-bg: #3D2220; --bs-jung-fg: #F28B82;
+    --bs-ta-bg: #C9C6D3; --bs-ta-fg: #17161C;
+    --bd-bar-track: #45435A; --bd-bar-fill: #E2DFEA; --bd-bar-line: #6E6B84;
+    --bd-tree: #4A4758; --bd-col-hl: rgba(182, 170, 255, 0.08);
+    --bd-pj-bg: #25203F; --bd-pj-line: #3E3670; --bd-sel-bg: #2E2856;
+    --bd-faint: #86839A; --bd-ghost: #6E6B7E; --bd-alt: #1B1A21;
   }
 }
 
@@ -199,4 +226,17 @@
   --row-alt: #1B1A21;
   --flash: #3A3416;
   color-scheme: dark;
+  --bk-gong-bg: #16294A; --bk-gong-fg: #8EB8FF;
+  --bk-gwan-bg: #123532; --bk-gwan-fg: #7FD6D0;
+  --bk-yong-bg: #3A3012; --bk-yong-fg: #F0CF6A;
+  --bk-il-bg: #2C2B34; --bk-il-fg: #BAB7C6;
+  --bs-jun-bg: #2C2B34; --bs-jun-fg: #BAB7C6;
+  --bs-chu-bg: #40300F; --bs-chu-fg: #F2C078;
+  --bs-wan-bg: #2E8B57; --bs-wan-fg: #FFFFFF;
+  --bs-jung-bg: #3D2220; --bs-jung-fg: #F28B82;
+  --bs-ta-bg: #C9C6D3; --bs-ta-fg: #17161C;
+  --bd-bar-track: #45435A; --bd-bar-fill: #E2DFEA; --bd-bar-line: #6E6B84;
+  --bd-tree: #4A4758; --bd-col-hl: rgba(182, 170, 255, 0.08);
+  --bd-pj-bg: #25203F; --bd-pj-line: #3E3670; --bd-sel-bg: #2E2856;
+  --bd-faint: #86839A; --bd-ghost: #6E6B7E; --bd-alt: #1B1A21;
 }

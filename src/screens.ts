@@ -4,6 +4,8 @@ export const SCREENS = [
   { id: "explorer", name: "탐색기", side: "탐색기", step: 11, group: 0 },
   { id: "complaints", name: "민원대장", side: "민원대장", step: 6, group: 1 },
   { id: "process", name: "민원처리", side: "민원처리", step: 10, group: 1 },
+  // 예산 묶음(2026-10-18 사용자): 집행현황, 다음에 이월사업
+  { id: "budget", name: "집행현황", side: "집행현황", step: 12, group: 4 },
   { id: "calendar", name: "캘린더", side: "캘린더", step: 8, group: 2 },
   { id: "todo", name: "할 일 목록", side: "할 일", step: 7, group: 2 },
   { id: "journal", name: "업무일지", side: "업무일지", step: 5, group: 3 },

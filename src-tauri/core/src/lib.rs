@@ -13,6 +13,8 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
 pub mod address;
+mod budget;
+pub mod budget_xlsx;
 mod calendar;
 mod complaints;
 mod contacts;
@@ -22,6 +24,7 @@ mod order;
 mod process;
 mod tasks;
 pub use address::{road_to_jibun, RoadHit, RoadLookup};
+pub use budget::{BudgetImportItem, BudgetImportProject, BudgetImportRow, BudgetItem, BudgetLevel, BudgetProject, BudgetRow, BudgetRowInput, BUDGET_KINDS, BUDGET_STAGES};
 pub use calendar::{CalKind, CalendarData, Event, EventInput, Holiday, BUILTIN_HOLIDAYS, KIND_COLORS, REMIND_MAX, SYSTEM_KINDS};
 pub use complaints::{Complaint, ComplaintImport, ComplaintInput, DEFAULT_STATUS};
 pub use contacts::{Contact, ContactImport, ContactInput, ContactsData, Project, PROJECT_COLORS};
@@ -219,6 +222,7 @@ impl Store {
         calendar::seed(&self.conn)?;
         self.conn.execute_batch(process::SCHEMA)?;
         process::upgrade(&self.conn)?;
+        self.conn.execute_batch(budget::SCHEMA)?;
         Ok(())
     }
 
