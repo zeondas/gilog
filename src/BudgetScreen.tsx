@@ -567,6 +567,20 @@ export default function BudgetScreen() {
           </>,
           " n",
         );
+  const rowRateCell = (r: BudgetRow) => {
+    const sp = rowRate(r);
+    return sp == null
+      ? cell("", " n")
+      : cell(
+          <>
+            <span className="bd-bar rowbar" title="원인행위 대비">
+              <span style={{ width: Math.min(100, Math.max(0, sp)) + "%" }} />
+            </span>
+            <span className="bd-pct rowp">{Math.round(sp)}%</span>
+          </>,
+          " n",
+        );
+  };
   const memoBtn = (level: BudgetLevel, id: number, memo: string) => {
     const has = !isEmptyMemo(memo);
     return (
@@ -668,6 +682,24 @@ export default function BudgetScreen() {
     </button>
   );
 
+  // 입력 중에도 바로 계산(2026-10-18 사용자: 자동 계산되는 항목이 없어) — 적고 있는 값으로 그 줄 잔액·집행률과 위 합계를 그려요.
+  const live = (m: Money) => {
+    const v = moneyOf(m, unit);
+    return v == null ? 0 : v;
+  };
+  const draftRow: BudgetRow | null =
+    form?.level === "row"
+      ? { id: form.id ?? -1, name: form.name, kind: form.kind, co: form.co, cmt: live(form.cmt), exp: live(form.exp), act: live(form.act), stage: form.stage, memo: "" }
+      : null;
+  const rowsOf = (it: { id: number; rows: BudgetRow[] }) => {
+    if (!draftRow || form?.level !== "row") return it.rows;
+    if (form.id != null) return it.rows.map((r) => (r.id === form.id ? draftRow : r));
+    return form.item === it.id ? [...it.rows, draftRow] : it.rows;
+  };
+  const budgetOf = (level: "project" | "item", o: { id: number; budget: number | null }) =>
+    form && form.level === level && form.id === o.id ? (moneyOf(form.budget, unit) ?? null) : o.budget;
+  const pRows = (p: BudgetProject) => p.items.flatMap(rowsOf);
+
   const rowsOut: ReactNode[] = [];
   let carryShown = false;
   const lines = (parts: string[]) => parts.map((c) => <span key={c} className={"bd-tl " + c} />);
@@ -732,8 +764,8 @@ export default function BudgetScreen() {
         {cell(moneyInput("cmt", "원인행위", f.cmt))}
         {cell(moneyInput("exp", "지출액", f.exp))}
         {cell(moneyInput("act", "실집행액", f.act))}
-        {cell(<span className="bd-auto">자동</span>, " n")}
-        {cell("")}
+        {draftRow && cell(fmt(balance(draftRow), unit), " n" + (balance(draftRow) < 0 ? " red" : ""))}
+        {draftRow && rowRateCell(draftRow)}
         {cell("")}
         {cell(stageChip(f.stage, (r, from) => setPop({ t: "stage", x: r.left, y: r.bottom + 4, id: "form", from }), "form-stage"))}
         {cell(existing ? memoBtn("row", existing.id, existing.memo) : "")}
@@ -792,7 +824,7 @@ export default function BudgetScreen() {
             )}
           </>,
         )}
-        {sumCells(p.budget, rows, false, memoBtn("project", p.id, p.memo), pEdit && form?.level === "project" ? cell(moneyInput("budget", "예산", form.budget, true)) : undefined)}
+        {sumCells(budgetOf("project", p), pRows(p), false, memoBtn("project", p.id, p.memo), pEdit && form?.level === "project" ? cell(moneyInput("budget", "예산", form.budget, true)) : undefined)}
       </div>,
     );
     if (form?.level === "project" && form.id == null && form.after === p.id) rowsOut.push(nameRow("new-after-" + p.id, "project"));
@@ -842,7 +874,7 @@ export default function BudgetScreen() {
               )}
             </>,
           )}
-          {sumCells(it.budget, it.rows, true, memoBtn("item", it.id, it.memo), iEdit && form?.level === "item" ? cell(moneyInput("budget", "예산", form.budget)) : undefined)}
+          {sumCells(budgetOf("item", it), rowsOf(it), true, memoBtn("item", it.id, it.memo), iEdit && form?.level === "item" ? cell(moneyInput("budget", "예산", form.budget)) : undefined)}
         </div>,
       );
       if (!iOpen) return;
@@ -856,7 +888,6 @@ export default function BudgetScreen() {
           rowsOut.push(gunForm(gk, last, r));
           return;
         }
-        const sp = rowRate(r);
         rowsOut.push(
           <div
             key={gk}
@@ -886,17 +917,7 @@ export default function BudgetScreen() {
             {cell(fmt(r.exp, unit), " n")}
             {cell(fmt(r.act, unit), " n")}
             {cell(fmt(balance(r), unit), " n" + (balance(r) < 0 ? " red" : ""))}
-            {sp == null
-              ? cell("", " n")
-              : cell(
-                  <>
-                    <span className="bd-bar rowbar" title="원인행위 대비">
-                      <span style={{ width: Math.min(100, sp) + "%" }} />
-                    </span>
-                    <span className="bd-pct rowp">{Math.round(sp)}%</span>
-                  </>,
-                  " n",
-                )}
+            {rowRateCell(r)}
             {cell("")}
             {cell(
               stageChip(
