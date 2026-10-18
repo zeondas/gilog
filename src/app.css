@@ -6765,16 +6765,21 @@ body.col-dragging * {
   opacity: 1;
 }
 
-/* 대장 등록(작은 단추) → 넣은 뒤 연보라 */
+/* 대장 등록(작은 단추) → 넣은 뒤 보라 채움 */
 .pr-icon.pr-reg:hover {
   border-color: var(--accent);
   color: var(--accent);
 }
 
+/* 등록하면 보라로 채워요(2026-10-18 사용자 통과, 시안 ProcessReg) */
 .pr-icon.pr-reg.on {
-  border-color: transparent;
-  background: var(--accent-wash);
-  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.pr-icon.pr-reg.on:hover {
+  color: var(--on-accent);
 }
 
 .pr-c {
