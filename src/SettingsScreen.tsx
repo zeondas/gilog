@@ -290,7 +290,7 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
       <section className="card" aria-label="정보">
         <div className="about">
           <AppIcon size={56} />
-          <Logo height={56} variant="word" />
+          <Logo height={38} variant="word" />
           <div className="about-ver">
             <span className="muted small">버전 {VERSION}</span>
             <span className="muted small">WebView2 {engineVersion()}</span>

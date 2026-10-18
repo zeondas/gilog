@@ -9672,7 +9672,10 @@ button.bd-chip:hover {
   color: var(--muted);
 }
 
-/* 설정 "정보" (2026-10-18 사용자): 심볼 56px · 글자 로고 같은 높이 · 그 오른쪽 위 버전/WebView2 · 카드 오른쪽 아래 개발자/이메일 */
+/* 설정 "정보" (2026-10-18 사용자): 심볼 56px · 글자 로고(버전 두 줄과 같은 높이) · 그 오른쪽 버전/WebView2 · 카드 오른쪽 개발자/이메일 — 심볼 빼고 모두 위로 맞춰요 */
+.about > .logo {
+  align-self: flex-start;
+}
 .about-ver {
   align-self: flex-start;
   display: flex;
@@ -9681,7 +9684,7 @@ button.bd-chip:hover {
 }
 
 .about-dev {
-  align-self: flex-end;
+  align-self: flex-start;
   margin-left: auto;
   display: flex;
   flex-direction: column;
