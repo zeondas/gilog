@@ -72,7 +72,7 @@ pub(crate) async fn pin_enable(app: AppHandle, window: WebviewWindow, password: 
         let store = guard.as_ref().ok_or_else(|| "locked".to_string())?;
         store.check_password(&password).map_err(crate::code)?;
     }
-    verify(&window, "기Log 잠금을 윈도우 PIN으로 풀 수 있게 해요.").await?;
+    verify(&window, "기록 잠금을 윈도우 PIN으로 풀 수 있게 해요.").await?;
     let blob = os::protect(password.as_bytes())?;
     fs::write(blob_path(&app)?, blob).map_err(io)?;
     let mut prefs = read_prefs(&app)?;
@@ -92,7 +92,7 @@ pub(crate) async fn pin_unlock(app: AppHandle, window: WebviewWindow) -> Result<
         turn_off(&app)?;
         return Err("pin_stale".into());
     }
-    verify(&window, "기Log 잠금을 풀어요.").await?;
+    verify(&window, "기록 잠금을 풀어요.").await?;
     let blob = fs::read(blob_path(&app)?).map_err(io)?;
     let password = match os::unprotect(&blob).ok().and_then(|b| String::from_utf8(b).ok()) {
         Some(p) => p,

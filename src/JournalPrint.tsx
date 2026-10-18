@@ -5,7 +5,7 @@
 // - 날마다 새 쪽, 기록 없는 날은 빼요. 카드는 쪼개지 않고 왼쪽 열을 쪽 높이까지 채운 뒤 오른쪽 열, 그다음 쪽.
 //   (한 장이 열 높이보다 크면 그 카드만 줄여 한 열에 맞춰요.)
 // - 머리 줄은 출근·교통·날씨·메모만. 메모 카드도 시각·"메모"와 본문을 찍어요. 머릿기호는 화면과 같은 그린 모양(.rte-view 규칙).
-// - 아래 여백에 "기Log 업무일지"와 쪽 번호 "1 / 2".
+// - 아래 여백에 "기록 업무일지"와 쪽 번호 "1 / 2".
 import { KeyboardEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { DayInfo, Entry, Project } from "./api";
@@ -446,7 +446,7 @@ export function PrintPages({ days, ctx, onPages }: { days: PrintDay[]; ctx: Ctx;
               ))}
             </div>
             <footer className="jp-pfoot">
-              <span>기Log 업무일지</span>
+              <span>기록 업무일지</span>
               <span>
                 {i + 1} / {pages.length}
               </span>

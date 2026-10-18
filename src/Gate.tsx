@@ -26,7 +26,7 @@ export default function Gate({ mode, folder, onOpen }: Props) {
     let timer = 0;
     const fire = () => {
       window.removeEventListener("focus", onFocus);
-      // 창이 막 보이는 참이라 조금 기다렸다 띄워요(Hello 창이 기Log 창 위에 뜨게).
+      // 창이 막 보이는 참이라 조금 기다렸다 띄워요(Hello 창이 기록 창 위에 뜨게).
       timer = window.setTimeout(() => alive && pinUnlock(), 250);
     };
     const onFocus = () => fire();

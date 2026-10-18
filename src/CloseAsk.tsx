@@ -43,7 +43,7 @@ export default function CloseAsk() {
       <div className="dialog close-ask" role="alertdialog" aria-modal="true" aria-labelledby="close-ask-title">
         <div className="xl-ask-body">
           <h2 id="close-ask-title" className="xl-ask-title">
-            기Log를 끝낼까요?
+            기록을 끝낼까요?
           </h2>
         </div>
         <div className="xl-ask-foot">
