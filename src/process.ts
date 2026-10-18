@@ -69,7 +69,7 @@ export function aiGuide(p: { inbox: string; downloads: string; outbox: string },
   const list = works.length ? works.map((w) => `  - ${w.id}: ${w.name} — ${w.scope || "(처리 범위 없음)"}`).join("\n") : "  - (등록된 공사가 없어요 — work는 null)";
   const nos = known.nos.length ? known.nos.join(", ") : "(없음)";
   const recs = known.records.length ? known.records.map((r) => `  - ${r}`).join("\n") : "  - (없음)";
-  return `# 기Log 민원처리 지침
+  return `# 기록 민원처리 지침
 
 ## 0. 시작
 - 엣지(Claude 확장)로 일해요. 새 탭을 열어 ${PORTAL_URL} 첫 화면을 열고 메뉴를 눌러 민원처리목록으로 들어가요(주소를 바로 열면 405 오류).
@@ -116,16 +116,16 @@ ${list}
 
 /**
  * "민원처리" 세션(Claude 앱, PC에 이어진 대화)에 한 번 붙여 두는 폰 전송 지침이에요.
- * 기Log [폰 전송] = 보낼 폴더에 JPG를 넣음 → 사용자가 이 세션에 "보내"라고 하면 Claude가 올리고 "보냄"에 써 둠 → 기Log가 전송 완료.
+ * 기록 [폰 전송] = 보낼 폴더에 JPG를 넣음 → 사용자가 이 세션에 "보내"라고 하면 Claude가 올리고 "보냄"에 써 둠 → 기록이 전송 완료.
  */
 export function phoneGuide(p: { outbox: string }): string {
-  return `# 민원처리 폰 전송 (기Log)
+  return `# 민원처리 폰 전송 (기록)
 
-이 대화는 기Log 지시부 JPG를 폰으로 받는 곳이에요. 내가 "보내" 또는 "폰 전송"이라고 하면:
+이 대화는 기록 지시부 JPG를 폰으로 받는 곳이에요. 내가 "보내" 또는 "폰 전송"이라고 하면:
 
 1. PC의 보낼 폴더(${p.outbox})를 봐요. 그 안의 JPG만 보고, 안쪽 "보냄" 폴더는 보지 않아요.
 2. JPG를 하나씩 이 대화에 파일로 올려요(이름 그대로). 글은 "N건 보냈어요"와 파일 이름 목록만 짧게.
-3. 올린 파일마다 같은 이름으로 "${p.outbox}\\보냄\\파일이름.jpg"에 써 둬요. 그래야 기Log가 전송 완료로 바꾸고 원본을 지워요.
+3. 올린 파일마다 같은 이름으로 "${p.outbox}\\보냄\\파일이름.jpg"에 써 둬요. 그래야 기록이 전송 완료로 바꾸고 원본을 지워요.
 4. 보낼 것이 없으면 "보낼 지시부가 없어요" 한 줄만.
 
 PC에 이어져 있지 않으면 "PC 연결이 끊겨 있어요 — 데스크톱 앱을 켜 주세요" 한 줄로 알려 줘요.

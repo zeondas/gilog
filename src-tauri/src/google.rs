@@ -60,8 +60,8 @@ fn decode(s: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-const PAGE_OK: &str = "<!doctype html><meta charset=utf-8><title>기Log</title><body style=\"font-family:'Malgun Gothic',sans-serif;padding:48px;color:#1C1B22\"><h2 style=\"color:#4B37C4\">구글 연결을 마쳤어요</h2><p>이 창을 닫고 기Log로 돌아가세요.</p></body>";
-const PAGE_FAIL: &str = "<!doctype html><meta charset=utf-8><title>기Log</title><body style=\"font-family:'Malgun Gothic',sans-serif;padding:48px;color:#1C1B22\"><h2 style=\"color:#B42318\">구글 연결을 마치지 못했어요</h2><p>이 창을 닫고 기Log에서 다시 시도해 주세요.</p></body>";
+const PAGE_OK: &str = "<!doctype html><meta charset=utf-8><title>기록</title><body style=\"font-family:'Malgun Gothic',sans-serif;padding:48px;color:#1C1B22\"><h2 style=\"color:#4B37C4\">구글 연결을 마쳤어요</h2><p>이 창을 닫고 기록으로 돌아가세요.</p></body>";
+const PAGE_FAIL: &str = "<!doctype html><meta charset=utf-8><title>기록</title><body style=\"font-family:'Malgun Gothic',sans-serif;padding:48px;color:#1C1B22\"><h2 style=\"color:#B42318\">구글 연결을 마치지 못했어요</h2><p>이 창을 닫고 기록에서 다시 시도해 주세요.</p></body>";
 
 fn respond(mut s: TcpStream, page: &str) {
     let head = format!(
@@ -109,7 +109,7 @@ pub fn google_listen(app: AppHandle) -> Result<u16, String> {
                     let _ = s.set_nonblocking(false);
                     if let Some(r) = handle(s) {
                         let _ = tx.send(r);
-                        // 로그인한 브라우저 뒤에 숨은 기Log 창을 앞으로 꺼내요.
+                        // 로그인한 브라우저 뒤에 숨은 기록 창을 앞으로 꺼내요.
                         if let Some(w) = app.get_webview_window("main") {
                             let _ = w.show();
                             let _ = w.unminimize();

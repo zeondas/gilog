@@ -250,9 +250,9 @@ fn toast(app: &AppHandle, title: &str, body: &str, open: Option<Reminder>) -> Re
     }
     let id = app.config().identifier.clone();
     let result = match make(&id).show() {
-        Ok(()) => Ok("기Log".to_string()),
+        Ok(()) => Ok("기록".to_string()),
         Err(e1) => match make(Toast::POWERSHELL_APP_ID).show() {
-            Ok(()) => Ok(format!("PowerShell (기Log 이름으로는 실패: {e1})")),
+            Ok(()) => Ok(format!("PowerShell (기록 이름으로는 실패: {e1})")),
             Err(e2) => Err(format!("{e1} / {e2}")),
         },
     };
@@ -290,7 +290,7 @@ pub fn set_notify_mode(reminders: State<Reminders>, powershell: bool) {
 
 #[tauri::command]
 pub fn test_notification(app: AppHandle) -> Result<NotifyStatus, String> {
-    toast(&app, "기Log 알림 시험", "이 알림이 보이면 일정 알림도 이렇게 떠요.", None)?;
+    toast(&app, "기록 알림 시험", "이 알림이 보이면 일정 알림도 이렇게 떠요.", None)?;
     notify_status(app.state::<Reminders>())
 }
 
@@ -318,7 +318,7 @@ fn start_reminder_loop(app: AppHandle) {
 // ---------- 트레이 ----------
 
 pub fn setup_tray(app: &mut App) -> tauri::Result<()> {
-    let open = MenuItem::with_id(app, "open", "기Log 열기", true, None::<&str>)?;
+    let open = MenuItem::with_id(app, "open", "기록 열기", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "끝내기", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&open, &quit])?;
     let mut tray = TrayIconBuilder::with_id("main")
@@ -347,7 +347,7 @@ pub fn setup_tray(app: &mut App) -> tauri::Result<()> {
 /// 창의 X(Alt+F4도)를 누르면 설정 "닫기(X) 단추"대로 해요(prefs.json `closeAction`, 잠금 화면에서도 같아요).
 /// - minimize: 작업표시줄로 내려요.
 /// - tray(처음 값): 트레이로 숨겨요. 처음 한 번은 알림으로 알려 줘요.
-/// - quit: 화면에 "기Log를 끝낼까요?"를 띄워요(close-ask). 끝내기를 누르면 화면이 quit_app을 불러요.
+/// - quit: 화면에 "기록을 끝낼까요?"를 띄워요(close-ask). 끝내기를 누르면 화면이 quit_app을 불러요.
 /// 창 자리·크기는 세 경우 모두 window.rs가 먼저 저장해요.
 pub fn on_window_event(window: &Window, event: &WindowEvent) {
     use tauri::Emitter;
@@ -372,7 +372,7 @@ pub fn on_window_event(window: &Window, event: &WindowEvent) {
                 if let Ok(mut told) = TOLD.lock() {
                     if !*told {
                         *told = true;
-                        let _ = toast(window.app_handle(), "기Log는 계속 켜져 있어요", "일정 알림을 띄우려고 작업 표시줄 구석(트레이)에 남아 있어요. 완전히 끝내려면 트레이 아이콘을 우클릭해 \"끝내기\"를 누르세요.", None);
+                        let _ = toast(window.app_handle(), "기록은 계속 켜져 있어요", "일정 알림을 띄우려고 작업 표시줄 구석(트레이)에 남아 있어요. 완전히 끝내려면 트레이 아이콘을 우클릭해 \"끝내기\"를 누르세요.", None);
                     }
                 }
             }

@@ -127,7 +127,7 @@ pub(crate) fn close_action(app: &AppHandle) -> String {
     }
 }
 
-/// "기Log를 끝낼까요?"에서 끝내기를 누르면 불러요. 창 자리·크기를 저장한 뒤 끝내요.
+/// "기록을 끝낼까요?"에서 끝내기를 누르면 불러요. 창 자리·크기를 저장한 뒤 끝내요.
 #[tauri::command]
 fn quit_app(app: AppHandle) {
     window::save_main(&app);
@@ -706,5 +706,5 @@ pub fn run() {
             files::fs_watch
         ])
         .run(tauri::generate_context!())
-        .expect("기Log를 시작하지 못했어요");
+        .expect("기록을 시작하지 못했어요");
 }

@@ -1,4 +1,4 @@
-// 기Log 로고 (docs/brand.md). brand/logo.svg의 그림을 그대로 옮기고 색은 토큰으로 써서 테마를 따라가요.
+// 기록 로고 (docs/brand.md). brand/logo.svg의 그림을 그대로 옮기고 색은 토큰으로 써서 테마를 따라가요.
 // 심볼·글자 ㄱ·L = --accent, ㅣ·O·G = --ink. 크기는 height 하나로 정하고 비율을 지켜요.
 
 const SYMBOL = (
@@ -29,7 +29,7 @@ const BOX = {
 export default function Logo({ height, variant = "full" }: { height: number; variant?: keyof typeof BOX }) {
   const [x, y, w, h] = BOX[variant];
   return (
-    <svg className="logo" viewBox={`${x} ${y} ${w} ${h}`} height={height} width={(height * w) / h} role="img" aria-label="기Log">
+    <svg className="logo" viewBox={`${x} ${y} ${w} ${h}`} height={height} width={(height * w) / h} role="img" aria-label="기록">
       {variant !== "word" && SYMBOL}
       {variant !== "symbol" && WORD}
     </svg>

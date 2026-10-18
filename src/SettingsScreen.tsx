@@ -786,7 +786,7 @@ function GoogleCard() {
   }
 
   if (!g) return null;
-  const sub = g.busy ? "내보내는 중…" : g.lastError || (g.lastOk ? `기Log → 구글 한 방향 · 마지막 내보내기 ${whenText(g.lastOk)}` : "기Log → 구글 한 방향");
+  const sub = g.busy ? "내보내는 중…" : g.lastError || (g.lastOk ? `기록 → 구글 한 방향 · 마지막 내보내기 ${whenText(g.lastOk)}` : "기록 → 구글 한 방향");
 
   return (
     <section className="card">
@@ -1407,7 +1407,7 @@ function PasswordChange() {
 async function pickFolder(): Promise<string | null> {
   if (!inApp) return null;
   const { open } = await import("@tauri-apps/plugin-dialog");
-  const r = await open({ directory: true, title: "기Log 자료를 둘 폴더" });
+  const r = await open({ directory: true, title: "기록 자료를 둘 폴더" });
   return typeof r === "string" ? r : null;
 }
 
@@ -1444,7 +1444,7 @@ function BackupRow({ onLocked, setNote }: { onLocked: () => void; setNote: (s: s
     const path = await save({
       title: "백업 파일 저장",
       defaultPath: `giLog-${today}.gilogbak`,
-      filters: [{ name: "기Log 백업", extensions: ["gilogbak"] }],
+      filters: [{ name: "기록 백업", extensions: ["gilogbak"] }],
     });
     if (!path) return;
     try {
@@ -1458,7 +1458,7 @@ function BackupRow({ onLocked, setNote }: { onLocked: () => void; setNote: (s: s
   async function pickImport() {
     if (!inApp) return;
     const { open } = await import("@tauri-apps/plugin-dialog");
-    const r = await open({ title: "불러올 백업 파일", filters: [{ name: "기Log 백업", extensions: ["gilogbak"] }] });
+    const r = await open({ title: "불러올 백업 파일", filters: [{ name: "기록 백업", extensions: ["gilogbak"] }] });
     if (typeof r === "string") {
       setImportPath(r);
       setMsg("");

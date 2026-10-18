@@ -1,5 +1,5 @@
 // 구글 캘린더 연동(9단계, 사양서 "구글 캘린더 연동").
-// - 기Log → 구글 한 방향이에요. 구글에서 고친 것은 다음 내보내기 때 기Log 내용으로 덮어써요.
+// - 기록 → 구글 한 방향이에요. 구글에서 고친 것은 다음 내보내기 때 기록 내용으로 덮어써요.
 // - 사용자 구글 계정에 "giLog" 캘린더를 하나 만들어 그 안에만 써요(권한 calendar.app.created — 다른 캘린더는 볼 수도 없어요).
 // - 내보내는 것 세 가지(내 일정·민원 마감·할 일 마감)는 설정에서 각각 켜고 꺼요. 끄면 구글에서 지워요.
 // - 민원인 이름·연락처·내용·조치내용·메모는 어떤 경우에도 내보내지 않아요(민원 마감은 접수유형·위치까지).
@@ -19,7 +19,7 @@ import { todayStr } from "./journal";
 import { complaintTitle } from "./tasks";
 import { stamp } from "./reminders";
 
-/** 캘린더는 "앱이 만든 캘린더만", 할 일은 구글 할 일 전체(앱이 만든 "기Log" 목록만 만져요 — 구글에 더 좁은 권한이 없어요). */
+/** 캘린더는 "앱이 만든 캘린더만", 할 일은 구글 할 일 전체(앱이 만든 목록만 만져요 — 구글에 더 좁은 권한이 없어요). */
 const CAL_SCOPE = "https://www.googleapis.com/auth/calendar.app.created";
 /** 구글 할 일 권한. 구글이 "민감한 권한"으로 봐서, 받는 사람마다 확인되지 않은 앱 경고가 뜨고 100명 한도에 세어져요.
  * 그래서 설정의 "구글 할 일로 보내기"를 켠 사람만 받아요(사용자 2026-10-17 1안). */
@@ -45,7 +45,7 @@ type TItem = { id: string; h: string; done: boolean; parent: string; list?: stri
 export type GState = {
   calendarId: string;
   items: Record<string, GItem>;
-  /** 구글 할 일의 "기Log" 목록 id와 보낸 할 일 (할 일 마감·민원 마감) */
+  /** 구글 할 일의 옛 목록(0.9.2) id와 보낸 할 일 (할 일 마감·민원 마감) */
   listId: string;
   titems: Record<string, TItem>;
   /** 마지막으로 다 맞춘 때 "2026-10-16 09:12" */
@@ -335,7 +335,7 @@ export async function disconnectGoogle(removeEvents: boolean): Promise<string> {
     }
   }
   if (removeEvents) {
-    // 구글 할 일은 사용자의 목록(민원·행정업무 등)에 들어 있어서, 기Log가 넣은 것만 하나씩 지워요.
+    // 구글 할 일은 사용자의 목록(민원·행정업무 등)에 들어 있어서, 기록이 넣은 것만 하나씩 지워요.
     try {
       for (const it of Object.values(s.titems ?? {})) {
         const l = it.list || s.listId;
@@ -363,7 +363,7 @@ export async function forgetClient(): Promise<void> {
 
 // ---------- 구글에 보낼 모양 ----------
 
-/** 기Log 종류 색(구글 24색, tokens.css의 --gc-N 밝게 값)이에요. 구글이 일정에 받는 색 목록에서 가장 가까운 것을 골라요. */
+/** 기록 종류 색(구글 24색, tokens.css의 --gc-N 밝게 값)이에요. 구글이 일정에 받는 색 목록에서 가장 가까운 것을 골라요. */
 const GC_HEX = [
   "#B55C76", "#CC6175", "#CD887C", "#CD5D3B", "#D77046", "#D37E40", "#D89949", "#E2BB5E", "#D5BE69", "#BEC162", "#8CAB61", "#588E63",
   "#69AD83", "#56978E", "#5A98CE", "#6A8BDC", "#838BBF", "#6D73BF", "#AB9ECB", "#9E7CAE", "#9E61B6", "#917568", "#7C7C7C", "#A3998D",
@@ -461,7 +461,7 @@ export function eventBody(e: CalEvent, kinds: CalKind[]): GBody {
 }
 
 
-/** 민원 마감 제목은 기Log 캘린더와 같은 "접수유형(지역 위치)"이에요(사용자 2026-10-17). 민원인 이름·연락처·내용은 넣지 않아요. */
+/** 민원 마감 제목은 기록 캘린더와 같은 "접수유형(지역 위치)"이에요(사용자 2026-10-17). 민원인 이름·연락처·내용은 넣지 않아요. */
 export const complaintGoogleTitle = (c: Complaint): string => complaintTitle(c);
 
 function allDayBody(key: string, title: string, date: string, color: string): GBody {
@@ -512,7 +512,7 @@ export function desired(src: { kinds: CalKind[]; events: CalEvent[]; complaints:
 
 // ---------- 구글 할 일 (할 일 마감·민원 마감, 사용자 2026-10-17: 마감 체크는 구글 할 일과 맞춰요) ----------
 
-/** 구글 할 일로 보낼 것 하나. listName은 들어갈 구글 할 일 목록 이름(기Log 할 일 목록 이름과 같아요). */
+/** 구글 할 일로 보낼 것 하나. listName은 들어갈 구글 할 일 목록 이름(기록 할 일 목록 이름과 같아요). */
 export type GTaskWant = { title: string; notes: string; due: string; done: boolean; parentKey: string; listName: string; prev?: string };
 
 /** 완료한 것은 마감이 이만큼 안쪽이면 구글에 체크된 채로 남겨요(할 일 목록의 "완료됨"과 같은 생각). */
@@ -520,7 +520,7 @@ const DONE_KEEP_DAYS = 30;
 
 /**
  * 지금 구글 할 일에 있어야 할 것. 위 항목이 먼저 오게 늘어놓아요(하위 항목은 위 항목 아래에 넣어요).
- * 기Log 할 일 목록과 같은 이름의 구글 할 일 목록에 넣어요(사용자 2026-10-17). 민원은 기Log의 "민원" 목록 이름으로.
+ * 기록 할 일 목록과 같은 이름의 구글 할 일 목록에 넣어요(사용자 2026-10-17). 민원은 기록의 "민원" 목록 이름으로.
  */
 export function desiredTasks(src: { complaints: Complaint[]; tasks: Task[]; lists: TaskList[] }, opts: GOpts, today: string): Map<string, GTaskWant> {
   const out = new Map<string, GTaskWant>();
@@ -606,15 +606,15 @@ async function listRemoteTasks(list: string): Promise<Map<string, { done: boolea
   return out;
 }
 
-/** 이벤트: 구글에서 체크한 것을 기Log에 넣었어요. 열려 있는 화면이 자료를 다시 읽어요. */
+/** 이벤트: 구글에서 체크한 것을 기록에 넣었어요. 열려 있는 화면이 자료를 다시 읽어요. */
 export const REMOTE_CHANGE = "gilog-google-change";
 
-/** 보낸 항목이 들어 있는 구글 목록 (0.9.2에서 "기Log" 목록에 넣은 것은 list가 없어요) */
+/** 보낸 항목이 들어 있는 구글 목록 (0.9.2의 옛 목록에 넣은 것은 list가 없어요) */
 const itemList = (s: GState, it: TItem) => it.list || s.listId;
 
 /**
- * 구글에서 체크하거나 푼 것을 기Log에 넣어요. 기Log에서도 그 사이에 바꿨으면 기Log 쪽을 따라요.
- * 구글 목록에는 사용자가 직접 만든 할 일도 있으니, 기Log가 보낸 것만 봐요(다른 것은 건드리지 않아요).
+ * 구글에서 체크하거나 푼 것을 기록에 넣어요. 기록에서도 그 사이에 바꿨으면 기록 쪽을 따라요.
+ * 구글 목록에는 사용자가 직접 만든 할 일도 있으니, 기록이 보낸 것만 봐요(다른 것은 건드리지 않아요).
  * 넣은 것이 있으면 true예요.
  */
 async function pullTaskChecks(s: GState, src: { complaints: Complaint[]; tasks: Task[] }, full: boolean): Promise<boolean> {
@@ -693,7 +693,7 @@ async function pushTasks(s: GState, want: Map<string, GTaskWant>, save: () => Pr
     if (id) s.titems[k] = { id, h, done: w.done, parent, list, prev: w.prev ?? cur?.prev };
     if (++n % 10 === 0) await save();
   }
-  // 0.9.2가 만든 "기Log" 목록은 다 옮겼으면 지워요(그 목록에는 기Log가 넣은 것만 있어요).
+  // 0.9.2가 만든 옛 목록은 다 옮겼으면 지워요(그 목록에는 기록이 넣은 것만 있어요).
   if (s.listId && !Object.values(s.titems).some((it) => !it.list)) {
     await gapi("DELETE", `/users/@me/lists/${encodeURIComponent(s.listId)}`, undefined, TASKS_API);
     s.listId = "";
@@ -736,7 +736,7 @@ async function ensureCalendar(s: GState): Promise<string> {
     // 사용자가 구글에서 캘린더를 지웠어요 → 새로 만들고 전부 다시 보내요.
     s.items = {};
   }
-  const r = await gapi("POST", "/calendars", { summary: CAL_NAME, description: "기Log에서 내보낸 일정이에요. 여기서 고친 내용은 다음 내보내기 때 기Log 내용으로 덮어써요.", timeZone: TZ });
+  const r = await gapi("POST", "/calendars", { summary: CAL_NAME, description: "기록에서 내보낸 일정이에요. 여기서 고친 내용은 다음 내보내기 때 기록 내용으로 덮어써요.", timeZone: TZ });
   const id = String(r.json.id ?? "");
   if (!id) throw new Error("캘린더를 만들지 못했어요");
   s.calendarId = id;
@@ -774,7 +774,7 @@ async function runSync(forceFull: boolean): Promise<void> {
     const opts = await loadOpts();
     const cal = await ensureCalendar(s);
     await save();
-    // 구글 할 일: 먼저 구글에서 체크한 것을 받아 오고, 그다음 기Log 내용을 보내요.
+    // 구글 할 일: 먼저 구글에서 체크한 것을 받아 오고, 그다음 기록 내용을 보내요.
     // 구글 할 일: "구글 할 일로 보내기"를 켰거나, 껐는데 예전에 보낸 것이 남아 있으면(지우려고) 봐요.
     const hadTasks = Object.keys(s.titems).length > 0;
     const scopeOk = hasTasksScope(t);
