@@ -40,7 +40,7 @@ const COLUMNS: { label: string; w: number | null; center?: boolean }[] = [
   { label: "판단 공사", w: 160 },
   { label: "고려사항", w: 140 },
   { label: "연번", w: 64 },
-  { label: "지시부 작성", w: 216 },
+  { label: "지시부 작성", w: 228 },
 ];
 const defaultWidths = () => COLUMNS.map((c) => c.w);
 
@@ -272,7 +272,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
 
   // ---------- 지시부 만들기 · 폰으로 보내기 ----------
   async function makeJpg(no: string): Promise<Case | null> {
-    setBusy((b) => ({ ...b, [no]: "JPG 만드는 중" }));
+    setBusy((b) => ({ ...b, [no]: "만드는 중" }));
     try {
       const c = await api.orderJpg(no);
       putCase(c);
@@ -550,8 +550,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                   />
                 </div>
                 <div className="pr-acts" onClick={(e) => e.stopPropagation()}>
-                  {/* 위: 진행 단추 · 대장 등록 · ×, 아래: 지시부 파일 · 폴더 (2026-10-18 사용자) */}
-                  <div className="pr-acts-top">
+                  {/* 진행 단추 · 지시부 열람 · 폴더 열기 · 대장 등록 · × (2026-10-18 사용자) */}
                   {b ? (
                     <button type="button" className="pr-next go" disabled>
                       {b}
@@ -584,29 +583,6 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                   )}
                   <button
                     type="button"
-                    className={"pr-reg" + (linked(c) ? " on" : "")}
-                    title={linked(c) ? "민원대장의 이 줄로 가요" : "지시부 없이도 민원대장에 넣어요(지시부를 만들면 조치내용이 채워져요)"}
-                    onClick={() => register(c)}
-                  >
-                    {linked(c) ? `대장 ${linked(c)!.no}번` : "대장 등록"}
-                  </button>
-                  <button
-                    type="button"
-                    className={"pr-del" + (asking ? " on" : "")}
-                    aria-label="이 민원 지우기"
-                    aria-expanded={asking}
-                    title="지시부를 만들 건이 아니면 지워요"
-                    onClick={(e) => {
-                      setPick(null);
-                      setAsk(asking ? null : { no: c.no, rect: e.currentTarget.getBoundingClientRect() });
-                    }}
-                  >
-                    <DelIcon />
-                  </button>
-                  </div>
-                  <div className="pr-acts-bot">
-                  <button
-                    type="button"
                     className="pr-icon"
                     aria-label="지시부 열기"
                     title={c.orderFile ? `${fileName(c.orderFile)}\n파워포인트(한글)로 열어요` : "아직 지시부가 없어요"}
@@ -632,7 +608,30 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                       <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
                     </svg>
                   </button>
-                  </div>
+                  <button
+                    type="button"
+                    className={"pr-icon pr-reg" + (linked(c) ? " on" : "")}
+                    aria-label={linked(c) ? `민원대장 ${linked(c)!.no}번 보기` : "민원대장에 등록"}
+                    title={linked(c) ? `민원대장 ${linked(c)!.no}번 · 눌러서 그 줄로 가요` : "민원대장에 등록해요(지시부 없이도 돼요. 지시부를 만들면 조치내용이 채워져요)"}
+                    onClick={() => register(c)}
+                  >
+                    <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="miter">
+                      <path d={linked(c) ? "M3 4h18v16H3z M3 9h18 M3 14.5h18 M9 9v11" : "M3 4h18v7 M3 4v16h9 M3 9h18 M9 9v11 M18 14v8 M14 18h8"} />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    className={"pr-del" + (asking ? " on" : "")}
+                    aria-label="이 민원 지우기"
+                    aria-expanded={asking}
+                    title="지시부를 만들 건이 아니면 지워요"
+                    onClick={(e) => {
+                      setPick(null);
+                      setAsk(asking ? null : { no: c.no, rect: e.currentTarget.getBoundingClientRect() });
+                    }}
+                  >
+                    <DelIcon />
+                  </button>
                 </div>
               </div>
             );
