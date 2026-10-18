@@ -321,7 +321,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     if (!ready?.orderJpg) return;
     try {
       putCase(await api.sendOrder(c.no, ps.outbox));
-      setNote("보낼 폴더에 넣었어요. Claude가 대화에 올리면 전송 완료로 바뀌어요");
+      setNote("보낼 폴더에 넣었어요 · Claude 앱 \"민원처리\" 대화에 \"보내\"라고 하세요");
     } catch (e) {
       setNote(errText(e));
     }
@@ -566,11 +566,11 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                       지시부
                     </button>
                   ) : c.stage === "made" ? (
-                    <button type="button" className="pr-next go" disabled={isD} title="JPG를 보낼 폴더에 넣어요. Claude가 대화에 올리면 폰에서 카톡으로 공유해요" onClick={() => send(c)}>
+                    <button type="button" className="pr-next go" disabled={isD} title="JPG를 보낼 폴더에 넣어요. Claude 앱 “민원처리” 대화에 “보내”라고 하면 폰으로 올려 줘요" onClick={() => send(c)}>
                       폰 전송
                     </button>
                   ) : c.stage === "queued" ? (
-                    <span className="pr-sent pr-queued" title="보낼 폴더에 있어요. Claude가 대화에 올리면 전송 완료로 바뀌어요">
+                    <span className="pr-sent pr-queued" title="보낼 폴더에 있어요. Claude 앱 “민원처리” 대화에 “보내”라고 하면 올려 주고 전송 완료로 바뀌어요">
                       보내는 중
                     </span>
                   ) : (

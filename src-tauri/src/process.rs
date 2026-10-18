@@ -414,17 +414,21 @@ pub fn send_order(state: State<AppState>, no: String, outbox: String) -> Result<
     })
 }
 
-/// 보내는 중인 건을 살펴요: "보냄" 폴더에 있으면 전송 완료, 어디에도 없으면 다시 보낼 수 있게 되돌려요. 바뀐 건만 돌려줘요.
+/// 보내는 중인 건을 살펴요: "보냄" 폴더에 있으면 전송 완료(보낼 폴더의 원본은 지워요), 어디에도 없으면 다시 보낼 수 있게 되돌려요. 바뀐 건만 돌려줘요.
 #[tauri::command]
 pub fn check_sent(state: State<AppState>, now: String) -> Result<Vec<Case>, String> {
     let list = with_store(&state, |s| s.process_data())?.cases;
     let mut changed = Vec::new();
     for c in list.into_iter().filter(|c| c.stage == "queued") {
         let f = PathBuf::from(&c.outbox_file);
-        if f.is_file() {
+        // Claude(민원처리 세션)가 대화에 올린 뒤 "보냄" 폴더에 같은 이름을 써 두면 전송 완료예요.
+        // 세션은 파일을 옮기거나 지울 수 없어서 원본은 기Log가 지워요(2026-10-18).
+        let done = f.parent().zip(f.file_name()).map(|(d, n)| d.join(SENT_DIR).join(n)).is_some_and(|p| p.is_file());
+        if done {
+            let _ = fs::remove_file(&f);
+        } else if f.is_file() {
             continue;
         }
-        let done = f.parent().zip(f.file_name()).map(|(d, n)| d.join(SENT_DIR).join(n)).is_some_and(|p| p.is_file());
         let patch = if done {
             CasePatch { stage: Some("sent".into()), sent_at: Some(now.clone()), ..Default::default() }
         } else {

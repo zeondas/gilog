@@ -3,7 +3,7 @@ import { api, DEFAULT_PREFS, errorText, inApp, Prefs, Status } from "./api";
 import { splitJamo } from "./journal";
 import { DEFAULT_SETTINGS, DONE_STATUS, Kind, loadSettings, MEMO_KIND, ProcessSettings, saveSettings, Settings, FilesSettings, STATUS_COLORS } from "./settingsStore";
 import { PhoneInput } from "./PhoneInput";
-import { aiGuide } from "./process";
+import { aiGuide, phoneGuide } from "./process";
 import { SCREENS } from "./screens";
 import { DATE_FORMATS, FsDrive } from "./files";
 import { fsApi } from "./filesApi";
@@ -1026,17 +1026,17 @@ const PROCESS_DIRS: { key: "root" | "inbox" | "downloads" | "outbox"; label: str
   { key: "root", label: "민원 폴더", desc: "사진·지시부를 이 폴더에 접수일_위치_보수내용 이름으로 둬요." },
   { key: "inbox", label: "가져올 폴더", desc: "Claude가 신문고에서 읽은 민원을 한 건씩 놓는 곳이에요." },
   { key: "downloads", label: "다운로드 폴더", desc: "엣지가 신문고 첨부 사진을 받는 곳이에요." },
-  { key: "outbox", label: "보낼 폴더", desc: "폰으로 보낼 지시부 JPG를 두면 Claude가 대화에 올려요." },
+  { key: "outbox", label: "보낼 폴더", desc: "[폰 전송]이 지시부 JPG를 두는 곳이에요. Claude 앱 \"민원처리\" 대화가 폰으로 올려요." },
 ];
 
 function ProcessCard({ p, onChange }: { p: ProcessSettings; onChange: (p: ProcessSettings) => void }) {
   const [phone, setPhone] = useState(p.signerPhone);
-  const [copied, setCopied] = useState(false);
-  async function copyGuide() {
-    const { works } = await api.processData();
-    await navigator.clipboard.writeText(aiGuide(p, works));
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 2000);
+  const [copied, setCopied] = useState<"ai" | "phone" | null>(null);
+  async function copyGuide(which: "ai" | "phone") {
+    const text = which === "ai" ? aiGuide(p, (await api.processData()).works) : phoneGuide(p);
+    await navigator.clipboard.writeText(text);
+    setCopied(which);
+    window.setTimeout(() => setCopied(null), 2000);
   }
   const text = (k: keyof ProcessSettings, v: string) => {
     const t = v.trim();
@@ -1090,10 +1090,18 @@ function ProcessCard({ p, onChange }: { p: ProcessSettings; onChange: (p: Proces
           />
         </span>
       </Row>
-      <Row label="AI 지침" desc="[민원 불러오기]가 Claude에게 주는 지침이에요. 다른 AI에 붙여 넣어 써도 돼요." last>
+      <Row label="AI 지침" desc="[민원 불러오기]가 Claude에게 주는 지침이에요. 다른 AI에 붙여 넣어 써도 돼요.">
         <span className="proc-dir">
-          {copied && <span className="muted small">복사했어요</span>}
-          <button type="button" className="btn btn-xs" onClick={copyGuide}>
+          {copied === "ai" && <span className="muted small">복사했어요</span>}
+          <button type="button" className="btn btn-xs" onClick={() => copyGuide("ai")}>
+            지침 복사
+          </button>
+        </span>
+      </Row>
+      <Row label="폰 전송 지침" desc="Claude 앱 &quot;민원처리&quot; 대화(PC에 이어진 대화)에 처음 한 번 붙여 넣어요. 그 뒤엔 &quot;보내&quot;라고 하면 지시부 JPG를 올려 줘요." last>
+        <span className="proc-dir">
+          {copied === "phone" && <span className="muted small">복사했어요</span>}
+          <button type="button" className="btn btn-xs" onClick={() => copyGuide("phone")}>
             지침 복사
           </button>
         </span>
