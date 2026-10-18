@@ -39,7 +39,9 @@ export const VIEWS: { id: ViewMode; name: string; key: string }[] = [
 ];
 
 /** 설정 "탐색기" 카드의 날짜 모양 (0 10-16 17:40 · 1 2026-10-16 17:40 · 2 2026. 10. 16. · 3 3분 전) */
-export const DATE_FORMATS = ["10-16 17:40", "2026-10-16 17:40", "2026. 10. 16.", "3분 전"];
+export const DATE_FORMATS = ["10-16 17:40", "2026-10-16 17:40", "2026. 10. 16.", "3분 전", "26-10-16 17:40"];
+// 설정에 보이는 순서(저장 번호는 그대로 — 4번은 나중에 더한 두 자리 연도 모양).
+export const DATE_FORMAT_ORDER = [0, 4, 1, 2, 3];
 
 const p2 = (n: number) => String(n).padStart(2, "0");
 
@@ -51,6 +53,8 @@ export function formatDate(ms: number, fmt: number, now = Date.now()): string {
   switch (fmt) {
     case 1:
       return `${d.getFullYear()}-${md} ${hm}`;
+    case 4:
+      return `${String(d.getFullYear()).slice(2)}-${md} ${hm}`;
     case 2:
       return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}.`;
     case 3: {

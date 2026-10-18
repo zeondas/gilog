@@ -6,7 +6,7 @@ import { PhoneInput } from "./PhoneInput";
 import { aiGuide, phoneGuide } from "./process";
 import { isOn, MODULE_DESC, ModuleId, Modules, onScreens, SCREENS, firstOn } from "./screens";
 import { NavIcon, NavIconName } from "./Icons";
-import { DATE_FORMATS, FsDrive, HOME, PC } from "./files";
+import { DATE_FORMAT_ORDER, DATE_FORMATS, FsDrive, HOME, PC } from "./files";
 import { fsApi } from "./filesApi";
 import Logo, { AppIcon } from "./Logo";
 import { VERSION } from "./version";
@@ -852,7 +852,7 @@ function FilesRows({ value, onChange }: { value: FilesSettings; onChange: (v: Fi
     <>
       <Row label="날짜 모양" desc="목록의 수정한 날 열이에요.">
         <span className="seg" role="radiogroup" aria-label="날짜 모양">
-          {DATE_FORMATS.map((d, i) => (
+          {DATE_FORMAT_ORDER.map((i) => [DATE_FORMATS[i], i] as const).map(([d, i]) => (
             <button key={d} type="button" role="radio" aria-checked={value.dateFmt === i} onClick={() => set({ dateFmt: i })}>
               {d}
             </button>
