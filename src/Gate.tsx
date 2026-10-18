@@ -1,7 +1,9 @@
 // 앱을 처음 켰을 때 비밀번호를 정하는 화면과, 잠긴 앱을 여는 화면이에요.
 // 배치(2026-10-18 사용자 확정, 캔버스 Lock 판): 로고 → 44px → 비밀번호 칸(가운데 글자) → 12px → 열기 → "PIN으로 풀기".
-// 경고는 카드 밖 아래 띠로 띄워 카드와 단추가 움직이지 않아요. 잠금 화면은 늘 비밀번호 칸이 먼저이고,
-// 윈도우 PIN 풀기를 켠 PC에서만 "PIN으로 풀기"를 눌러 Hello 창을 띄워요(저절로 뜨지 않아요).
+// 경고는 카드 밖 아래 띠로 띄워 카드와 단추가 움직이지 않아요.
+// 윈도우 PIN 풀기를 켠 PC에서는 잠금 화면이 뜨면 Hello 창이 저절로 떠요(앱을 켤 때·자동 잠금 뒤 모두 — 2026-10-18 사용자).
+// 창이 앞에 있을 때만 띄우고(트레이에 숨어 있거나 다른 창을 보고 있으면 돌아왔을 때), 한 번만 띄워요.
+// 취소·실패하면 비밀번호 칸으로 돌아오고, 아래 "PIN으로 풀기"로 다시 띄워요. 꺼진 PC는 비밀번호 칸만이에요.
 import { FormEvent, useEffect, useState } from "react";
 import { api, errorText } from "./api";
 import Logo, { AppIcon } from "./Logo";
@@ -20,7 +22,30 @@ export default function Gate({ mode, folder, onOpen }: Props) {
 
   useEffect(() => {
     if (setup) return;
-    api.pinStatus().then((s) => setPinOn(s.on), () => setPinOn(false));
+    let alive = true;
+    let timer = 0;
+    const fire = () => {
+      window.removeEventListener("focus", onFocus);
+      // 창이 막 보이는 참이라 조금 기다렸다 띄워요(Hello 창이 기Log 창 위에 뜨게).
+      timer = window.setTimeout(() => alive && pinUnlock(), 250);
+    };
+    const onFocus = () => fire();
+    api.pinStatus().then(
+      (s) => {
+        if (!alive) return;
+        setPinOn(s.on);
+        if (!s.on) return;
+        if (document.hasFocus() && document.visibilityState === "visible") fire();
+        else window.addEventListener("focus", onFocus);
+      },
+      () => setPinOn(false),
+    );
+    return () => {
+      alive = false;
+      window.clearTimeout(timer);
+      window.removeEventListener("focus", onFocus);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setup]);
 
   async function submit(e: FormEvent) {
