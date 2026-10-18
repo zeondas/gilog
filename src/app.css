@@ -3816,13 +3816,12 @@ body.col-dragging * {
   min-width: 0;
 }
 
-/* 목록 칸: 맨 위 "새 목록 만들기"(상자 위 끝 = 카드 위 끝선) → 구분선 → 목록.
+/* 목록 칸: 맨 위 "새 목록 만들기"(상자 위 끝은 카드 위 끝선보다 4px 아래 — 착시 보정) → 목록(구분선 없음).
    체크박스는 제목 왼쪽 끝선에 맞추고, 마우스를 올린 회색 바탕은 양쪽으로 8px 넓게(2026-10-19 사용자 — "목록" 글자는 지웠어요) */
 .td-page .td-newlist {
-  margin: 0 0 var(--space-3);
-  padding: 0 0 var(--space-4);
-  border-top: 0;
-  border-bottom: 1px solid var(--line-soft);
+  margin: 4px 0 var(--space-3);
+  padding: 0;
+  border: 0;
 }
 
 .td-page .td-list {

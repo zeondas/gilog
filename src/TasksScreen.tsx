@@ -46,6 +46,8 @@ export default function TasksScreen({ urgentDays, focusId, onFocused, onOpenComp
   /** "완료됨"을 펼친 목록 */
   const [openDone, setOpenDone] = useState<Set<number>>(new Set());
   const [flash, setFlash] = useState<string | null>(null);
+  /** 카드 제목 줄 우클릭 메뉴(목록 지우기) */
+  const [cardMenu, setCardMenu] = useState<{ id: number; x: number; y: number; mode: "menu" | "rename" | "ask" } | null>(null);
   /** 이번에 체크한 민원의 그 전 상태. 체크를 풀면 이 상태로 돌려요. */
   const prevStatus = useRef(new Map<number, string>());
 
@@ -193,6 +195,24 @@ export default function TasksScreen({ urgentDays, focusId, onFocused, onOpenComp
   const remaining = data.lists.reduce((n, l) => n + openCount(itemsOf.get(l.id) ?? []), 0);
   const shown = data.lists.filter((l) => l.visible);
 
+  async function renameList(l: TaskList, name: string): Promise<boolean> {
+    const r = await run(api.renameTaskList(l.id, name), "목록 이름이 비었거나 같은 이름의 목록이 있어요.");
+    if (r) putList(r);
+    return !!r;
+  }
+
+  function moveList(l: TaskList, dir: number) {
+    run(api.moveTaskList(l.id, dir)).then((r) => r && setData((d) => (d ? { ...d, lists: r } : d)));
+  }
+
+  async function deleteList(l: TaskList) {
+    const n = await run(api.deleteTaskList(l.id));
+    if (n === null) return;
+    setData((d) => (d ? { lists: d.lists.filter((x) => x.id !== l.id), tasks: d.tasks.filter((t) => t.list !== l.id) } : d));
+  }
+
+  const menuList = cardMenu ? data.lists.find((l) => l.id === cardMenu.id) : undefined;
+
   // 제목 줄(제목·남은 일·검색)이 화면 맨 위 전체 폭이고, 그 아래 왼쪽에 목록, 오른쪽에 카드예요(2026-10-19 사용자).
   return (
     <div className="td-page">
@@ -215,17 +235,9 @@ export default function TasksScreen({ urgentDays, focusId, onFocused, onOpenComp
           taskCount={(id) => data.tasks.filter((t) => t.list === id).length}
           onToggle={(l) => run(api.setTaskListVisible(l.id, !l.visible)).then((r) => r && putList(r))}
           onAdd={addList}
-          onRename={async (l, name) => {
-            const r = await run(api.renameTaskList(l.id, name), "목록 이름이 비었거나 같은 이름의 목록이 있어요.");
-            if (r) putList(r);
-            return !!r;
-          }}
-          onMove={(l, dir) => run(api.moveTaskList(l.id, dir)).then((r) => r && setData((d) => (d ? { ...d, lists: r } : d)))}
-          onDelete={async (l) => {
-            const n = await run(api.deleteTaskList(l.id));
-            if (n === null) return;
-            setData((d) => (d ? { lists: d.lists.filter((x) => x.id !== l.id), tasks: d.tasks.filter((t) => t.list !== l.id) } : d));
-          }}
+          onRename={renameList}
+          onMove={moveList}
+          onDelete={deleteList}
         />
 
         <div className="td-body">
@@ -264,7 +276,15 @@ export default function TasksScreen({ urgentDays, focusId, onFocused, onOpenComp
                 );
                 return (
                   <section key={l.id} className="td-card" aria-label={l.name}>
-                    <div className="td-card-head">
+                    <div
+                      className="td-card-head"
+                      title="우클릭하면 목록 지우기"
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        const r = e.currentTarget.getBoundingClientRect();
+                        setCardMenu({ id: l.id, x: e.clientX || r.left + 16, y: e.clientY || r.bottom, mode: "menu" });
+                      }}
+                    >
                       <h2 className="td-card-name">{l.name}</h2>
                       {l.builtin && <span className="td-link-badge">민원대장 연동</span>}
                       <span className="td-card-count">{openCount(itemsOf.get(l.id) ?? [])}건</span>
@@ -340,6 +360,24 @@ export default function TasksScreen({ urgentDays, focusId, onFocused, onOpenComp
           )}
         </div>
       </div>
+      {cardMenu && menuList && (
+        <ListMenu
+          {...cardMenu}
+          list={menuList}
+          count={data.tasks.filter((t) => t.list === menuList.id).length}
+          first
+          last
+          deleteOnly
+          onMode={(mode) => setCardMenu({ ...cardMenu, mode })}
+          onClose={() => setCardMenu(null)}
+          onMove={() => {}}
+          onRename={() => {}}
+          onDelete={() => {
+            setCardMenu(null);
+            deleteList(menuList);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -459,6 +497,7 @@ function ListMenu({
   onMove,
   onRename,
   onDelete,
+  deleteOnly,
 }: {
   list: TaskList;
   x: number;
@@ -472,6 +511,8 @@ function ListMenu({
   onMove: (dir: number) => void;
   onRename: (name: string) => void;
   onDelete: () => void;
+  /** 카드 제목 줄 우클릭: 지우기만 보여요 */
+  deleteOnly?: boolean;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const [name, setName] = useState(list.name);
@@ -505,19 +546,23 @@ function ListMenu({
     <div ref={box} className="dmenu" role="menu" aria-label={`${list.name} 목록 메뉴`} style={style}>
       {mode === "menu" && (
         <>
-          {!list.builtin && (
-            <button type="button" role="menuitem" className="dmenu-item" onClick={() => onMode("rename")}>
-              이름 바꾸기
-            </button>
+          {!deleteOnly && (
+            <>
+              {!list.builtin && (
+                <button type="button" role="menuitem" className="dmenu-item" onClick={() => onMode("rename")}>
+                  이름 바꾸기
+                </button>
+              )}
+              <button type="button" role="menuitem" className="dmenu-item" disabled={first} onClick={() => onMove(-1)}>
+                위로 옮기기
+              </button>
+              <button type="button" role="menuitem" className="dmenu-item" disabled={last} onClick={() => onMove(1)}>
+                아래로 옮기기
+              </button>
+            </>
           )}
-          <button type="button" role="menuitem" className="dmenu-item" disabled={first} onClick={() => onMove(-1)}>
-            위로 옮기기
-          </button>
-          <button type="button" role="menuitem" className="dmenu-item" disabled={last} onClick={() => onMove(1)}>
-            아래로 옮기기
-          </button>
           {list.builtin ? (
-            <span className="dmenu-note">민원 목록은 지우거나 이름을 바꿀 수 없어요.</span>
+            <span className="dmenu-note">{deleteOnly ? "민원 목록은 지울 수 없어요." : "민원 목록은 지우거나 이름을 바꿀 수 없어요."}</span>
           ) : (
             <button type="button" role="menuitem" className="dmenu-item danger" onClick={() => onMode("ask")}>
               목록 지우기
