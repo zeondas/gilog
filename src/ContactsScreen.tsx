@@ -8,7 +8,6 @@ import { isKey, keyAction, rowKeys } from "./keys";
 import { BulletView, Mark } from "./BulletParts";
 import { koIndex } from "./journal";
 import { useJamoGuard } from "./koInput";
-import { splitProjects, splitTop } from "./projectNames";
 import { PhoneInput } from "./PhoneInput";
 import { finalizePhone } from "./phone";
 import { api, Contact, ContactInput, ContactsData, errorText, Project } from "./api";
@@ -277,9 +276,10 @@ const FIELDS: { key: Exclude<keyof ContactInput, "projects">; label: string; ph:
 ];
 
 function NewRow({ projects, onAdd }: { projects: Project[]; onAdd: (c: ContactInput) => Promise<boolean> }) {
-  const [v, setV] = useState({ ...EMPTY, proj: "" });
+  const [v, setV] = useState({ ...EMPTY, proj: [] as string[] });
   const [warn, setWarn] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
+  const pending = useRef("");
 
   // 화면을 열면 첫 칸에 커서가 가 있어요.
   useEffect(() => nameRef.current?.focus(), []);
@@ -291,8 +291,8 @@ function NewRow({ projects, onAdd }: { projects: Project[]; onAdd: (c: ContactIn
       return;
     }
     const { proj, ...rest } = v;
-    if (await onAdd({ ...rest, mobile: finalizePhone(rest.mobile), tel: finalizePhone(rest.tel), projects: splitProjects(proj) })) {
-      setV({ ...EMPTY, proj: "" });
+    if (await onAdd({ ...rest, mobile: finalizePhone(rest.mobile), tel: finalizePhone(rest.tel), projects: projectsToSave(projects, proj, pending.current) })) {
+      setV({ ...EMPTY, proj: [] });
       setWarn(false);
       nameRef.current?.focus();
     }
@@ -349,7 +349,7 @@ function NewRow({ projects, onAdd }: { projects: Project[]; onAdd: (c: ContactIn
             </div>
           ))}
           <div role="cell">
-            <ProjectInput className="cell-input" projects={projects} value={v.proj} onChange={(proj) => setV({ ...v, proj })} />
+            <ProjectChips projects={projects} value={v.proj} onChange={(proj) => setV((old) => ({ ...old, proj }))} pending={pending} />
           </div>
           <div role="cell" className="ct-new-add">
             <button type="button" className="btn-icon btn-add" aria-label="연락처 등록" tabIndex={-1} onClick={submit}>
@@ -362,101 +362,159 @@ function NewRow({ projects, onAdd }: { projects: Project[]; onAdd: (c: ContactIn
   );
 }
 
+/** 이름(정식·줄인 이름 어느 쪽이든)으로 프로젝트를 찾아요. */
+const findProject = (projects: Project[], label: string) =>
+  projects.find((p) => p.name === label) ?? projects.find((p) => p.alias === label);
+
+/** 저장할 때: 붙은 배지 + 칸에 남은 글자가 있는 프로젝트 이름과 똑같으면 그것도 붙여요(새로 만들지는 않아요). */
+function projectsToSave(projects: Project[], chips: string[], pending: string): string[] {
+  const left = pending.trim();
+  const out = [...chips];
+  if (left && findProject(projects, left) && !out.includes(left)) out.push(left);
+  return out;
+}
+
 /**
- * 프로젝트 칸. 쉼표로 여러 개를 적고, 마지막으로 적는 이름에 맞는 프로젝트를 아래에 보여 줘요.
- * ↑↓로 고르고 Enter로 넣어요(고르지 않았으면 Enter는 등록이에요). 없는 이름은 등록할 때 새로 만들어져요.
+ * 프로젝트 칸(2026-10-18 사용자 1안, 시안 ProjectChips): 붙은 프로젝트는 배지(× 빼기), 뒤에 치면 후보 목록.
+ * 치는 중에는 첫 후보가 골라져 있고 Enter·Tab으로 붙여요(↑↓ 바꾸기). 없는 이름은 "새 프로젝트로 추가".
+ * 빈 칸 Backspace = 마지막 배지 빼기, 빈 칸 Enter·Tab = 줄의 다음 칸·등록·저장(rowKeys). 쉼표는 이름의 글자예요.
  */
-function ProjectInput({
+function ProjectChips({
   projects,
   value,
   onChange,
-  className,
+  pending,
 }: {
   projects: Project[];
-  value: string;
-  onChange: (v: string) => void;
-  className: string;
+  /** 붙은 프로젝트 이름(화면 이름) */
+  value: string[];
+  onChange: (v: string[]) => void;
+  /** 칸에 남은 글자를 부모가 저장할 때 읽어요. */
+  pending?: { current: string };
 }) {
-  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
   const [hi, setHi] = useState(-1);
-  const parts = splitTop(value);
-  const lastRaw = parts[parts.length - 1].trim();
-  const last = lastRaw.toLowerCase();
-  const already = new Set(parts.slice(0, -1).map((x) => x.trim()));
-  // 정식 이름·줄인 이름 어느 쪽으로 쳐도 찾고, 넣을 때는 화면 이름(줄인 이름 우선)으로 넣어요.
-  const options = projects
-    .filter(
-      (p) =>
-        !already.has(p.name) &&
-        !already.has(p.alias) &&
-        (p.name.toLowerCase().includes(last) || p.alias.toLowerCase().includes(last)) &&
-        p.name !== lastRaw &&
-        p.alias !== lastRaw,
-    )
+  const [open, setOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  if (pending) pending.current = q;
+
+  const taken = new Set(value.map((l) => findProject(projects, l)?.id ?? l));
+  const query = q.trim();
+  const ql = query.toLowerCase();
+  const exact = findProject(projects, query);
+  const found = projects
+    .filter((p) => !taken.has(p.id) && (!ql || p.name.toLowerCase().includes(ql) || p.alias.toLowerCase().includes(ql)))
+    .sort((a, b) => Number(b === exact) - Number(a === exact))
     .slice(0, 8);
+  type Opt = { p: Project } | { label: string };
+  const options: Opt[] = found.map((p) => ({ p }));
+  if (query && !exact && !value.includes(query)) options.push({ label: query });
+  // 치는 중에는 첫 후보가 골라져 있어요.
+  const cur = query ? (hi < 0 ? 0 : Math.min(hi, options.length - 1)) : hi;
   const show = open && options.length > 0;
 
-  function pick(p: Project) {
-    const head = parts.slice(0, -1).map((x) => x.trim()).filter(Boolean);
-    onChange([...head, pjLabel(p)].join(", ") + ", ");
+  function pick(o: Opt) {
+    const label = "p" in o ? pjLabel(o.p) : o.label;
+    if (!value.includes(label)) onChange([...value, label]);
+    setQ("");
     setHi(-1);
+    inputRef.current?.focus();
   }
 
   return (
     <div className="pin">
-      <input
-        name="proj"
-        aria-label="프로젝트"
-        placeholder="여러 개는 쉼표로"
-        autoComplete="off"
-        className={className}
-        value={value}
-        role="combobox"
-        aria-expanded={show}
-        aria-autocomplete="list"
-        onChange={(e) => {
-          onChange(e.target.value);
-          setOpen(true);
-          setHi(-1);
-        }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => {
-          setOpen(false);
-          setHi(-1);
-        }}
-        onKeyDown={(e) => {
-          if (isComposing(e) || !show) return;
-          if (e.key === "ArrowDown") {
-            e.preventDefault();
-            setHi((hi + 1) % options.length);
-          } else if (e.key === "ArrowUp") {
-            e.preventDefault();
-            setHi(hi <= 0 ? options.length - 1 : hi - 1);
-          } else if (e.key === "Enter" && hi >= 0) {
-            e.preventDefault();
-            pick(options[hi]);
-          } else if (e.key === "Escape") {
-            e.stopPropagation();
+      <div className="pchips" onMouseDown={(e) => e.target === e.currentTarget && (e.preventDefault(), inputRef.current?.focus())}>
+        {value.map((label) => {
+          const p = findProject(projects, label);
+          return (
+            <span key={label} className={"pbadge pchip-b" + (p ? "" : " pchip-new")} style={p ? pjStyle(p) : undefined} title={p ? pjFull(p) : `${label} · 저장할 때 새 프로젝트로 만들어요`}>
+              <span className="pbadge-t">{label}</span>
+              <button
+                type="button"
+                tabIndex={-1}
+                className="pchip-x"
+                aria-label={`${label} 빼기`}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onChange(value.filter((x) => x !== label));
+                }}
+              >
+                <svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            </span>
+          );
+        })}
+        <input
+          ref={inputRef}
+          name="proj"
+          aria-label="프로젝트"
+          placeholder={value.length ? "더하기" : "프로젝트"}
+          autoComplete="off"
+          className="pchips-in"
+          value={q}
+          role="combobox"
+          aria-expanded={show}
+          aria-autocomplete="list"
+          onChange={(e) => {
+            setQ(e.target.value);
+            setOpen(true);
+            setHi(-1);
+          }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => {
             setOpen(false);
-          }
-        }}
-      />
+            setHi(-1);
+          }}
+          onKeyDown={(e) => {
+            if (isComposing(e)) return;
+            if (e.key === "ArrowDown" && options.length) {
+              e.preventDefault();
+              setOpen(true);
+              setHi((cur + 1) % options.length);
+            } else if (e.key === "ArrowUp" && options.length) {
+              e.preventDefault();
+              setHi(cur <= 0 ? options.length - 1 : cur - 1);
+            } else if ((e.key === "Enter" || e.key === "Tab") && !e.shiftKey && show && cur >= 0 && options[cur]) {
+              // 후보 목록이 열려 있으면 Enter·Tab은 먼저 후보 확정(공통 규칙)
+              e.preventDefault();
+              pick(options[cur]);
+            } else if (e.key === "Backspace" && !q && value.length) {
+              e.preventDefault();
+              onChange(value.slice(0, -1));
+            } else if (e.key === "Escape" && q) {
+              // 치던 글자만 지우고, 고치는 카드는 닫지 않아요.
+              e.preventDefault();
+              e.stopPropagation();
+              setQ("");
+              setHi(-1);
+            }
+          }}
+        />
+      </div>
       {show && (
         <div className="pin-list" role="listbox">
-          {options.map((p, i) => (
+          {options.map((o, i) => (
             <div
-              key={p.id}
+              key={"p" in o ? o.p.id : "new"}
               role="option"
-              aria-selected={i === hi}
+              aria-selected={i === cur}
               className="pin-opt"
               onMouseDown={(e) => {
                 e.preventDefault();
-                pick(p);
+                pick(o);
               }}
             >
-              <span className="pbadge" style={pjStyle(p)} title={pjOther(p) || undefined}>
-                <span className="pbadge-t">{pjLabel(p)}</span>
-              </span>
+              {"p" in o ? (
+                <span className="pbadge" style={pjStyle(o.p)} title={pjOther(o.p) || undefined}>
+                  <span className="pbadge-t">{pjLabel(o.p)}</span>
+                </span>
+              ) : (
+                <span className="pin-new">
+                  <b>＋ 새 프로젝트로 추가</b> <span className="pin-new-t">“{o.label}”</span>
+                </span>
+              )}
             </div>
           ))}
         </div>
@@ -520,7 +578,16 @@ function ViewCard({ contact: c, byId, q, asking, memoOpen, onEdit, onAsk, onRemo
   }
 
   return (
-    <article className="ccard" aria-label={c.name}>
+    <article
+      className="ccard"
+      aria-label={c.name}
+      onDoubleClick={(e) => {
+        // 복사되는 번호·메일 줄, 메모, 단추, 지우기 확인 줄은 빼고 카드를 두 번 누르면 고치는 카드(2026-10-18 사용자)
+        if ((e.target as Element).closest("button, input, textarea, .ccard-memo, .ask-band")) return;
+        window.getSelection()?.removeAllRanges();
+        onEdit();
+      }}
+    >
       <div className="ccard-band">
         <div className="ccard-top">
           <div className="ccard-name">
@@ -646,11 +713,12 @@ function EditCard({
     mobile: c.mobile,
     tel: c.tel,
     email: c.email,
-    proj: c.projects
-      .map((id) => { const p = byId.get(id); return p ? pjLabel(p) : undefined; })
-      .filter(Boolean)
-      .join(", "),
+    proj: c.projects.flatMap((id) => {
+      const p = byId.get(id);
+      return p ? [pjLabel(p)] : [];
+    }),
   });
+  const pending = useRef("");
   const [warn, setWarn] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -671,13 +739,14 @@ function EditCard({
       return;
     }
     const { proj, ...rest } = v;
-    onSave({ ...rest, mobile: finalizePhone(rest.mobile), tel: finalizePhone(rest.tel), projects: splitProjects(proj) });
+    onSave({ ...rest, mobile: finalizePhone(rest.mobile), tel: finalizePhone(rest.tel), projects: projectsToSave(projects, proj, pending.current) });
   }
 
   // 바깥을 누르면 저장해요.
   useEffect(() => {
     const down = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) latest.current.save(true);
+      // 누른 것이 그 사이 사라졌어도(배지 × 등) 누를 때의 자리로 판단해요.
+      if (ref.current && !e.composedPath().includes(ref.current)) latest.current.save(true);
     };
     document.addEventListener("mousedown", down);
     return () => document.removeEventListener("mousedown", down);
@@ -723,7 +792,7 @@ function EditCard({
         <span>메일</span>
         {field("email", "이메일", "이메일")}
         <span>프로젝트</span>
-        <ProjectInput className="cell-input" projects={projects} value={v.proj} onChange={(proj) => setV({ ...v, proj })} />
+        <ProjectChips projects={projects} value={v.proj} onChange={(proj) => setV((old) => ({ ...old, proj }))} pending={pending} />
       </div>
       <div className="edit-foot">
         <span className="hint">Tab·Enter 다음 칸 · 마지막 칸이면 저장 · Esc 취소</span>

@@ -8530,3 +8530,101 @@ body.col-dragging * {
   color: var(--muted);
   white-space: nowrap;
 }
+
+/* ---------- 업무연락처: 카드 두 번 누르기 · 프로젝트 배지 칸 (2026-10-18 사용자) ---------- */
+/* 복사는 글자 부분만 눌려요. 줄의 나머지 빈 곳은 카드(두 번 누르면 고치기) */
+.ccard-lines .cline {
+  align-self: flex-start;
+  max-width: calc(100% + 6px);
+}
+
+.ccard {
+  cursor: default;
+}
+
+.pchips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--size-input);
+  padding: 2px 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: text;
+}
+
+.pchips:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.pchips-in {
+  flex: 1 1 60px;
+  min-width: 60px;
+  height: 22px;
+  padding: 0 2px 1px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  outline: none;
+}
+
+.pbadge.pchip-b {
+  gap: 2px;
+  padding-right: 2px;
+  height: 22px;
+}
+
+.pchip-x {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.pchip-x:hover {
+  background: color-mix(in srgb, currentColor 16%, transparent);
+}
+
+.pin-new {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12.5px;
+}
+
+.pin-new b {
+  flex: none;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.pin-new-t {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 저장할 때 새로 만들 프로젝트 배지 */
+.pbadge.pchip-new {
+  background: var(--surface-band);
+  color: var(--ink-2);
+  box-shadow: none;
+  outline: 1px dashed var(--line);
+  outline-offset: -1px;
+}
