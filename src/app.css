@@ -9944,3 +9944,6 @@ select.input.fx-set-date { width: 190px; }
 .fx-tree { padding: 1px; }
 .fx-pane[data-on="1"],
 .fx-pane[data-target="1"] { border-width: 2px; padding: 0; margin: 0; box-shadow: none; }
+/* 아래 키 안내 줄(2026-10-19 사용자: 바깥 여백·간격 통일) — 줄 높이 = 칸 높이 28(위아래 남는 틈 없앰),
+   칸 사이 8px(머리 줄 단추 사이와 같음). 상자 ↔ 키 칸 16px(머리 줄 ↔ 상자와 같음), 키 칸 ↔ 창 아래 24px(창 위 ↔ 머리 줄과 같음) */
+.fx-keys { height: 28px; gap: 8px; }
