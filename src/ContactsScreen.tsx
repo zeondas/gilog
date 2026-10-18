@@ -8,6 +8,7 @@ import { isKey, keyAction, rowKeys } from "./keys";
 import { BulletView, Mark } from "./BulletParts";
 import { koIndex } from "./journal";
 import { useJamoGuard } from "./koInput";
+import { splitProjects, splitTop } from "./projectNames";
 import { PhoneInput } from "./PhoneInput";
 import { finalizePhone } from "./phone";
 import { api, Contact, ContactInput, ContactsData, errorText, Project } from "./api";
@@ -30,6 +31,18 @@ export function projectColor(p: Project): number {
   return p.color ?? (p.id - 1) % COLOR_NAMES.length;
 }
 
+/** 화면에 보이는 이름: 줄인 이름(관리용)이 있으면 그것, 없으면 정식 이름. */
+export const pjLabel = (p: Project) => p.alias || p.name;
+
+/** 문서(지시부·엑셀·인쇄)에 쓰는 이름: 정식 이름. 줄인 이름만 적었으면 줄인 이름이 들어 있어요. */
+export const pjFull = (p: Project) => p.name;
+
+/** 정식 이름 칸에 보일 글자. 줄인 이름만 적은 프로젝트는 비어 보여요. */
+const fullDraft = (p: Project) => (p.alias && p.alias === p.name ? "" : p.name);
+
+/** 정식 이름이 따로 있어서 줄인 이름과 다르면 그 정식 이름(마우스를 올리면 보여요). */
+const pjOther = (p: Project) => (p.alias && p.alias !== p.name ? p.name : "");
+
 export function pjStyle(p: Project) {
   const k = projectColor(p);
   return { background: `var(--pj-${k}-bg)`, color: `var(--pj-${k}-fg)`, boxShadow: `inset 0 0 0 1px var(--pj-${k}-line)` };
@@ -41,8 +54,6 @@ const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode
 
 const EMPTY: ContactInput = { name: "", org: "", role: "", mobile: "", tel: "", email: "", projects: [] };
 
-/** "가, 나 ,," → ["가", "나"] */
-const splitProjects = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
 
 /** 검색에 맞은 글자를 형광으로 칠해요. */
 export function Hl({ text, q }: { text: string; q: string }) {
@@ -122,7 +133,7 @@ export default function ContactsScreen() {
     if (sel !== null && !c.projects.includes(sel)) return false;
     if (!query) return true;
     const memo = parseMemo(c.memo).map((l) => l.t).join(" ");
-    const hay = [c.name, c.org, c.role, c.mobile, c.tel, c.email, memo, ...c.projects.map((id) => byId.get(id)?.name ?? "")]
+    const hay = [c.name, c.org, c.role, c.mobile, c.tel, c.email, memo, ...c.projects.flatMap((id) => { const p = byId.get(id); return p ? [p.name, p.alias] : []; })]
       .join("\n")
       .toLowerCase();
     if (hay.includes(query)) return true;
@@ -186,7 +197,7 @@ export default function ContactsScreen() {
         {projects.map((p) => (
           <button key={p.id} type="button" className="pchip" aria-pressed={sel === p.id} onClick={() => setSel(p.id)}>
             <span className="pchip-dot" aria-hidden="true" style={{ background: sel === p.id ? undefined : `var(--pj-${projectColor(p)}-line)` }} />
-            <span>{p.name}</span>
+            <span className="pchip-t" title={pjOther(p) || undefined}>{pjLabel(p)}</span>
             <span className="pchip-n">{all.filter((c) => c.projects.includes(p.id)).length}</span>
           </button>
         ))}
@@ -368,17 +379,26 @@ function ProjectInput({
 }) {
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(-1);
-  const parts = value.split(",");
-  const last = parts[parts.length - 1].trim().toLowerCase();
+  const parts = splitTop(value);
+  const lastRaw = parts[parts.length - 1].trim();
+  const last = lastRaw.toLowerCase();
   const already = new Set(parts.slice(0, -1).map((x) => x.trim()));
+  // 정식 이름·줄인 이름 어느 쪽으로 쳐도 찾고, 넣을 때는 화면 이름(줄인 이름 우선)으로 넣어요.
   const options = projects
-    .filter((p) => !already.has(p.name) && p.name.toLowerCase().includes(last) && p.name !== parts[parts.length - 1].trim())
+    .filter(
+      (p) =>
+        !already.has(p.name) &&
+        !already.has(p.alias) &&
+        (p.name.toLowerCase().includes(last) || p.alias.toLowerCase().includes(last)) &&
+        p.name !== lastRaw &&
+        p.alias !== lastRaw,
+    )
     .slice(0, 8);
   const show = open && options.length > 0;
 
   function pick(p: Project) {
     const head = parts.slice(0, -1).map((x) => x.trim()).filter(Boolean);
-    onChange([...head, p.name].join(", ") + ", ");
+    onChange([...head, pjLabel(p)].join(", ") + ", ");
     setHi(-1);
   }
 
@@ -434,8 +454,8 @@ function ProjectInput({
                 pick(p);
               }}
             >
-              <span className="pbadge" style={pjStyle(p)}>
-                {p.name}
+              <span className="pbadge" style={pjStyle(p)} title={pjOther(p) || undefined}>
+                <span className="pbadge-t">{pjLabel(p)}</span>
               </span>
             </div>
           ))}
@@ -556,8 +576,10 @@ function ViewCard({ contact: c, byId, q, asking, memoOpen, onEdit, onAsk, onRemo
           {projs.length > 0 && (
             <div className="ccard-projs">
               {projs.map((p) => (
-                <span key={p.id} className="pbadge" style={pjStyle(p)}>
-                  <Hl text={p.name} q={q} />
+                <span key={p.id} className="pbadge" style={pjStyle(p)} title={pjFull(p)}>
+                  <span className="pbadge-t">
+                    <Hl text={pjLabel(p)} q={q} />
+                  </span>
                 </span>
               ))}
             </div>
@@ -625,7 +647,7 @@ function EditCard({
     tel: c.tel,
     email: c.email,
     proj: c.projects
-      .map((id) => byId.get(id)?.name)
+      .map((id) => { const p = byId.get(id); return p ? pjLabel(p) : undefined; })
       .filter(Boolean)
       .join(", "),
   });
@@ -985,22 +1007,30 @@ function ProjectDialog({
             const users = data.contacts.filter((c) => c.projects.includes(p.id)).length;
             return (
               <div key={p.id} className="prow">
-                <div className="prow-name mgr-name">
+                <div className="prow-name mgr-name pj-mname">
                   {editId === p.id ? (
-                    <NameEdit
-                      initial={p.name}
-                      taken={(n) => data.projects.some((x) => x.id !== p.id && x.name === n)}
-                      onDone={async (n) => {
+                    <NamesEdit
+                      full={fullDraft(p)}
+                      short={p.alias}
+                      taken={(n) => data.projects.some((x) => x.id !== p.id && (x.name === n || x.alias === n))}
+                      onDone={async (v) => {
                         setEditId(null);
-                        if (n !== null && n !== p.name) await run(api.renameProject(p.id, n));
+                        if (v && (v.full !== fullDraft(p) || v.short !== p.alias)) await run(api.setProjectNames(p.id, v.full, v.short));
                       }}
                     />
                   ) : (
                     <>
-                      <button type="button" className="pbadge mgr-badge-btn" style={pjStyle(p)} title="눌러서 이름 고치기" onClick={() => setEditId(p.id)}>
-                        {p.name}
-                      </button>
-                      <span className="mgr-info">{users ? `연락처 ${users}명` : "연락처 없음"}</span>
+                      <span className="mgr-badge-line">
+                        <button type="button" className="pbadge mgr-badge-btn" style={pjStyle(p)} title="눌러서 이름 고치기" onClick={() => setEditId(p.id)}>
+                          <span className="pbadge-t">{pjLabel(p)}</span>
+                        </button>
+                        <span className="mgr-info">{users ? `연락처 ${users}명` : "연락처 없음"}</span>
+                      </span>
+                      {pjOther(p) && (
+                        <span className="mgr-full" title={pjOther(p)}>
+                          {pjOther(p)}
+                        </span>
+                      )}
                     </>
                   )}
                 </div>
@@ -1071,45 +1101,87 @@ function ProjectDialog({
  * 관리 창 줄의 이름 칸(2026-10-17 사용자: 등록된 프로젝트를 고칠 수 있어야 해요).
  * Enter·바깥 누르기 = 저장, Esc = 그대로. 같은 이름이 있으면 빨간 테두리로 막아요.
  */
-function NameEdit({ initial, taken, onDone }: { initial: string; taken: (name: string) => boolean; onDone: (name: string | null) => void }) {
-  const [v, setV] = useState(initial);
+/**
+ * 프로젝트 이름 두 칸(정식 이름·줄인 이름). 둘 중 하나만 적어도 돼요(2026-10-18 사용자).
+ * Enter·바깥 누르기 = 저장, Esc = 그대로. Tab으로 두 칸을 오가요.
+ * 비었거나 다른 프로젝트 이름과 겹치면 빨간 테두리(저장 안 됨, 바깥을 누르면 고치기 전으로).
+ */
+function NamesEdit({
+  full: full0,
+  short: short0,
+  taken,
+  onDone,
+}: {
+  full: string;
+  short: string;
+  taken: (name: string) => boolean;
+  onDone: (v: { full: string; short: string } | null) => void;
+}) {
+  const [full, setFull] = useState(full0);
+  const [short, setShort] = useState(short0);
   const done = useRef(false);
-  const name = v.trim();
-  const bad = !name || taken(name);
+  const box = useRef<HTMLDivElement>(null);
+  const f = full.trim();
+  const sh = short.trim();
+  const empty = !f && !sh;
+  const badFull = !!f && taken(f);
+  const badShort = !!sh && sh !== f && taken(sh);
+  const bad = empty || badFull || badShort;
   const finish = (save: boolean) => {
     if (done.current) return;
-    if (save && bad) {
-      // 비었거나 같은 이름이면 고치기 전 이름으로 두어요.
-      done.current = true;
-      onDone(null);
-      return;
-    }
     done.current = true;
-    onDone(save ? name : null);
+    onDone(save && !bad ? { full: f, short: sh } : null);
   };
+  const key = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (isComposing(e)) return;
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (!bad) finish(true);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      e.nativeEvent.stopImmediatePropagation();
+      finish(false);
+    }
+  };
+  const tip = (b: boolean, wrong: boolean) => (b ? (wrong ? "같은 이름의 프로젝트가 있어요" : "둘 중 하나는 적어 주세요") : undefined);
   return (
-    <input
-      className={"input mgr-name-in" + (bad ? " invalid" : "")}
-      aria-label="프로젝트 이름"
-      aria-invalid={bad || undefined}
-      title={bad ? (name ? "같은 이름의 프로젝트가 있어요" : "이름을 적어 주세요") : undefined}
-      autoFocus
-      value={v}
-      onFocus={(e) => e.currentTarget.select()}
-      onChange={(e) => setV(e.target.value)}
-      onBlur={() => finish(true)}
-      onKeyDown={(e) => {
-        if (isComposing(e)) return;
-        if (e.key === "Enter") {
-          e.preventDefault();
-          if (!bad) finish(true);
-        } else if (e.key === "Escape") {
-          e.preventDefault();
-          e.nativeEvent.stopImmediatePropagation();
-          finish(false);
-        }
+    <div
+      ref={box}
+      className="mgr-names"
+      onBlur={(e) => {
+        // 두 칸 사이를 오가는 것은 떠난 것이 아니에요.
+        if (!box.current?.contains(e.relatedTarget as Node | null)) finish(true);
       }}
-    />
+    >
+      <label className="mgr-names-l" htmlFor="pj-full">
+        정식 이름(문서용)
+      </label>
+      <input
+        id="pj-full"
+        className={"input mgr-name-in" + (empty || badFull ? " invalid" : "")}
+        aria-invalid={empty || badFull || undefined}
+        title={tip(empty || badFull, badFull)}
+        autoFocus
+        value={full}
+        onFocus={(e) => e.currentTarget.select()}
+        onChange={(e) => setFull(e.target.value)}
+        onKeyDown={key}
+      />
+      <label className="mgr-names-l" htmlFor="pj-short">
+        줄인 이름(관리용)
+      </label>
+      <input
+        id="pj-short"
+        className={"input mgr-name-in" + (empty || badShort ? " invalid" : "")}
+        aria-invalid={empty || badShort || undefined}
+        title={tip(empty || badShort, badShort)}
+        placeholder="비우면 정식 이름으로 보여요"
+        value={short}
+        onFocus={(e) => e.currentTarget.select()}
+        onChange={(e) => setShort(e.target.value)}
+        onKeyDown={key}
+      />
+    </div>
   );
 }
 

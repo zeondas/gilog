@@ -67,7 +67,8 @@ export type Contact = Omit<ContactInput, "projects"> & {
 };
 
 /** color가 null이면 자동 색이에요. */
-export type Project = { id: number; name: string; color: number | null };
+/** name = 정식 이름(문서용, 줄인 이름만 적었으면 줄인 이름), alias = 줄인 이름(관리용, 없으면 ""). */
+export type Project = { id: number; name: string; alias: string; color: number | null };
 
 export type ContactsData = { contacts: Contact[]; projects: Project[] };
 
@@ -724,9 +725,9 @@ function fakeContacts(cmd: string, a: Record<string, unknown>): ContactsData | n
     projects: fake.projects.map((p) => ({ ...p })),
   });
   const projectId = (name: string) => {
-    const found = fake.projects.find((p) => p.name === name);
+    const found = fake.projects.find((p) => p.name === name) ?? fake.projects.find((p) => p.alias === name);
     if (found) return found.id;
-    const p = { id: fake.nextProjectId++, name, color: null };
+    const p = { id: fake.nextProjectId++, name, alias: "", color: null };
     fake.projects.push(p);
     return p.id;
   };
@@ -787,8 +788,22 @@ function fakeContacts(cmd: string, a: Record<string, unknown>): ContactsData | n
       const name = (a.name as string).trim();
       const p = fake.projects.find((x) => x.id === a.id);
       if (!p) throw "not_found";
-      if (!name || fake.projects.some((x) => x.id !== a.id && x.name === name)) throw "invalid";
+      if (!name || fake.projects.some((x) => x.id !== a.id && (x.name === name || x.alias === name))) throw "invalid";
       p.name = name;
+      return data();
+    }
+    case "set_project_names": {
+      const full = (a.name as string).trim();
+      const short = (a.alias as string).trim();
+      const p = fake.projects.find((x) => x.id === a.id);
+      if (!p) throw "not_found";
+      if (!full && !short) throw "invalid";
+      const name = full || short;
+      const alias = full && short === full ? "" : short;
+      const taken = (n: string) => !!n && fake.projects.some((x) => x.id !== a.id && (x.name === n || x.alias === n));
+      if (taken(name) || taken(alias)) throw "invalid";
+      p.name = name;
+      p.alias = alias;
       return data();
     }
     case "set_project_color": {
@@ -1080,6 +1095,8 @@ export const api = {
   deleteContact: (id: number) => call<ContactsData>("delete_contact", { id }),
   addProject: (name: string) => call<ContactsData>("add_project", { name }),
   renameProject: (id: number, name: string) => call<ContactsData>("rename_project", { id, name }),
+  /** 정식 이름·줄인 이름을 함께 정해요. 둘 중 하나만 있어도 돼요. */
+  setProjectNames: (id: number, name: string, alias: string) => call<ContactsData>("set_project_names", { id, name, alias }),
   setProjectColor: (id: number, color: number | null) => call<ContactsData>("set_project_color", { id, color }),
   deleteProject: (id: number) => call<ContactsData>("delete_project", { id }),
 

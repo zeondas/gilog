@@ -53,7 +53,10 @@ pub struct Contact {
 #[serde(rename_all = "camelCase")]
 pub struct Project {
     pub id: i64,
+    /// 정식 이름(문서용). 줄인 이름만 적었으면 줄인 이름과 같아요. 비어 있지 않아요.
     pub name: String,
+    /// 줄인 이름(관리용). 없으면 빈 글자예요. 화면은 줄인 이름 → 정식 이름 순으로 보여요.
+    pub alias: String,
     /// 직접 고른 색 번호. 없으면 자동이에요.
     pub color: Option<i64>,
 }
@@ -73,7 +76,8 @@ pub(crate) const SCHEMA: &str = "
     CREATE TABLE IF NOT EXISTS projects (
         id    INTEGER PRIMARY KEY,
         name  TEXT NOT NULL UNIQUE,
-        color INTEGER
+        color INTEGER,
+        alias TEXT NOT NULL DEFAULT ''
     );
     CREATE TABLE IF NOT EXISTS contacts (
         id      INTEGER PRIMARY KEY,
@@ -92,6 +96,29 @@ pub(crate) const SCHEMA: &str = "
         PRIMARY KEY (contact_id, project_id)
     );
 ";
+
+/// 예전 파일에 줄인 이름 칸을 더해요.
+pub(crate) fn upgrade(conn: &rusqlite::Connection) -> Result<()> {
+    let has: bool = conn
+        .prepare("SELECT 1 FROM pragma_table_info('projects') WHERE name = 'alias'")?
+        .exists([])?;
+    if !has {
+        conn.execute_batch("ALTER TABLE projects ADD COLUMN alias TEXT NOT NULL DEFAULT '';")?;
+    }
+    Ok(())
+}
+
+/// 다른 프로젝트의 정식 이름이나 줄인 이름과 겹치는지 봐요.
+fn name_taken(conn: &rusqlite::Connection, name: &str, except: i64) -> Result<bool> {
+    Ok(conn
+        .query_row(
+            "SELECT 1 FROM projects WHERE id <> ?2 AND (name = ?1 OR alias = ?1)",
+            params![name, except],
+            |_| Ok(()),
+        )
+        .optional()?
+        .is_some())
+}
 
 fn clean(input: &ContactInput) -> Result<ContactInput> {
     let t = |s: &str| s.trim().to_string();
@@ -117,10 +144,14 @@ fn clean(input: &ContactInput) -> Result<ContactInput> {
     })
 }
 
-/// 이름으로 프로젝트를 찾고, 없으면 만들어요.
+/// 이름(정식 이름 또는 줄인 이름)으로 프로젝트를 찾고, 없으면 만들어요.
 fn project_id(tx: &Transaction, name: &str) -> Result<i64> {
     if let Some(id) = tx
-        .query_row("SELECT id FROM projects WHERE name = ?1", params![name], |r| r.get(0))
+        .query_row(
+            "SELECT id FROM projects WHERE name = ?1 OR alias = ?1 ORDER BY name = ?1 DESC, id LIMIT 1",
+            params![name],
+            |r| r.get(0),
+        )
         .optional()?
     {
         return Ok(id);
@@ -176,9 +207,9 @@ impl Store {
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
-        let mut stmt = self.conn.prepare("SELECT id, name, color FROM projects ORDER BY id")?;
+        let mut stmt = self.conn.prepare("SELECT id, name, alias, color FROM projects ORDER BY id")?;
         let projects = stmt
-            .query_map([], |r| Ok(Project { id: r.get(0)?, name: r.get(1)?, color: r.get(2)? }))?
+            .query_map([], |r| Ok(Project { id: r.get(0)?, name: r.get(1)?, alias: r.get(2)?, color: r.get(3)? }))?
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(ContactsData { contacts, projects })
@@ -272,14 +303,34 @@ impl Store {
         if name.is_empty() {
             return Err(Error::Invalid("프로젝트 이름이 비어 있어요".into()));
         }
-        let taken: Option<i64> = self
-            .conn
-            .query_row("SELECT id FROM projects WHERE name = ?1 AND id <> ?2", params![name, id], |r| r.get(0))
-            .optional()?;
-        if taken.is_some() {
+        if name_taken(&self.conn, name, id)? {
             return Err(Error::Invalid("같은 이름의 프로젝트가 있어요".into()));
         }
         let n = self.conn.execute("UPDATE projects SET name = ?2 WHERE id = ?1", params![id, name])?;
+        if n == 0 {
+            return Err(Error::NotFound);
+        }
+        Ok(())
+    }
+
+    /// 정식 이름(문서용)과 줄인 이름(관리용)을 함께 정해요. 둘 중 하나만 있어도 돼요.
+    /// 정식 이름이 비면 줄인 이름을 정식 이름으로도 써요(name = alias).
+    /// 줄인 이름이 정식 이름과 같으면 줄인 이름은 없는 것으로 둬요.
+    pub fn set_project_names(&self, id: i64, full: &str, short: &str) -> Result<()> {
+        let (full, short) = (full.trim(), short.trim());
+        if full.is_empty() && short.is_empty() {
+            return Err(Error::Invalid("프로젝트 이름이 비어 있어요".into()));
+        }
+        let name = if full.is_empty() { short } else { full };
+        let alias = if !full.is_empty() && short == full { "" } else { short };
+        for n in [name, alias] {
+            if !n.is_empty() && name_taken(&self.conn, n, id)? {
+                return Err(Error::Invalid("같은 이름의 프로젝트가 있어요".into()));
+            }
+        }
+        let n = self
+            .conn
+            .execute("UPDATE projects SET name = ?2, alias = ?3 WHERE id = ?1", params![id, name, alias])?;
         if n == 0 {
             return Err(Error::NotFound);
         }
@@ -429,6 +480,57 @@ mod tests {
         assert_eq!(s.rename_project(pid, " ").err().unwrap().code(), "invalid");
         s.rename_project(pid, "광탄면 배수로").unwrap();
         assert_eq!(s.rename_project(999, "새 이름").err().unwrap().code(), "not_found");
+    }
+
+    #[test]
+    fn project_alias_full_or_short() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut s = Store::create(tmp.path(), "abcd1234").unwrap();
+        let full = "2026년 동부권 도로시설물 유지보수 연간단가 공사(1지구, 하반기)";
+        s.add_contact(&input("가", &[full, "포장"])).unwrap();
+        let d = s.contacts_data().unwrap();
+        let pid = d.projects.iter().find(|p| p.name == full).unwrap().id;
+        assert_eq!(d.projects[0].alias, "");
+        // 둘 다 적기
+        s.set_project_names(pid, full, " 2026 동부권 도로시설물(1지구, 하반기) ").unwrap();
+        let p = s.contacts_data().unwrap().projects.into_iter().find(|p| p.id == pid).unwrap();
+        assert_eq!((p.name.as_str(), p.alias.as_str()), (full, "2026 동부권 도로시설물(1지구, 하반기)"));
+        // 줄인 이름으로 적어도 같은 프로젝트에 붙어요(새로 만들지 않아요)
+        s.add_contact(&input("나", &["2026 동부권 도로시설물(1지구, 하반기)"])).unwrap();
+        let d = s.contacts_data().unwrap();
+        assert_eq!(d.projects.len(), 2);
+        assert_eq!(d.contacts[0].projects, vec![pid]);
+        // 줄인 이름만: 정식 이름도 줄인 이름으로
+        s.set_project_names(pid, "", "동부권 1지구").unwrap();
+        let p = s.contacts_data().unwrap().projects.into_iter().find(|p| p.id == pid).unwrap();
+        assert_eq!((p.name.as_str(), p.alias.as_str()), ("동부권 1지구", "동부권 1지구"));
+        // 정식 이름만 / 같은 글자면 줄인 이름은 없음
+        s.set_project_names(pid, full, "").unwrap();
+        s.set_project_names(pid, full, full).unwrap();
+        let p = s.contacts_data().unwrap().projects.into_iter().find(|p| p.id == pid).unwrap();
+        assert_eq!((p.name.as_str(), p.alias.as_str()), (full, ""));
+        // 겹치기·비우기·없는 번호
+        assert_eq!(s.set_project_names(pid, full, "포장").err().unwrap().code(), "invalid");
+        assert_eq!(s.set_project_names(pid, "포장", "").err().unwrap().code(), "invalid");
+        assert_eq!(s.set_project_names(pid, " ", " ").err().unwrap().code(), "invalid");
+        assert_eq!(s.set_project_names(999, "새", "").err().unwrap().code(), "not_found");
+        s.set_project_names(pid, full, "동부권").unwrap();
+        let other = s.contacts_data().unwrap().projects.into_iter().find(|p| p.name == "포장").unwrap().id;
+        assert_eq!(s.rename_project(other, "동부권").err().unwrap().code(), "invalid");
+    }
+
+    #[test]
+    fn old_file_gets_alias_column() {
+        let tmp = tempfile::tempdir().unwrap();
+        {
+            let mut s = Store::create(tmp.path(), "abcd1234").unwrap();
+            s.add_contact(&input("가", &["배수로"])).unwrap();
+            // 예전 파일처럼 칸을 지워요.
+            s.conn.execute_batch("ALTER TABLE projects DROP COLUMN alias;").unwrap();
+        }
+        let s = Store::open(tmp.path(), "abcd1234").unwrap();
+        let d = s.contacts_data().unwrap();
+        assert_eq!((d.projects[0].name.as_str(), d.projects[0].alias.as_str()), ("배수로", ""));
     }
 
     #[test]

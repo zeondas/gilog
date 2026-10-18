@@ -5,6 +5,7 @@
 // - 가져오기는 판단하지 않아요: 중복 검사·값 고치기 없이 모든 줄(모든 칸이 빈 줄만 빼고)을 넣어요.
 //   다만 날짜 칸은 앱이 읽을 수 있으면 2026-10-15 모양으로 맞춰요(마감 계산이 되게). 읽을 수 없으면 그대로예요.
 import type { Complaint, ComplaintInput, Contact, ContactInput, Project } from "./api";
+import { splitProjects } from "./projectNames";
 import { BKind, BLine, layout, linePrefix, parseLines, stringifyLines } from "./bullets";
 import { parseDate } from "./journal";
 
@@ -135,7 +136,7 @@ export function contactImports(sheet: ExcelSheet): ContactImport[] {
     mobile: get(r, "무선"),
     tel: get(r, "유선"),
     email: get(r, "이메일").replace(/^mailto:/i, ""),
-    projects: get(r, "프로젝트").split(/[,，]/).map((s) => s.trim()).filter(Boolean),
+    projects: splitProjects(get(r, "프로젝트")),
     memo: linesOfCell(get(r, "메모")),
   }));
 }

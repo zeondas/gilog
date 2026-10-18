@@ -207,6 +207,7 @@ impl Store {
             );",
         )?;
         self.conn.execute_batch(contacts::SCHEMA)?;
+        contacts::upgrade(&self.conn)?;
         self.conn.execute_batch(journal::SCHEMA)?;
         journal::upgrade(&self.conn)?;
         self.conn.execute_batch(complaints::SCHEMA)?;
