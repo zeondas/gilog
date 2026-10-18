@@ -6,7 +6,7 @@ import { api, Complaint, Contact, ContactsData, DayInfo, Entry, EntryInput, erro
 import { firstLineOf } from "./bullets";
 import { daysBetween, daysLeft, ddayText, dueSoon, isUrgent } from "./complaints";
 import { tasksDueSoon } from "./tasks";
-import { copyText, Hl, projectColor } from "./ContactsScreen";
+import { copyText, Hl, pjFull, pjLabel, projectColor } from "./ContactsScreen";
 import { PhoneInput } from "./PhoneInput";
 import { finalizePhone } from "./phone";
 import {
@@ -1425,7 +1425,7 @@ function ProjectMenu({ ctx, current, onPick, onClose }: { ctx: Ctx; current: num
       {opts.map((p) => (
         <button key={p?.id ?? 0} type="button" role="menuitemradio" className="jmenu-opt" aria-pressed={(p?.id ?? null) === current} onClick={() => onPick(p?.id ?? null)}>
           <span className="jmenu-dot" aria-hidden="true" style={{ background: p ? `var(--pj-${projectColor(p)}-line)` : "var(--line)" }} />
-          {p?.name ?? "없음"}
+          <span className="pbadge-t" title={p ? pjFull(p) : undefined}>{p ? pjLabel(p) : "없음"}</span>
         </button>
       ))}
       {ctx.projects.length === 0 && <div className="hint jmenu-hint">프로젝트는 업무연락처의 "프로젝트 관리"에서 만들어요.</div>}
@@ -1495,15 +1495,15 @@ function ViewCard({
             <button
               type="button"
               className={"jproj" + (p ? "" : " none")}
-              title="눌러서 프로젝트 바꾸기"
-              aria-label={`프로젝트: ${p?.name ?? "없음"}`}
+              title={p ? pjFull(p) : "눌러서 프로젝트 바꾸기"}
+              aria-label={`프로젝트: ${p ? pjFull(p) : "없음"}`}
               aria-expanded={menuOpen}
               onClick={(ev) => {
                 ev.stopPropagation();
                 onMenu(!menuOpen);
               }}
             >
-              {p?.name ?? "+ 프로젝트"}
+              {p ? <span className="pbadge-t">{pjLabel(p)}</span> : "+ 프로젝트"}
             </button>
             {menuOpen && <ProjectMenu ctx={ctx} current={e.project} onPick={onProject} onClose={() => onMenu(false)} />}
           </span>
@@ -1739,12 +1739,12 @@ function EditCard({
             type="button"
             className="jproj-badge"
             style={p ? { background: `var(--pj-${projectColor(p)}-bg)`, color: `var(--pj-${projectColor(p)}-fg)`, borderColor: `var(--pj-${projectColor(p)}-line)` } : undefined}
-            title="눌러서 프로젝트 바꾸기"
-            aria-label={`프로젝트: ${p?.name ?? "없음"}`}
+            title={p ? pjFull(p) : "눌러서 프로젝트 바꾸기"}
+            aria-label={`프로젝트: ${p ? pjFull(p) : "없음"}`}
             aria-expanded={menu}
             onClick={() => setMenu(!menu)}
           >
-            {p?.name ?? "+ 프로젝트"}
+            {p ? <span className="pbadge-t">{pjLabel(p)}</span> : "+ 프로젝트"}
           </button>
           {menu && (
             <ProjectMenu

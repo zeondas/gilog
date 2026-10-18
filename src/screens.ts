@@ -36,6 +36,7 @@ export const MODULE_DESC: Record<ModuleId, string> = {
   explorer: "2창·4창 파일 관리, 일괄 이름 바꾸기",
   complaints: "민원 접수·처리 기록",
   process: "신문고 민원 → 지시부 → 폰으로 보내기",
+  budget: "예산 집행률·가용액",
   calendar: "일정·공휴일·알림",
   todo: "목록별 할 일·마감",
   journal: "누가 언제 무슨 말을 했는지",

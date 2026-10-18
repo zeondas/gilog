@@ -998,9 +998,10 @@ function WorksDialog({
       const p = data.projects.find((x) => x.id === projectId)!;
       if (p.name !== name) data = await api.renameProject(projectId, name);
     } else {
-      const same = data.projects.find((p) => p.name === name);
+      // 줄인 이름(alias)이 같은 프로젝트도 같은 것으로 봐요(core add_project와 같게, 2026-10-18 업무연락처 세션 전달)
+      const same = data.projects.find((p) => p.name === name || p.alias === name);
       if (!same) data = await api.addProject(name);
-      projectId = data.projects.find((p) => p.name === name)?.id ?? null;
+      projectId = data.projects.find((p) => p.name === name || p.alias === name)?.id ?? null;
     }
     const pname = name;
     let contactId = d.contact;

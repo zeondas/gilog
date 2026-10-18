@@ -9608,3 +9608,16 @@ button.bd-chip:hover {
   background: var(--line-soft);
   color: var(--ink);
 }
+
+/* 업무일지 프로젝트 배지: 줄인 이름(pjLabel), 긴 이름은 "…" — 마우스를 올리면 정식 이름(빌드 0.15.0, wip/contacts 합친 뒤) */
+.jproj,
+.jproj-badge {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 260px;
+}
+
+.jmenu-opt .pbadge-t {
+  min-width: 0;
+}
