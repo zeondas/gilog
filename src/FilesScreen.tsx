@@ -46,11 +46,11 @@ import {
 } from "./files";
 import { Conflict, Found, MenuResult, TreeDir, fsApi, fsErrorText, onFsChanged, onFsProgress } from "./filesApi";
 import { parseDate } from "./journal";
-import { DEFAULT_FILES_SETTINGS, FilesSettings, loadSettings } from "./settingsStore";
+import { DEFAULT_FILES_SETTINGS, FilesSettings, loadSettings, saveSettings } from "./settingsStore";
 
 const STATE_KEY = "files.state";
 
-type FindRun = { form: FindForm; results: Found[]; running: boolean };
+type FindRun = { form: FindForm; results: Found[]; running: boolean; /** 펼쳐보기(하위 폴더 파일까지 한 목록) */ flat?: boolean };
 /** back·fwd: 이 탭에서 다녀온 폴더(뒤로·앞으로 — 마우스 옆 단추·Alt+←/→). 저장하지 않아요. */
 type RTab = FsTab & { find?: FindRun; id: number; back?: string[]; fwd?: string[] };
 type RPane = Omit<FsPane, "tabs"> & { tabs: RTab[] };
@@ -565,7 +565,7 @@ export default function FilesScreen() {
   };
 
   // ---------- 찾기 ----------
-  const runFind = async (f: FindForm) => {
+  const runFind = async (f: FindForm, flat = false) => {
     if (!st) return;
     const pane = st.active;
     const cur = activeTab(st.panes[pane]);
@@ -579,7 +579,7 @@ export default function FilesScreen() {
     const ff = { ...f, where };
     const label = ff.name || (ff.text ? `"${ff.text}"` : "*");
     const id = tabSeq++;
-    updPane(pane, (p) => ({ ...p, tabs: [...p.tabs, { path: where, pinned: false, id, find: { form: ff, results: [], running: true } }], active: p.tabs.length }));
+    updPane(pane, (p) => ({ ...p, tabs: [...p.tabs, { path: where, pinned: false, id, find: { form: ff, results: [], running: true, flat } }], active: p.tabs.length }));
     setFindOpen(false);
     setSel(pane, EMPTY_SEL);
     try {
@@ -596,9 +596,9 @@ export default function FilesScreen() {
         complaintsOnly: ff.complaintsOnly,
         showHidden: cfg.showHidden,
       });
-      updPane(pane, (p) => ({ ...p, tabs: p.tabs.map((t) => (t.id === id ? { ...t, find: { form: ff, results, running: false } } : t)) }));
+      updPane(pane, (p) => ({ ...p, tabs: p.tabs.map((t) => (t.id === id ? { ...t, find: { form: ff, results, running: false, flat } } : t)) }));
     } catch (e) {
-      updPane(pane, (p) => ({ ...p, tabs: p.tabs.map((t) => (t.id === id ? { ...t, find: { form: ff, results: [], running: false } } : t)) }));
+      updPane(pane, (p) => ({ ...p, tabs: p.tabs.map((t) => (t.id === id ? { ...t, find: { form: ff, results: [], running: false, flat } } : t)) }));
       flash(fsErrorText(e));
     }
     void label;
@@ -609,8 +609,9 @@ export default function FilesScreen() {
     const t = activeTab(st.panes[pane]);
     if (!t.find) return;
     const form = t.find.form;
+    const flat = !!t.find.flat;
     closeTab(pane, st.panes[pane].active);
-    await runFind(form);
+    await runFind(form, flat);
   };
 
   const fixDate = (k: "from" | "to") => {
@@ -630,6 +631,11 @@ export default function FilesScreen() {
     if (e.ctrlKey && !e.shiftKey && e.code === "KeyF") {
       e.preventDefault();
       quickRef.current?.focus();
+      return;
+    }
+    if (e.ctrlKey && !e.shiftKey && !e.altKey && e.code === "KeyR") {
+      e.preventDefault();
+      refresh();
       return;
     }
     if (typing(e.target)) return;
@@ -770,8 +776,70 @@ export default function FilesScreen() {
     [tree, cfg.showHidden],
   );
   const visibleDrives = drives.filter((d) => !cfg.hiddenDrives.includes(d.name));
-  const [mock, setMock] = useState({ preview: false, hidden: false, flat: false });
   const curPath = st ? (activeTab(st.panes[st.active]).find ? "" : activeTab(st.panes[st.active]).path) : "";
+
+  // ---------- 머리 줄 단추 (2026-10-19 확정) ----------
+  /** 새로고침: 보이는 창을 모두 다시 읽어요(펼쳐보기·찾기 결과는 다시 찾기) */
+  const refresh = () => {
+    if (!st) return;
+    refreshAll();
+    for (let i = 0; i < (st.four ? 4 : 2); i++) if (activeTab(st.panes[i]).find) void rerunFind(i);
+  };
+  // 다른 프로그램에서 기Log 창으로 돌아오면 보고 있던 폴더를 다시 읽어요(다운로드 등 윈도우가 바뀜을 빠뜨릴 때)
+  const refreshAllRef = useRef(refreshAll);
+  refreshAllRef.current = refreshAll;
+  useEffect(() => {
+    let last = 0;
+    const f = () => {
+      const now = Date.now();
+      if (now - last < 1500) return;
+      last = now;
+      refreshAllRef.current();
+    };
+    window.addEventListener("focus", f);
+    return () => window.removeEventListener("focus", f);
+  }, []);
+  /** 배치복구: 폴더트리 폭·창 사이 크기를 처음대로 */
+  const resetLayout = () => st && setSt({ ...st, split: 0.5, splitV: 0.5, tree: { ...st.tree, width: TREE_W.start } });
+  /** 숨긴파일: 설정 "숨김 파일 보이기"와 같은 값 */
+  const toggleHidden = async () => {
+    const next = { ...cfg, showHidden: !cfg.showHidden };
+    setCfg(next);
+    try {
+      const s = await loadSettings();
+      await saveSettings({ ...s, files: { ...s.files, showHidden: next.showHidden } });
+    } catch {
+      /* 저장 못 해도 이번에는 보여요 */
+    }
+  };
+  /** 펼쳐보기: 지금 폴더 아래 모든 파일을 한 목록으로(다시 누르면 닫기) */
+  const flatOn = !!(st && activeTab(st.panes[st.active]).find?.flat);
+  const toggleFlat = () => {
+    if (!st) return;
+    const pane = st.active;
+    const t = activeTab(st.panes[pane]);
+    if (t.find?.flat) return closeTab(pane, st.panes[pane].active);
+    if (t.find || isSpecial(t.path)) return flash("폴더를 연 창에서 눌러 주세요");
+    void runFind({ ...EMPTY_FIND, name: "", where: t.path, sub: true }, true);
+  };
+  /** 같은폴더: 대상 창을 지금 창과 같은 폴더로 */
+  const sameFolder = () => {
+    if (!st) return;
+    const t = activeTab(st.panes[st.active]);
+    const path = t.find ? t.find.form.where : t.path;
+    if (path) go(targetOf(st.active), path);
+  };
+  /** 창바꾸기: 지금 창과 대상 창의 탭을 서로 바꿔요 */
+  const swapPanes = () => {
+    if (!st) return;
+    const a = st.active;
+    const b = targetOf(a);
+    const panes = [...st.panes];
+    [panes[a], panes[b]] = [panes[b], panes[a]];
+    setSt({ ...st, panes });
+    setSel(a, EMPTY_SEL);
+    setSel(b, EMPTY_SEL);
+  };
 
   // 트리는 활성 창을 따라가요: 지금 폴더까지 위 폴더들을 펼쳐요.
   useEffect(() => {
@@ -1026,7 +1094,7 @@ export default function FilesScreen() {
                   <path d="M12 17v5M5 17h14l-2-5V5h1V2H6v3h1v7z" />
                 </svg>
               )}
-              <span className="fx-tn">{tab.find ? `찾기: ${tab.find.form.name || (tab.find.form.text ? `"${tab.find.form.text}"` : "*")}` : baseName(tab.path)}</span>
+              <span className="fx-tn">{tab.find ? (tab.find.flat ? `펼쳐보기: ${baseName(tab.find.form.where) || tab.find.form.where}` : `찾기: ${tab.find.form.name || (tab.find.form.text ? `"${tab.find.form.text}"` : "*")}`) : baseName(tab.path)}</span>
               {ti === p.active && !tab.pinned && p.tabs.length > 1 && (
                 <span
                   className="fx-tx"
@@ -1148,7 +1216,7 @@ export default function FilesScreen() {
           ) : (
             <div className="fx-crumbs" role="button" tabIndex={0} title="눌러서 경로 고쳐 적기 · Enter로 이동" onClick={() => !t.find && setEditPath({ pane, value: t.path })}>
               {t.find ? (
-                <span className="fx-dim">찾기 결과 · {t.find.form.where}</span>
+                <span className="fx-dim">{t.find.flat ? "펼쳐보기" : "찾기 결과"} · {t.find.form.where}</span>
               ) : (
                 crumbs.map((c, i) => (
                   <Fragment key={c.path}>
@@ -1226,22 +1294,24 @@ export default function FilesScreen() {
         </div>
         {t.find && (
           <div className="fx-findband">
-            <span className="fx-strong">{t.find.form.name || (t.find.form.text ? `"${t.find.form.text}"` : "*")}</span>
-            <span className="fx-dim fx-ellip">{findSummary(t.find.form)}</span>
+            <span className="fx-strong">{t.find.flat ? "펼쳐보기" : t.find.form.name || (t.find.form.text ? `"${t.find.form.text}"` : "*")}</span>
+            <span className="fx-dim fx-ellip">{t.find.flat ? `${t.find.form.where} 아래 모든 파일` : findSummary(t.find.form)}</span>
             <span className="fx-grow" />
             <span className="fx-dim">{t.find.running ? "찾는 중…" : `${t.find.results.length}개 찾음 · 폴더 ${new Set(t.find.results.map((r) => parentOf(r.path))).size}곳`}</span>
-            <button
-              type="button"
-              className="fx-fk"
-              onClick={() => {
-                setForm(t.find!.form);
-                setFindOpen(true);
-              }}
-            >
-              조건 고치기
-            </button>
+            {!t.find.flat && (
+              <button
+                type="button"
+                className="fx-fk"
+                onClick={() => {
+                  setForm(t.find!.form);
+                  setFindOpen(true);
+                }}
+              >
+                조건 고치기
+              </button>
+            )}
             <button type="button" className="fx-fk" onClick={() => void rerunFind(pane)}>
-              다시 찾기
+              {t.find.flat ? "다시 읽기" : "다시 찾기"}
             </button>
           </div>
         )}
@@ -1554,11 +1624,11 @@ export default function FilesScreen() {
           )}
         </div>
         <div className="fx-tools">
-          <button type="button" className="btn btn-ctrl fx-tool" title="새로 고침 (Ctrl+R)">
+          <button type="button" className="btn btn-ctrl fx-tool" title="새로 고침 (Ctrl+R)" onClick={refresh}>
             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7" /><path d="M20 4v7h-7" /></svg>
             새로고침
           </button>
-          <button type="button" className="btn btn-ctrl fx-tool" title="폴더트리 폭과 창 사이 크기를 처음대로" onClick={() => setSt({ ...st, split: 0.5, splitV: 0.5, tree: { ...st.tree, width: TREE_W.start } })}>
+          <button type="button" className="btn btn-ctrl fx-tool" title="폴더트리 폭과 창 사이 크기를 처음대로" onClick={resetLayout}>
             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5v14M21 5v14M7 12h10M10 9l-3 3 3 3M14 9l3 3-3 3" /></svg>
             배치복구
           </button>
@@ -1576,24 +1646,24 @@ export default function FilesScreen() {
             네칸보기
           </button>
           <span className="fx-vsep" />
-          <button type="button" className="btn btn-ctrl fx-tool" title="하위 폴더 파일까지 한 목록으로" aria-pressed={mock.flat} onClick={() => setMock({ ...mock, flat: !mock.flat })}>
+          <button type="button" className="btn btn-ctrl fx-tool" title="하위 폴더 파일까지 한 목록으로" aria-pressed={flatOn} onClick={toggleFlat}>
             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5h6l2 2h10v4M3 5v14h8M14 14h7M14 18h7M14 22h7" /></svg>
             펼쳐보기
           </button>
-          <button type="button" className="btn btn-ctrl fx-tool" title="미리 보기 칸" aria-pressed={mock.preview} onClick={() => setMock({ ...mock, preview: !mock.preview })}>
+          <button type="button" className="btn btn-ctrl fx-tool" title="미리 보기 칸" aria-pressed={!!st.preview} onClick={() => setSt({ ...st, preview: !st.preview })}>
             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M14 4v16M16.5 9h2M16.5 12h2" /></svg>
             미리보기
           </button>
-          <button type="button" className="btn btn-ctrl fx-tool" title="숨김 파일 보이기" aria-pressed={mock.hidden} onClick={() => setMock({ ...mock, hidden: !mock.hidden })}>
+          <button type="button" className="btn btn-ctrl fx-tool" title="숨김 파일 보이기" aria-pressed={cfg.showHidden} onClick={() => void toggleHidden()}>
             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></svg>
             숨긴파일
           </button>
           <span className="fx-vsep" />
-          <button type="button" className="btn btn-ctrl fx-tool" title="반대 창을 지금 창과 같은 폴더로">
+          <button type="button" className="btn btn-ctrl fx-tool" title="대상 창을 지금 창과 같은 폴더로" onClick={sameFolder}>
             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 9h14M5 15h14" /></svg>
             같은폴더
           </button>
-          <button type="button" className="btn btn-ctrl fx-tool" title="두 창의 폴더를 서로 바꾸기">
+          <button type="button" className="btn btn-ctrl fx-tool" title="지금 창과 대상 창을 서로 바꾸기" onClick={swapPanes}>
             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 4L3 8l4 4M3 8h14M17 12l4 4-4 4M21 16H7" /></svg>
             창바꾸기
           </button>
@@ -1720,7 +1790,19 @@ export default function FilesScreen() {
             ...(st.four ? { gridTemplateRows: `minmax(0, ${st.splitV ?? 0.5}fr) minmax(0, ${1 - (st.splitV ?? 0.5)}fr)` } : {}),
           }}
         >
-          {Array.from({ length: paneCount }, (_, i) => renderPane(i))}
+          {Array.from({ length: paneCount }, (_, i) =>
+            // 미리보기: FreeCommander처럼 대상 창 자리에 보여요(창들이 좁아지지 않게)
+            st.preview && i === targetOf(st.active) ? (
+              <section key={i} className="fx-pane fx-preview" aria-label="미리보기" data-on="0" data-target="0">
+                <div className="fx-tabs">
+                  <span className="fx-tab fx-pv-title">미리보기</span>
+                </div>
+                <Preview row={selected(st.active)[0]} fmt={fmt} typeOf={(r) => typeName(r, types)} />
+              </section>
+            ) : (
+              renderPane(i)
+            ),
+          )}
           <div
             className="fx-psplit fx-psplit-x"
             role="separator"
@@ -1920,3 +2002,43 @@ function dateParts(t: string) {
 /** 창 사이를 끌 때 창 하나가 줄어들 수 있는 끝(이름 열이 보일 만큼) */
 const PANE_MIN_W = 460;
 const PANE_MIN_H = 200;
+
+/** 미리보기 칸: 사진은 그림으로, 다른 파일은 큰 아이콘과 정보(2026-10-19) */
+function Preview({ row, fmt, typeOf }: { row: Row | undefined; fmt: string; typeOf: (r: Row) => string }) {
+  if (!row) return <div className="fx-pv-empty">파일을 고르면 여기에 보여요</div>;
+  const img = !row.dir && IMAGE_EXT.has(extOf(row.name));
+  return (
+    <div className="fx-pv">
+      <div className="fx-pv-pic">{img ? <PreviewImage path={row.path} /> : <FileIcon name={row.name} path={row.path} dir={row.dir} size={64} />}</div>
+      <div className="fx-pv-name">{row.name}</div>
+      <dl className="fx-pv-info">
+        <dt>파일 형식</dt>
+        <dd>{typeOf(row)}</dd>
+        {!row.dir && (
+          <>
+            <dt>크기</dt>
+            <dd>{formatSize(row.size)}</dd>
+          </>
+        )}
+        <dt>수정한 날</dt>
+        <dd>{formatDate(row.modified, fmt)}</dd>
+        <dt>위치</dt>
+        <dd className="fx-pv-path">{parentOf(row.path) ?? ""}</dd>
+      </dl>
+    </div>
+  );
+}
+
+function PreviewImage({ path }: { path: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    import("@tauri-apps/api/core")
+      .then(({ convertFileSrc }) => alive && setSrc("__TAURI_INTERNALS__" in window ? convertFileSrc(path) : null))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [path]);
+  return src ? <img className="fx-pv-img" src={src} alt="" draggable={false} /> : <div className="fx-pv-ph">사진은 앱에서 보여요</div>;
+}

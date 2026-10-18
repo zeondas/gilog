@@ -401,6 +401,8 @@ export type FilesState = {
   split: number;
   /** 4창 위아래 나눈 비율(위 창 몫, 0.2~0.8) */
   splitV?: number;
+  /** 미리보기 칸 켜짐 */
+  preview?: boolean;
   active: number;
   panes: FsPane[];
   cols: { size: number; modified: number; folder: number; type: number };
