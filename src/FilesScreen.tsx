@@ -38,6 +38,7 @@ import {
   quickMatch,
   readState,
   sortEntries,
+  typeName,
 } from "./files";
 import { Conflict, Found, MenuResult, TreeDir, fsApi, fsErrorText, onFsChanged, onFsProgress } from "./filesApi";
 import { parseDate } from "./journal";
@@ -84,8 +85,23 @@ export default function FilesScreen() {
   stRef.current = st;
   const [home, setHome] = useState("");
   const [cfg, setCfg] = useState<FilesSettings>(DEFAULT_FILES_SETTINGS);
+  /** 파일 형식 이름(".xlsx" → "Microsoft Excel 워크시트") — 확장자마다 한 번만 윈도우에 물어요 */
+  const [types, setTypes] = useState<Record<string, string>>({});
+  const typesAsked = useRef(new Set<string>());
   const [drives, setDrives] = useState<FsDrive[]>([]);
   const [lists, setLists] = useState<Listing[]>([0, 1, 2, 3].map(() => ({ path: "", entries: [], error: "", loading: false })));
+  // 보이는 목록의 확장자 가운데 아직 형식 이름을 모르는 것만 모아 한 번에 물어요.
+  useEffect(() => {
+    if (!cfg.cols.type) return;
+    const want = new Set<string>(["<dir>"]);
+    const add = (e: { name: string; dir: boolean }) => !e.dir && want.add("." + extOf(e.name));
+    lists.forEach((l) => l.entries.forEach(add));
+    st?.panes.forEach((p) => p.tabs.forEach((t) => t.find?.results.forEach(add)));
+    const keys = [...want].filter((k) => !typesAsked.current.has(k));
+    if (!keys.length) return;
+    keys.forEach((k) => typesAsked.current.add(k));
+    fsApi.types(keys).then((got) => setTypes((T) => ({ ...T, ...got })), () => {});
+  }, [lists, st, cfg.cols.type]);
   const listsRef = useRef(lists);
   listsRef.current = lists;
   const [sels, setSels] = useState<Sel[]>([EMPTY_SEL, EMPTY_SEL, EMPTY_SEL, EMPTY_SEL]);
@@ -251,7 +267,7 @@ export default function FilesScreen() {
     const t = activeTab(p);
     const f = filters[pane];
     const base: Row[] = t.find ? t.find.results : lists[pane].entries;
-    return sortEntries(base.filter((e) => quickMatch(f, e.name)), p.sort, p.asc);
+    return sortEntries(base.filter((e) => quickMatch(f, e.name)), p.sort, p.asc, types);
   };
 
   const selected = (pane: number): Row[] => {
@@ -851,8 +867,10 @@ export default function FilesScreen() {
           {r.name}
         </span>
       );
-    const colStyle = { gridTemplateColumns: t.find ? `32px minmax(0,1fr) ${st.cols.folder}px ${st.cols.size}px ${st.cols.modified}px` : `32px minmax(0,1fr) ${st.cols.size}px ${st.cols.modified}px` };
-    const resizer = (k: "size" | "modified" | "folder") => (
+    // 보일 열: 이름은 늘, 크기·수정한 날·파일 형식은 설정에서 켜고 꺼요(2026-10-18 사용자). 찾기 결과는 폴더 열이 이름 다음에.
+    const shown = (["size", "modified", "type"] as const).filter((k) => cfg.cols[k]);
+    const colStyle = { gridTemplateColumns: ["32px", "minmax(0,1fr)", ...(t.find ? [`${st.cols.folder}px`] : []), ...shown.map((k) => `${st.cols[k]}px`)].join(" ") };
+    const resizer = (k: "size" | "modified" | "folder" | "type") => (
       <span
         className="fx-col-grip"
         onPointerDown={(e) => {
@@ -876,7 +894,7 @@ export default function FilesScreen() {
           const c = document.createElement("canvas").getContext("2d");
           if (!c) return;
           c.font = `${getComputedStyle(document.body).fontSize} Pretendard, sans-serif`;
-          const vals = rows.map((r) => (k === "size" ? (r.dir ? "" : formatSize(r.size)) : k === "modified" ? formatDate(r.modified, fmt) : r.folder ?? ""));
+          const vals = rows.map((r) => (k === "size" ? (r.dir ? "" : formatSize(r.size)) : k === "modified" ? formatDate(r.modified, fmt) : k === "type" ? typeName(r, types) : r.folder ?? ""));
           const w = Math.ceil(Math.max(40, ...vals.map((v) => c.measureText(v).width))) + 20;
           setSt((S) => (S ? { ...S, cols: { ...S.cols, [k]: Math.min(400, w) } } : S));
         }}
@@ -1134,14 +1152,24 @@ export default function FilesScreen() {
                 {resizer("folder")}
               </button>
             )}
-            <button type="button" className="fx-hcell fx-col fx-r" onClick={() => sortBy("size")}>
-              크기{arrow("size")}
-              {resizer("size")}
-            </button>
-            <button type="button" className="fx-hcell fx-col" onClick={() => sortBy("modified")}>
-              수정한 날{arrow("modified")}
-              {resizer("modified")}
-            </button>
+            {cfg.cols.size && (
+              <button type="button" className="fx-hcell fx-col fx-r" onClick={() => sortBy("size")}>
+                크기{arrow("size")}
+                {resizer("size")}
+              </button>
+            )}
+            {cfg.cols.modified && (
+              <button type="button" className="fx-hcell fx-col" onClick={() => sortBy("modified")}>
+                수정한 날{arrow("modified")}
+                {resizer("modified")}
+              </button>
+            )}
+            {cfg.cols.type && (
+              <button type="button" className="fx-hcell fx-col" onClick={() => sortBy("type")}>
+                파일 형식{arrow("type")}
+                {resizer("type")}
+              </button>
+            )}
           </div>
         )}
         <div
@@ -1172,8 +1200,9 @@ export default function FilesScreen() {
               <span className="fx-dim fx-strong">..</span>
               {p.view === "detail" && (
                 <>
-                  <span className="fx-col" />
-                  <span className="fx-col" />
+                  {shown.map((k) => (
+                    <span key={k} className="fx-col" />
+                  ))}
                 </>
               )}
             </div>
@@ -1256,8 +1285,13 @@ export default function FilesScreen() {
                     <span className="fx-ellip">{r.folder}</span>
                   </span>
                 )}
-                <span className="fx-col fx-num">{r.dir ? "" : formatSize(r.size)}</span>
-                <span className="fx-col fx-dim fx-tab-num">{formatDate(r.modified, fmt)}</span>
+                {cfg.cols.size && <span className="fx-col fx-num">{r.dir ? "" : formatSize(r.size)}</span>}
+                {cfg.cols.modified && <span className="fx-col fx-dim fx-tab-num">{formatDate(r.modified, fmt)}</span>}
+                {cfg.cols.type && (
+                  <span className="fx-col fx-dim" title={typeName(r, types)}>
+                    <span className="fx-ellip">{typeName(r, types)}</span>
+                  </span>
+                )}
               </div>
             );
           })}

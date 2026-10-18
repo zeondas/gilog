@@ -593,6 +593,20 @@ pub fn fs_explorer(path: String, select: bool) -> Result<(), String> {
     }
 }
 
+/// 파일 형식 이름(윈도우 탐색기 "유형" 열과 같은 글). 키 ".xlsx"·"<dir>". 윈도우가 아니면 비어 있어요(화면이 "XLSX 파일"로 채워요).
+#[tauri::command]
+pub async fn fs_types(keys: Vec<String>) -> HashMap<String, String> {
+    #[cfg(windows)]
+    {
+        tauri::async_runtime::spawn_blocking(move || crate::files_win::types(&keys)).await.unwrap_or_default()
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = keys;
+        HashMap::new()
+    }
+}
+
 /// 윈도우 탐색기로 넘기기(보안 해제): dir을 열어 names를 골라 두고, popup이면 그 파일의 우클릭 메뉴를 띄워요.
 #[tauri::command]
 pub fn fs_reveal(dir: String, names: Vec<String>, popup: bool) -> Result<(), String> {

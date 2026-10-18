@@ -677,6 +677,7 @@ pub fn run() {
             files::fs_icons,
             files::fs_context_menu,
             files::fs_reveal,
+            files::fs_types,
             files::fs_find,
             files::fs_watch
         ])

@@ -246,6 +246,8 @@ export const fsApi = {
   open: (path: string) => (inApp ? call<null>("fs_open", { path }) : Promise.resolve(null)),
   explorer: (path: string, select: boolean) => (inApp ? call<null>("fs_explorer", { path, select }) : Promise.resolve(null)),
   icons: (keys: string[], size: number) => call<Record<string, string>>("fs_icons", { keys, size }),
+  /** 파일 형식 이름(윈도우 것): 키는 ".xlsx"·"<dir>" */
+  types: (keys: string[]) => (inApp ? call<Record<string, string>>("fs_types", { keys }) : Promise.resolve({} as Record<string, string>)),
   contextMenu: (dir: string, names: string[], x: number, y: number) => call<MenuResult>("fs_context_menu", { dir, names, x, y }),
   /** 윈도우 탐색기로 넘기기(보안 해제) — dir을 열어 names를 골라 두고 우클릭 메뉴를 띄워요 */
   reveal: (dir: string, names: string[]) => (inApp ? call<null>("fs_reveal", { dir, names, popup: true }) : Promise.resolve(null)),

@@ -662,6 +662,30 @@ function FilesRows({ value, onChange }: { value: FilesSettings; onChange: (v: Fi
           })}
         </span>
       </Row>
+      <Row label="보이는 열" desc="자세히 보기의 열이에요. 이름은 늘 보여요.">
+        <span className="fx-set-drives">
+          {(
+            [
+              ["size", "크기"],
+              ["modified", "수정한 날"],
+              ["type", "파일 형식"],
+            ] as const
+          ).map(([k, name]) => {
+            const on = value.cols[k];
+            return (
+              <button
+                key={k}
+                type="button"
+                className={"chip fx-set-drive" + (on ? " on" : "")}
+                aria-pressed={on}
+                onClick={() => set({ cols: { ...value.cols, [k]: !on } })}
+              >
+                {name}
+              </button>
+            );
+          })}
+        </span>
+      </Row>
       <Toggle label="숨김 파일 보이기" desc="켜면 흐리게 보여요." on={value.showHidden} onChange={(showHidden) => set({ showHidden })} />
       <Row label="새 탭이 여는 폴더" desc="새 탭과 처음 켤 때 열려요. 비우면 문서 폴더예요.">
         <span className="fx-set-dir">

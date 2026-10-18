@@ -29,7 +29,7 @@ use windows::Win32::UI::Shell::{
     DefSubclassProc, ILFree, IContextMenu, IContextMenu2, IContextMenu3, IShellFolder, RemoveWindowSubclass, SHBindToObject,
     SHGetFileInfoW, SHOpenFolderAndSelectItems, SHParseDisplayName, SetWindowSubclass, ShellExecuteW, CMF_EXPLORE, CMF_EXTENDEDVERBS, CMF_NORMAL, CMIC_MASK_PTINVOKE,
     CMINVOKECOMMANDINFO, CMINVOKECOMMANDINFOEX, GCS_VERBW, SHFILEINFOW, SHGFI_ICON, SHGFI_LARGEICON, SHGFI_SMALLICON,
-    SHGFI_USEFILEATTRIBUTES,
+    SHGFI_TYPENAME, SHGFI_USEFILEATTRIBUTES,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CreatePopupMenu, DestroyIcon, DestroyMenu, GetClassNameW, GetCursorPos, GetForegroundWindow, GetIconInfo, TrackPopupMenuEx,
@@ -391,4 +391,27 @@ unsafe fn press_menu_key() {
     };
     let inputs = [key(false), key(true)];
     unsafe { SendInput(&inputs, std::mem::size_of::<INPUT>() as i32) };
+}
+
+// ---------- 파일 형식 이름 ----------
+
+/// 윈도우 탐색기의 "유형" 열과 같은 이름("Microsoft Excel 워크시트"). 키는 ".xlsx" 또는 "<dir>"(폴더).
+/// 파일이 없어도 확장자만으로 물어요(SHGFI_USEFILEATTRIBUTES).
+pub fn types(keys: &[String]) -> HashMap<String, String> {
+    let mut out = HashMap::new();
+    for k in keys {
+        let (name, attrs) = if k == "<dir>" { ("folder".to_string(), FILE_ATTRIBUTE_DIRECTORY) } else { (format!("x{k}"), FILE_ATTRIBUTE_NORMAL) };
+        let w = wide(&name);
+        let mut info = SHFILEINFOW::default();
+        let ok = unsafe {
+            SHGetFileInfoW(PCWSTR(w.as_ptr()), attrs, Some(&mut info), std::mem::size_of::<SHFILEINFOW>() as u32, SHGFI_TYPENAME | SHGFI_USEFILEATTRIBUTES)
+        };
+        if ok != 0 {
+            let t = from_wide(&info.szTypeName);
+            if !t.is_empty() {
+                out.insert(k.clone(), t);
+            }
+        }
+    }
+    out
 }

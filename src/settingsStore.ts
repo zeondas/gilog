@@ -59,9 +59,11 @@ export type FilesSettings = {
   newTabDir: string;
   /** F8 지울 때 묻기 (Shift+F8 완전 삭제는 늘 물어요) */
   askDelete: boolean;
+  /** 자세히 보기에서 보일 열(이름은 늘 보여요) — 2026-10-18 사용자 */
+  cols: { size: boolean; modified: boolean; type: boolean };
 };
 
-export const DEFAULT_FILES_SETTINGS: FilesSettings = { dateFmt: 0, hiddenDrives: [], showHidden: false, newTabDir: "", askDelete: true };
+export const DEFAULT_FILES_SETTINGS: FilesSettings = { dateFmt: 0, hiddenDrives: [], showHidden: false, newTabDir: "", askDelete: true, cols: { size: true, modified: true, type: true } };
 
 export const DEFAULT_SETTINGS: Settings = {
   status: ["접수", "처리중", "완료", "보류"],
@@ -111,7 +113,7 @@ export async function loadSettings(): Promise<Settings> {
   if (!raw) return structuredClone(DEFAULT_SETTINGS);
   try {
     const saved = JSON.parse(raw) as Partial<Settings>;
-    return withMemo({ ...structuredClone(DEFAULT_SETTINGS), ...saved, process: { ...DEFAULT_PROCESS, ...(saved.process ?? {}) }, files: { ...DEFAULT_FILES_SETTINGS, ...saved.files }, modules: { ...(saved.modules ?? {}) } });
+    return withMemo({ ...structuredClone(DEFAULT_SETTINGS), ...saved, process: { ...DEFAULT_PROCESS, ...(saved.process ?? {}) }, files: { ...DEFAULT_FILES_SETTINGS, ...saved.files, cols: { ...DEFAULT_FILES_SETTINGS.cols, ...(saved.files?.cols ?? {}) } }, modules: { ...(saved.modules ?? {}) } });
   } catch {
     return structuredClone(DEFAULT_SETTINGS);
   }

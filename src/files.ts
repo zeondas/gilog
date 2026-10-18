@@ -17,7 +17,7 @@ export type FsEntry = {
 export type FsDrive = { name: string; path: string; label: string; kind: string; free: number; total: number };
 
 export type ViewMode = "detail" | "brief" | "icons" | "thumb";
-export type SortKey = "name" | "size" | "modified" | "folder";
+export type SortKey = "name" | "size" | "modified" | "folder" | "type";
 
 export const VIEWS: { id: ViewMode; name: string; key: string }[] = [
   { id: "detail", name: "자세히", key: "Ctrl+Shift+1" },
@@ -109,7 +109,14 @@ export function compareName(a: string, b: string): number {
 }
 
 /** 정렬: 폴더가 늘 먼저, 그 안에서 고른 열 순서 */
-export function sortEntries<T extends FsEntry & { folder?: string }>(list: T[], key: SortKey, asc: boolean): T[] {
+/** 파일 형식 이름: 앱에서는 윈도우가 쓰는 이름("Microsoft Excel 워크시트"), 모르면 "XLSX 파일" */
+export function typeName(e: { name: string; dir: boolean }, known: Record<string, string>): string {
+  if (e.dir) return known["<dir>"] || "파일 폴더";
+  const x = extOf(e.name);
+  return known["." + x] || (x ? `${x.toUpperCase()} 파일` : "파일");
+}
+
+export function sortEntries<T extends FsEntry & { folder?: string }>(list: T[], key: SortKey, asc: boolean, types: Record<string, string> = {}): T[] {
   const dir = asc ? 1 : -1;
   return [...list].sort((a, b) => {
     if (a.dir !== b.dir) return a.dir ? -1 : 1;
@@ -117,6 +124,7 @@ export function sortEntries<T extends FsEntry & { folder?: string }>(list: T[], 
     if (key === "size") c = a.size - b.size;
     else if (key === "modified") c = a.modified - b.modified;
     else if (key === "folder") c = compareName(a.folder ?? "", b.folder ?? "");
+    else if (key === "type") c = compareName(typeName(a, types), typeName(b, types));
     if (c === 0) c = compareName(a.name, b.name);
     return c * dir;
   });
@@ -388,7 +396,7 @@ export type FilesState = {
   split: number;
   active: number;
   panes: FsPane[];
-  cols: { size: number; modified: number; folder: number };
+  cols: { size: number; modified: number; folder: number; type: number };
   tree: { on: boolean; width: number; open: string[] };
   favorites: string[];
   finds: SavedFind[];
@@ -404,7 +412,7 @@ export function defaultState(home: string): FilesState {
     split: 0.5,
     active: 0,
     panes: [pane(), pane(), pane(), pane()],
-    cols: { size: 80, modified: 112, folder: 140 },
+    cols: { size: 80, modified: 112, folder: 140, type: 104 },
     tree: { on: true, width: TREE_W.start, open: [] },
     favorites: [],
     finds: [],
