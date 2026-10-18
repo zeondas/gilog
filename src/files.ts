@@ -12,7 +12,19 @@ export type FsEntry = {
   created: number;
   hidden: boolean;
   locked: boolean;
+  /** 내 PC·홈 목록에서만: 크기 열에 대신 쓰는 글(남은 공간), 형식 열 글, 홈 묶음("fav"·"recent") */
+  note?: string;
+  kind?: string;
+  group?: string;
 };
+
+/** 폴더가 아닌 자리: 내 PC(드라이브 목록)·홈(윈도우 탐색기 "홈" = 즐겨찾기·최근 파일) — 2026-10-18 사용자, 시안 FilesDrives */
+export const PC = "::pc";
+export const HOME = "::home";
+/** 트리의 내 PC 묶음을 접었는지(tree.open에 들어 있으면 접힘) */
+export const PC_FOLD = "::pc:fold";
+export const isSpecial = (path: string) => path.startsWith("::");
+export const specialName = (path: string) => (path === PC ? "내 PC" : path === HOME ? "홈" : path);
 
 export type FsDrive = { name: string; path: string; label: string; kind: string; free: number; total: number };
 
@@ -168,6 +180,7 @@ export function parentOf(path: string): string | null {
 
 /** 경로 조각(경로 줄): [이름, 그 조각까지의 경로] */
 export function crumbsOf(path: string): { name: string; path: string }[] {
+  if (isSpecial(path)) return [{ name: specialName(path), path }];
   const s = sepOf(path);
   const parts = path.split(s).filter(Boolean);
   const out: { name: string; path: string }[] = [];

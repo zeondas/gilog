@@ -8,7 +8,8 @@ import { fsApi } from "./filesApi";
 const PER_FILE = new Set(["exe", "lnk", "ico", "url"]);
 
 export const iconKey = (name: string, path: string, dir: boolean) => {
-  if (dir) return "<dir>";
+  // 드라이브(C:\)는 윈도우가 그 드라이브 아이콘을 줘요(내 PC 목록·트리)
+  if (dir) return /^[A-Za-z]:\\$/.test(path) ? path : "<dir>";
   const e = extOf(name);
   return PER_FILE.has(e) ? path : "." + (e || "_");
 };

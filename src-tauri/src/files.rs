@@ -593,6 +593,39 @@ pub fn fs_explorer(path: String, select: bool) -> Result<(), String> {
     }
 }
 
+/// 윈도우 탐색기 "홈"의 항목(즐겨찾기 폴더·최근 파일). group "fav"(폴더) · "recent"(파일), name은 윈도우가 보여 주는 이름.
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct QuickItem {
+    #[serde(flatten)]
+    pub entry: Entry,
+    pub group: String,
+}
+
+#[tauri::command]
+pub async fn fs_quick() -> Vec<QuickItem> {
+    #[cfg(windows)]
+    {
+        tauri::async_runtime::spawn_blocking(|| {
+            crate::files_win::quick_items()
+                .into_iter()
+                .filter_map(|(name, path)| {
+                    let mut entry = entry_of(Path::new(&path))?;
+                    entry.name = name;
+                    let group = if entry.dir { "fav" } else { "recent" }.to_string();
+                    Some(QuickItem { entry, group })
+                })
+                .collect()
+        })
+        .await
+        .unwrap_or_default()
+    }
+    #[cfg(not(windows))]
+    {
+        Vec::new()
+    }
+}
+
 /// 파일 형식 이름(윈도우 탐색기 "유형" 열과 같은 글). 키 ".xlsx"·"<dir>". 윈도우가 아니면 비어 있어요(화면이 "XLSX 파일"로 채워요).
 #[tauri::command]
 pub async fn fs_types(keys: Vec<String>) -> HashMap<String, String> {

@@ -6,7 +6,7 @@ import { PhoneInput } from "./PhoneInput";
 import { aiGuide, phoneGuide } from "./process";
 import { isOn, MODULE_DESC, ModuleId, Modules, onScreens, SCREENS, firstOn } from "./screens";
 import { NavIcon, NavIconName } from "./Icons";
-import { DATE_FORMATS, FsDrive } from "./files";
+import { DATE_FORMATS, FsDrive, HOME, PC } from "./files";
 import { fsApi } from "./filesApi";
 import Logo, { AppIcon } from "./Logo";
 import { VERSION } from "./version";
@@ -649,9 +649,9 @@ function FilesRows({ value, onChange }: { value: FilesSettings; onChange: (v: Fi
           ))}
         </span>
       </Row>
-      <Row label="보이는 드라이브" desc="끈 드라이브는 드라이브 단추와 폴더 트리에서 빠져요.">
+      <Row label="보이는 드라이브" desc="끈 것은 드라이브 단추와 폴더 트리에서 빠져요.">
         <span className="fx-set-drives">
-          {drives.map((d) => {
+          {[{ name: PC, label: "내 PC" }, ...drives.map((d) => ({ name: d.name, label: `${d.name} ${d.label}` })), { name: HOME, label: "홈" }].map((d) => {
             const on = !value.hiddenDrives.includes(d.name);
             return (
               <button
@@ -663,7 +663,7 @@ function FilesRows({ value, onChange }: { value: FilesSettings; onChange: (v: Fi
                   set({ hiddenDrives: on ? [...value.hiddenDrives, d.name] : value.hiddenDrives.filter((x) => x !== d.name) })
                 }
               >
-                {d.name} {d.label}
+                {d.label}
               </button>
             );
           })}

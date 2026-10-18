@@ -7665,13 +7665,15 @@ body.col-dragging * {
   border-bottom: 1px solid var(--line-soft);
 }
 .fx-drv {
+  /* 정사각형: 내 PC·C:·D:·F:·홈 모두 같은 크기(2026-10-18 사용자, 시안 FilesDrives) */
+  flex: none;
   height: var(--fx-ctl);
-  min-width: 46px;
+  width: var(--fx-ctl);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  padding: 2px 10px 0;
+  /* 글자 높이 맞춤 2px(UI 통일)은 두고, 좌우 여백 없이 정사각형(탐색기) */
+  padding: 2px 0 0;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface);
@@ -7681,7 +7683,7 @@ body.col-dragging * {
   font-variant-numeric: tabular-nums;
 }
 .fx-drv svg {
-  color: var(--muted);
+  color: var(--ink-2);
 }
 .fx-drv:hover {
   background: var(--surface-band);
@@ -7955,6 +7957,7 @@ body.col-dragging * {
   justify-content: flex-end;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .fx-tab-num {
   font-variant-numeric: tabular-nums;
@@ -9667,4 +9670,12 @@ button.bd-chip:hover {
   .cal-kp-btn {
     padding-top: 0;
   }
+}
+
+/* 홈 목록 묶음 이름(즐겨찾기·최근 파일) */
+.fx-ghead {
+  padding: 8px 12px 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
 }

@@ -39,6 +39,10 @@ import {
   readState,
   sortEntries,
   typeName,
+  HOME,
+  PC,
+  PC_FOLD,
+  isSpecial,
 } from "./files";
 import { Conflict, Found, MenuResult, TreeDir, fsApi, fsErrorText, onFsChanged, onFsProgress } from "./filesApi";
 import { parseDate } from "./journal";
@@ -189,7 +193,7 @@ export default function FilesScreen() {
     paths.forEach((p, i) => {
       if (p && listsRef.current[i].path !== p) void load(i, p);
     });
-    void fsApi.watch(paths.filter(Boolean));
+    void fsApi.watch(paths.filter((p) => p && !isSpecial(p)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathsKey, load]);
 
@@ -285,7 +289,10 @@ export default function FilesScreen() {
     const t = activeTab(p);
     const f = filters[pane];
     const base: Row[] = t.find ? t.find.results : lists[pane].entries;
-    return sortEntries(base.filter((e) => quickMatch(f, e.name)), p.sort, p.asc, types);
+    const shown = base.filter((e) => quickMatch(f, e.name));
+    // 내 PC·홈은 윈도우가 주는 차례 그대로
+    if (!t.find && isSpecial(t.path)) return shown;
+    return sortEntries(shown, p.sort, p.asc, types);
   };
 
   const selected = (pane: number): Row[] => {
@@ -310,9 +317,11 @@ export default function FilesScreen() {
   const up = (pane: number) => {
     if (!st) return;
     const t = activeTab(st.panes[pane]);
-    if (t.find) return;
+    if (t.find || isSpecial(t.path)) return;
     const u = parentOf(t.path);
     if (u) go(pane, u, t.path);
+    // 드라이브 맨 위에서 위로 = 내 PC (윈도우와 같게)
+    else if (/^[A-Za-z]:\\$/.test(t.path) && !cfg.hiddenDrives.includes(PC)) go(pane, PC, t.path);
   };
 
   /** 같은 이름을 한 파일씩 물어요. 취소하면 null */
@@ -344,6 +353,7 @@ export default function FilesScreen() {
       return t.find ? "" : t.path;
     })();
     if (!dest) return flash("대상 창이 찾기 결과예요. 폴더를 연 창으로 보내 주세요.");
+    if (isSpecial(dest)) return flash("대상 창이 내 PC·홈이에요. 폴더를 연 창으로 보내 주세요.");
     const sources = src.map((e) => e.path);
     try {
       const list = await fsApi.conflicts(sources, dest);
@@ -416,7 +426,7 @@ export default function FilesScreen() {
   const newFolder = async (pane: number) => {
     if (!st) return;
     const t = activeTab(st.panes[pane]);
-    if (t.find) return;
+    if (t.find || isSpecial(t.path)) return;
     const taken = new Set(lists[pane].entries.map((e) => e.name.toLowerCase()));
     const name = taken.has("새 폴더") ? bothName("새 폴더", (n) => taken.has(n.toLowerCase())) : "새 폴더";
     try {
@@ -520,7 +530,7 @@ export default function FilesScreen() {
       if (parents.size > 1) names = [first.name];
       dir = parentOf(first.path) ?? dir;
     }
-    if (!dir) return;
+    if (!dir || isSpecial(dir)) return;
     try {
       const r: MenuResult = await fsApi.contextMenu(dir, names, e ? e.clientX : -1, e ? e.clientY : -1);
       if (r === "rename") startRename(pane);
@@ -658,7 +668,7 @@ export default function FilesScreen() {
       const t = activeTab(st.panes[pane]);
       const r = rows[idx];
       if (r) void fsApi.explorer(r.path, true);
-      else if (!t.find) void fsApi.explorer(t.path, false);
+      else if (!t.find) void fsApi.explorer(t.path === PC ? "shell:MyComputerFolder" : t.path === HOME ? "shell:::{679f85cb-0220-4080-b29b-5540cc05aab6}" : t.path, false);
       return handled();
     }
     if (ctrl && e.code === "KeyR") return handled(), refreshAll();
@@ -727,7 +737,7 @@ export default function FilesScreen() {
   // ---------- 트리 ----------
   const loadTree = useCallback(
     async (path: string) => {
-      if (tree.has(path)) return;
+      if (tree.has(path) || isSpecial(path)) return;
       try {
         const kids = await fsApi.subdirs(path, cfg.showHidden);
         setTree((t) => new Map(t).set(path, kids));
@@ -768,22 +778,49 @@ export default function FilesScreen() {
     void loadTree(path);
   };
 
-  type TreeRow = { name: string; path: string; level: number; hasKids: boolean; drive: boolean; first: boolean };
+  // 트리 맨 위 묶음: 홈(윈도우 "홈"의 즐겨찾기 폴더, 처음 접힘)·내 PC(드라이브, 처음 펼침) — 접기는 tree.open에 HOME·"::pc:fold"
+  const [homeDirs, setHomeDirs] = useState<FsEntry[]>([]);
+  const showHome = !cfg.hiddenDrives.includes(HOME);
+  const showPc = !cfg.hiddenDrives.includes(PC);
+  const homeOpen = !!st?.tree.open.includes(HOME);
+  const pcFolded = !!st?.tree.open.includes(PC_FOLD);
+  useEffect(() => {
+    if (!st?.tree.on || !showHome || !homeOpen) return;
+    fsApi.list(HOME, false).then((es) => setHomeDirs(es.filter((e) => e.dir)), () => setHomeDirs([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [st?.tree.on, showHome, homeOpen]);
+  const toggleGroup = (key: string) => {
+    if (!st) return;
+    const open = st.tree.open.includes(key) ? st.tree.open.filter((p) => p !== key) : [...st.tree.open, key];
+    setSt({ ...st, tree: { ...st.tree, open } });
+  };
+
+  type TreeRow = { name: string; path: string; level: number; hasKids: boolean; drive: boolean; first: boolean; special?: "home" | "pc"; key: string };
   const treeRows: TreeRow[] = useMemo(() => {
     if (!st) return [];
     const out: TreeRow[] = [];
-    const walk = (path: string, level: number) => {
+    const walk = (path: string, level: number, pre: string) => {
       for (const k of tree.get(path) ?? []) {
-        out.push({ name: k.name, path: k.path, level, hasKids: k.hasChildren, drive: false, first: false });
-        if (st.tree.open.includes(k.path)) walk(k.path, level + 1);
+        out.push({ name: k.name, path: k.path, level, hasKids: k.hasChildren, drive: false, first: false, key: pre + k.path });
+        if (st.tree.open.includes(k.path)) walk(k.path, level + 1, pre);
       }
     };
-    visibleDrives.forEach((d, i) => {
-      out.push({ name: d.name, path: d.path, level: 0, hasKids: true, drive: true, first: i === 0 });
-      if (st.tree.open.includes(d.path)) walk(d.path, 1);
-    });
+    if (showHome) {
+      out.push({ name: "홈", path: HOME, level: 0, hasKids: true, drive: false, first: true, special: "home", key: HOME });
+      if (homeOpen)
+        homeDirs.forEach((d) => {
+          out.push({ name: d.name, path: d.path, level: 1, hasKids: true, drive: false, first: false, key: "h:" + d.path });
+          if (st.tree.open.includes(d.path)) walk(d.path, 2, "h:");
+        });
+    }
+    if (showPc) out.push({ name: "내 PC", path: PC, level: 0, hasKids: true, drive: false, first: !showHome, special: "pc", key: PC });
+    if (!showPc || !pcFolded)
+      visibleDrives.forEach((d, i) => {
+        out.push({ name: d.name, path: d.path, level: 0, hasKids: true, drive: true, first: i === 0 && (showPc || !showHome), key: d.path });
+        if (st.tree.open.includes(d.path)) walk(d.path, 1, "");
+      });
     return out;
-  }, [st, tree, visibleDrives]);
+  }, [st, tree, visibleDrives, showHome, showPc, homeOpen, pcFolded, homeDirs]);
 
   // 지금 경로의 위 폴더들(굵게·연보라 안내선)
   const onPath = useMemo(() => {
@@ -808,7 +845,7 @@ export default function FilesScreen() {
     if (!st || !src) return;
     const t = activeTab(st.panes[pane]);
     const dest = dir ?? (t.find ? "" : t.path);
-    if (!dest) return;
+    if (!dest || isSpecial(dest)) return;
     if (src.rows.some((r) => r.path === dest || parentOf(r.path) === dest) && !dir) return;
     const same = driveOf(src.rows[0].path) === driveOf(dest);
     const op = e.ctrlKey ? "copy" : e.shiftKey ? "move" : same ? "move" : "copy";
@@ -983,22 +1020,34 @@ export default function FilesScreen() {
           {isTarget && <span className="fx-target">대상</span>}
         </div>
         <div className="fx-row1">
+          {/* 드라이브 줄: [내 PC] C: D: F: [홈] — 모두 같은 정사각형(2026-10-18 사용자, 시안 FilesDrives) */}
+          {!cfg.hiddenDrives.includes(PC) && (
+            <button type="button" className="fx-drv" data-on={t.path === PC ? "1" : "0"} title="내 PC" aria-label="내 PC" onClick={() => go(pane, PC)}>
+              <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 4h18v12H3zM8 20h8M12 16v4" />
+              </svg>
+            </button>
+          )}
           {visibleDrives.map((d) => (
             <button
               key={d.name}
               type="button"
               className="fx-drv"
-              data-on={curDrive === d.name || (d.name.length > 2 && t.path === d.path) ? "1" : "0"}
+              data-on={!isSpecial(t.path) && (curDrive === d.name || (d.name.length > 2 && t.path === d.path)) ? "1" : "0"}
               title={`${d.name} ${d.label}${d.total ? ` · 남은 ${formatSize(d.free)}` : ""}`}
               onClick={() => go(pane, d.path)}
             >
-              <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="8" width="18" height="8" rx="2" />
-                <path d="M17 12h.01" />
-              </svg>
+
               {d.name}
             </button>
           ))}
+          {!cfg.hiddenDrives.includes(HOME) && (
+            <button type="button" className="fx-drv" data-on={t.path === HOME ? "1" : "0"} title="홈" aria-label="홈" onClick={() => go(pane, HOME)}>
+              <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 11l9-7 9 7M5 9.5V20h5v-6h4v6h5V9.5" />
+              </svg>
+            </button>
+          )}
           <input
             ref={(el) => {
               filterRefs.current[pane] = el;
@@ -1097,7 +1146,7 @@ export default function FilesScreen() {
             onClick={() => {
               const r = selected(pane)[0];
               if (r) void fsApi.explorer(r.path, true);
-              else if (!t.find) void fsApi.explorer(t.path, false);
+              else if (!t.find) void fsApi.explorer(t.path === PC ? "shell:MyComputerFolder" : t.path === HOME ? "shell:::{679f85cb-0220-4080-b29b-5540cc05aab6}" : t.path, false);
             }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1114,7 +1163,7 @@ export default function FilesScreen() {
             </button>
             {menu?.kind === "fav" && menu.pane === pane && (
               <div className="fx-menu fx-menu-r fx-fav" role="menu">
-                {!t.find && (
+                {!t.find && !isSpecial(t.path) && (
                   <button
                     type="button"
                     className="fx-mi fx-strong"
@@ -1301,8 +1350,12 @@ export default function FilesScreen() {
                 </div>
               );
             }
+            // 홈: 윈도우처럼 "즐겨찾기"·"최근 파일" 묶음 이름
+            const groupHead = !t.find && t.path === HOME && r.group && (i === 0 || rows[i - 1].group !== r.group) ? (r.group === "fav" ? "즐겨찾기" : "최근 파일") : "";
             return (
-              <div key={r.path} className="fx-frow" style={colStyle} {...common}>
+              <Fragment key={r.path}>
+              {groupHead && <div className="fx-ghead">{groupHead}</div>}
+              <div className="fx-frow" style={colStyle} {...common}>
                 <span className="fx-icell">
                   <FileIcon name={r.name} path={r.path} dir={r.dir} size={16} />
                 </span>
@@ -1315,14 +1368,15 @@ export default function FilesScreen() {
                     <span className="fx-ellip">{r.folder}</span>
                   </span>
                 )}
-                {cfg.cols.size && <span className="fx-col fx-num">{r.dir ? "" : formatSize(r.size)}</span>}
+                {cfg.cols.size && <span className="fx-col fx-num">{r.note ?? (r.dir ? "" : formatSize(r.size))}</span>}
                 {cfg.cols.modified && <span className="fx-col fx-dim fx-tab-num">{formatDate(r.modified, fmt)}</span>}
                 {cfg.cols.type && (
-                  <span className="fx-col fx-dim" title={typeName(r, types)}>
-                    <span className="fx-ellip">{typeName(r, types)}</span>
+                  <span className="fx-col fx-dim" title={r.kind ?? typeName(r, types)}>
+                    <span className="fx-ellip">{r.kind ?? typeName(r, types)}</span>
                   </span>
                 )}
               </div>
+              </Fragment>
             );
           })}
         </div>
@@ -1529,10 +1583,10 @@ export default function FilesScreen() {
                     return !!anc && onPath.has(anc.toLowerCase()) && curIdx >= 0 && ri <= curIdx;
                   });
                   return (
-                    <Fragment key={r.path}>
-                      {r.drive && !r.first && <div className="fx-tree-gap" />}
+                    <Fragment key={r.key}>
+                      {(r.drive || r.special) && !r.first && <div className="fx-tree-gap" />}
                       <div
-                        className={r.drive ? "fx-tr fx-tr-drive" : "fx-tr"}
+                        className={r.drive || r.special ? "fx-tr fx-tr-drive" : "fx-tr"}
                         data-on={on ? "1" : "0"}
                         data-path={path ? "1" : "0"}
                         title={r.path}
@@ -1541,6 +1595,7 @@ export default function FilesScreen() {
                         onDrop={(e) => dropTo(st.active, e, r.path)}
                         onContextMenu={(e) => {
                           e.preventDefault();
+                          if (r.special) return;
                           const par = parentOf(r.path);
                           void (async () => {
                             try {
@@ -1561,17 +1616,27 @@ export default function FilesScreen() {
                           className="fx-chev"
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (r.hasKids) toggleOpen(r.path);
+                            if (r.special === "home") toggleGroup(HOME);
+                            else if (r.special === "pc") toggleGroup(PC_FOLD);
+                            else if (r.hasKids) toggleOpen(r.path);
                           }}
                         >
                           {r.hasKids && (
-                            <svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ transform: open ? "rotate(90deg)" : undefined }}>
+                            <svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ transform: (r.special === "home" ? homeOpen : r.special === "pc" ? !pcFolded : open) ? "rotate(90deg)" : undefined }}>
                               <path d="M9 6l6 6-6 6" />
                             </svg>
                           )}
                         </span>
                         <span className="fx-tico">
-                          {r.drive ? (
+                          {r.special === "home" ? (
+                            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M3 11l9-7 9 7M5 9.5V20h5v-6h4v6h5V9.5" />
+                            </svg>
+                          ) : r.special === "pc" ? (
+                            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M3 4h18v12H3zM8 20h8M12 16v4" />
+                            </svg>
+                          ) : r.drive ? (
                             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24">
                               <rect x="2.5" y="7" width="19" height="10" rx="2" fill="var(--surface-band)" stroke="var(--muted)" strokeWidth="1.3" />
                               <rect x="5" y="13" width="14" height="1.6" rx=".8" fill="#4B9A5B" />

@@ -3,7 +3,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { inApp } from "./api";
-import { FsDrive, FsEntry, baseName, bothName, joinPath, parentOf, quickMatch } from "./files";
+import { FsDrive, FsEntry, HOME, PC, baseName, bothName, formatSize, joinPath, parentOf, quickMatch } from "./files";
 
 export type Conflict = { src: FsEntry; dst: FsEntry };
 export type Summary = { done: number; skipped: number; errors: [string, string][] };
@@ -118,6 +118,15 @@ function fakeChanged(...dirs: (string | null)[]) {
 
 function fakeCall(cmd: string, a: Record<string, unknown>): unknown {
   switch (cmd) {
+    case "fs_quick":
+      return [
+        ["바탕 화면", "C:\\사용자\\hunmin\\바탕 화면"],
+        ["문서", "C:\\사용자\\hunmin\\문서"],
+        ["민원처리", "D:\\민원처리"],
+        ["증빙사진", "D:\\증빙사진"],
+      ]
+        .map(([name, path]) => ({ name, path, dir: true, size: 0, modified: Date.now() - 864e5, created: 0, hidden: false, locked: false, group: "fav" }))
+        .concat([{ name: "261015_봉일천리 209-10_포트홀.pptx", path: "D:\\민원처리\\261015_봉일천리 209-10_포트홀.pptx", dir: false, size: 1.8e6, modified: Date.now() - 36e5, created: 0, hidden: false, locked: false, group: "recent" }]);
     case "fs_drives":
       return [
         { name: "C:", path: "C:\\", label: "윈도우", kind: "fixed", free: 112e9, total: 256e9 },
@@ -233,7 +242,25 @@ export const fsApi = {
   drives: () => call<FsDrive[]>("fs_drives"),
   home: () => call<string>("fs_home"),
   isDir: (path: string) => call<boolean>("fs_is_dir", { path }),
-  list: (path: string, showHidden: boolean) => call<FsEntry[]>("fs_list", { path, showHidden }),
+  list: async (path: string, showHidden: boolean): Promise<FsEntry[]> => {
+    if (path === PC) {
+      const ds = await call<FsDrive[]>("fs_drives");
+      return ds.map((d) => ({
+        name: `${d.name} ${d.label}`.trim(),
+        path: d.path,
+        dir: true,
+        size: d.total,
+        modified: 0,
+        created: 0,
+        hidden: false,
+        locked: false,
+        note: d.total ? `${formatSize(d.free)} 남음` : "",
+        kind: (d.kind === "removable" ? "이동식 디스크" : d.kind === "network" ? "네트워크 드라이브" : "로컬 디스크") + (d.total ? ` · ${formatSize(d.total)}` : ""),
+      }));
+    }
+    if (path === HOME) return call<FsEntry[]>("fs_quick");
+    return call<FsEntry[]>("fs_list", { path, showHidden });
+  },
   subdirs: (path: string, showHidden: boolean) => call<TreeDir[]>("fs_subdirs", { path, showHidden }),
   mkdir: (dir: string, name: string) => call<string>("fs_mkdir", { dir, name }),
   rename: (path: string, name: string) => call<string>("fs_rename", { path, name }),

@@ -415,3 +415,49 @@ pub fn types(keys: &[String]) -> HashMap<String, String> {
     }
     out
 }
+
+// ---------- 홈(윈도우 탐색기 "홈" = 빠른 실행 목록) ----------
+
+/// 윈도우 탐색기 "홈"에 보이는 것: 즐겨찾기(고정·자주 쓴 폴더)와 최근 파일. (보이는 이름, 실제 경로)
+/// 윈도우가 주는 차례 그대로예요. 실제 폴더·파일이 아닌 것(라이브러리 등)은 빼요.
+pub fn quick_items() -> Vec<(String, String)> {
+    use windows::Win32::System::Com::CoTaskMemFree;
+    use windows::Win32::UI::Shell::Common::STRRET;
+    use windows::Win32::UI::Shell::{IEnumIDList, StrRetToStrW, SHCONTF_FOLDERS, SHCONTF_NONFOLDERS, SHGDN_FORPARSING, SHGDN_NORMAL};
+    let mut out = Vec::new();
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        let Ok(root) = parse("shell:::{679f85cb-0220-4080-b29b-5540cc05aab6}") else { return out };
+        let Ok(folder): windows::core::Result<IShellFolder> = SHBindToObject(None, root.0, None) else { return out };
+        let mut en: Option<IEnumIDList> = None;
+        if folder.EnumObjects(HWND::default(), (SHCONTF_FOLDERS.0 | SHCONTF_NONFOLDERS.0) as u32, &mut en).is_err() {
+            return out;
+        }
+        let Some(en) = en else { return out };
+        let text = |child: *const ITEMIDLIST, flags| -> Option<String> {
+            let mut sr = STRRET::default();
+            folder.GetDisplayNameOf(child, flags, &mut sr).ok()?;
+            let mut p = windows::core::PWSTR::null();
+            StrRetToStrW(&mut sr, Some(child), &mut p).ok()?;
+            let s = p.to_string().ok();
+            CoTaskMemFree(Some(p.0 as *const c_void));
+            s
+        };
+        for _ in 0..200 {
+            let mut one = [std::ptr::null_mut::<ITEMIDLIST>(); 1];
+            let mut got = 0u32;
+            if en.Next(&mut one, Some(&mut got)).is_err() || got == 0 {
+                break;
+            }
+            let child = Pidl(one[0]);
+            let path = text(child.0, SHGDN_FORPARSING);
+            let name = text(child.0, SHGDN_NORMAL);
+            if let (Some(path), Some(name)) = (path, name) {
+                if path.len() > 2 && (path.as_bytes()[1] == b':' || path.starts_with("\\\\")) {
+                    out.push((name, path));
+                }
+            }
+        }
+    }
+    out
+}
