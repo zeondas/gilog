@@ -7,7 +7,7 @@
 //      추진중 → 추진, 미착수 → 준비. 착공일·준공일은 공사 메모에 적어요. 연락처 칸은 가져오지 않아요(개인정보).
 import { KINDS, STAGES, textToMemo } from "./budget";
 
-export type ImportRow = { name: string; kind: string; co: string; cmt: number; exp: number; act: number; stage: string; memo: string };
+export type ImportRow = { name: string; kind: string; co: string; budget: number | null; cmt: number; exp: number; act: number; stage: string; memo: string };
 export type ImportItem = { name: string; budget: number | null; memo: string; rows: ImportRow[] };
 export type ImportProject = { name: string; budget: number | null; carry: boolean; memo: string; items: ImportItem[] };
 export type GridSheet = { name: string; rows: string[][] };
@@ -78,6 +78,7 @@ function fromApp(s: GridSheet, hi: number): BudgetImport | null {
         name,
         kind: kindOf(get(c.kind)),
         co: line(get(c.co)),
+        budget: toWon(get(c.bud), unit),
         cmt: toWon(get(c.cmt), unit) ?? 0,
         exp: toWon(get(c.exp), unit) ?? 0,
         act: toWon(get(c.act), unit) ?? 0,
@@ -152,6 +153,7 @@ function fromLegacy(s: GridSheet, hi: number): BudgetImport | null {
       name: line(b),
       kind: kindOf(get(r, c.kind)),
       co: co === "-" ? "" : co,
+      budget: null,
       cmt: toWon(get(r, c.cmt), unit) ?? 0,
       exp: toWon(get(r, c.exp), unit) ?? 0,
       act: toWon(get(r, c.act), unit) ?? 0,

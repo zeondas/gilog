@@ -240,7 +240,10 @@ pub fn write_budget_xlsx(path: &Path, data: &BudgetExport) -> Result<()> {
                 ws.write_string_with_format(row, 0, &g.name, &f.base).map_err(xerr)?;
                 ws.write_string_with_format(row, 1, &g.kind, &f.center).map_err(xerr)?;
                 ws.write_string_with_format(row, 2, &g.co, &f.base).map_err(xerr)?;
-                ws.write_blank(row, 3, &f.num).map_err(xerr)?;
+                match g.budget {
+                    Some(b) => ws.write_number_with_format(row, 3, money(b), &f.num).map_err(xerr)?,
+                    None => ws.write_blank(row, 3, &f.num).map_err(xerr)?,
+                };
                 ws.write_number_with_format(row, 4, money(g.cmt), &f.num).map_err(xerr)?;
                 ws.write_number_with_format(row, 5, money(g.exp), &f.num).map_err(xerr)?;
                 ws.write_number_with_format(row, 6, money(g.act), &f.num).map_err(xerr)?;
@@ -253,7 +256,14 @@ pub fn write_budget_xlsx(path: &Path, data: &BudgetExport) -> Result<()> {
                     &f.pct,
                 )
                 .map_err(xerr)?;
-                ws.write_blank(row, 9, &f.num).map_err(xerr)?;
+                // 공사 예산이 있으면 가용액 = 예산 − (끝났으면 지출액, 아니면 실집행액)
+                ws.write_formula_with_format(
+                    row,
+                    9,
+                    Formula::new(format!("=IF(D{r}=\"\",\"\",D{r}-IF(OR(K{r}=\"완료\",K{r}=\"타절\"),F{r},G{r}))")),
+                    &f.num,
+                )
+                .map_err(xerr)?;
                 ws.write_string_with_format(row, 10, &g.stage, &f.center).map_err(xerr)?;
                 ws.write_string_with_format(row, 11, &g.memo, &f.memo).map_err(xerr)?;
                 ws.write_string(row, 12, "공사").map_err(xerr)?;
@@ -320,7 +330,7 @@ mod tests {
     use crate::budget::{BudgetItem, BudgetRow};
 
     fn g(id: i64, name: &str, stage: &str, cmt: i64, exp: i64, act: i64) -> BudgetRow {
-        BudgetRow { id, name: name.into(), kind: "공사".into(), co: "대원".into(), cmt, exp, act, stage: stage.into(), memo: String::new() }
+        BudgetRow { id, name: name.into(), kind: "공사".into(), co: "대원".into(), budget: None, cmt, exp, act, stage: stage.into(), memo: String::new() }
     }
 
     #[test]

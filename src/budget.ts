@@ -4,7 +4,7 @@
 //   잔액 = 원인행위 − (끝났으면 지출액, 아니면 실집행액)
 //   집행률 = Σ(끝났으면 지출액, 아니면 실집행액) ÷ 예산
 //   가용액 = 예산 − Σ(끝났으면 max(원인행위, 지출액), 아니면 원인행위) — 예산의 10% 아래면 붉게
-//   공사 줄 집행률은 원인행위 대비(회색 막대), 공사 줄 가용액은 빈칸
+//   공사 줄 집행률은 원인행위 대비(회색 막대), 공사 줄 가용액 = 공사 예산 − (끝났으면 지출액, 아니면 실집행액) — 예산이 없으면 빈칸(2026-10-18 사용자)
 //   금액은 원 단위 정수(십원 단위부터). 화면 단위 원/천원 — 천원은 반올림한 정수만 보여요.
 import { BKind, linesToText, BLine } from "./bullets";
 import { sanitize } from "./RichMemo";
@@ -14,10 +14,10 @@ export const STAGES = ["준비", "추진", "완료", "중지", "타절"] as cons
 export type Kind = (typeof KINDS)[number];
 export type Stage = (typeof STAGES)[number];
 
-export type BudgetRow = { id: number; name: string; kind: string; co: string; cmt: number; exp: number; act: number; stage: string; memo: string };
+export type BudgetRow = { id: number; name: string; kind: string; co: string; budget: number | null; cmt: number; exp: number; act: number; stage: string; memo: string };
 export type BudgetItem = { id: number; name: string; budget: number | null; open: boolean; memo: string; rows: BudgetRow[] };
 export type BudgetProject = { id: number; year: number; name: string; budget: number | null; carry: boolean; open: boolean; memo: string; items: BudgetItem[] };
-export type BudgetRowInput = { name: string; kind: string; co: string; cmt: number; exp: number; act: number; stage: string };
+export type BudgetRowInput = { name: string; kind: string; co: string; budget: number | null; cmt: number; exp: number; act: number; stage: string };
 export type BudgetLevel = "project" | "item" | "row";
 
 export const FINAL = (st: string) => st === "완료" || st === "타절";
@@ -25,6 +25,9 @@ export const spent = (r: BudgetRow) => (FINAL(r.stage) ? r.exp : r.act);
 export const balance = (r: BudgetRow) => r.cmt - spent(r);
 export const tied = (r: BudgetRow) => (FINAL(r.stage) ? Math.max(r.cmt, r.exp) : r.cmt);
 /** 공사 줄 집행률(원인행위 대비). 원인행위가 0이면 없음. */
+/** 공사 줄 가용액: 공사 예산이 있을 때만 */
+export const rowAvail = (r: BudgetRow) => (r.budget == null ? null : r.budget - spent(r));
+export const rowLow = (r: BudgetRow) => r.budget != null && r.budget > 0 && (rowAvail(r) as number) < r.budget * 0.1;
 export const rowRate = (r: BudgetRow) => (r.cmt ? (spent(r) / r.cmt) * 100 : null);
 
 export type Sums = { cmt: number; exp: number; act: number; bal: number; rate: number | null; avail: number | null; low: boolean; done: number; n: number };
