@@ -1,10 +1,11 @@
 // 집행현황(12단계) 규칙 함수. 계산은 저장하지 않고 여기서 해요(엑셀은 같은 규칙을 수식으로 — core budget_xlsx.rs).
-// 정한 것(2026-10-18 사용자):
-//   완료·타절 = 끝난 공사(FINAL), 준비·추진·중지 = 진행 중
-//   잔액 = 원인행위 − (끝났으면 집행액, 아니면 시공량(사용량))
-//   집행률 = Σ(끝났으면 집행액, 아니면 시공량(사용량)) ÷ 예산
-//   가용액 = 예산 − Σ(끝났으면 max(원인행위, 집행액), 아니면 원인행위) — 0 아래(초과)면 붉게(2026-10-18 사용자: 아슬아슬한 것은 칠하지 않음)
-//   공사 줄 집행률은 원인행위 대비(회색 막대), 공사 줄 가용액은 빈칸
+// 정한 것(2026-10-18 사용자, 계산 규칙 21:35 확정 — 돈만으로 계산):
+//   잔액 = 원인행위 − 집행액
+//   집행률 = Σ집행액 ÷ 예산(단계 무관)
+//   가용액 = 예산 − Σ(완료·타절이면 max(원인행위, 집행액), 아니면 원인행위) — 0 아래(초과)면 붉게
+//   공사 줄 막대 = 집행액 ÷ 원인행위(회색), 공사 줄 가용액은 빈칸
+//   시공량(사용량)은 참고 칸 — 적은 숫자를 보여 줄 뿐 다른 칸 계산에 쓰지 않아요(합계 줄 합만)
+//   FINAL(완료·타절)은 가용액과 줄 순서에만 써요
 //   금액은 원 단위 정수(십원 단위부터). 화면 단위 원/천원 — 천원은 반올림한 정수만 보여요.
 import { BKind, linesToText, BLine } from "./bullets";
 import { sanitize } from "./RichMemo";
@@ -21,10 +22,11 @@ export type BudgetRowInput = { name: string; kind: string; co: string; cmt: numb
 export type BudgetLevel = "project" | "item" | "row";
 
 export const FINAL = (st: string) => st === "완료" || st === "타절";
-export const spent = (r: BudgetRow) => (FINAL(r.stage) ? r.exp : r.act);
+/** 쓴 돈 = 집행액(단계 무관). 시공량(사용량)은 계산에 쓰지 않아요. */
+export const spent = (r: BudgetRow) => r.exp;
 export const balance = (r: BudgetRow) => r.cmt - spent(r);
 export const tied = (r: BudgetRow) => (FINAL(r.stage) ? Math.max(r.cmt, r.exp) : r.cmt);
-/** 공사 줄 집행률(원인행위 대비). 원인행위가 0이면 없음. */
+/** 공사 줄 막대 = 집행액 ÷ 원인행위. 원인행위가 0이면 없음. */
 export const rowRate = (r: BudgetRow) => (r.cmt ? (spent(r) / r.cmt) * 100 : null);
 
 export type Sums = { cmt: number; exp: number; act: number; bal: number; rate: number | null; avail: number | null; low: boolean; done: number; n: number };
