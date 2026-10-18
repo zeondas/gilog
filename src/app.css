@@ -9884,3 +9884,33 @@ button.bd-chip:hover {
 /* 탐색기 — 날짜 형식(2026-10-18): 수정한 날은 한 줄로, 설정 고르기 목록은 가장 긴 형식이 다 보이게 */
 .fx-nowrap { white-space: nowrap; }
 select.input.fx-set-date { width: 190px; }
+
+/* 탐색기 머리 줄 도구 모음(2026-10-18 시안): 검색창이 맨 앞, 단추는 아이콘 + 네 글자 */
+.fx-top > .fx-findbox { margin-right: 2px; }
+.fx-tool { gap: 6px; padding: 0; width: 90px; flex: none; justify-content: center; white-space: nowrap; }
+.fx-tool.fx-tool-wide { width: 108px; }
+/* 파일 찾기 칸이 남는 폭을 채워 마지막 단추 오른쪽 끝 = 오른쪽 창 끝 */
+.fx-top > .fx-findbox { flex: 1; min-width: 200px; }
+.fx-top > .fx-findbox .fx-search { width: 100%; }
+.fx-top > .fx-title { margin-right: 10px; flex: none; }
+.fx-tool svg { flex: none; }
+/* 켜진 단추 = 고른 탭처럼 강조색 바탕 + 흰 글자(2026-10-18 사용자) */
+.fx-tool[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 700; }
+/* 탭 줄 위 여백 = 창 왼쪽 여백 8px(2026-10-18 사용자: 위·왼쪽 간격 맞추기) */
+.fx-tabs { padding: 8px; }
+/* 폴더 트리 머리 아래 선 = 탭 줄 아래 선(8 + 탭 34 + 8 + 선 1 = 51) */
+.fx-tree-head { height: 51px; }
+/* 폴더트리 머리 글자 = 고른 탭 글자 크기(14.5px 굵게, 2026-10-18 사용자) */
+.fx-tree-head { font-size: 14.5px; font-weight: 700; }
+/* 네칸보기의 대상 창(서브 탐색기) = 연한 강조색 테두리. 두칸보기는 반대 창이 늘 대상이라 표시 없음(2026-10-18 사용자) */
+.fx-pane[data-target="1"] { border-color: var(--accent-line); box-shadow: 0 0 0 1px var(--accent-line); }
+/* 지금 창·대상 창이 아닌 창의 고른 탭은 연한 강조색(2026-10-18 사용자) */
+.fx-pane[data-rest="1"] .fx-tab[data-on="1"] { background: var(--accent-wash); border-color: var(--accent-line); color: var(--accent); }
+.fx-pane[data-rest="1"] .fx-tab[data-on="1"] .fx-pin,
+.fx-pane[data-rest="1"] .fx-tab[data-on="1"] .fx-tx { color: inherit; }
+/* 지금 창이 아닌 창의 고른 탭 = 연한 강조색(2026-10-18 사용자). 지금 창만 채운 강조색 */
+.fx-pane[data-on="0"] .fx-tab[data-on="1"] { background: var(--accent-tint); border-color: var(--accent-line); color: var(--accent); }
+.fx-pane[data-on="0"] .fx-tab[data-on="1"] .fx-pin,
+.fx-pane[data-on="0"] .fx-tab[data-on="1"] .fx-tx { color: var(--accent); }
+/* 대상 창 테두리도 진한 강조색(2026-10-18 사용자) — 지금 창은 2px(테두리 + 그림자), 대상 창은 1px */
+.fx-pane[data-target="1"] { border-color: var(--accent); box-shadow: none; }
