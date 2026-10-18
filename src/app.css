@@ -9959,5 +9959,3 @@ select.input.fx-set-date { width: 190px; }
 .fx-tree { padding: 1px; }
 .fx-pane[data-on="1"],
 .fx-pane[data-target="1"] { border-width: 2px; padding: 0; margin: 0; box-shadow: none; }
-/* 머리 줄과 상자 사이 = 파일 찾기와 단추 줄 사이와 같은 12px(2026-10-19 사용자). 상자는 4px 위로·4px 길게 */
-.fx-top + .fx-body { margin-top: -4px; }
