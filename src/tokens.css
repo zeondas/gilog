@@ -361,7 +361,7 @@
   --sw-check: #17161C;
 }
 
-/* 잠금 화면 앱 아이콘 색(강조색 따라감, 두 테마 같은 그림 — 바탕 = 밝게 강조색, L = 어둡게 강조색). */
+/* 앱 아이콘 색(잠금 화면·접힌 사이드바·설정 정보)(강조색 따라감, 두 테마 같은 그림 — 바탕 = 밝게 강조색, L = 어둡게 강조색). */
 :root { --icon-bg: #4B37C4; --icon-l: #B6AAFF; }
 :root[data-accent="noctua"] { --icon-bg: #531705; --icon-l: #E7CEB5; }
 :root[data-accent="blue"] { --icon-bg: #2457C5; --icon-l: #9DBBFF; }

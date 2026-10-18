@@ -36,14 +36,10 @@ export default function Logo({ height, variant = "full" }: { height: number; var
   );
 }
 
-/** 앱 아이콘 (두 테마 같은 그림, brand/app-icon.svg를 public/에 둬요) */
-export function AppIcon({ size }: { size: number }) {
-  return <img className="app-icon" src="/app-icon.svg" width={size} height={size} alt="" aria-hidden="true" />;
-}
-
-/** 강조색을 따라가는 앱 아이콘(잠금 화면, 2026-10-18 색 테마). 그림은 app-icon.svg와 같고 색만 토큰이에요:
+/** 앱 아이콘 — 잠금 화면·접힌 사이드바·설정 정보 카드. 강조색을 따라가요(2026-10-18 색 테마, 사용자).
+ *  그림은 brand/app-icon.svg와 같고 색만 토큰이에요(창 아이콘·작업표시줄·설치 파일은 그 파일 그대로 보라):
  *  바탕 --icon-bg(밝게 강조색), ㄱ 흰색, L --icon-l(어둡게 강조색). 두 테마에서 같은 그림이에요. */
-export function AccentAppIcon({ size }: { size: number }) {
+export function AppIcon({ size }: { size: number }) {
   return (
     <svg className="app-icon" viewBox="0 0 100 100" width={size} height={size} aria-hidden="true">
       <path d="M50 0C97.7 0 100 2.3 100 50C100 97.7 97.7 100 50 100C2.3 100 0 97.7 0 50C0 2.3 2.3 0 50 0Z" fill="var(--icon-bg)" />

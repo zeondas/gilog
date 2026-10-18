@@ -6,7 +6,7 @@
 // 취소·실패하면 비밀번호 칸으로 돌아오고, 아래 "PIN으로 풀기"로 다시 띄워요. 꺼진 PC는 비밀번호 칸만이에요.
 import { FormEvent, useEffect, useState } from "react";
 import { api, errorText } from "./api";
-import Logo, { AccentAppIcon } from "./Logo";
+import Logo, { AppIcon } from "./Logo";
 
 type Props = { mode: "setup" | "unlock"; folder: string; onOpen: () => void };
 /** 띠 모양: 잘못(붉은 띠, 칸 테두리도 붉게) · 알림(회색 띠 — PIN 취소처럼 잘못이 아닌 것) */
@@ -99,7 +99,7 @@ export default function Gate({ mode, folder, onOpen }: Props) {
       <div className="gate-wrap">
         <form className="gate-card" onSubmit={submit}>
           <div className="gate-brand">
-            <AccentAppIcon size={64} />
+            <AppIcon size={64} />
             <Logo height={23} variant="word" />
           </div>
           <input
