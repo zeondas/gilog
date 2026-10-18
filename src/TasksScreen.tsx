@@ -378,6 +378,26 @@ function ListPanel({
 
   return (
     <nav className="td-lists" aria-label="목록">
+      {/* 새 목록 만들기를 맨 위에 두고, 구분선 아래에 목록 (2026-10-19 사용자) */}
+      <div className="td-newlist">
+        <input
+          className="cell-input"
+          aria-label="새 목록 이름"
+          placeholder="새 목록 만들기"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (isComposing(e)) return;
+            if (e.key === "Enter") {
+              e.preventDefault();
+              add();
+            } else if (e.key === "Escape") setName("");
+          }}
+        />
+        <button type="button" className="btn-icon td-newlist-add" aria-label="목록 추가" onClick={add}>
+          <Plus />
+        </button>
+      </div>
       {lists.map((l) => (
         <button
           key={l.id}
@@ -399,25 +419,6 @@ function ListPanel({
           <span className="td-list-count">{counts(l.id)}</span>
         </button>
       ))}
-      <div className="td-newlist">
-        <input
-          className="cell-input"
-          aria-label="새 목록 이름"
-          placeholder="새 목록 만들기"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => {
-            if (isComposing(e)) return;
-            if (e.key === "Enter") {
-              e.preventDefault();
-              add();
-            } else if (e.key === "Escape") setName("");
-          }}
-        />
-        <button type="button" className="btn-icon td-newlist-add" aria-label="목록 추가" onClick={add}>
-          <Plus />
-        </button>
-      </div>
       {menu && ml && (
         <ListMenu
           {...menu}
