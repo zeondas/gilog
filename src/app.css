@@ -9929,5 +9929,5 @@ select.input.fx-set-date { width: 190px; }
 .fx-pane[data-on="0"] .fx-tab[data-on="1"] .fx-tx { color: var(--accent); }
 /* 대상 창 테두리 = 지금 창과 같은 진한 강조색 2px(2026-10-18 사용자). 둘은 탭 색(채움/연함)과 "대상" 표시로 구분 */
 .fx-pane[data-target="1"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-/* 수정한 날: 날짜와 시각 사이 = 띄어쓰기 + 6px(FilesScreen DATE_TIME_GAP과 같은 값) */
-.fx-dt-time { margin-left: calc(0.28em + 6px); }
+/* 수정한 날: 날짜와 시각 사이 = 띄어쓰기 + 3px(FilesScreen DATE_TIME_GAP과 같은 값) */
+.fx-dt-time { margin-left: calc(0.28em + 3px); }
