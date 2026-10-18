@@ -1738,28 +1738,6 @@ mark {
   opacity: 0.6;
 }
 
-.jcal-foot {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 10px;
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--line-row);
-  font-size: 11.5px;
-  color: var(--muted);
-}
-
-.jcal-legend {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.jcal-legend .jcal-dot {
-  visibility: visible;
-}
-
 /* 12달 고르기 */
 .jcal-months {
   display: grid;

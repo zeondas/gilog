@@ -597,17 +597,11 @@ function JournalCalendar({
   const off = new Date(view.y, view.m - 1, 1).getDay();
   const dim = new Date(view.y, view.m, 0).getDate();
   const rows = Math.ceil((off + dim) / 7);
-  let monthDays = 0;
-  let monthTotal = 0;
   const cells = Array.from({ length: rows * 7 }, (_, i) => {
     const dt = new Date(view.y, view.m - 1, i - off + 1);
     const key = ymd(dt.getFullYear(), dt.getMonth() + 1, dt.getDate());
     const n = counts.get(key) ?? 0;
     const inMonth = dt.getMonth() + 1 === view.m;
-    if (inMonth && n) {
-      monthDays++;
-      monthTotal += n;
-    }
     return { key, d: dt.getDate(), w: dt.getDay(), n, inMonth };
   });
 
@@ -715,15 +709,6 @@ function JournalCalendar({
                 </button>
               );
             })}
-          </div>
-          <div className="jcal-foot">
-            <span>
-              이 달 {monthDays}일 · 기록 {monthTotal}건
-            </span>
-            <span className="jcal-legend">
-              <span className="jcal-dot" aria-hidden="true" />
-              기록 있는 날
-            </span>
           </div>
         </div>
       )}
