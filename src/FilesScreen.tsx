@@ -1044,7 +1044,6 @@ export default function FilesScreen() {
           <button type="button" className="fx-tab fx-tab-add" title="새 탭 (Ctrl+T)" onClick={() => newTab(pane, t.find ? home : t.path)}>
             ＋
           </button>
-          {isTarget && st.four && <span className="fx-target">대상</span>}
         </div>
         <div className="fx-row1">
           {/* 드라이브 줄: [내 PC] C: D: F: [홈] — 모두 같은 정사각형(2026-10-18 사용자, 시안 FilesDrives) */}
@@ -1587,7 +1586,7 @@ export default function FilesScreen() {
         </button>
         <span className="fx-vsep" />
         <button type="button" className="btn btn-ctrl fx-tool" title="반대 창을 지금 창과 같은 폴더로">
-          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h12l-3-3M20 17H8l3 3" /></svg>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 9h14M5 15h14" /></svg>
           같은폴더
         </button>
         <button type="button" className="btn btn-ctrl fx-tool" title="두 창의 폴더를 서로 바꾸기">
