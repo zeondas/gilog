@@ -313,7 +313,7 @@ export default function TasksScreen({ urgentDays, focusId, onFocused, onOpenComp
                           })
                         }
                       >
-                        <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ transform: doneOpen ? "rotate(90deg)" : undefined }}>
+                        <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ transform: doneOpen ? "rotate(90deg)" : undefined }}>
                           <path d="M9 5l7 7-7 7" />
                         </svg>
                         완료됨 ({done.reduce((n, it) => n + 1 + it.children.length, 0)}개)
@@ -664,8 +664,8 @@ function AddForm({
     <div ref={box} className={"td-add" + (open ? " open" : "") + (sub ? " sub" : "")} onKeyDown={onKeyDown}>
       <div className="td-add-line">
         <svg className="td-add-icon" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="9" />
-          <path d="M12 8v8M8 12h8" />
+          <circle cx="12" cy="12" r="11" />
+          <path d="M12 7v10M7 12h10" />
         </svg>
         <input
           ref={titleRef}
@@ -984,7 +984,7 @@ function ItemRow({
               <>
                 {!sub && !inDone && (
                   <button type="button" className="btn btn-xs" onClick={onSub}>
-                    <Plus size={12} />
+                    <Plus size={14} />
                     하위 항목 추가
                   </button>
                 )}
@@ -1153,13 +1153,13 @@ function TaskEditor({
 
 function Tick() {
   return (
-    <svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round">
+    <svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round">
       <path d="M5 12.5l4.5 4.5L19 7.5" />
     </svg>
   );
 }
 
-function Plus({ size = 15 }: { size?: number }) {
+function Plus({ size = 14 }: { size?: number }) {
   return (
     <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
       <path d="M12 5v14M5 12h14" />

@@ -443,12 +443,12 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
         </button>
         <button type="button" className="btn btn-ctrl btn-text" title="업무처리포털을 엣지로 열어요. 처음 한 번 로그인해 두면 돼요" onClick={() => (inApp ? api.openPortal(PORTAL_URL).catch((e) => setNote(errText(e))) : window.open(PORTAL_URL, "_blank"))}>
           신문고 열기
-          <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M14 4h6v6M20 4l-9 9M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" />
           </svg>
         </button>
         <button type="button" className="btn-primary btn-ctrl pr-fetch" title="Claude가 엣지로 신문고 민원처리목록을 읽어 기록에 없는 민원을 가져와요" onClick={fetchCases} disabled={!!run}>
-          <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 3v12M7 10l5 5 5-5M4 19h16" />
           </svg>
           {run ? "불러오는 중…" : "민원 불러오기"}
@@ -593,7 +593,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                     disabled={!c.orderFile}
                     onClick={() => openFile(c.orderFile)}
                   >
-                    <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
                       <path d="M14 3v5h5M9 13h6M9 17h6" />
                     </svg>
@@ -608,7 +608,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                       openFile(f || c.folder || ps.root, !!f);
                     }}
                   >
-                    <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
                     </svg>
                   </button>
@@ -619,7 +619,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                     title={linked(c) ? `민원대장 ${linked(c)!.no}번 · 눌러서 그 줄로 가요` : "민원대장에 등록해요(지시부 없이도 돼요. 지시부를 만들면 조치내용이 채워져요)"}
                     onClick={() => register(c)}
                   >
-                    <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="miter">
+                    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="miter">
                       <path d={linked(c) ? "M3 4h18v16H3z M3 9h18 M3 14.5h18 M9 9v11" : "M3 4h18v7 M3 4v16h9 M3 9h18 M9 9v11 M18 14v8 M14 18h8"} />
                     </svg>
                   </button>
@@ -1192,7 +1192,7 @@ function WorksDialog({
           <span>양식은 pptx·hwpx 중 골라요. 양식 이름을 누르면 파일을 바꿔요. 양식에 글자 자리 {"{주소} {보수내용} {고려사항} {연번} {지시일} {지시자}"} 와 그림 자리 "위치도"·"현장사진"을 두면 돼요.</span>
         </div>
         <div className="dialog-foot">
-          <button type="button" className="btn-primary" onClick={() => (editing != null ? saveEdit().then(onClose) : onClose())}>
+          <button type="button" className="btn btn-ctrl btn-text" onClick={() => (editing != null ? saveEdit().then(onClose) : onClose())}>
             닫기
           </button>
         </div>
@@ -1247,7 +1247,7 @@ function AgentInputs({ d, contacts, onChange }: { d: Draft; contacts: Contact[];
         ref={inRef}
         className="cell-input"
         aria-label="현장대리인"
-        placeholder="이름·초성 (업무연락처)"
+        placeholder="이름·초성"
         value={d.agent}
         onFocus={(e) => setOpenList(e.currentTarget.getBoundingClientRect())}
         onChange={(e) => {
@@ -1299,7 +1299,7 @@ function TplButton({ path, onPick, empty }: { path: string; onPick: () => void; 
   }
   return (
     <button type="button" className="pr-tpl" title={`${path}\n눌러서 양식 파일 바꾸기 (pptx·hwpx)`} onClick={(e) => (e.stopPropagation(), onPick())}>
-      <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
         <path d="M14 3v5h5" />
       </svg>

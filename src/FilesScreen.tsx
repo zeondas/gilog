@@ -963,7 +963,7 @@ export default function FilesScreen() {
               title={`${d.name} ${d.label}${d.total ? ` · 남은 ${formatSize(d.free)}` : ""}`}
               onClick={() => go(pane, d.path)}
             >
-              <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="8" width="18" height="8" rx="2" />
                 <path d="M17 12h.01" />
               </svg>
@@ -993,7 +993,7 @@ export default function FilesScreen() {
           />
           <div className="fx-rel">
             <button type="button" className="fx-vb fx-menu-btn" onClick={() => setMenu(menu?.kind === "view" && menu.pane === pane ? null : { kind: "view", pane })}>
-              <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+              <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
                 <path d="M4 6h16M4 12h16M4 18h16" />
               </svg>
               {viewName} ▾
@@ -1055,7 +1055,7 @@ export default function FilesScreen() {
             </div>
           )}
           <button type="button" className="fx-ib" aria-label="경로 복사" title="경로 복사 (Ctrl+Shift+C)" onClick={() => copyPath(pane)}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="9" y="9" width="11" height="11" rx="2" />
               <path d="M5 15V5a2 2 0 0 1 2-2h10" />
             </svg>
@@ -1071,7 +1071,7 @@ export default function FilesScreen() {
               else if (!t.find) void fsApi.explorer(t.path, false);
             }}
           >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M14 4h6v6" />
               <path d="M20 4l-9 9" />
               <path d="M18 14v6H4V6h6" />
@@ -1079,7 +1079,7 @@ export default function FilesScreen() {
           </button>
           <div className="fx-rel">
             <button type="button" className="fx-ib fx-menu-btn" aria-label="즐겨찾기" data-on={fav ? "1" : "0"} onClick={() => setMenu(menu?.kind === "fav" && menu.pane === pane ? null : { kind: "fav", pane })}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill={fav ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill={fav ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z" />
               </svg>
             </button>
@@ -1193,7 +1193,7 @@ export default function FilesScreen() {
           {!t.find && parentOf(t.path) && (p.view === "detail" || p.view === "brief") && (
             <div className={p.view === "brief" ? "fx-brow" : "fx-frow"} style={p.view === "detail" ? colStyle : undefined} onDoubleClick={() => up(pane)} title="두 번 누르면 위 폴더 (Backspace)">
               <span className="fx-up">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 19V5M5 12l7-7 7 7" />
                 </svg>
               </span>
@@ -1330,7 +1330,7 @@ export default function FilesScreen() {
             <input
               ref={quickRef}
               aria-label="파일 찾기"
-              placeholder="파일 찾기 (Ctrl+F)"
+              placeholder="파일 찾기"
               value={quickFind}
               onChange={(e) => setQuickFind(e.target.value)}
               onKeyDown={(e) => {
@@ -1452,7 +1452,7 @@ export default function FilesScreen() {
           disabled={!anySelected}
           onClick={() => void revealRows(selected(st.active))}
         >
-          <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <rect x="4" y="11" width="16" height="10" rx="2" />
             <path d="M8 11V7a4 4 0 0 1 7.5-2" />
           </svg>

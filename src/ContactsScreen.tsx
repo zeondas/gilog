@@ -353,7 +353,7 @@ function NewRow({ projects, onAdd }: { projects: Project[]; onAdd: (c: ContactIn
           </div>
           <div role="cell" className="ct-new-add">
             <button type="button" className="btn-icon btn-add" aria-label="연락처 등록" tabIndex={-1} onClick={submit}>
-              <Plus size={16} />
+              <Plus size={14} />
             </button>
           </div>
         </div>
@@ -1150,12 +1150,12 @@ function ProjectDialog({
               }}
             />
             <button type="button" className="btn-primary btn-ctrl mgr-add" onClick={add}>
-              <Plus size={14} /> 추가
+              <Plus size={16} /> 추가
             </button>
           </div>
         </div>
         <div className="dialog-foot">
-          <button type="button" className="btn-primary" onClick={onClose}>
+          <button type="button" className="btn btn-ctrl btn-text" onClick={onClose}>
             닫기
           </button>
         </div>
@@ -1338,7 +1338,7 @@ function Plus({ size }: { size: number }) {
 
 function Pencil() {
   return (
-    <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
     </svg>
   );

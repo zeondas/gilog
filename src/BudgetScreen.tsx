@@ -606,7 +606,7 @@ export default function BudgetScreen() {
           setPop({ t: "memo", x: Math.max(8, r.right - 440), y: r.bottom + 4, level, id });
         }}
       >
-        <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill={has ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill={has ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
           <path d="M12 20h9" />
           <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z" />
         </svg>
@@ -1380,11 +1380,11 @@ export default function BudgetScreen() {
         <h1 className="title">집행현황</h1>
         <span className="bd-year">
           <button type="button" aria-label="이전 해" onClick={() => void changeYear(year - 1)}>
-            {ICON("M15 6l-6 6 6 6", 14, 2.2)}
+            {ICON("M15 6l-6 6 6 6", 16, 2.2)}
           </button>
           <b>{year}년</b>
           <button type="button" aria-label="다음 해" onClick={() => void changeYear(year + 1)}>
-            {ICON("M9 6l6 6-6 6", 14, 2.2)}
+            {ICON("M9 6l6 6-6 6", 16, 2.2)}
           </button>
         </span>
         <span className="bd-sp" />
@@ -1456,7 +1456,7 @@ export default function BudgetScreen() {
           }}
         >
           엑셀
-          {ICON(CD, 12, 2.4)}
+          {ICON(CD, 16, 2.4)}
         </button>
       </div>
 
@@ -1505,7 +1505,7 @@ export default function BudgetScreen() {
               합계<b>{(fmt(csSum, unit) || "0") + (unit === 1000 ? " 천원" : " 원")}</b>
             </span>
             <button type="button" title="고르기 풀기 · Esc" aria-label="고르기 풀기" onClick={() => setCs(NO_CELLS)}>
-              {ICON("M6 6l12 12M18 6L6 18", 12, 2.4)}
+              {ICON("M6 6l12 12M18 6L6 18", 14, 2.4)}
             </button>
           </div>
         )}

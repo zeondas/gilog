@@ -694,7 +694,7 @@ function FilterMenu({
         <button type="button" className="cm-fdd-clear" onClick={() => onChange(null)}>
           필터 풀기
         </button>
-        <button type="button" className="btn-primary btn-xs" onClick={onClose}>
+        <button type="button" className="btn btn-xs" onClick={onClose}>
           닫기
         </button>
       </div>
@@ -714,7 +714,7 @@ function Check({ on, partial }: { on: boolean; partial?: boolean }) {
 
 function Funnel() {
   return (
-    <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
+    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
       <path d="M4 5h16l-6 7.5V19l-4-2v-4.5z" />
     </svg>
   );
@@ -1274,7 +1274,7 @@ function MemoButton({ has, memo, onClick }: { has: boolean; memo: string; onClic
   const preview = has ? parseMemo(memo).map((l) => "· " + l.t).join("\n") : "메모 추가";
   return (
     <button type="button" className={"cm-memo" + (has ? " has" : "")} aria-label={has ? "메모 편집" : "메모 추가"} title={preview} onClick={onClick}>
-      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill={has ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill={has ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 20h9" />
         <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z" />
       </svg>
@@ -1458,7 +1458,7 @@ function CatsDialog({ lists, onChange, onClose }: { lists: Lists; onChange: (l: 
           <ListGroup title="민원유형" items={cur.ctype} stack onChange={(ctype) => onChange({ ...cur, ctype })} last />
         </div>
         <div className="dialog-foot">
-          <button type="button" className="btn-primary" onClick={onClose}>
+          <button type="button" className="btn btn-ctrl btn-text" onClick={onClose}>
             닫기
           </button>
         </div>
@@ -1471,7 +1471,7 @@ function CatsDialog({ lists, onChange, onClose }: { lists: Lists; onChange: (l: 
 
 function Plus() {
   return (
-    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round">
+    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round">
       <path d="M12 5v14M5 12h14" />
     </svg>
   );

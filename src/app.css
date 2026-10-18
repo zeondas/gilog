@@ -3,6 +3,36 @@
   corner-shape: squircle;
 }
 
+/* 스크롤바: 모든 화면 한 규칙 — 둥근 12px, 세로·가로 같게 (2026-10-18 결정 H10 2안).
+   scrollbar-width·scrollbar-color를 쓰면 크로미움이 아래 규칙을 무시하니 쓰지 않아요. */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 6px;
+  background: var(--line);
+  background-clip: padding-box;
+  corner-shape: round;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--muted);
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* 윈도우 기본 체크·라디오도 보라 (H11) */
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--accent);
+}
+
 html,
 body,
 #root {
@@ -547,8 +577,8 @@ select.input {
 .switch {
   flex: none;
   position: relative;
-  width: 36px;
-  height: 20px;
+  width: 44px;
+  height: 24px;
   border-radius: 999px;
   background: var(--line);
   transition: background 0.15s;
@@ -561,19 +591,19 @@ select.input {
 
 .switch .knob {
   position: absolute;
-  top: 2px;
-  left: 2px;
+  top: 4px;
+  left: 4px;
   width: 16px;
   height: 16px;
   border-radius: 50%;
   background: var(--surface);
-  box-shadow: 0 1px 2px rgba(var(--shadow-rgb), 0.3);
+  box-shadow: 0 0 2px rgba(var(--shadow-rgb), 0.3);
   transition: left 0.15s;
   corner-shape: round;
 }
 
 .switch.on .knob {
-  left: 18px;
+  left: 24px;
 }
 
 .group {
@@ -690,7 +720,7 @@ select.input {
 }
 
 .seg button {
-  height: 28px;
+  height: 26px;
   padding: 0 10px;
   border: 0;
   border-radius: var(--radius-sm);
@@ -799,6 +829,10 @@ mark {
   border-radius: var(--radius-md);
   color: var(--ink-2);
   font-size: var(--fs);
+}
+
+.btn-ctrl.btn-danger {
+  color: var(--on-accent);
 }
 
 .btn-xs {
@@ -1495,8 +1529,8 @@ mark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   margin-left: var(--space-3);
   padding: 0;
   border: 0;
@@ -2306,7 +2340,7 @@ mark {
   resize: none;
   overflow: hidden;
   line-height: round(1.4em, 1px);
-  padding: calc((var(--size-input) - 20px) / 2 - 1px) 6px calc((var(--size-input) - 20px) / 2 + 1px);
+  padding: calc((var(--size-input) - 20px) / 2) 6px;
 }
 
 .jsp-btn {
@@ -2898,7 +2932,7 @@ body.col-dragging * {
 
 .cm-new > .cm-c,
 .cm-edit > .cm-c {
-  padding: 5px var(--space-1);
+  padding: 4px var(--space-1);
   min-height: calc(var(--size-row) + 6px);
 }
 
@@ -3059,8 +3093,8 @@ body.col-dragging * {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
@@ -3482,7 +3516,7 @@ body.col-dragging * {
   align-items: center;
   justify-content: center;
   width: 7px;
-  height: calc(var(--fs) * 1.5);
+  height: round(1.5em, 1px);
   margin-right: 6px;
   transform: translateY(var(--bl-shift, 0px));
 }
@@ -3938,6 +3972,11 @@ body.col-dragging * {
   border-bottom: 1px solid var(--line-soft);
 }
 
+/* 배지 22(결정 ④)가 머리 줄을 늘리지 않게 — 두 카드 머리 높이를 같게 */
+.td-card-head .td-link-badge {
+  margin-block: -2px;
+}
+
 .td-card-name {
   flex: 1;
   min-width: 0;
@@ -4269,7 +4308,7 @@ body.col-dragging * {
   justify-content: center;
   width: 18px;
   height: 18px;
-  margin-top: 1px;
+  margin-top: 0;
   padding: 0;
   border: 1.5px solid var(--muted);
   border-radius: 50%;
@@ -4316,7 +4355,7 @@ body.col-dragging * {
 
 .td-note-icon {
   flex: none;
-  margin-top: 3px;
+  margin-top: 2px;
   color: var(--muted);
   opacity: 0.8;
 }
@@ -5128,7 +5167,7 @@ body.col-dragging * {
   height: calc(var(--size-ctrl) - 8px);
   padding: 0 14px;
   border: 0;
-  border-radius: calc(var(--radius-md) - 2px);
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--muted);
   font: inherit;
@@ -5765,12 +5804,8 @@ body.col-dragging * {
 }
 
 /* ---------- 글자 가운데 맞춤 (2026-10-17 사용자 확정, tools/align 기준: 위 여백 − 아래 여백 0 또는 −1) ---------- */
-.cell-input,
-.input,
-.jday-in,
-.td-due-input {
-  padding-bottom: 2px;
-}
+/* 입력칸: 0.9.4의 padding-bottom 2px은 Pretendard에서 한글을 1px 위로 띄웠어요(−2). 위아래 여백 0이 한글 0·숫자 +1로 맞아요
+   (2026-10-18 UI 통일 — 재 보니 1px 바꾸면 위−아래가 2씩 바뀌어 0/−1 사이 값은 없어요). */
 
 .search input {
   padding: 0 0 1px;
@@ -5781,14 +5816,15 @@ body.col-dragging * {
   gap: 4px;
 }
 
-.td-src,
-.td-link-badge,
 .cal-num,
 .cal-cbtn {
   padding-top: 1px;
 }
 
-.jproj-badge {
+/* 2026-10-18 UI 통일 재기(1600×900): 배지 22로 바꾼 뒤 할 일 배지는 보정 없이 맞아요 */
+.cal-kp-btn,
+.cal-nav .btn {
+  padding-top: 1px;
 }
 
 .td-done-toggle {
@@ -7061,7 +7097,7 @@ body.col-dragging * {
 
 .pr-sent {
   width: 76px;
-  height: 26px;
+  height: 28px;
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
@@ -7096,7 +7132,7 @@ body.col-dragging * {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
+  width: 28px;
   height: 28px;
   padding: 0;
   border: 0;
@@ -7361,7 +7397,7 @@ body.col-dragging * {
   gap: var(--space-1h);
   min-width: 0;
   max-width: 100%;
-  height: 26px;
+  height: var(--size-mini);
   padding: 0 8px;
   border: 1px solid var(--line-soft);
   border-radius: var(--radius-sm);
@@ -7635,7 +7671,7 @@ body.col-dragging * {
   align-items: center;
   justify-content: center;
   gap: 5px;
-  padding: 0 10px;
+  padding: 2px 10px 0;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface);
@@ -7913,7 +7949,7 @@ body.col-dragging * {
   -webkit-box-orient: vertical;
   overflow: hidden;
   word-break: break-all;
-  line-height: round(1.3em, 1px);
+  line-height: round(1.36em, 1px);
 }
 .fx-num {
   justify-content: flex-end;
@@ -8656,8 +8692,8 @@ body.col-dragging * {
 
 .pbadge.pchip-b {
   gap: 2px;
-  padding-right: 2px;
-  height: 22px;
+  padding-right: 4px;
+  height: var(--size-badge-h);
 }
 
 .pchip-x {
@@ -8665,8 +8701,8 @@ body.col-dragging * {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
@@ -8899,7 +8935,7 @@ body.col-dragging * {
   background: var(--surface-side);
 }
 .bd-unit button {
-  height: 28px;
+  height: 26px;
   padding: 0 10px;
   border: 0;
   border-radius: var(--radius-sm);
@@ -8953,24 +8989,6 @@ body.col-dragging * {
   overflow: auto;
   padding-right: 6px;
   padding-bottom: 6px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--line) transparent;
-}
-.bd-scroll::-webkit-scrollbar {
-  width: 14px;
-  height: 14px;
-}
-.bd-scroll::-webkit-scrollbar-thumb {
-  background: var(--line);
-  border-radius: 7px;
-  border: 4px solid transparent;
-  background-clip: padding-box;
-}
-.bd-scroll::-webkit-scrollbar-thumb:hover {
-  background-color: var(--bd-faint);
-}
-.bd-scroll::-webkit-scrollbar-track {
-  background: transparent;
 }
 .bd-hd,
 .bd-rw {
@@ -9621,4 +9639,32 @@ button.bd-chip:hover {
 
 .jmenu-opt .pbadge-t {
   min-width: 0;
+}
+
+/* ---------- 125% 배율 보정 (2026-10-18 UI 통일, 결정 H9 1안) ----------
+   100%에서 맞춘 1px 보정이 125%에서는 1.25 물리 px가 되어 반올림이 갈려요. 125%에서만 물리 1px 단위로 다시 맞춘 값이에요
+   (tools/align/census.py light 1.25 filled로 잰 값 — 0.8px = 물리 1px, 글자 상자 가운데는 여백의 반만 움직여요). */
+@media (min-resolution: 1.25dppx) {
+  .cell-input,
+  .input,
+  .jday-in,
+  .td-due-input,
+  .pr-in,
+  .td-add-title {
+    padding-bottom: 1.6px;
+  }
+
+  .cm-hbtn,
+  .fx-tab,
+  .fx-vb {
+    padding-bottom: 1.2px;
+  }
+
+  .fx-drv {
+    padding-top: 0.4px;
+  }
+
+  .cal-kp-btn {
+    padding-top: 0;
+  }
 }

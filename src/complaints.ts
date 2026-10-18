@@ -74,7 +74,7 @@ export type ColKey =
  * 위치·내용·조치내용의 긴 글은 칸 안에서 다음 줄로 넘겨요. 가로 스크롤이 없어야 해요.
  */
 export const COLUMNS: { key: ColKey; label: string; w: number | null }[] = [
-  { key: "no", label: "연번", w: 44 },
+  { key: "no", label: "연번", w: 52 },
   { key: "intake", label: "접수유형", w: 92 },
   { key: "received", label: "접수일", w: 96 },
   { key: "ctype", label: "민원유형", w: 84 },

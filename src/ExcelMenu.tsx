@@ -154,7 +154,7 @@ export function ExcelMenu<T>({
     <div className="xl-wrap" ref={wrap}>
       <button type="button" className="btn btn-ctrl btn-text xl-btn" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
         엑셀
-        <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
           <path d="M6 9l6 6 6-6" />
         </svg>
       </button>

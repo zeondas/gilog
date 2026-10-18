@@ -614,7 +614,7 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
               >
                 이 날 일정 추가
               </button>
-              <button type="button" className="btn-primary btn-ctrl" autoFocus onClick={() => setDayOpen(null)}>
+              <button type="button" className="btn btn-ctrl btn-text" autoFocus onClick={() => setDayOpen(null)}>
                 닫기
               </button>
             </div>
@@ -1558,7 +1558,7 @@ function KindsDialog({
               }}
             />
             <button type="button" className="btn-primary btn-ctrl mgr-add" onClick={add}>
-              <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
                 <path d="M12 5v14M5 12h14" />
               </svg>
               추가
@@ -1587,7 +1587,7 @@ function KindsDialog({
                       setHol({ busy: false, msg: err || `받았어요 (${stamp().slice(11)})`, ok: !err });
                     }}
                   >
-                    <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className={hol?.busy ? "spin" : undefined}>
+                    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className={hol?.busy ? "spin" : undefined}>
                       <path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4h-4" />
                     </svg>
                     {hol?.busy ? "받는 중…" : "다시 받기"}
@@ -1607,7 +1607,7 @@ function KindsDialog({
           <button type="button" className="btn btn-ctrl" onClick={onNotify}>
             알림 확인
           </button>
-          <button type="button" className="btn-primary btn-ctrl cal-push" onClick={onClose}>
+          <button type="button" className="btn btn-ctrl btn-text cal-push" onClick={onClose}>
             닫기
           </button>
         </div>
@@ -1710,7 +1710,7 @@ function NotifyDialog({ onClose }: { onClose: () => void }) {
           <button type="button" className="btn btn-ctrl cal-cancel" onClick={() => test(ps)}>
             시험 알림 띄우기
           </button>
-          <button type="button" className="btn-primary btn-ctrl" onClick={onClose}>
+          <button type="button" className="btn btn-ctrl btn-text" onClick={onClose}>
             닫기
           </button>
         </div>
@@ -1917,7 +1917,7 @@ function CheckCircle() {
 
 function Tick() {
   return (
-    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round">
       <path d="M5 12.5l4.5 4.5L19 7.5" />
     </svg>
   );
@@ -1925,7 +1925,7 @@ function Tick() {
 
 function Plus() {
   return (
-    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
       <path d="M12 5v14M5 12h14" />
     </svg>
   );

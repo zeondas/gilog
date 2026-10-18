@@ -193,7 +193,7 @@ export default function App() {
       aria-current={current === id ? "page" : undefined}
       onClick={() => setCurrent(id)}
     >
-      <NavIcon name={id as NavIconName} size={collapsed ? 17 : 15} />
+      <NavIcon name={id as NavIconName} size={collapsed ? 18 : 16} />
       {!collapsed && <span>{label}</span>}
     </button>
   );
@@ -224,13 +224,13 @@ export default function App() {
           ))}
           {navButton(SETTINGS.id, SETTINGS.side)}
           <button type="button" className="side-item" title={collapsed ? "잠그기" : undefined} onClick={lockNow}>
-            <NavIcon name="lock" size={collapsed ? 17 : 15} />
+            <NavIcon name="lock" size={collapsed ? 18 : 16} />
             {!collapsed && <span>잠그기</span>}
           </button>
         </div>
         <div className="side-list side-toggle">
           <button type="button" className="side-item" title={collapsed ? "펼치기 (Ctrl+B)" : "접기 (Ctrl+B)"} onClick={toggleSide}>
-            <NavIcon name={collapsed ? "unfold" : "fold"} size={collapsed ? 17 : 15} />
+            <NavIcon name={collapsed ? "unfold" : "fold"} size={collapsed ? 18 : 16} />
             {!collapsed && (
               <>
                 <span>접기</span>

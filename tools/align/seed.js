@@ -2,7 +2,7 @@
   const seed = (f) => {
     f.password = "1234"; f.unlocked = true;
     f.prefs = { ...f.prefs, askPassword: false, theme: "light" };
-    f.projects = [{id:1,name:"시도15호선",color:null},{id:2,name:"방호벽 정비",color:null},{id:3,name:"가을철 도로정비",color:null}];
+    f.projects = [{id:1,name:"시도15호선",alias:"",color:null},{id:2,name:"방호벽 정비",alias:"",color:null},{id:3,name:"가을철 도로정비",alias:"",color:null}];
     f.nextProjectId = 4;
     f.contacts = [
       {id:1,name:"박정호",org:"72사단",role:"시설장교",mobile:"010-1234-5678",tel:"031-940-1234",email:"",memo:"",projects:[2]},

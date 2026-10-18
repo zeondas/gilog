@@ -317,7 +317,7 @@ export function RenameDialog({
                 <input className="input" aria-label="찾기" placeholder="찾을 글자" value={o.find} onChange={(e) => set({ find: e.target.value })} />
                 <span />
                 <span className="fx-lbl fx-span2">바꾸기</span>
-                <input className="input" aria-label="바꾸기" placeholder="바꿀 글자 (비우면 지움)" value={o.repl} onChange={(e) => set({ repl: e.target.value })} />
+                <input className="input" aria-label="바꾸기" placeholder="바꿀 글자" value={o.repl} onChange={(e) => set({ repl: e.target.value })} />
                 <div className="fx-rel">
                   <button type="button" className="fx-drop" aria-label="바꾸기 자리 표시 넣기" onMouseDown={(e) => e.stopPropagation()} onClick={() => setMenu(menu === "repl" ? "" : "repl")}>
                     ▾

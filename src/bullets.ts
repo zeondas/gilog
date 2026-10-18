@@ -196,7 +196,7 @@ export function textToLines(text: string): BLine[] {
  * 머릿기호를 한글 글자 높이의 정중앙에 두고, 들여쓰기를 띄어쓰기 두 칸 폭으로 맞추려고
  * 그 PC의 글꼴로 재서 CSS 변수로 둬요. 글자 크기 설정이 바뀌면 다시 불러요.
  *   --bl-indent: 띄어쓰기 두 칸 폭
- *   --bl-shift: 줄 높이(글자 크기 × 1.5)의 가운데에서 한글 글자 가운데까지 내릴 거리
+ *   --bl-shift: 줄 높이(글자 크기 × 1.5를 정수 px로 반올림)의 가운데에서 한글 글자 가운데까지 내릴 거리
  */
 export function measureBullets(fontPx: number) {
   const root = document.documentElement;
@@ -206,7 +206,7 @@ export function measureBullets(fontPx: number) {
   c.font = `${fontPx}px ${family}`;
   const space = c.measureText(" ").width;
   const m = c.measureText("봉일천리야간사고우려임시조치");
-  const lh = fontPx * 1.5;
+  const lh = Math.round(fontPx * 1.5); // 글 줄 높이 round(1.5em, 1px)와 같게(UI 통일 H1)
   let shift = 0;
   if (m.fontBoundingBoxAscent && m.actualBoundingBoxAscent) {
     const base = (lh - (m.fontBoundingBoxAscent + m.fontBoundingBoxDescent)) / 2 + m.fontBoundingBoxAscent;

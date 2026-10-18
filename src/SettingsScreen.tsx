@@ -89,16 +89,16 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
         <h1 className="title">설정</h1>
         <span className="muted small title-sub">바꾸면 바로 저장돼요.</span>
         {!ask ? (
-          <button type="button" className="btn" onClick={() => setAsk(true)}>
+          <button type="button" className="btn btn-ctrl btn-text" onClick={() => setAsk(true)}>
             기본값으로 되돌리기
           </button>
         ) : (
           <span className="ask-row">
             <span className="gate-error">설정을 모두 처음 값으로 되돌릴까요? 비밀번호와 저장한 자료는 그대로예요.</span>
-            <button type="button" className="btn" onClick={() => setAsk(false)}>
+            <button type="button" className="btn btn-ctrl btn-text" onClick={() => setAsk(false)}>
               취소
             </button>
-            <button type="button" className="btn btn-danger" onClick={resetAll}>
+            <button type="button" className="btn btn-ctrl btn-text btn-danger" onClick={resetAll}>
               되돌리기
             </button>
           </span>
@@ -293,11 +293,18 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
           <div className="about-text">
             <Logo height={20} variant="word" />
             <span className="muted small">버전 {VERSION}</span>
+            <span className="muted small">WebView2 {engineVersion()}</span>
           </div>
         </div>
       </section>
     </>
   );
+}
+
+/** 화면 엔진(WebView2) 버전 — 139 이상이면 모서리 스퀴클이 그려져요(2026-10-18 결정 ⑧). */
+function engineVersion(): string {
+  const ua = navigator.userAgent;
+  return (ua.match(/Edg\/([\d.]+)/) ?? ua.match(/Chrome\/([\d.]+)/))?.[1] ?? "알 수 없음";
 }
 
 // ---------- 모듈 켜고 끄기 (2026-10-18 설정 세션, 시안 Settings) ----------
@@ -888,7 +895,7 @@ export function ListGroup({
         <div className="padd mgr-addrow">
           {input}
           <button type="button" className="btn-primary btn-ctrl mgr-add" onClick={add}>
-            <Plus /> 추가
+            <Plus size={16} /> 추가
           </button>
         </div>
       )}
@@ -1261,15 +1268,15 @@ function BackupRow({ onLocked, setNote }: { onLocked: () => void; setNote: (s: s
 
 function X() {
   return (
-    <svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
+    <svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
       <path d="M6 6l12 12M18 6L6 18" />
     </svg>
   );
 }
 
-function Plus() {
+function Plus({ size = 14 }: { size?: number }) {
   return (
-    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+    <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
       <path d="M12 5v14M5 12h14" />
     </svg>
   );
