@@ -19,7 +19,7 @@
 | 빌드 | main | wip/* 합치기·버전·빌드·설치 파일 | `3c8340e` 0.15.0(build-34) | **빌드 0.15.0(build-34) · 넣은 것: wip/process·wip/address·wip/contacts·wip/journal·wip/ime·wip/settings·wip/lock·wip/budget·wip/explorer · 사용자 시험 기다림** (합치며 고친 것: 설정 모듈 설명에 집행현황, 업무일지 프로젝트 배지·고르기 pjLabel/pjFull, 민원처리 공사명 찾기에 줄인 이름). wip/loadtest는 도구라 안 넣음 | 0.11.0~0.15.0 "통과" |
 | 구글 cal 연동 | main | 앱 정보 설치 파일에 넣기·할 일 권한 | `999d9d8` | 0.11.0(build-30)에 들어감 — 사용자 시험 기다림 | — |
 | 민원처리 | main(`wip/process` 지워도 됨) | 열 너비·주소 고치기·대장 등록 | `6f2d4bb` | 0.15.0(build-34)에 들어감 — 사용자 윈도우 시험 기다림 | — |
-| 탐색기 | `wip/explorer`(main 위) | 11단계 탐색기 · 날짜 형식 고르기 목록(FreeCommander처럼) | `97d3a30` | **진행 중 — 지금 빌드에 합치지 마세요**(2026-10-18 21:02 사용자: 다음 빌드에 넣기). 설정 "날짜 모양" 단추 줄 → "날짜 형식" 고르기 목록(연-월-일 순서만) | 탐색기 세션이 끝내기 |
+| 탐색기 | `wip/explorer`(main 위) | 11단계 탐색기 · 날짜 형식 고르기 목록(FreeCommander처럼) | `ce47b59` | **끝 — 지금 도는 빌드에는 넣지 말고 그다음 빌드에 합치기**(2026-10-18 21:02 사용자). 설정 "날짜 모양" 단추 줄 → "날짜 형식" 고르기 목록 7가지(yyyy-mm-dd hh:nn:ss · yyyy-mm-dd hh:nn · yy-mm-dd hh:nn(처음 값) · yyyymmdd_hhnnss · yyyy-mm-dd · yyyymmdd · yymmdd — 일·월이 앞인 것과 상대 시각은 뺌). 저장값은 형식 글자(`settings.files.dateFmt`), 예전 번호는 가까운 형식으로 읽음. 수정한 날 열은 형식 글자보다 좁아지지 않음. 고친 파일 `files.ts`·`settingsStore.ts`·`SettingsScreen.tsx`·`FilesScreen.tsx`·`FilesDialogs.tsx`·`app.css`(끝에 덧붙임) | 빌드 세션이 다음 빌드에 합치기 · 사용자 시험: 형식을 바꾸면 수정한 날 열·찾기 결과·같은 이름 묻는 창 날짜가 그 모양 |
 | 사이드바 | main(`wip/sidebar` 지워도 됨) | 사이드바 높이 1안 | `98e91a9` | 0.12.0(build-31)에 들어감 — 사용자 시험 기다림 | — |
 | 업무일지 | main(`wip/journal` 지워도 됨) | 프로젝트 띠·시간 기둥 120px | `9309449` | 0.12.0(build-31)에 들어감 — 사용자 시험 기다림 | — |
 | 설정 | main(`wip/settings` 지워도 됨) | 설정 정리·모듈 켜고 끄기 | `2158a12` | 0.15.0(build-34)에 들어감 — 사용자 윈도우 시험 기다림 | — |
