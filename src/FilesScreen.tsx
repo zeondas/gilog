@@ -976,7 +976,7 @@ export default function FilesScreen() {
           if (!c) return;
           c.font = `${getComputedStyle(document.body).fontSize} Pretendard, sans-serif`;
           const vals = rows.map((r) => (k === "size" ? (r.dir ? "" : formatSize(r.size)) : k === "modified" ? formatDate(r.modified, fmt) : k === "type" ? typeName(r, types) : r.folder ?? ""));
-          const w = Math.ceil(Math.max(40, ...vals.map((v) => c.measureText(v).width))) + 20;
+          const w = Math.ceil(Math.max(40, ...vals.map((v) => c.measureText(v).width))) + 20 + (k === "modified" && fmt.includes(" ") ? DATE_TIME_GAP : 0);
           setSt((S) => (S ? { ...S, cols: { ...S.cols, [k]: Math.min(400, w) } } : S));
         }}
       />
@@ -1395,7 +1395,7 @@ export default function FilesScreen() {
                   </span>
                 )}
                 {cfg.cols.size && <span className="fx-col fx-num">{r.note ?? (r.dir ? "" : formatSize(r.size))}</span>}
-                {cfg.cols.modified && <span className="fx-col fx-dim fx-tab-num fx-nowrap">{formatDate(r.modified, fmt)}</span>}
+                {cfg.cols.modified && <span className="fx-col fx-dim fx-tab-num fx-nowrap">{dateParts(formatDate(r.modified, fmt))}</span>}
                 {cfg.cols.type && (
                   <span className="fx-col fx-dim" title={r.kind ?? typeName(r, types)}>
                     <span className="fx-ellip">{r.kind ?? typeName(r, types)}</span>
@@ -1851,7 +1851,20 @@ function dateColMin(fmt: string): number {
   const c = document.createElement("canvas").getContext("2d");
   if (!c) return 0;
   c.font = `${fs} Pretendard, sans-serif`;
-  const w = Math.ceil(c.measureText(formatDate(new Date(2026, 11, 28, 23, 58, 58).getTime(), fmt)).width) + 20;
+  const w = Math.ceil(c.measureText(formatDate(new Date(2026, 11, 28, 23, 58, 58).getTime(), fmt)).width) + 20 + (fmt.includes(" ") ? DATE_TIME_GAP : 0);
   dateMinCache.set(key, w);
   return w;
+}
+
+/** 날짜와 시각 사이를 띄어쓰기보다 넓게(2026-10-18 사용자: 붙어 보여 읽기 힘듦) */
+const DATE_TIME_GAP = 6;
+function dateParts(t: string) {
+  const i = t.indexOf(" ");
+  if (i < 0) return t;
+  return (
+    <>
+      {t.slice(0, i)}
+      <span className="fx-dt-time">{t.slice(i + 1)}</span>
+    </>
+  );
 }
