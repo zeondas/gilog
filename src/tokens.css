@@ -366,3 +366,35 @@
 :root[data-accent="noctua"] { --icon-bg: #531705; --icon-l: #E7CEB5; }
 :root[data-accent="blue"] { --icon-bg: #2457C5; --icon-l: #9DBBFF; }
 :root[data-accent="ink"] { --icon-bg: #3F3E4A; --icon-l: #C9C7D4; }
+
+/* 집행현황 세부사업 줄·고른 줄·열 강조도 강조색을 따라가요(2026-10-18 22:33 사용자 1안).
+   값은 보라 값이 각 강조색의 wash→tint→line 사이 어디인지 재서 같은 자리를 골랐어요. */
+:root[data-accent="noctua"] {
+  --bd-pj-bg: #EFE1D3; --bd-pj-line: #DAC3AD; --bd-sel-bg: #ECDECE; --bd-col-hl: rgba(83, 23, 5, 0.07);
+}
+:root[data-accent="blue"] {
+  --bd-pj-bg: #E0E9FA; --bd-pj-line: #C2D1F2; --bd-sel-bg: #DDE6FA; --bd-col-hl: rgba(36, 87, 197, 0.07);
+}
+:root[data-accent="ink"] {
+  --bd-pj-bg: #E7E6EB; --bd-pj-line: #CBCAD3; --bd-sel-bg: #E3E2E9; --bd-col-hl: rgba(63, 62, 74, 0.07);
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-accent="noctua"]:not([data-theme="light"]) {
+    --bd-pj-bg: #2E231A; --bd-pj-line: #594231; --bd-sel-bg: #3F2E21; --bd-col-hl: rgba(231, 206, 181, 0.08);
+  }
+  :root[data-accent="blue"]:not([data-theme="light"]) {
+    --bd-pj-bg: #1D263C; --bd-pj-line: #324470; --bd-sel-bg: #243354; --bd-col-hl: rgba(157, 187, 255, 0.08);
+  }
+  :root[data-accent="ink"]:not([data-theme="light"]) {
+    --bd-pj-bg: #27262E; --bd-pj-line: #41404B; --bd-sel-bg: #33323B; --bd-col-hl: rgba(201, 199, 212, 0.08);
+  }
+}
+:root[data-accent="noctua"][data-theme="dark"] {
+  --bd-pj-bg: #2E231A; --bd-pj-line: #594231; --bd-sel-bg: #3F2E21; --bd-col-hl: rgba(231, 206, 181, 0.08);
+}
+:root[data-accent="blue"][data-theme="dark"] {
+  --bd-pj-bg: #1D263C; --bd-pj-line: #324470; --bd-sel-bg: #243354; --bd-col-hl: rgba(157, 187, 255, 0.08);
+}
+:root[data-accent="ink"][data-theme="dark"] {
+  --bd-pj-bg: #27262E; --bd-pj-line: #41404B; --bd-sel-bg: #33323B; --bd-col-hl: rgba(201, 199, 212, 0.08);
+}
