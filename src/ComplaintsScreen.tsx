@@ -215,8 +215,19 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
 
   return (
     <>
-      <div className="ct-head">
-        <h1 className="title">민원대장</h1>
+      <div className="ct-head cm-top">
+        <h1 className="sr-only">민원대장</h1>
+        <FilterChips
+          statuses={statuses}
+          base={found.filter((c) => passes(c, filters, "status"))}
+          filters={filters}
+          total={all.length}
+          shown={shown.length}
+          onStatus={(v) => setFilter("status", v)}
+          onOpen={setOpenFilter}
+          onClear={(k) => setFilter(k, null)}
+          onClearAll={clearFilters}
+        />
         <label className="search">
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <circle cx="11" cy="11" r="7" />
@@ -247,18 +258,6 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
           }}
         />
       </div>
-
-      <FilterChips
-        statuses={statuses}
-        base={found.filter((c) => passes(c, filters, "status"))}
-        filters={filters}
-        total={all.length}
-        shown={shown.length}
-        onStatus={(v) => setFilter("status", v)}
-        onOpen={setOpenFilter}
-        onClear={(k) => setFilter(k, null)}
-        onClearAll={clearFilters}
-      />
 
       {note && <p className="note" role="status">{note}</p>}
 

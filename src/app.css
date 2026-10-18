@@ -9991,3 +9991,18 @@ select.input.fx-set-date { width: 190px; }
 .fx-pv-info dt { color: var(--muted); }
 .fx-pv-info dd { margin: 0; }
 .fx-pv-path { word-break: break-all; color: var(--muted); }
+
+/* 민원대장: 제목 대신 상태 줄을 위 줄에 (2026-10-19 사용자) — 제목은 화면 읽기용으로만 남겨요 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.cm-top .ct-chips {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-right: var(--space-2);
+}
