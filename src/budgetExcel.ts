@@ -46,7 +46,9 @@ const isCarry = (name: string) => /^\(.*이월.*\)/.test(name.trim());
 function fromApp(s: GridSheet, hi: number): BudgetImport | null {
   const head = s.rows[hi].map(norm);
   const col = (h: string) => head.indexOf(h);
-  const c = { name: col("세부사업"), kind: col("구분"), co: col("업체(하도)"), bud: col("예산"), cmt: col("원인행위"), exp: col("지출액"), act: col("실집행액"), stage: col("단계"), memo: col("메모"), lv: col("줄") };
+  // 열 이름을 바꿔도(2026-10-18 지출액→집행액, 실집행액→시공량·사용량) 예전 파일을 읽어요
+  const col2 = (h: string, old: string) => (col(h) >= 0 ? col(h) : col(old));
+  const c = { name: col("세부사업"), kind: col("구분"), co: col("업체(하도)"), bud: col("예산"), cmt: col("원인행위"), exp: col2("집행액", "지출액"), act: col2("시공량·사용량", "실집행액"), stage: col("단계"), memo: col("메모"), lv: col("줄") };
   if (c.name < 0 || c.cmt < 0) return null;
   const unit: 1 | 1000 = s.rows.slice(0, hi).some((r) => r.some((x) => /단위\s*천원/.test(x ?? ""))) ? 1000 : 1;
   const out: ImportProject[] = [];
@@ -99,8 +101,8 @@ function fromLegacy(s: GridSheet, hi: number): BudgetImport | null {
     name: find("공사명/예산액", "공사명"),
     kind: find("구분"),
     cmt: find("원인행위"),
-    exp: find("지출액"),
-    act: find("실집행액"),
+    exp: find("지출액", "집행액"),
+    act: find("실집행액", "시공량"),
     start: find("착공일"),
     end: find("준공일"),
     co: find("업체명", "업체"),
