@@ -262,3 +262,101 @@
   --bd-faint: #86839A; --bd-ghost: #6E6B7E; --bd-alt: #1B1A21;
   --up-bg: #3A3012; --up-fg: #F0CF6A;
 }
+
+/* 강조색 테마 (2026-10-18 색 테마 세션, 사용자 1안 확정 — 시안 캔버스 Theme.dc.html의 T 표).
+   prefs.json `accent`를 <html data-accent>로 붙여요. 보라는 기본값이라 묶음이 없어요.
+   바뀌는 것은 강조색 다섯 토큰뿐 — 바탕·글자·선·24색·8색·긴급·쉬는 날은 그대로예요.
+   어둡게 묶음은 [data-accent]를 하나 더 붙여 위 어둡게 테마(보라)보다 앞서요. */
+/* 녹투아 브라운 — 밝게 */
+:root[data-accent="noctua"] {
+  --accent: #531705;
+  --on-accent: #FFFFFF;
+  --accent-tint: #F3E7DA;
+  --accent-wash: #FAF5EF;
+  --accent-line: #C9AA8E;
+}
+/* 파랑 — 밝게 */
+:root[data-accent="blue"] {
+  --accent: #2457C5;
+  --on-accent: #FFFFFF;
+  --accent-tint: #E6EDFC;
+  --accent-wash: #F5F8FE;
+  --accent-line: #A9BEEC;
+}
+/* 먹색 — 밝게 */
+:root[data-accent="ink"] {
+  --accent: #3F3E4A;
+  --on-accent: #FFFFFF;
+  --accent-tint: #ECEBF0;
+  --accent-wash: #F7F7F9;
+  --accent-line: #B5B3C0;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-accent="noctua"]:not([data-theme="light"]) {
+    --accent: #E7CEB5;
+    --on-accent: #3A1204;
+    --accent-tint: #3B2A1E;
+    --accent-wash: #241D17;
+    --accent-line: #8B6A50;
+  }
+  :root[data-accent="blue"]:not([data-theme="light"]) {
+    --accent: #9DBBFF;
+    --on-accent: #0F2250;
+    --accent-tint: #22304F;
+    --accent-wash: #191E2C;
+    --accent-line: #4D66A8;
+  }
+  :root[data-accent="ink"]:not([data-theme="light"]) {
+    --accent: #C9C7D4;
+    --on-accent: #1E1D25;
+    --accent-tint: #302F38;
+    --accent-wash: #1F1E25;
+    --accent-line: #5F5D6B;
+  }
+}
+:root[data-accent="noctua"][data-theme="dark"] {
+  --accent: #E7CEB5;
+  --on-accent: #3A1204;
+  --accent-tint: #3B2A1E;
+  --accent-wash: #241D17;
+  --accent-line: #8B6A50;
+}
+:root[data-accent="blue"][data-theme="dark"] {
+  --accent: #9DBBFF;
+  --on-accent: #0F2250;
+  --accent-tint: #22304F;
+  --accent-wash: #191E2C;
+  --accent-line: #4D66A8;
+}
+:root[data-accent="ink"][data-theme="dark"] {
+  --accent: #C9C7D4;
+  --on-accent: #1E1D25;
+  --accent-tint: #302F38;
+  --accent-wash: #1F1E25;
+  --accent-line: #5F5D6B;
+}
+
+/* 설정 "강조색" 동그라미 — 지금 테마에서 보일 강조색 그대로(밝게·어둡게). 강조색과 상관없이 늘 같아요. */
+:root {
+  --sw-purple: #4B37C4;
+  --sw-noctua: #531705;
+  --sw-blue: #2457C5;
+  --sw-ink: #3F3E4A;
+  --sw-check: #FFFFFF;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --sw-purple: #B6AAFF;
+    --sw-noctua: #E7CEB5;
+    --sw-blue: #9DBBFF;
+    --sw-ink: #C9C7D4;
+    --sw-check: #17161C;
+  }
+}
+:root[data-theme="dark"] {
+  --sw-purple: #B6AAFF;
+  --sw-noctua: #E7CEB5;
+  --sw-blue: #9DBBFF;
+  --sw-ink: #C9C7D4;
+  --sw-check: #17161C;
+}

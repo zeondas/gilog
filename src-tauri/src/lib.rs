@@ -45,6 +45,8 @@ pub(crate) struct Prefs {
     data_dir: String,
     /// 시스템 / 밝게 / 어둡게
     theme: String,
+    /// 강조색 purple / noctua / blue / ink (2026-10-18 색 테마, 없으면 purple)
+    accent: String,
     start_screen: String,
     font_size: u32,
     urgent_days: u32,
@@ -62,6 +64,7 @@ impl Default for Prefs {
         Prefs {
             data_dir: String::new(),
             theme: "system".into(),
+            accent: "purple".into(),
             start_screen: "journal".into(),
             font_size: 13,
             urgent_days: 2,

@@ -1,5 +1,5 @@
 import { FormEvent, Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { api, DEFAULT_PREFS, errorText, inApp, Prefs, Status } from "./api";
+import { ACCENTS, api, DEFAULT_PREFS, errorText, inApp, Prefs, Status } from "./api";
 import { splitJamo } from "./journal";
 import { DEFAULT_SETTINGS, DONE_STATUS, Kind, loadSettings, MEMO_KIND, ProcessSettings, saveSettings, Settings, FilesSettings, STATUS_COLORS } from "./settingsStore";
 import { PhoneInput } from "./PhoneInput";
@@ -213,7 +213,8 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
             onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
           />
         </Row>
-        <Row k="다크 라이트 어둡게 밝게 색" label="테마" desc="시스템은 윈도우의 밝게·어둡게 설정을 따라가요.">
+        <Row k="다크 라이트 어둡게 밝게 색 강조색" label="테마" desc="시스템은 윈도우의 밝게·어둡게 설정을 따라가요. 동그라미는 강조색이에요.">
+          <span className="theme-ctl">
           <span className="seg" role="radiogroup" aria-label="테마">
             {(
               [
@@ -232,6 +233,30 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
                 {name}
               </button>
             ))}
+          </span>
+          <span className="accent-pick" role="radiogroup" aria-label="강조색">
+            {ACCENTS.map((a) => {
+              const on = (prefs.accent || "purple") === a.id;
+              return (
+                <button
+                  key={a.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  aria-label={a.name}
+                  title={a.name}
+                  className={"accent-dot accent-" + a.id}
+                  onClick={() => setPref("accent", a.id)}
+                >
+                  {on && (
+                    <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+                      <path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </button>
+              );
+            })}
+          </span>
           </span>
         </Row>
         <Row k="처음" label="시작 화면" desc="앱을 켰을 때 먼저 보이는 화면이에요. 켜 둔 모듈만 골라요.">

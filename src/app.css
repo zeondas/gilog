@@ -9832,3 +9832,42 @@ button.bd-chip:hover {
 .set-top:hover {
   filter: brightness(0.9);
 }
+
+/* 색 테마(2026-10-18): 설정 "일반" 테마 줄 — 밝게·어둡게·시스템 묶음 오른쪽에 강조색 동그라미 4개(22px).
+   고른 것은 테두리 2px(바깥으로 2px 띄움) + 체크. 색은 --sw-* 토큰(지금 테마에서 보일 강조색). */
+.theme-ctl {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+.accent-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.accent-dot {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  corner-shape: round;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--sw-check);
+  background: var(--sw);
+  cursor: pointer;
+}
+.accent-dot[aria-checked="true"] {
+  outline: 2px solid var(--sw);
+  outline-offset: 2px;
+}
+.accent-dot:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.accent-purple { --sw: var(--sw-purple); }
+.accent-noctua { --sw: var(--sw-noctua); }
+.accent-blue { --sw: var(--sw-blue); }
+.accent-ink { --sw: var(--sw-ink); }

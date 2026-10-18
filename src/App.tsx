@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { api, DEFAULT_PREFS, errorText, inApp, Prefs, Reminder, Status } from "./api";
+import { api, applyAccent, DEFAULT_PREFS, errorText, inApp, Prefs, Reminder, Status } from "./api";
 import { measureBullets } from "./bullets";
 import CalendarScreen, { EventFocus } from "./CalendarScreen";
 import ComplaintsScreen from "./ComplaintsScreen";
@@ -71,6 +71,8 @@ export default function App() {
     (async () => {
       try {
         const p = await api.getPrefs();
+        // 강조색은 첫 그림 전에(잠금 화면도 그 색으로) 붙여요.
+        applyAccent(p.accent);
         setPrefs(p);
         setCurrent(p.startScreen as ScreenId);
         const st = await api.status();
@@ -87,13 +89,14 @@ export default function App() {
     const root = document.documentElement;
     if (prefs.theme === "system") root.removeAttribute("data-theme");
     else root.setAttribute("data-theme", prefs.theme);
+    applyAccent(prefs.accent);
     root.style.setProperty("--fs", prefs.fontSize + "px");
     // 머릿기호를 한글 글자 정중앙에, 들여쓰기를 띄어쓰기 두 칸에 맞추려고 그 PC 글꼴로 재요(글꼴을 다 읽은 뒤 한 번 더).
     measureBullets(prefs.fontSize);
     document.fonts?.ready.then(() => measureBullets(prefs.fontSize));
     // 앱에 넣은 Pretendard는 처음 쓰일 때 읽혀요. 다 읽은 뒤 머릿기호 위치를 다시 재요.
     document.fonts?.load(`${prefs.fontSize}px Pretendard`, "가").then(() => measureBullets(prefs.fontSize)).catch(() => {});
-  }, [prefs.theme, prefs.fontSize]);
+  }, [prefs.theme, prefs.accent, prefs.fontSize]);
 
   const savePrefs = useCallback(async (p: Prefs) => {
     await api.setPrefs(p);

@@ -8,10 +8,28 @@ import { fakeBudget } from "./budgetFake";
 
 export type Status = { exists: boolean; unlocked: boolean; folder: string };
 
+/** 강조색 네 가지. 보라가 기본이에요(tokens.css에 묶음 없음). */
+export type Accent = "purple" | "noctua" | "blue" | "ink";
+export const ACCENTS: { id: Accent; name: string }[] = [
+  { id: "purple", name: "보라" },
+  { id: "noctua", name: "녹투아 브라운" },
+  { id: "blue", name: "파랑" },
+  { id: "ink", name: "먹색" },
+];
+
+/** 강조색을 화면 전체에 적용해요(tokens.css의 :root[data-accent] 묶음). */
+export function applyAccent(accent: string | undefined) {
+  const root = document.documentElement;
+  if (accent && accent !== "purple" && ACCENTS.some((a) => a.id === accent)) root.dataset.accent = accent;
+  else delete root.dataset.accent;
+}
+
 /** 비밀번호 없이도 읽는 앱 설정이에요. */
 export type Prefs = {
   dataDir: string;
   theme: "system" | "light" | "dark";
+  /** 강조색(2026-10-18 색 테마). 없으면 보라 */
+  accent: Accent;
   startScreen: string;
   fontSize: number;
   urgentDays: number;
@@ -25,6 +43,7 @@ export type Prefs = {
 export const DEFAULT_PREFS: Prefs = {
   dataDir: "",
   theme: "system",
+  accent: "purple",
   startScreen: "journal",
   fontSize: 13,
   urgentDays: 2,
