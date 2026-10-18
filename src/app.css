@@ -9939,3 +9939,12 @@ select.input.fx-set-date { width: 190px; }
 .fx-psplit-x:hover { background: linear-gradient(var(--accent-line), var(--accent-line)) center / 2px 100% no-repeat; }
 .fx-psplit-y:hover { background: linear-gradient(var(--accent-line), var(--accent-line)) center / 100% 2px no-repeat; }
 .fx-top .fx-sq { width: 34px; padding: 0; justify-content: center; flex: none; }
+/* 머리 줄(2026-10-18 사용자): 제목 없음, 파일 찾기 = 폴더트리 폭(그 위), 단추 줄 = 창들 폭(12px 띄우고 오른쪽 끝까지 꽉) */
+.fx-top { gap: 12px; }
+.fx-top > .fx-findbox { flex: none; min-width: 0; }
+.fx-tools { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
+.fx-tools .fx-tool { flex: 1 1 0; width: auto; min-width: 0; }
+.fx-top > .fx-findbox { margin-right: 0; }
+/* 단추 폭은 정수 90px, 마지막(이름변경)이 남는 폭을 맡아 오른쪽 끝을 창 끝에 맞춰요(1600×900에서 88px) */
+.fx-tools .fx-tool { flex: none; width: 90px; }
+.fx-tools .fx-tool:last-child { flex: 1 1 0; width: auto; }
