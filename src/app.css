@@ -3828,6 +3828,15 @@ body.col-dragging * {
   margin: 0 calc(var(--space-2) * -1);
 }
 
+/* 체크박스는 오른쪽으로 2px(글자 자리는 그대로), 건수 숫자는 왼쪽으로 2px (2026-10-19 사용자) */
+.td-page .td-list-box {
+  margin: 0 -2px 0 2px;
+}
+
+.td-page .td-list-count {
+  margin-right: 2px;
+}
+
 .td-screen {
   display: flex;
   align-items: flex-start;
