@@ -155,6 +155,7 @@
 | ⑥ | 관리 창 "닫기" | **2안 흰 보조 단추** — 보라는 저장·등록·추가처럼 무언가를 하는 단추에만 |
 | ⑦ | 파일 아이콘 색 12개 | **1안 그대로** — `tokens.css`에 `--fi-*`로 모아 적기만 |
 | ⑨ | 배율 | **100%·125% 둘 다 기준**(2026-10-18 17:36) — 반 픽셀이 생기는 값(홀수 여백·2.5px)은 피해요 |
+| ⑩ | 2차 H4·H7·H9·H10·H12·H13 | **2026-10-18 19:45 사용자 "제안대로"** — ⊕ r=11 · 125%는 안쪽 자리만 4의 배수 · 125% 보정 0.8px 미디어 쿼리 · 둥근 스크롤바 12px · 아이콘 16/14/10 · 사이드바 36·관리 창 줄 44·일지 배지 22 (6-4절) |
 | ⑧ | 스퀴클 확인 | **1안** 설정 "정보" 카드에 WebView2(엔진) 버전 한 줄 — 139 이상이면 스퀴클이 그려져요 |
 
 ## 5. "UI 통일" 세션 인수인계 — 고칠 목록 (파일·줄)
@@ -237,18 +238,18 @@
 | H1 | 머릿기호 칸 반 픽셀 | 3485 `.bl-m` | `height: round(1.5em, 1px)` — `measureBullets`가 이 높이를 읽는지 확인 |
 | H2 | 입력칸 −2 | 5768 | 3px + `.input-sm`·`.pr-in`·`select.input`·`select.cal-select`·`.fx-filter`·`textarea.cell-input.jtalk`(2306) |
 | H3 | 체크 동그라미·세부정보 아이콘 | 4273 `.td-check` margin-top 1→0 · 4320 `.td-note-icon` 3→2 | — |
-| H4 | ⊕ 크기 | `TasksScreen.tsx:666` `circle r=9` | **1안 r=11**(그려진 18, 상자 그대로 — 권함) / 2안 svg 22×22 |
+| H4 | ⊕ 크기 | `TasksScreen.tsx:666` `circle r=9` | **확정 1안** — `r=11`(그려진 지름 18, 상자 18 그대로) — 체크 동그라미와 같은 크기 |
 | H5 | 스위치 | 547·561·573 | `corner-shape: round` + 트랙 20→**24**·노브 16·`top/left: 4px`·켜짐 `left: 24px`(트랙 폭 44) — 100%·125% 모두 정수. 또는 트랙 20 유지·노브 12·`top: 4px` |
 | H6 | `.jcal-dot` squircle | 1697 | `corner-shape: round`(C항과 함께) |
-| H7 | 125% 둥근 상자 가장자리 흐림 | 높이 34·26·22·18·30·35·21 | **사용자 결정** — 1안 높이를 4의 배수로(단추 32/28, 배지 20 또는 24, 사이드바 36) ↔ 결정 ①④와 충돌 / **2안 결정 ①④ 그대로 두고 자식 위치만 4의 배수로**(권함 — y 위치에 따라 어차피 25%는 .5에 걸려요) |
+| H7 | 125% 둥근 상자 가장자리 흐림 | 높이 34·26·22·18·30·35·21 | **확정 2안**(2026-10-18 19:45 사용자 "제안대로") — 결정 ①④ 높이는 그대로, 안에 든 것(노브·배지 글자·`.cm-c` 안 입력칸)의 자리만 4의 배수로(H8) |
 | H8 | 125% 자식 .5 | 노브·`.pbadge` padding 2→4 또는 0·`.cm-c` 안 입력칸 | 배경 있는 것만 고치고 선 아이콘은 두기 |
-| H9 | 125% 글자 +1~2 / −3 | 1px 보정들 | **사용자 결정** — 1안 `@media (min-resolution: 1.25dppx)`에서 보정값을 `0.8px`(=1 물리 px)로 바꾸는 규칙 한 묶음(권함, 작게 시작) / 2안 보정 대신 line-height = 상자 안쪽 높이로 가운데 맞추기(글꼴이 0.5px 떠서 완전하진 않음) |
-| H10 | 스크롤바 한 규칙 | 8955~8971 `.bd-scroll` · 188 `.main` · 1442 `.dialog-body` · 5277 `.cal-wk-scroll` · 8357 `.fx-rn-body` · 7870 `.fx-list` | **사용자 결정** — 1안 `* { scrollbar-width: thin; scrollbar-color: var(--line) transparent }`(표준, 11px 네모 막대, `::-webkit-scrollbar` 전부 삭제) / **2안 `::-webkit-scrollbar 12px` + 둥근 thumb(`var(--line)`, 안쪽 여백 3px, 모서리 6) 전역 + `scrollbar-width` 삭제**(권함 — 디자인 시스템 모서리와 맞고 WebView2는 크로미움이라 돼요). 가로 막대도 같은 규칙 |
+| H9 | 125% 글자 +1~2 / −3 | 1px 보정들 | **확정 1안** — `@media (min-resolution: 1.25dppx)` 안에서 1px 보정값(5768 블록·`.cm-hbtn`·`.pr-d`·`.cal-kp-btn`·`.pr-tpl`·`.tb`·`.td-src`·`.jproj-badge` 등 E항)을 `0.8px`(=1 물리 px)로 바꾸는 규칙 한 묶음. 100%는 그대로 |
+| H10 | 스크롤바 한 규칙 | 8955~8971 `.bd-scroll` · 188 `.main` · 1442 `.dialog-body` · 5277 `.cal-wk-scroll` · 8357 `.fx-rn-body` · 7870 `.fx-list` | **확정 2안** — 전역 `::-webkit-scrollbar { width: 12px; height: 12px }` + `::-webkit-scrollbar-thumb { background: var(--line); border: 3px solid transparent; background-clip: padding-box; border-radius: 6px }` + track 투명, `scrollbar-width` 선언은 모두 삭제(있으면 webkit 규칙이 무시됨). 세로·가로 같은 규칙, 주 보기 `scrollbar-gutter`는 그대로 |
 | H11 | 네이티브 체크박스 | `FilesDialogs.tsx:95·329·330` | app.css 공통에 `accent-color: var(--accent)` |
-| H12 | 아이콘 크기 표 | `Icons.tsx`·각 화면 svg | **사용자 결정** — 1안 세 단계(머리 줄 단추 16 · 줄 안·작은 단추 14 · 배지 안 10, 권함) / 2안 두 단계 16·14 |
-| H13 | 홀수 높이 | 68 `.side-item` 35 · 2184/5791 `.jproj-badge` 21 · 1457 `.prow` 45 | **사용자 결정** — 0.9.4 결정 그대로 두기(125% 양쪽 흐림 감수) / 36·22·44로 |
+| H12 | 아이콘 크기 표 | `Icons.tsx`·각 화면 svg | **확정 1안 세 단계** — 머리 줄(34) 단추 안 **16**, 줄 안·작은(28) 단추 안 **14**, 배지(22) 안 **10**. 지금 13(`.tool`·`.fx-drv`·`.fx-ib`)·15(`.pr-icon`·`.bd-memo`·`.mod-icon`)·11(`.chip-x`·`.cal-kind-box`)·12(`.fx-up`·`.td-done-toggle`)·`.btn-ctrl` 안 12/14/15를 이 표로. 사이드바 15/17은 H13과 함께 16(펼침)·18(접힘) |
+| H13 | 홀수 높이 | 68 `.side-item` 35 · 2184/5791 `.jproj-badge` 21 · 1457 `.prow` 45 · 6781 `.pr-row`·7251 `.pr-wrow` | **확정 2안** — 사이드바 메뉴 **36**(`.side-bottom .side-item`도), 관리 창 줄 **44**(`.prow`·`.pr-row`·`.pr-wrow`), 일지 프로젝트 배지 **22**(④와 같게). 100% 글자 맞춤은 아이콘 16·여백으로 다시 재서 맞춰요(0.9.4 결정 6번 35px은 이것으로 바뀜) |
 
-적용 순서(권함): H2 → H1 → H3·H4 → H5·H6 → H10 → H11 → (결정 뒤) H7·H9·H12·H13. 고친 뒤 `census.py light 1`·`census.py light 1.25`·`census.py light 1 "" filled` → `analyze.py` → `report.py`로 다시 재서 글자 맞춤 90% 이상·자식 치우침 0·125% 전용 어긋남 0을 확인해요(`census.py`에 overlay 아래 요소 제외를 먼저 더해요).
+**결정 끝(2026-10-18 19:45 사용자 "제안대로": H4 1안·H7 2안·H9 1안·H10 2안·H12 1안·H13 2안)** — 적용 순서(권함): H2 → H1 → H3·H4 → H5·H6 → H10 → H11 → H13 → H12 → H8·H7 → H9(맨 끝, 125%만 다시 재기). 고친 뒤 `census.py light 1`·`census.py light 1.25`·`census.py light 1 "" filled` → `analyze.py` → `report.py`로 다시 재서 글자 맞춤 90% 이상·자식 치우침 0·125% 전용 어긋남 0을 확인해요(`census.py`에 overlay 아래 요소 제외를 먼저 더해요).
 
 ### 6-5. 도구 메모(UI 통일 세션용)
 - `tools/align/measure.py`에 `run()`이 없어 `run2.py`가 안 돌아요 → 작업 공간 `run1600.py`·`measure_ws.py`·`census.py`를 `tools/align/`에 넣고 README를 고쳐요.
