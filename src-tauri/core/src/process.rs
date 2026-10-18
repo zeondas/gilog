@@ -93,6 +93,9 @@ pub struct Case {
 #[serde(rename_all = "camelCase", default)]
 pub struct CasePatch {
     pub work: Option<Option<i64>>,
+    /// 주소(지역·위치)를 고치면 지시부 전으로 돌아가요(지시부를 다시 만들어요). 연번은 그대로예요.
+    pub area: Option<String>,
+    pub place: Option<String>,
     pub note: Option<String>,
     pub seq: Option<String>,
     pub stage: Option<String>,
@@ -365,6 +368,18 @@ impl Store {
                 c.seq = String::new();
             }
         }
+        let (area, place) = (p.area.as_ref().map(|v| one_line(v)), p.place.as_ref().map(|v| one_line(v)));
+        let place = place.map(|v| if v.is_empty() { UNKNOWN_PLACE.to_string() } else { v });
+        let moved = area.as_ref().is_some_and(|v| *v != c.area) || place.as_ref().is_some_and(|v| *v != c.place);
+        if let Some(v) = area {
+            c.area = v;
+        }
+        if let Some(v) = place {
+            c.place = v;
+        }
+        if moved && p.stage.is_none() {
+            c.stage = "new".into();
+        }
         if let Some(v) = &p.note {
             c.note = one_line(v);
         }
@@ -396,8 +411,8 @@ impl Store {
             c.sent_at = v.clone();
         }
         self.conn.execute(
-            "UPDATE cases SET work = ?2, note = ?3, seq = ?4, stage = ?5, complaint = ?6, folder = ?7, order_file = ?8, order_jpg = ?9, outbox_file = ?10, sent_at = ?11 WHERE no = ?1",
-            params![no, c.work, c.note, c.seq, c.stage, c.complaint, c.folder, c.order_file, c.order_jpg, c.outbox_file, c.sent_at],
+            "UPDATE cases SET work = ?2, note = ?3, seq = ?4, stage = ?5, complaint = ?6, folder = ?7, order_file = ?8, order_jpg = ?9, outbox_file = ?10, sent_at = ?11, area = ?12, place = ?13 WHERE no = ?1",
+            params![no, c.work, c.note, c.seq, c.stage, c.complaint, c.folder, c.order_file, c.order_jpg, c.outbox_file, c.sent_at, c.area, c.place],
         )?;
         self.case(no)
     }
@@ -464,5 +479,13 @@ mod tests {
         assert_eq!(s.case("1AA-1").unwrap().work, None);
         let c = s.update_case("1AA-1", &CasePatch { stage: Some("queued".into()), outbox_file: Some("D:/보낼편지함/a.jpg".into()), ..Default::default() }).unwrap();
         assert_eq!((c.stage.as_str(), c.outbox_file.as_str()), ("queued", "D:/보낼편지함/a.jpg"));
+        // 주소를 고치면 지시부 전으로(연번은 그대로), 비우면 주소불명
+        let c = s.update_case("1AA-1", &CasePatch { seq: Some("3".into()), ..Default::default() }).unwrap();
+        assert_eq!(c.seq, "3");
+        let c = s.update_case("1AA-1", &CasePatch { area: Some("조리읍".into()), place: Some(" 봉일천리 1 ".into()), ..Default::default() }).unwrap();
+        assert_eq!((c.area.as_str(), c.place.as_str(), c.stage.as_str(), c.seq.as_str()), ("조리읍", "봉일천리 1", "new", "3"));
+        let c = s.update_case("1AA-1", &CasePatch { place: Some("".into()), ..Default::default() }).unwrap();
+        assert_eq!(c.place, UNKNOWN_PLACE);
+        assert_eq!(s.case("1AA-1").unwrap().area, "조리읍");
     }
 }

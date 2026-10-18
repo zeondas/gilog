@@ -7,12 +7,13 @@
 // - [폰으로 보내기] = JPG를 보낼 폴더에 복사 → "보내는 중". Claude가 대화에 올리고 "보냄" 폴더로 옮기면 ✓ 전송 완료(사용자 2안).
 // - 대상이 아닌 건은 줄 끝 ×(작은 묻기 창). 지운 건은 다음 불러오기 때 다시 와요.
 // - 공사 관리 창: 현장대리인은 업무연락처에서 골라요(같은 연락처 하나 — 쌍방향), 공사명은 업무연락처 프로젝트로도 등록돼요.
-import { CSSProperties, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, Case, Complaint, Contact, ContactsData, errorText, inApp, previewInbox, RunStatus, Work, WorkInput } from "./api";
-import { daysBetween } from "./complaints";
+import { COL_MIN, daysBetween, fitWidths, gridTemplate, maxWidthOf } from "./complaints";
 import { projectColor } from "./ContactsScreen";
 import { DelIcon } from "./Icons";
 import { koIndex, todayStr } from "./journal";
+import { PlaceInput } from "./PlaceInputs";
 import { actionLine, aiGuide, fileName, md, orderDate, PORTAL_URL, processError, SAMPLE_WORKS, SAMPLES, signerText } from "./process";
 import { DEFAULT_PROCESS, DONE_STATUS, loadSettings, ProcessSettings } from "./settingsStore";
 
@@ -27,6 +28,33 @@ function workColor(w: Work | undefined, cd: ContactsData | null): number {
 const phoneOf = (c: Contact | undefined) => (c ? c.mobile || c.tel : "");
 
 const FETCHED_KEY = "process.fetched";
+const COLS_KEY = "process.colWidths";
+
+/** 열 제목과 처음 폭. null은 남는 폭을 쓰는 열(민원 요약)이에요. 끌어서 바꾼 폭은 COLS_KEY에 저장해요. */
+const COLUMNS: { label: string; w: number | null; center?: boolean }[] = [
+  { label: "접수번호", w: 140 },
+  { label: "접수", w: 60 },
+  { label: "기한", w: 100 },
+  { label: "위치", w: 180 },
+  { label: "민원 요약 · 판단 이유", w: null },
+  { label: "판단 공사", w: 160 },
+  { label: "고려사항", w: 140 },
+  { label: "연번", w: 64 },
+  { label: "지시부 작성", w: 292, center: true },
+];
+const defaultWidths = () => COLUMNS.map((c) => c.w);
+
+function readWidths(raw: string | null): (number | null)[] {
+  try {
+    const v = JSON.parse(raw ?? "");
+    if (Array.isArray(v) && v.length === COLUMNS.length && v.every((x, i) => (COLUMNS[i].w === null ? x === null : typeof x === "number" && x >= COL_MIN))) return v;
+  } catch {
+    /* 처음 폭으로 */
+  }
+  return defaultWidths();
+}
+
+const UNKNOWN = "주소불명";
 
 /** 민원대장 내용(줄 목록 JSON 또는 글자)을 한 줄 글자로 */
 function bodyText(b: string): string {
@@ -53,6 +81,11 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   const [cd, setCd] = useState<ContactsData | null>(null);
   const [ps, setPs] = useState<ProcessSettings>(DEFAULT_PROCESS);
   const [fetched, setFetched] = useState("");
+  const [widths, setWidths] = useState<(number | null)[]>(defaultWidths);
+  // 목록 안쪽 폭과 세로 스크롤 막대 폭(열 제목 줄 오른쪽을 그만큼 비워 세로선을 맞춰요)
+  const [avail, setAvail] = useState(0);
+  const [gutter, setGutter] = useState(0);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const [note, setNote] = useState("");
   const [q, setQ] = useState("");
   const [sel, setSel] = useState<string | null>(null);
@@ -70,7 +103,8 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
 
   useEffect(() => {
     (async () => {
-      const [pd, cl, cdata, st, f] = await Promise.all([api.processData(), api.complaints(), api.contactsData(), loadSettings(), api.get(FETCHED_KEY)]);
+      const [pd, cl, cdata, st, f, cw] = await Promise.all([api.processData(), api.complaints(), api.contactsData(), loadSettings(), api.get(FETCHED_KEY), api.get(COLS_KEY)]);
+      setWidths(readWidths(cw));
       setCases(pd.cases);
       setComplaints(cl);
       setCd(cdata);
@@ -97,13 +131,71 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   }
 
   const putCase = (c: Case) => setCases((l) => l.map((x) => (x.no === c.no ? c : x)));
-  const patch = async (no: string, p: Parameters<typeof api.updateCase>[1]) => {
+  const patch = async (no: string, p: Parameters<typeof api.updateCase>[1]): Promise<Case | null> => {
     try {
-      putCase(await api.updateCase(no, p));
+      const c = await api.updateCase(no, p);
+      putCase(c);
+      return c;
+    } catch (e) {
+      setNote(errText(e));
+      return null;
+    }
+  };
+
+  function saveWidths(ws: (number | null)[]) {
+    setWidths(ws);
+    api.set(COLS_KEY, JSON.stringify(ws)).catch((e) => setNote(errorText(e)));
+  }
+
+  /** 이어 둔 민원대장 줄(지워졌으면 없음) */
+  const linked = (c: Case) => (c.complaint != null ? complaints.find((x) => x.id === c.complaint) : undefined);
+
+  /** 민원대장에 넣을 값: 접수유형 국민신문고, 내용 = 민원 요약, 마감일 = 처리기한, 상태 접수. 민원인 정보는 신문고에서 가져오지 않아요. */
+  const complaintOf = (c: Case, action: string) => ({
+    intake: "국민신문고",
+    received: c.received,
+    ctype: "",
+    area: c.area,
+    place: c.place,
+    person: "",
+    phone: "",
+    body: JSON.stringify([{ t: c.summary }]),
+    action,
+    due: c.due,
+    status: "접수",
+  });
+
+  /** [대장 등록]: 지시부 없이도 민원대장에 넣어요. 이미 넣었으면 민원대장의 그 줄로 가요. */
+  async function register(c: Case) {
+    const old = linked(c);
+    if (old) return onOpenComplaint(old.id);
+    try {
+      const m = await api.addComplaint(complaintOf(c, ""));
+      setComplaints((l) => [...l, m]);
+      putCase(await api.updateCase(c.no, { complaint: m.id }));
+      setNote(`민원대장 ${m.no}번에 등록했어요`);
     } catch (e) {
       setNote(errText(e));
     }
-  };
+  }
+
+  /** 주소를 고쳐요. 민원대장에 넣은 건이면 그 줄의 지역·위치도 고치고, 지시부를 만든 건은 다시 만들어요. */
+  async function saveAddress(c: Case, area: string, place: string) {
+    const n = await patch(c.no, { area, place });
+    if (!n) return;
+    const old = linked(n);
+    try {
+      if (old && (old.area !== n.area || old.place !== n.place)) {
+        const { id, no: _n, memo: _m, ...input } = old;
+        const m = await api.updateComplaint(id, { ...input, area: n.area, place: n.place });
+        setComplaints((l) => l.map((x) => (x.id === m.id ? m : x)));
+      }
+    } catch (e) {
+      setNote(errText(e));
+      return;
+    }
+    setNote(c.stage !== "new" && n.stage === "new" ? "주소를 고쳤어요 · 지시부를 다시 만들어 주세요" : "주소를 고쳤어요" + (old ? ` · 민원대장 ${old.no}번도 고쳤어요` : ""));
+  }
 
   const isDone = (c: Case) => {
     if (c.complaint == null) return false;
@@ -201,26 +293,14 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
       const r = await api.makeOrder({ no: c.no, root: ps.root, signer: signerText(ps.signer, ps.signerPhone), date: orderDate(today) });
       // 민원대장: 처음이면 등록, 다시 만들면(공사를 바꾼 뒤) 그 줄의 조치내용을 고쳐요.
       const action = JSON.stringify([{ t: actionLine(r.workName, r.seq), k: "sq" }]);
-      const old = c.complaint != null ? complaints.find((x) => x.id === c.complaint) : undefined;
+      const old = linked(c);
       let m: Complaint;
       if (old) {
         const { id, no: _n, memo: _m, ...input } = old;
-        m = await api.updateComplaint(id, { ...input, action });
+        m = await api.updateComplaint(id, { ...input, area: c.area, place: c.place, action });
         setComplaints((l) => l.map((x) => (x.id === m.id ? m : x)));
       } else {
-        m = await api.addComplaint({
-          intake: "국민신문고",
-          received: c.received,
-          ctype: "",
-          area: c.area,
-          place: c.place,
-          person: "",
-          phone: "",
-          body: JSON.stringify([{ t: c.summary }]),
-          action,
-          due: c.due,
-          status: "접수",
-        });
+        m = await api.addComplaint(complaintOf(c, action));
         setComplaints((l) => [...l, m]);
       }
       putCase(await api.updateCase(c.no, { complaint: m.id }));
@@ -317,6 +397,21 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     return () => window.removeEventListener("keydown", key);
   }, [pick, ask]);
 
+  // 목록 안쪽 폭과 스크롤 막대 폭을 재요(창 크기·줄 수가 바뀌면 다시).
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+    const measure = () => {
+      setAvail(el.clientWidth);
+      setGutter(el.offsetWidth - el.clientWidth);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    if (el.firstElementChild) ro.observe(el.firstElementChild);
+    return () => ro.disconnect();
+  }, [works === null, rows.length]);
+
   if (!works) {
     return (
       <>
@@ -328,6 +423,8 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
 
   const pickCase = pick && cases.find((c) => c.no === pick.no);
   const total = cases.filter((c) => !isDone(c)).length;
+  const shownWidths = fitWidths(widths, avail);
+  const tableStyle = { "--pr-cols": gridTemplate(shownWidths), "--pr-gutter": `${gutter}px` } as CSSProperties;
 
   return (
     <div className="pr">
@@ -372,19 +469,9 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
         </div>
       )}
 
-      <div className="pr-table" role="table" aria-label="민원처리 목록">
-        <div className="pr-row pr-headrow" role="row">
-          <div role="columnheader">접수번호</div>
-          <div role="columnheader">접수</div>
-          <div role="columnheader">기한</div>
-          <div role="columnheader">위치</div>
-          <div role="columnheader">민원 요약 · 판단 이유</div>
-          <div role="columnheader">판단 공사</div>
-          <div role="columnheader">고려사항</div>
-          <div role="columnheader">연번</div>
-          <div role="columnheader" className="pr-c">지시부 작성</div>
-        </div>
-        <div className="pr-body">
+      <div className="pr-table" role="table" aria-label="민원처리 목록" style={tableStyle}>
+        <HeadRow widths={shownWidths} avail={avail} onResize={setWidths} onResized={saveWidths} onReset={() => saveWidths(defaultWidths())} />
+        <div className="pr-body" ref={bodyRef}>
           {rows.length === 0 && (
             <p className="pr-empty">{cases.length === 0 ? "[민원 불러오기]를 누르면 Claude가 신문고에서 기록에 없는 민원을 가져와요." : q ? "찾는 민원이 없어요." : "처리할 민원이 없어요."}</p>
           )}
@@ -427,10 +514,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                     </span>
                   )}
                 </div>
-                <div className="pr-place">
-                  <span className="pr-sub">{c.area || "\u00a0"}</span>
-                  <span className={c.place === "주소불명" ? "pr-unknown" : undefined}>{c.place}</span>
-                </div>
+                <PlaceCell c={c} disabled={isD || !!b} onSave={(a, p) => saveAddress(c, a, p)} />
                 <div className="pr-sum">
                   <span>{c.summary}</span>
                   <span className="pr-sub">{c.reason}</span>
@@ -496,6 +580,14 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                       전송 완료
                     </span>
                   )}
+                  <button
+                    type="button"
+                    className={"pr-reg" + (linked(c) ? " on" : "")}
+                    title={linked(c) ? "민원대장의 이 줄로 가요" : "지시부 없이도 민원대장에 넣어요(지시부를 만들면 조치내용이 채워져요)"}
+                    onClick={() => register(c)}
+                  >
+                    {linked(c) ? `대장 ${linked(c)!.no}번` : "대장 등록"}
+                  </button>
                   <button
                     type="button"
                     className="pr-icon"
@@ -595,6 +687,144 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
       )}
 
       {worksOpen && cd && <WorksDialog works={works} cd={cd} onSave={saveWork} onDelete={deleteWork} onContacts={setCd} onClose={() => setWorksOpen(false)} />}
+    </div>
+  );
+}
+
+// ---------- 열 제목 줄 (끌어서 열 너비, 우클릭 열 너비 초기화 — 민원대장과 같아요) ----------
+
+function HeadRow({
+  widths,
+  avail,
+  onResize,
+  onResized,
+  onReset,
+}: {
+  widths: (number | null)[];
+  avail: number;
+  onResize: (w: (number | null)[]) => void;
+  onResized: (w: (number | null)[]) => void;
+  onReset: () => void;
+}) {
+  const rowRef = useRef<HTMLDivElement>(null);
+  const [menu, setMenu] = useState<DOMRect | null>(null);
+
+  function start(e: ReactMouseEvent, i: number) {
+    e.preventDefault();
+    const row = rowRef.current;
+    if (!row) return;
+    const base = widths.map((w, j) => w ?? (row.children[j] as HTMLElement).getBoundingClientRect().width);
+    const startX = e.clientX;
+    const max = avail > 0 ? maxWidthOf(widths, i, avail, base) : Infinity;
+    let last = widths;
+    const move = (ev: MouseEvent) => {
+      const next = widths.slice();
+      next[i] = Math.min(max, Math.max(COL_MIN, Math.round(base[i] + ev.clientX - startX)));
+      last = next;
+      onResize(next);
+    };
+    const up = () => {
+      document.removeEventListener("mousemove", move);
+      document.removeEventListener("mouseup", up);
+      document.body.classList.remove("col-dragging");
+      if (last !== widths) onResized(last);
+    };
+    document.body.classList.add("col-dragging");
+    document.addEventListener("mousemove", move);
+    document.addEventListener("mouseup", up);
+  }
+
+  return (
+    <div
+      className="pr-row pr-headrow"
+      role="row"
+      ref={rowRef}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        setMenu(new DOMRect(e.clientX, e.clientY, 0, 0));
+      }}
+    >
+      {COLUMNS.map((col, i) => (
+        <div role="columnheader" key={col.label} className={col.center ? "pr-c" : undefined}>
+          {col.label}
+          {/* 남는 폭을 쓰는 열(민원 요약)은 끌지 않아요 — 옆 열을 끌면 따라 바뀌어요. */}
+          {i < COLUMNS.length - 1 && col.w !== null && <span className="cm-grip" aria-hidden="true" title="끌어서 열 너비 바꾸기" onMouseDown={(e) => start(e, i)} />}
+        </div>
+      ))}
+      {menu && (
+        <Floating rect={menu} align="left" onClose={() => setMenu(null)}>
+          <div className="dmenu pr-hmenu" role="menu" aria-label="열 제목 메뉴">
+            <button
+              type="button"
+              role="menuitem"
+              className="dmenu-item"
+              onClick={() => {
+                setMenu(null);
+                onReset();
+              }}
+            >
+              열 너비 초기화
+            </button>
+          </div>
+        </Floating>
+      )}
+    </div>
+  );
+}
+
+// ---------- 위치 칸: 그 자리에서 고쳐요(법정리·동 + 지번, 리·동을 고르면 지역이 채워져요 — 민원대장 위치 칸과 같은 부품) ----------
+
+function PlaceCell({ c, disabled, onSave }: { c: Case; disabled: boolean; onSave: (area: string, place: string) => void }) {
+  const start = c.place === UNKNOWN ? "" : c.place;
+  const [place, setPlace] = useState(start);
+  const [area, setArea] = useState(c.area);
+  const now = useRef({ place, area });
+  now.current = { place, area };
+  useEffect(() => {
+    setPlace(c.place === UNKNOWN ? "" : c.place);
+    setArea(c.area);
+  }, [c.place, c.area]);
+
+  if (disabled) {
+    return (
+      <div className="pr-place">
+        <span className="pr-sub">{c.area || "\u00a0"}</span>
+        <span className={c.place === UNKNOWN ? "pr-unknown" : undefined}>{c.place}</span>
+      </div>
+    );
+  }
+
+  const revert = () => {
+    setPlace(start);
+    setArea(c.area);
+  };
+
+  return (
+    <div
+      className="pr-place pr-place-edit"
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        if (e.defaultPrevented || e.nativeEvent.isComposing) return;
+        if (e.key === "Enter") (e.target as HTMLElement).blur();
+        if (e.key === "Escape") {
+          revert();
+          now.current = { place: start, area: c.area };
+          (e.target as HTMLElement).blur();
+        }
+      }}
+      onBlur={(e) => {
+        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+        // 위치 칸이 떠날 때 지역을 맞춘 뒤(같은 순간) 저장해요.
+        window.setTimeout(() => {
+          const { place: p, area: a } = now.current;
+          const np = p.trim();
+          // 지역은 위치를 따라 바뀌어요. 위치를 그대로 두고 떠나면 저장하지 않아요.
+          if (np !== start) onSave(a, np);
+        }, 0);
+      }}
+    >
+      <span className="pr-sub">{area || "\u00a0"}</span>
+      <PlaceInput value={place} area={area} onChange={setPlace} onArea={setArea} placeholder={UNKNOWN} className={place.trim() ? undefined : "pr-unknown-in"} />
     </div>
   );
 }

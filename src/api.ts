@@ -265,7 +265,7 @@ export type Case = {
   sentAt: string;
 };
 
-export type CasePatch = Partial<Pick<Case, "work" | "note" | "seq" | "stage" | "complaint" | "folder" | "orderFile" | "orderJpg" | "outboxFile" | "sentAt">>;
+export type CasePatch = Partial<Pick<Case, "work" | "area" | "place" | "note" | "seq" | "stage" | "complaint" | "folder" | "orderFile" | "orderJpg" | "outboxFile" | "sentAt">>;
 export type ProcessData = { works: Work[]; cases: Case[] };
 export type InboxResult = { added: Case[]; skipped: number; failed: string[]; missingFiles: string[] };
 export type RunStatus = { state: "idle" | "running" | "done" | "login" | "stopped" | "error"; total: number | null; done: number | null; message: string };
@@ -840,6 +840,10 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
       const c = findCase(a.no);
       const p = a.patch as CasePatch;
       if (p.work !== undefined && p.work !== c.work) Object.assign(c, { work: p.work, stage: "new", seq: "" });
+      const area = p.area !== undefined ? one(p.area) : c.area;
+      const place = p.place !== undefined ? one(p.place) || "주소불명" : c.place;
+      if ((area !== c.area || place !== c.place) && p.stage === undefined) c.stage = "new";
+      Object.assign(c, { area, place });
       if (p.note !== undefined) c.note = one(p.note);
       if (p.seq !== undefined) c.seq = p.seq.replace(/\D/g, "");
       for (const k of ["stage", "complaint", "folder", "orderFile", "orderJpg", "outboxFile", "sentAt"] as const) if (p[k] !== undefined) (c as Record<string, unknown>)[k] = p[k];
