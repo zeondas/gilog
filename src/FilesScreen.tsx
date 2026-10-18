@@ -1257,7 +1257,7 @@ export default function FilesScreen() {
               </button>
             )}
             {cfg.cols.size && (
-              <button type="button" className="fx-hcell fx-col fx-r" onClick={() => sortBy("size")}>
+              <button type="button" className="fx-hcell fx-col" onClick={() => sortBy("size")}>
                 크기{arrow("size")}
                 {resizer("size")}
               </button>
