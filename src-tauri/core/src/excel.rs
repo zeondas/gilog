@@ -218,8 +218,10 @@ fn write_sheet(wb: &mut Workbook, kind: SheetKind, rows: &[Vec<String>], data: &
                 ws.write_string_with_format(rr, cc, v, if *is_left { &left } else { &center }).map_err(xerr)?;
             }
         }
-        // 1행 제목만 50, 나머지 모든 행은 30 고정(2026-10-17 사용자 — 여러 줄이어도 늘리지 않아요)
-        ws.set_row_height(rr, 30).map_err(xerr)?;
+        // 1행 제목만 50, 나머지 모든 행은 30 고정(2026-10-17 사용자 — 여러 줄이어도 늘리지 않아요).
+        // 업무일지만 내용 줄 수만큼 늘려요(2026-10-19 사용자 2안 — 말 줄이 여러 줄이라 잘려 보여요).
+        let h = if kind == SheetKind::Journal { journal_row_height(row, cols) } else { 30.0 };
+        ws.set_row_height(rr, h).map_err(xerr)?;
     }
     let last_row = (rows.len() + 2) as u32;
 
@@ -250,6 +252,29 @@ fn write_sheet(wb: &mut Workbook, kind: SheetKind, rows: &[Vec<String>], data: &
     ws.set_repeat_rows(0, 2).map_err(xerr)?;
     ws.set_print_area(0, 0, last_row, last_col).map_err(xerr)?;
     Ok(())
+}
+
+/// 칸 폭(엑셀 글자 폭 단위)에 글자가 몇 줄로 보일지 어림해요. 한글·전각은 2칸, 나머지 1칸.
+fn wrapped_lines(text: &str, width: f64) -> usize {
+    let per = (width - 1.0).max(4.0);
+    text.split('\n')
+        .map(|line| {
+            let w: f64 = line.chars().map(|c| if (c as u32) >= 0x1100 { 1.9 } else { 1.0 }).sum();
+            ((w / per).ceil() as usize).max(1)
+        })
+        .sum::<usize>()
+        .max(1)
+}
+
+/// 업무일지 자료 행 높이: 가장 많이 보이는 칸의 줄 수 × 13.5pt(맑은 고딕 10) + 위아래 여백, 최소 30·최대 409(엑셀 한도).
+fn journal_row_height(row: &[String], cols: &[(&str, f64, bool)]) -> f64 {
+    let n = cols
+        .iter()
+        .enumerate()
+        .map(|(i, (_, w, _))| row.get(i).map(|v| wrapped_lines(v, *w)).unwrap_or(1))
+        .max()
+        .unwrap_or(1);
+    (n as f64 * 13.5 + 8.0).clamp(30.0, 409.0)
 }
 
 fn two(n: u8) -> String {
@@ -394,6 +419,12 @@ mod tests {
         assert_eq!(back.rows[0], row("1", "09:10"));
         assert_eq!(back.extra.len(), 1);
         assert_eq!(back.extra[0].rows, vec![day]);
+        // 업무일지 행 높이는 줄 수만큼(한 줄이면 30, 두 줄 말이어도 30, 다섯 줄이면 늘어나요).
+        let cols = SheetKind::Journal.columns();
+        assert_eq!(journal_row_height(&row("1", "09:10"), cols), 35.0);
+        let five: Vec<String> = ["1", "2026-10-19", "09:10", "회의", "팀장", "", "", "팀장: 가\n나: 나\n팀장: 다\n나: 라\n팀장: 마"].iter().map(|s| s.to_string()).collect();
+        assert_eq!(journal_row_height(&five, cols), 75.5);
+        assert_eq!(journal_row_height(&["1".to_string()], cols), 30.0);
         // 둘째 시트 "날짜별"이 없어도 첫 시트는 읽혀요.
         let p2 = dir.path().join("one.xlsx");
         let mut wb = Workbook::new();
