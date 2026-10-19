@@ -1,7 +1,7 @@
 // 업무연락처 화면이에요. 시안 Contacts.dc.html과 사양서의 "업무연락처" 절을 따라요.
 import { KeyboardEvent, RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ExcelMenu } from "./ExcelMenu";
-import { contactImports, contactRows } from "./excel";
+import { ProjectImport, contactImports, contactRows, projectImports, projectRows } from "./excel";
 import { DelIcon } from "./Icons";
 import { BLine, CYCLE, isBlank, kindOf, layout, newLineFor, NewLineMode, parseLines, stringifyLines, TRIGGERS, withKind } from "./bullets";
 import { isKey, keyAction, rowKeys } from "./keys";
@@ -177,10 +177,17 @@ export default function ContactsScreen() {
         <ExcelMenu
           kind="contacts"
           total={all.length}
-          build={() => ({ rows: contactRows(all, projects), intake: [], status: [] })}
-          parse={contactImports}
-          onImport={async (rows) => {
-            const n = await api.importContacts(rows);
+          build={() => ({ rows: contactRows(all, projects), projects: projectRows(projects, data.groups ?? []), intake: [], status: [] })}
+          parse={(sheet) => [{ contacts: contactImports(sheet), projects: projectImports(sheet.extra?.[0]) }]}
+          count={(rows) => rows[0]?.contacts.length ?? 0}
+          note={(sheet) => {
+            const n = projectImports(sheet.extra?.[0]).length;
+            return n ? `프로젝트 ${n}개의 축약 공사명·그룹·색도 맞춰요` : "";
+          }}
+          onImport={async ([r]) => {
+            // 프로젝트 시트를 먼저 넣어야 연락처의 프로젝트 칸이 그 프로젝트(축약 공사명·그룹·색)로 이어져요.
+            await importProjects(r.projects);
+            const n = await api.importContacts(r.contacts);
             setData(await api.contactsData());
             return n;
           }}
@@ -1899,3 +1906,35 @@ function Arrow({ up }: { up?: boolean }) {
     </svg>
   );
 }
+
+/**
+ * 엑셀 둘째 시트 "프로젝트"를 넣어요. 같은 프로젝트(공사명·축약 공사명이 맞는 것)가 있으면
+ * 비어 있는 것만 채우고(축약 공사명·그룹·색 — 적어 둔 것은 그대로), 없으면 새로 만들어요.
+ */
+async function importProjects(list: ProjectImport[]) {
+  if (!list.length) return;
+  let d = await api.contactsData();
+  const same = (p: Project, x: ProjectImport) =>
+    p.name === x.name || p.alias === x.name || (!!x.alias && (p.name === x.alias || p.alias === x.alias));
+  const tryRun = async (f: () => Promise<ContactsData>) => {
+    try {
+      d = await f();
+    } catch {
+      // 이름이 겹치는 등 넣지 못한 칸은 건너뛰어요.
+    }
+  };
+  for (const x of list) {
+    let p = d.projects.find((q) => same(q, x));
+    const isNew = !p;
+    if (!p) {
+      await tryRun(() => api.addProject(x.name));
+      p = d.projects.find((q) => q.name === x.name);
+      if (!p) continue;
+    }
+    const id = p.id;
+    if (x.alias && (isNew || !p.alias || p.alias === p.name)) await tryRun(() => api.setProjectNames(id, p!.name, x.alias));
+    if (x.group && (isNew || p.group === null)) await tryRun(() => api.setProjectGroup(id, x.group));
+    if (x.color !== null && (isNew || p.color === null)) await tryRun(() => api.setProjectColor(id, x.color));
+  }
+}
+

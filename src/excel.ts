@@ -4,7 +4,7 @@
 //   가져올 때는 거꾸로 기호를 알아보고, 빈 줄(묶음 나누기)은 남겨요.
 // - 가져오기는 판단하지 않아요: 중복 검사·값 고치기 없이 모든 줄(모든 칸이 빈 줄만 빼고)을 넣어요.
 //   다만 날짜 칸은 앱이 읽을 수 있으면 2026-10-15 모양으로 맞춰요(마감 계산이 되게). 읽을 수 없으면 그대로예요.
-import type { Complaint, ComplaintInput, Contact, ContactInput, DayInfo, Entry, EntryInput, JournalLine, Project } from "./api";
+import type { Complaint, ComplaintInput, Contact, ContactInput, DayInfo, Entry, EntryInput, JournalLine, Project, ProjectGroup } from "./api";
 import { splitProjects } from "./projectNames";
 import { BKind, BLine, layout, linePrefix, parseLines, stringifyLines } from "./bullets";
 import { isMemo, normTime, parseDate, whoNames } from "./journal";
@@ -17,7 +17,7 @@ export const SHEET_TITLE: Record<SheetKind, string> = { complaints: "민원대�
 export const COMPLAINT_HEADERS = ["연번", "접수유형", "접수일", "민원유형", "지역", "위치", "민원인", "연락처", "내용", "조치내용", "마감일", "상태", "조치완료일", "메모"];
 export const CONTACT_HEADERS = ["연번", "이름", "소속", "직위", "무선", "유선", "이메일", "프로젝트", "메모"];
 
-export type ExcelExport = { rows: string[][]; intake: string[]; status: string[]; days?: string[][] };
+export type ExcelExport = { rows: string[][]; intake: string[]; status: string[]; days?: string[][]; projects?: string[][] };
 export type ExcelSheet = { headers: string[]; rows: string[][]; extra?: ExcelSheet[] };
 export type ComplaintImport = ComplaintInput & { memo: string };
 export type ContactImport = ContactInput & { memo: string };
@@ -140,6 +140,35 @@ export function contactImports(sheet: ExcelSheet): ContactImport[] {
     projects: splitProjects(get(r, "프로젝트")),
     memo: linesOfCell(get(r, "메모")),
   }));
+}
+
+// ---------- 업무연락처 둘째 시트 "프로젝트" (2026-10-19 사용자: 축약 공사명이 백업에서 빠졌어요) ----------
+// 프로젝트 한 개 = 한 줄: 그룹 · 공사명 · 축약 공사명 · 색(1~8, 비우면 자동). 연락처가 없는 프로젝트도 들어가요.
+// 순서는 화면과 같게 그룹 순서 → 그룹 없음, 그 안은 공사명 가나다순이에요(가져올 때 그룹이 이 순서로 생겨요).
+
+export const PROJECT_HEADERS = ["그룹", "공사명", "축약 공사명", "색"];
+export type ProjectImport = { group: string; name: string; alias: string; color: number | null };
+
+export function projectRows(projects: Project[], groups: ProjectGroup[]): string[][] {
+  const order = new Map(groups.map((g, i) => [g.id, i]));
+  const gname = new Map(groups.map((g) => [g.id, g.name]));
+  const rank = (p: Project) => (p.group !== null && order.has(p.group) ? order.get(p.group)! : groups.length);
+  return [...projects]
+    .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name, "ko"))
+    .map((p) => [p.group !== null ? gname.get(p.group) ?? "" : "", p.name, p.alias && p.alias !== p.name ? p.alias : "", p.color !== null ? String(p.color + 1) : ""]);
+}
+
+export function projectImports(sheet: ExcelSheet | undefined): ProjectImport[] {
+  if (!sheet) return [];
+  const get = picker(sheet.headers);
+  return sheet.rows
+    .map((r) => {
+      const name = get(r, "공사명");
+      const alias = get(r, "축약공사명");
+      const n = Number(get(r, "색"));
+      return { group: get(r, "그룹"), name: name || alias, alias: name && alias !== name ? alias : "", color: Number.isInteger(n) && n >= 1 && n <= 8 ? n - 1 : null };
+    })
+    .filter((p) => p.name);
 }
 
 // ---------- 업무일지 (2026-10-19 사용자 1안·1안) ----------
