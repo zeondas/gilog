@@ -29,6 +29,10 @@
   --st-done-fg: #1F5E3A;
   --st-hold-bg: #EEEDF2;
   --st-hold-fg: #4E4C5A;
+  --st-reply-bg: #DDEFF7;
+  --st-reply-fg: #0B5A78;
+  --st-long-bg: #EFE9DE;
+  --st-long-fg: #5E4B2A;
   --st-new-bg: #EEEAFF;
   --st-new-fg: #4B37C4;
   /* 가운데 뜨는 창 뒤를 덮는 막과 창 바탕 (2026-10-17 사용자 1안: 뒤 흐리게 + 더 어둡게 + 창 테두리) */
@@ -175,6 +179,10 @@
     --st-done-fg: #8FD0A6;
     --st-hold-bg: #2C2B34;
     --st-hold-fg: #BAB7C6;
+    --st-reply-bg: #10313D;
+    --st-reply-fg: #8CCDE6;
+    --st-long-bg: #2F2A20;
+    --st-long-fg: #D6C6A4;
     --st-new-bg: #2B2552;
     --st-new-fg: #C9C0FF;
   --danger: #F08A95;
@@ -232,6 +240,10 @@
   --st-done-fg: #8FD0A6;
   --st-hold-bg: #2C2B34;
   --st-hold-fg: #BAB7C6;
+  --st-reply-bg: #10313D;
+  --st-reply-fg: #8CCDE6;
+  --st-long-bg: #2F2A20;
+  --st-long-fg: #D6C6A4;
   --danger: #F08A95;
   --urgent: #F28B82;
   --urgent-bg: #3D2220;

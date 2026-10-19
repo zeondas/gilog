@@ -51,7 +51,7 @@ import { PhoneInput } from "./PhoneInput";
 import { ChoiceInput, PlaceInput } from "./PlaceInputs";
 import { finalizePhone } from "./phone";
 import { KEEP_STATUS, ListGroup } from "./SettingsScreen";
-import { DEFAULT_SETTINGS, loadSettings, saveSettings, Settings, statusColor } from "./settingsStore";
+import { DEFAULT_SETTINGS, isAnswered, loadSettings, saveSettings, Settings, STATUS_RENAME, statusColor } from "./settingsStore";
 
 const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
 
@@ -89,7 +89,17 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
   const [today, setToday] = useState(todayStr());
 
   useEffect(() => {
-    api.complaints().then(setList, (e) => setNote(errorText(e)));
+    api
+      .complaints()
+      .then(async (cs) => {
+        // 예전 상태 이름(처리중)으로 저장된 민원은 새 이름(진행)으로 한 번 바꿔 둬요.
+        const old = cs.filter((c) => STATUS_RENAME[c.status]);
+        if (!old.length) return cs;
+        const fixed = new Map<number, Complaint>();
+        for (const c of old) fixed.set(c.id, await api.setComplaintStatus(c.id, STATUS_RENAME[c.status]));
+        return cs.map((c) => fixed.get(c.id) ?? c);
+      })
+      .then(setList, (e) => setNote(errorText(e)));
     loadSettings().then(setSettings, () => {});
     api.get(COLS_KEY).then((raw) => setWidths(readWidths(raw)), () => {});
     api.get(STATUS_FILTER_KEY).then((raw) => setFilters((f) => ({ ...f, status: readStatusFilter(raw) })), () => {});
@@ -1247,7 +1257,9 @@ function ViewRow({
         <Bullets text={c.action} q={q} />
       </div>
       <div role="cell" className="cm-c cm-num cm-due">
-        <span>{t(c.due)}</span>
+        <span className={c.due && isAnswered(c.status) ? "cm-due-done" : undefined} title={c.due && isAnswered(c.status) ? "답변 끝남" : undefined}>
+          {t(c.due)}
+        </span>
         {n !== null && <span className={"cm-dday" + (isUrgent(n, urgentDays) ? " urgent" : "")}>{ddayText(n)}</span>}
       </div>
       <div role="cell" className="cm-c">
