@@ -33,12 +33,12 @@
   --st-reply-fg: #0B5A78;
   --st-long-bg: #EFE9DE;
   --st-long-fg: #5E4B2A;
-  /* 민원 상태 배지(2026-10-19 사용자): 신경 쓸 것(접수·진행·답변)은 진한 채움, 덜한 것(보류·장기)은 연한 바탕, 끝난 것(완료)은 흐리게 */
-  --cs-new-bg: #3B3A45; --cs-new-fg: #FFFFFF;
-  --cs-work-bg: #B54708; --cs-work-fg: #FFFFFF;
-  --cs-reply-bg: #1D64B0; --cs-reply-fg: #FFFFFF;
-  --cs-hold-bg: #EEEDF2; --cs-hold-fg: #5E5C6A;
-  --cs-long-bg: #F0EBE1; --cs-long-fg: #6B5A3E;
+  /* 민원 상태 배지(2026-10-19 사용자): 신경 쓸 것(접수·진행·답변)은 따뜻한 색 진한 채움, 덜한 것(보류·장기)은 차가운 색 바탕, 끝난 것(완료)은 흐리게 */
+  --cs-new-bg: #B45309; --cs-new-fg: #FFFFFF;
+  --cs-work-bg: #C2410C; --cs-work-fg: #FFFFFF;
+  --cs-reply-bg: #BE123C; --cs-reply-fg: #FFFFFF;
+  --cs-hold-bg: #DCE3EE; --cs-hold-fg: #334155;
+  --cs-long-bg: #D6E4F0; --cs-long-fg: #1E4E79;
   --cs-done-bg: #F5F5F7; --cs-done-fg: #A3A1AE;
   --st-new-bg: #EEEAFF;
   --st-new-fg: #4B37C4;
@@ -190,12 +190,12 @@
     --st-reply-fg: #8CCDE6;
     --st-long-bg: #2F2A20;
     --st-long-fg: #D6C6A4;
-    /* 민원 상태 배지(2026-10-19 사용자): 신경 쓸 것(접수·진행·답변)은 진한 채움, 덜한 것(보류·장기)은 연한 바탕, 끝난 것(완료)은 흐리게 */
-    --cs-new-bg: #E2E0EA; --cs-new-fg: #17161C;
-    --cs-work-bg: #F0A050; --cs-work-fg: #1E1100;
-    --cs-reply-bg: #78B4F0; --cs-reply-fg: #0A1A2E;
-    --cs-hold-bg: #2C2B34; --cs-hold-fg: #A9A6B6;
-    --cs-long-bg: #2F2A20; --cs-long-fg: #BDAF94;
+    /* 민원 상태 배지(2026-10-19 사용자): 신경 쓸 것(접수·진행·답변)은 따뜻한 색 진한 채움, 덜한 것(보류·장기)은 차가운 색 바탕, 끝난 것(완료)은 흐리게 */
+    --cs-new-bg: #F59E0B; --cs-new-fg: #1E1100;
+    --cs-work-bg: #FB923C; --cs-work-fg: #1E0E00;
+    --cs-reply-bg: #FB7185; --cs-reply-fg: #2A0710;
+    --cs-hold-bg: #334155; --cs-hold-fg: #D3DCE8;
+    --cs-long-bg: #1E3A55; --cs-long-fg: #BFD8F0;
     --cs-done-bg: #1F1E25; --cs-done-fg: #6F6D7A;
     --st-new-bg: #2B2552;
     --st-new-fg: #C9C0FF;
@@ -258,12 +258,12 @@
   --st-reply-fg: #8CCDE6;
   --st-long-bg: #2F2A20;
   --st-long-fg: #D6C6A4;
-  /* 민원 상태 배지(2026-10-19 사용자): 신경 쓸 것(접수·진행·답변)은 진한 채움, 덜한 것(보류·장기)은 연한 바탕, 끝난 것(완료)은 흐리게 */
-  --cs-new-bg: #E2E0EA; --cs-new-fg: #17161C;
-  --cs-work-bg: #F0A050; --cs-work-fg: #1E1100;
-  --cs-reply-bg: #78B4F0; --cs-reply-fg: #0A1A2E;
-  --cs-hold-bg: #2C2B34; --cs-hold-fg: #A9A6B6;
-  --cs-long-bg: #2F2A20; --cs-long-fg: #BDAF94;
+  /* 민원 상태 배지(2026-10-19 사용자): 신경 쓸 것(접수·진행·답변)은 따뜻한 색 진한 채움, 덜한 것(보류·장기)은 차가운 색 바탕, 끝난 것(완료)은 흐리게 */
+  --cs-new-bg: #F59E0B; --cs-new-fg: #1E1100;
+  --cs-work-bg: #FB923C; --cs-work-fg: #1E0E00;
+  --cs-reply-bg: #FB7185; --cs-reply-fg: #2A0710;
+  --cs-hold-bg: #334155; --cs-hold-fg: #D3DCE8;
+  --cs-long-bg: #1E3A55; --cs-long-fg: #BFD8F0;
   --cs-done-bg: #1F1E25; --cs-done-fg: #6F6D7A;
   --danger: #F08A95;
   --urgent: #F28B82;
