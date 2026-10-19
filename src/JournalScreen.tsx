@@ -38,6 +38,8 @@ import { useJamoGuard } from "./koInput";
 import { isKey, keyAction, moveField, rowKeys } from "./keys";
 import { isEmptyMemo, MemoEditor, MemoView, sanitize } from "./RichMemo";
 import { PrintDialog } from "./JournalPrint";
+import { ExcelMenu } from "./ExcelMenu";
+import { journalDayRows, journalImports, journalRows } from "./excel";
 import { DEFAULT_SETTINGS, Kind, loadSettings } from "./settingsStore";
 
 const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
@@ -292,6 +294,31 @@ export default function JournalScreen({
               }}
             />
           </label>
+          <ExcelMenu
+            kind="journal"
+            total={data.entries.length}
+            build={() => ({ rows: journalRows(data.entries, cdata.projects), days: journalDayRows(data.days), intake: [], status: [] })}
+            parse={(sheet) => [journalImports(sheet, data.entries, cdata.projects, myName)]}
+            note={(sheet) => {
+              const r = journalImports(sheet, data.entries, cdata.projects, myName);
+              const parts = [r.dup ? `이미 있는 기록 ${r.dup}건` : "", r.bad ? `날짜·시각·내용을 읽지 못한 줄 ${r.bad}건` : ""].filter(Boolean);
+              return parts.length ? parts.join(" · ") + "은 건너뛰어요" : "";
+            }}
+            importHint="같은 기록이 이미 있으면 건너뛰어요"
+            count={(rows) => rows[0]?.entries.length ?? 0}
+            onImport={async ([r]) => {
+              let n = 0;
+              for (const e of r.entries) {
+                await api.addEntry(e);
+                n++;
+              }
+              // 날짜별 머리 줄은 그 날 머리 줄이 비어 있을 때만 채워요(적어 둔 것은 그대로).
+              const has = new Set(data.days.filter((d) => d.arrive || d.transport || d.weather || d.note).map((d) => d.date));
+              for (const d of r.days) if (!has.has(d.date)) await api.setDay(d);
+              setData(await api.journalData());
+              return n;
+            }}
+          />
           <button type="button" className="btn btn-ctrl btn-text jn-print" onClick={() => setPrintOpen(true)}>
             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M7 9V3h10v6" />

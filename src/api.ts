@@ -1008,8 +1008,12 @@ function fakeCall(cmd: string, args: Record<string, unknown>): unknown {
   if (cmd === "excel_write") {
     const heads = a.kind === "complaints"
       ? ["연번", "접수유형", "접수일", "민원유형", "지역", "위치", "민원인", "연락처", "내용", "조치내용", "마감일", "상태", "메모"]
-      : ["연번", "이름", "소속", "직위", "무선", "유선", "이메일", "프로젝트", "메모"];
-    fakeExcel.set(a.path, { headers: heads, rows: (args.data as { rows: string[][] }).rows });
+      : a.kind === "journal"
+        ? ["연번", "날짜", "시각", "구분", "상대", "연락처", "프로젝트", "내용"]
+        : ["연번", "이름", "소속", "직위", "무선", "유선", "이메일", "프로젝트", "메모"];
+    const d = args.data as { rows: string[][]; days?: string[][] };
+    const extra = a.kind === "journal" ? [{ headers: ["날짜", "출근", "교통", "날씨", "비고"], rows: d.days ?? [], extra: [] }] : [];
+    fakeExcel.set(a.path, { headers: heads, rows: d.rows, extra });
     return null;
   }
   if (cmd === "excel_read") {
@@ -1248,8 +1252,8 @@ export const api = {
   importComplaints: (rows: (ComplaintInput & { memo: string })[]) => call<number>("import_complaints", { rows }),
   importContacts: (rows: (ContactInput & { memo: string })[]) => call<number>("import_contacts", { rows }),
   /** 엑셀 파일 쓰기·읽기(kind: "complaints" | "contacts") */
-  excelWrite: (path: string, kind: string, data: { rows: string[][]; intake: string[]; status: string[] }) => call<null>("excel_write", { path, kind, data }),
-  excelRead: (path: string, kind: string) => call<{ headers: string[]; rows: string[][] }>("excel_read", { path, kind }),
+  excelWrite: (path: string, kind: string, data: { rows: string[][]; intake: string[]; status: string[]; days?: string[][] }) => call<null>("excel_write", { path, kind, data }),
+  excelRead: (path: string, kind: string) => call<{ headers: string[]; rows: string[][]; extra?: { headers: string[]; rows: string[][] }[] }>("excel_read", { path, kind }),
 
   tasksData: () => call<TasksData>("tasks_data"),
   addTaskList: (name: string) => call<TaskList>("add_task_list", { name }),

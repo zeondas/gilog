@@ -5980,6 +5980,11 @@ body.col-dragging * {
   font-weight: 700;
 }
 
+.xl-ask-note {
+  color: var(--ink-2);
+  line-height: round(1.55em, 1px);
+}
+
 .xl-ask-path {
   color: var(--muted);
   line-height: round(1.55em, 1px);
