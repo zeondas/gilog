@@ -1292,7 +1292,7 @@ function EditRow({
             <span>이 민원 지우기</span>
           </button>
         )}
-        <span className="hint cm-edit-hint">Esc 취소 · 바깥을 누르면 저장</span>
+        <span className="cm-edit-hint" aria-hidden="true" />
         <button type="button" className="btn btn-xs" onClick={onCancel}>
           취소
         </button>
