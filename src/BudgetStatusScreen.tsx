@@ -447,7 +447,7 @@ export default function BudgetStatusScreen() {
             onKeyDown={editing ? formKeys : undefined}
           >
             <div className="bd-c" role="cell">
-              <span className={"bd-tl v1" + (last ? " half2" : "")} />
+              {!lastY && <span className="bd-tl v1" />}{/* 바깥 세로선은 마지막 해 아래로는 안 내려가요 */}
               <span className={"bd-tl v2" + (last ? " half" : "")} />
               <span className="bd-tl h2" />
               <span className="bd-nm bd-gpad">{src}</span>
