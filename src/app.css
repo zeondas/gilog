@@ -10825,3 +10825,7 @@ body.ew-dragging * {
 .cm-edit-foot > .cm-del { width: auto; gap: 4px; padding: 0 10px 0 0; margin-left: 0; border-radius: var(--radius-sm); font-size: 12.5px; font-weight: 600; }
 .cm-edit-foot > .cm-del:hover { padding-left: 0; }
 .cm-edit-hint { flex: 1; margin: 0 4px 0 0; text-align: right; }
+/* 지우기 단추 앞 붉은 네모 ×(2026-10-20 사용자): 채운 붉은 정사각형 + 바탕색 × — 네모 왼쪽 끝 = 연번 숫자 왼쪽 끝 */
+.cm-edit-foot > .cm-del { gap: 6px; }
+.cm-del-x { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 4px; background: var(--danger); color: var(--surface); flex: none; }
+.cm-del-x > svg { width: 12px; height: 12px; stroke-width: 2.6; }

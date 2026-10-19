@@ -1219,7 +1219,7 @@ function EditRow({
     const row = ref.current;
     const foot = row?.querySelector<HTMLElement>(".cm-edit-foot");
     const no = row?.querySelector<HTMLElement>(".cm-no");
-    const mark = foot?.querySelector<SVGPathElement>(".cm-del path");
+    const mark = foot?.querySelector<HTMLElement>(".cm-del-x");
     if (!row || !foot || !no || !mark || !no.firstChild) return;
     foot.style.paddingLeft = "";
     const g = document.createRange();
@@ -1288,7 +1288,9 @@ function EditRow({
           </div>
         ) : (
           <button ref={trashRef} type="button" className="tool-box cm-del" aria-label={`${c.no}번 민원 지우기`} onClick={() => setAsking(true)}>
-            <DelIcon />
+            <span className="cm-del-x" aria-hidden="true">
+              <DelIcon />
+            </span>
             <span>이 민원 지우기</span>
           </button>
         )}
