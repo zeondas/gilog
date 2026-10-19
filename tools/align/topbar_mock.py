@@ -20,6 +20,8 @@ PLANS = {
     # 2안: 간격 12 하나 · 검색 320(탐색기만 240 — 단추 11개) · 검색은 오른쪽 단추 바로 앞 · 토글 28 상자 없음(칩 28·6)
     "p2": {"gap": 12, "search": 320, "search_explorer": 240, "center": False, "seg": "flat"},
     # 규칙안(2026-10-19 23:23 사용자 확정한 배치 규칙): 요소 사이 8 · 묶음 사이·제목 뒤 16 · 검색 260은 오른쪽 묶음 안 · 토글 34 안 26
+    # 한 줄안(23:45 사용자: 두 줄 안 됨): 검색은 늘 오른쪽 끝(윈도우 탐색기·구글 캘린더처럼) — 같은 자리
+    "one": {"gap": 8, "ggap": 16, "search": 260, "search_explorer": 260, "center": False, "seg": "box", "groups": True, "one": True},
     "rule": {"gap": 8, "ggap": 16, "search": 260, "search_explorer": 260, "center": False, "seg": "box", "groups": True},
 }
 P = PLANS[PLAN]
@@ -56,7 +58,22 @@ SPEC = {
     "설정":     {"L": ["@title"], "A": [], "S": "설정 검색", "R": ["기본값으로 되돌리기", "설정 닫기"]},
 }
 
-if P.get("groups"):
+ONE = {
+    "탐색기":   {"L": [["트리보기", "두칸보기", "네칸보기"], ["펼쳐보기", "미리보기", "숨긴파일"]],
+                "R": [["배치복구", "새로고침", "같은폴더", "창바꾸기", "이름변경"], ["@search"]], "S": "파일 검색"},
+    "민원대장": {"L": [["@chips"]], "R": [["배치최적화"], ["엑셀"], ["분류 관리"], ["@search"]], "S": "위치·내용·민원인 검색", "typed": "봉일천"},
+    "민원처리": {"L": [["@title"]], "R": [["신문고 열기", "민원 불러오기"], ["공사 관리"], ["@search"]], "S": "접수번호·위치·내용 검색"},
+    "캘린더":   {"L": [["오늘", "이전 달", "다음 달"], ["@title"], ["@seg"]], "R": [["@calmgr"], ["@search"]], "S": "일정 검색"},
+    "할 일":    {"L": [["@title"]], "R": [["@search"]], "S": "할 일 검색", "hide": [".td-summary"]},
+    "업무일지": {"L": [["@title"]], "R": [["엑셀", "인쇄"], ["@search"]], "S": "사람·내용 검색"},
+    "업무연락처": {"L": [["@title"]], "R": [["엑셀"], ["프로젝트 관리"], ["@search"]], "S": "이름·소속·번호 검색"},
+    "집행현황": {"L": [["@title"], ["@year"]], "R": [["@seg:집행액", "@seg:원", "배치최적화"], ["세부사업 추가"], ["엑셀"], ["@search"]], "S": "공사명·업체 검색"},
+    "예산현황": {"L": [["@title"], ["@year"], ["@seg:요약"]], "R": [["@seg:원", "배치최적화"], ["엑셀"], ["@search"]], "S": "세부사업 검색"},
+    "설정":     {"L": [["@title"]], "R": [["기본값으로 되돌리기"], ["@search"], ["설정 닫기"]], "S": "설정 검색"},
+}
+if P.get("one"):
+    SPEC = ONE
+elif P.get("groups"):
     SPEC = GROUPS
 
 CSS = """
@@ -129,6 +146,7 @@ if(P.groups){
   tb.style.display='flex'; tb.style.justifyContent='space-between'; tb.style.columnGap=P.ggap+'px';
   tb.append(gz(spec.L),gz(spec.R));
   document.body.appendChild(tb);
+  const ft=document.querySelector('.fx-tools'); if(ft) ft.style.visibility='hidden';
   return {miss, x0, x1, over: tb.scrollWidth>tb.clientWidth+1};
 }
 const L=zone(spec.L), A=zone(spec.A), R=zone(spec.R,'zr');
