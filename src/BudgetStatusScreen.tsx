@@ -2,7 +2,7 @@
 // 시안: 캔버스 BudgetStatus(요약)·BudgetStatusDetail(자세히), 2026-10-19 사용자 결정(설정 단추는 작은 네모 하나, 숫자는 모두 오른쪽, 추경 열은 빼지 않음, 엑셀 열 비율 참고).
 // - 세부사업은 집행현황에서 자동으로 와요(이월 세부사업은 이어 붙이는 쪽). 사업명 옆 ⚙ 단추 → 기간·재원·이월 사업·결산한 해.
 // - 재원 줄 두 번 누르기 = 고치는 줄(직접 적는 칸만 열려요), 바깥 누르기 = 저장, Esc = 취소. 규칙은 budgetStatus.ts.
-import { KeyboardEvent as RKeyboardEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { KeyboardEvent as RKeyboardEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Fragment } from "react";
 import { api } from "./api";
 import { BudgetProject, fmt, okWon, parseWon, typing, Unit } from "./budget";
 import { compute, defaultSetup, Line, Manual, projectNames, Setup, SOURCES } from "./budgetStatus";
@@ -19,6 +19,7 @@ const KEY = (name: string) => "bstatus." + name;
 const UNIT_KEY = "bstatus.unit", VIEW_KEY = "bstatus.view";
 
 type Col = { id: string; label: string; sub?: string; w: number; num?: boolean };
+/** 자세히 머리 줄 두 줄: 위 줄은 묶음 이름(여러 열에 걸침), 아래 줄은 열 이름. sub가 없는 열은 두 줄을 한 칸으로. */
 /** 엑셀 "집행·이월 현황" 열 비율 참고: 숫자 열은 같은 폭, 구분 열은 1.3배쯤 + 설정 단추 자리 */
 const SUM_COLS: Col[] = [
   { id: "name", label: "구분", w: 300 },
@@ -490,19 +491,21 @@ export default function BudgetStatusScreen() {
       </div>
       <div className="bd-tbl" style={{ ["--bd-cols" as string]: tmpl }}>
         <div className="bd-scroll">
-          <div className="bd-hd" role="row">
-            {cols.map((c) => (
-              <div key={c.id} className={"bd-h" + (c.num ? " bs-hn" : "")} role="columnheader">
-                {c.sub ? (
-                  <span className="bs-h2">
-                    <small>{c.label || " "}</small>
-                    {c.sub}
-                  </span>
-                ) : (
-                  c.label
-                )}
-              </div>
-            ))}
+          <div className={"bd-hd" + (detail ? " bs-hd2" : "")} role="row">
+            {cols.map((c, i) => {
+              const cls = "bd-h" + (c.num ? " bs-hn" : "");
+              if (!detail) return <div key={c.id} className={cls} role="columnheader">{c.label}</div>;
+              if (!c.sub) return <div key={c.id} className={cls + " bs-span"} role="columnheader" style={{ gridColumn: `${i + 1}`, gridRow: "1 / span 2" }}>{c.label}</div>;
+              // 묶음 머리: 이 열에서 시작해 label 없는 sub 열이 이어지는 만큼 걸쳐요
+              let n = 1;
+              while (cols[i + n] && cols[i + n].sub && !cols[i + n].label) n++;
+              return (
+                <Fragment key={c.id}>
+                  {c.label && <div className="bd-h bs-grp" role="columnheader" style={{ gridColumn: `${i + 1} / span ${n}`, gridRow: 1 }}>{c.label}</div>}
+                  <div className={cls} role="columnheader" style={{ gridColumn: `${i + 1}`, gridRow: 2 }}>{c.sub}</div>
+                </Fragment>
+              );
+            })}
           </div>
           <div className="bd-body" role="rowgroup">
             {rows}
