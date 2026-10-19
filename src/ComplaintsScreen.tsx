@@ -343,7 +343,7 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
               onMemo={() => setMemoId(c.id)}
               onStatus={async (status) => {
                 if (status === c.status) return;
-                // 완료·미수용이 되면 조치완료일에 오늘(이미 있으면 그대로), 다른 상태로 돌리면 비워요(2026-10-19 사용자).
+                // 완료·불가가 되면 조치완료일에 오늘(이미 있으면 그대로), 다른 상태로 돌리면 비워요(2026-10-19 사용자).
                 const done = isClosed(status) ? c.done || todayStr() : isClosed(c.status) ? "" : undefined;
                 const r = await run(api.setComplaintStatus(c.id, status, done));
                 if (r) put(r);
@@ -953,7 +953,7 @@ function Cells({
           invalid={bad.status}
           stayOnTab
           onChange={(status) =>
-            // 완료·미수용을 고르면 비어 있는 조치완료일에 오늘, 다른 상태로 돌리면 비워요(배지와 같게).
+            // 완료·불가를 고르면 비어 있는 조치완료일에 오늘, 다른 상태로 돌리면 비워요(배지와 같게).
             set({ status, ...(isClosed(status) ? (d.done ? {} : { done: todayStr() }) : isClosed(d.status) ? { done: "" } : {}) })
           }
         />

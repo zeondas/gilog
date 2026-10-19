@@ -40,7 +40,7 @@ pub struct ComplaintInput {
     /// 마감일. 비어 있으면 마감이 없어요.
     pub due: String,
     pub status: String,
-    /// 조치완료일(2026-10-19 사용자). 비어 있으면 아직이에요. 완료·미수용이 되면 화면이 오늘 날짜를 넣고, 고칠 수 있어요.
+    /// 조치완료일(2026-10-19 사용자). 비어 있으면 아직이에요. 완료·불가가 되면 화면이 오늘 날짜를 넣고, 고칠 수 있어요.
     pub done: String,
     /// 위치를 도로명주소에서 바꿨으면 바꾸기 전 글(마우스를 올리면 보여요). 직접 친 위치면 비어 있어요.
     pub road: String,
@@ -280,7 +280,7 @@ impl Store {
     }
 
     /// 상태만 바꿔요. 할 일 목록에서 체크할 때 써요.
-    /// `done`이 있으면 조치완료일도 함께 바꿔요(민원대장 배지: 완료·미수용이면 오늘, 다른 상태면 비움). 없으면 그대로예요.
+    /// `done`이 있으면 조치완료일도 함께 바꿔요(민원대장 배지: 완료·불가면 오늘, 다른 상태면 비움). 없으면 그대로예요.
     pub fn set_complaint_status(&self, id: i64, status: &str, done: Option<&str>) -> Result<Complaint> {
         let status = status.trim();
         let status = if status.is_empty() { DEFAULT_STATUS } else { status };
@@ -380,9 +380,9 @@ mod tests {
         let c = s.add_complaint(&ComplaintInput { status: "완료".into(), done: "2026-10-19".into(), ..input("가") }).unwrap();
         assert_eq!(c.done, "2026-10-19");
         assert!(s.add_complaint(&ComplaintInput { done: "1019".into(), ..input("가") }).is_err());
-        // 배지: 미수용이면 날짜를 넣고, 다시 진행이면 비워요. 날짜를 주지 않으면 그대로예요.
-        let c = s.set_complaint_status(c.id, "미수용", Some("2026-10-20")).unwrap();
-        assert_eq!((c.status.as_str(), c.done.as_str()), ("미수용", "2026-10-20"));
+        // 배지: 불가면 날짜를 넣고, 다시 진행이면 비워요. 날짜를 주지 않으면 그대로예요.
+        let c = s.set_complaint_status(c.id, "불가", Some("2026-10-20")).unwrap();
+        assert_eq!((c.status.as_str(), c.done.as_str()), ("불가", "2026-10-20"));
         assert_eq!(s.set_complaint_status(c.id, "답변", None).unwrap().done, "2026-10-20");
         assert_eq!(s.set_complaint_status(c.id, "진행", Some("")).unwrap().done, "");
         assert!(s.set_complaint_status(c.id, "완료", Some("1020")).is_err());

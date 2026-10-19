@@ -73,7 +73,7 @@ export const DEFAULT_FILES_SETTINGS: FilesSettings = { dateFmt: DEFAULT_DATE_FOR
 
 export const DEFAULT_SETTINGS: Settings = {
   // 2026-10-19 사용자: 상태는 고정 7개예요(설정·분류 관리에서 바꾸지 않아요) — STATUSES
-  status: ["접수", "진행", "답변", "완료", "미수용", "보류", "장기"],
+  status: ["접수", "진행", "답변", "완료", "불가", "보류", "장기"],
   intake: ["전화", "방문", "국민신문고", "정보공개청구", "진정민원"],
   // 민원유형은 사용자가 필요할 때 직접 적어요(2026-10-17 사용자) — 미리 넣는 예시는 없어요. 이미 저장된 목록은 그대로예요.
   ctype: [],
@@ -98,24 +98,24 @@ export const DONE_STATUS = "완료";
 export const ANSWER_STATUS = "답변";
 
 /** 받아들이지 않기로 끝낸 상태예요(2026-10-19 사용자 — 동작은 완료와 같아요). */
-export const REJECT_STATUS = "미수용";
+export const REJECT_STATUS = "불가";
 
-/** 끝난 민원: 완료·미수용. 줄 글자가 흐려지고, 이 상태가 되면 조치완료일에 오늘 날짜가 들어가요. */
+/** 끝난 민원: 완료·불가. 줄 글자가 흐려지고, 이 상태가 되면 조치완료일에 오늘 날짜가 들어가요. */
 export const CLOSED_STATUSES = [DONE_STATUS, REJECT_STATUS];
 export const isClosed = (status: string) => CLOSED_STATUSES.includes(status);
 
 /**
- * 법정 답변기한(마감일)이 끝난 상태: 답변·완료·미수용·보류·장기(2026-10-19 사용자 1안 — 보류·장기는 답변하면서 정하는 결과).
+ * 법정 답변기한(마감일)이 끝난 상태: 답변·완료·불가·보류·장기(2026-10-19 사용자 1안 — 보류·장기는 답변하면서 정하는 결과).
  * 이 상태면 마감일에 가운데 줄, 남은 날 배지 없음, 캘린더·업무일지 챙길 일에서 빠져요.
  */
 export const ANSWERED_STATUSES = [ANSWER_STATUS, DONE_STATUS, REJECT_STATUS, "보류", "장기"];
 export const isAnswered = (status: string) => ANSWERED_STATUSES.includes(status);
 
 /**
- * 민원 상태는 고정 7개예요(2026-10-19 사용자 — 설정·분류 관리에서 바꾸지 않아요, 미수용은 같은 날 더함).
+ * 민원 상태는 고정 7개예요(2026-10-19 사용자 — 설정·분류 관리에서 바꾸지 않아요, 불가는 같은 날 더함 — 처음 이름 "미수용").
  * 법정 답변기한(마감일)과 실제 해소를 나눠요: 답변·완료·보류·장기는 "답변 끝남".
  */
-export const STATUSES = ["접수", "진행", "답변", "완료", "미수용", "보류", "장기"];
+export const STATUSES = ["접수", "진행", "답변", "완료", "불가", "보류", "장기"];
 
 /** 예전 상태 이름 → 새 이름 (0.18.0까지 "처리중") */
 export const STATUS_RENAME: Record<string, string> = { 처리중: "진행" };
@@ -123,7 +123,7 @@ export const STATUS_RENAME: Record<string, string> = { 처리중: "진행" };
 
 /**
  * 상태 배지 색 — 신경 쓸 순서로 진하게(2026-10-19 사용자). 모양은 집행현황 단계 배지와 같아요.
- * 접수·진행·답변 = 따뜻한 색 진한 채움(노랑·자홍·주황 — 밝기도 달리) · 보류·장기 = 차가운 색 바탕(회색·하늘) · 완료·미수용 = 흐리게(줄 글자도 흐려요, 미수용은 붉은 기).
+ * 접수·진행·답변 = 따뜻한 색 진한 채움(노랑·자홍·주황 — 밝기도 달리) · 보류·장기 = 차가운 색 바탕(회색·하늘) · 완료·불가 = 흐리게(줄 글자도 흐려요, 불가는 붉은 기).
  */
 export const STATUS_COLORS: Record<string, [string, string]> = {
   접수: ["var(--cs-new-bg)", "var(--cs-new-fg)"],
@@ -133,7 +133,7 @@ export const STATUS_COLORS: Record<string, [string, string]> = {
   보류: ["var(--cs-hold-bg)", "var(--cs-hold-fg)"],
   장기: ["var(--cs-long-bg)", "var(--cs-long-fg)"],
   완료: ["var(--cs-done-bg)", "var(--cs-done-fg)"],
-  미수용: ["var(--cs-reject-bg)", "var(--cs-reject-fg)"],
+  불가: ["var(--cs-reject-bg)", "var(--cs-reject-fg)"],
 };
 
 /** 상태 배지 [바탕, 글자] 색 */
