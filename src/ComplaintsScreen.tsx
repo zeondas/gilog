@@ -1298,7 +1298,7 @@ function ViewRow({
         <span>{t(c.done ?? "")}</span>
         {taken !== null && (
           <span className="cm-dday cm-taken" title="접수부터 조치완료까지">
-            {taken}일
+            {taken}d
           </span>
         )}
       </div>
