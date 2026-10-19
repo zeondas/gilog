@@ -53,8 +53,10 @@ export type Settings = {
 export type FilesSettings = {
   /** 날짜 모양 0 10-16 17:40 · 1 2026-10-16 17:40 · 2 2026. 10. 16. · 3 상대 */
   dateFmt: string;
-  /** 숨긴 드라이브 ("E:") — 드라이브 단추와 트리에서 빠져요 */
+  /** 드라이브 단추 줄에서 숨긴 것 ("E:", 내 PC·홈 포함) */
   hiddenDrives: string[];
+  /** 폴더 트리에서 숨긴 것 — 단추 줄과 따로 골라요(2026-10-19 사용자 2안). 예전 자료는 hiddenDrives를 이어받아요 */
+  treeHidden: string[];
   showHidden: boolean;
   /** 새 탭이 여는 폴더. 비우면 문서 */
   newTabDir: string;
@@ -64,7 +66,7 @@ export type FilesSettings = {
   cols: { size: boolean; modified: boolean; type: boolean };
 };
 
-export const DEFAULT_FILES_SETTINGS: FilesSettings = { dateFmt: DEFAULT_DATE_FORMAT, hiddenDrives: [], showHidden: false, newTabDir: "", askDelete: true, cols: { size: true, modified: true, type: true } };
+export const DEFAULT_FILES_SETTINGS: FilesSettings = { dateFmt: DEFAULT_DATE_FORMAT, hiddenDrives: [], treeHidden: [], showHidden: false, newTabDir: "", askDelete: true, cols: { size: true, modified: true, type: true } };
 
 export const DEFAULT_SETTINGS: Settings = {
   status: ["접수", "처리중", "완료", "보류"],
@@ -114,7 +116,7 @@ export async function loadSettings(): Promise<Settings> {
   if (!raw) return structuredClone(DEFAULT_SETTINGS);
   try {
     const saved = JSON.parse(raw) as Partial<Settings>;
-    return withMemo({ ...structuredClone(DEFAULT_SETTINGS), ...saved, process: { ...DEFAULT_PROCESS, ...(saved.process ?? {}) }, files: { ...DEFAULT_FILES_SETTINGS, ...saved.files, dateFmt: dateFormatOf(saved.files?.dateFmt), cols: { ...DEFAULT_FILES_SETTINGS.cols, ...(saved.files?.cols ?? {}) } }, modules: { ...(saved.modules ?? {}) } });
+    return withMemo({ ...structuredClone(DEFAULT_SETTINGS), ...saved, process: { ...DEFAULT_PROCESS, ...(saved.process ?? {}) }, files: { ...DEFAULT_FILES_SETTINGS, ...saved.files, dateFmt: dateFormatOf(saved.files?.dateFmt), treeHidden: saved.files?.treeHidden ?? saved.files?.hiddenDrives ?? [], cols: { ...DEFAULT_FILES_SETTINGS.cols, ...(saved.files?.cols ?? {}) } }, modules: { ...(saved.modules ?? {}) } });
   } catch {
     return structuredClone(DEFAULT_SETTINGS);
   }
