@@ -263,7 +263,10 @@ export type Reminder = { at: number; title: string; body: string; event: number;
 // ---------- 민원처리(10단계) — core/process.rs와 같은 모양 ----------
 
 export type WorkInput = {
+  /** 축약 공사명(표의 공사 배지, 지시부 {축약 공사명}) */
   name: string;
+  /** 정식 공사명(지시부 {공사명}) — 비우면 축약 공사명 */
+  full: string;
   /** 시공사 */
   co: string;
   /** 현장대리인 = 업무연락처 번호 */
@@ -273,7 +276,7 @@ export type WorkInput = {
   /** 처리 범위(AI의 판단 기준) */
   scope: string;
   nextSeq: number;
-  /** 지시부 양식(pptx·hwpx) 경로 */
+  /** 예전 공사별 양식(2026-10-19부터 쓰지 않아요 — 표준 양식 하나) */
   tpl: string;
 };
 export type Work = WorkInput & { id: number };
@@ -308,13 +311,33 @@ export type Case = {
   sentAt: string;
   /** 신문고 위치가 도로명주소라 바꿨으면 바꾸기 전 글 */
   road: string;
+  /** 든 지시부와 그 안의 항목 번호(1부터) */
+  order: number | null;
+  item: number;
 };
 
-export type CasePatch = Partial<Pick<Case, "work" | "area" | "place" | "road" | "note" | "seq" | "stage" | "complaint" | "folder" | "orderFile" | "orderJpg" | "outboxFile" | "sentAt">>;
-export type ProcessData = { works: Work[]; cases: Case[] };
+/** 지시부 하나(같은 공사 민원 여러 건, 표준 양식) */
+export type Order = {
+  id: number;
+  work: number;
+  seq: number;
+  /** 지시일 YYYY-MM-DD */
+  date: string;
+  file: string;
+  /** 쪽마다 JPG */
+  jpgs: string[];
+  stage: "made" | "queued" | "sent";
+  outbox: string[];
+  sentAt: string;
+  /** 든 민원을 고쳐 다시 만들어야 해요 */
+  dirty: boolean;
+};
+
+export type CasePatch = Partial<Pick<Case, "work" | "area" | "place" | "road" | "note" | "short" | "seq" | "stage" | "complaint" | "folder" | "orderFile" | "orderJpg" | "outboxFile" | "sentAt">>;
+export type ProcessData = { works: Work[]; cases: Case[]; orders: Order[] };
 export type InboxResult = { added: Case[]; skipped: number; failed: string[]; missingFiles: string[] };
 export type RunStatus = { state: "idle" | "running" | "done" | "login" | "stopped" | "error"; total: number | null; done: number | null; message: string };
-export type OrderResult = { case: Case; seq: number; workName: string; missing: string[] };
+export type OrderResult = { order: Order; cases: Case[]; works: Work[]; missing: string[] };
 
 export const inApp = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -336,6 +359,8 @@ const fake = {
   works: [] as Work[],
   nextWorkId: 1,
   cases: [] as Case[],
+  orders: [] as Order[],
+  nextOrderId: 1,
   /** 미리 보기의 가져올 폴더: 다음 "민원 불러오기"가 읽어 갈 건들 */
   inbox: [] as Partial<Case>[],
   /** 미리 보기: Claude가 차례로 놓을 보기 민원과 진행 */
@@ -881,11 +906,11 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
   const cleanWork = (w: WorkInput): WorkInput => {
     const name = one(w.name);
     if (!name) throw "invalid";
-    return { name, co: one(w.co), contact: w.contact, project: w.project, scope: w.scope.trim(), nextSeq: Math.max(1, Math.floor(w.nextSeq) || 1), tpl: w.tpl.trim() };
+    return { name, full: one(w.full ?? ""), co: one(w.co), contact: w.contact, project: w.project, scope: w.scope.trim(), nextSeq: Math.max(1, Math.floor(w.nextSeq) || 1), tpl: w.tpl.trim() };
   };
   switch (cmd) {
     case "process_data":
-      return structuredClone({ works: fake.works, cases: fake.cases });
+      return structuredClone({ works: fake.works, cases: fake.cases, orders: fake.orders });
     case "save_work": {
       const w = cleanWork(a.work as WorkInput);
       if (a.id == null) fake.works.push({ id: fake.nextWorkId++, ...w });
@@ -903,20 +928,33 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
     case "update_case": {
       const c = findCase(a.no);
       const p = a.patch as CasePatch;
-      if (p.work !== undefined && p.work !== c.work) Object.assign(c, { work: p.work, stage: "new", seq: "" });
+      let leave = false;
+      if (p.work !== undefined && p.work !== c.work) {
+        leave = c.order != null;
+        Object.assign(c, { work: p.work, stage: "new", seq: "" });
+      }
       const area = p.area !== undefined ? one(p.area) : c.area;
       const place = p.place !== undefined ? one(p.place) || "주소불명" : c.place;
-      if ((area !== c.area || place !== c.place) && p.stage === undefined) c.stage = "new";
+      let changed = area !== c.area || place !== c.place;
+      if (changed && p.stage === undefined && c.order == null) c.stage = "new";
       if (p.place !== undefined && (place !== c.place || p.road !== undefined)) c.road = p.road && one(p.road) !== place ? one(p.road) : "";
       Object.assign(c, { area, place });
-      if (p.note !== undefined) c.note = one(p.note);
+      if (p.note !== undefined) (changed ||= one(p.note) !== c.note), (c.note = one(p.note));
+      if (p.short !== undefined) (changed ||= one(p.short) !== c.short), (c.short = one(p.short));
+      if (c.order != null) {
+        if (leave) fakeLeave(c);
+        else if (changed) fake.orders.forEach((o) => o.id === c.order && (o.dirty = true));
+      }
       if (p.seq !== undefined) c.seq = p.seq.replace(/\D/g, "");
       for (const k of ["stage", "complaint", "folder", "orderFile", "orderJpg", "outboxFile", "sentAt"] as const) if (p[k] !== undefined) (c as Record<string, unknown>)[k] = p[k];
       return structuredClone(c);
     }
-    case "delete_case":
-      fake.cases = fake.cases.filter((c) => c.no !== a.no);
+    case "delete_case": {
+      const c = fake.cases.find((x) => x.no === a.no);
+      if (c?.order != null) fakeLeave(c);
+      fake.cases = fake.cases.filter((x) => x.no !== a.no);
       return null;
+    }
     case "read_inbox": {
       const added: Case[] = [];
       let skipped = 0;
@@ -929,7 +967,7 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
           no: i.no, received: i.received ?? "", due: i.due ?? "", area: one(i.area ?? ""), place: one(i.place ?? "") || "주소불명",
           summary: (i.summary ?? "").trim(), short: one(i.short ?? ""), reason: (i.reason ?? "").trim(),
           work: i.work != null && fake.works.some((w) => w.id === i.work) ? i.work : null,
-          note: "", seq: "", stage: "new", complaint: null, photos: [], map: "", folder: String(a.root ?? ""), orderFile: "", orderJpg: "", outboxFile: "", sentAt: "", road: "",
+          note: "", seq: "", stage: "new", complaint: null, photos: [], map: "", folder: String(a.root ?? ""), orderFile: "", orderJpg: "", outboxFile: "", sentAt: "", road: "", order: null, item: 0,
         };
         const L = fakeRoadToJibun(c.place);
         if (L.kind === "exact") Object.assign(c, { area: areaFor(L.hit, c.area), place: L.hit.place, road: L.original });
@@ -943,29 +981,37 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
       return { added, skipped, failed: [], missingFiles: [] };
     }
     case "make_order": {
-      const r = a.req as unknown as { no: string; root: string };
-      const c = findCase(r.no);
-      const w = fake.works.find((x) => x.id === c.work);
-      if (!w) throw "invalid";
-      if (!w.tpl) throw "template";
-      const seq = Number(c.seq) > 0 ? Number(c.seq) : w.nextSeq;
-      w.nextSeq = Math.max(w.nextSeq, seq + 1);
-      const ext = w.tpl.toLowerCase().endsWith(".hwpx") ? "hwpx" : "pptx";
-      const folder = c.folder || r.root;
-      Object.assign(c, { seq: String(seq), stage: "made", folder, orderFile: `${folder}\\${stem(c)}.${ext}`, orderJpg: "" });
-      return { case: structuredClone(c), seq, workName: w.name, missing: [] };
+      const r = a.req as unknown as { nos: string[]; order: number | null; root: string; date: string };
+      let o = r.order != null ? fake.orders.find((x) => x.id === r.order) : undefined;
+      const list = o ? fake.cases.filter((c) => c.order === o!.id) : r.nos.map((n) => findCase(n));
+      const w = fake.works.find((x) => x.id === (o ? o.work : list[0]?.work));
+      if (!w || !list.length || list.some((c) => c.work !== w.id || (!o && c.order != null))) throw "invalid";
+      list.sort((x, y) => (x.received + x.no < y.received + y.no ? -1 : 1));
+      if (!o) {
+        const seq = w.nextSeq;
+        w.nextSeq = seq + 1;
+        const d = r.date.replace(/\D/g, "").slice(2);
+        o = { id: fake.nextOrderId++, work: w.id, seq, date: r.date, file: `${r.root}\\${d}_${w.name}-${String(seq).padStart(2, "0")}.hwpx`, jpgs: [], stage: "made", outbox: [], sentAt: "", dirty: false };
+        fake.orders.push(o);
+      } else Object.assign(o, { jpgs: [], stage: "made", outbox: [], sentAt: "", dirty: false });
+      list.forEach((c, i) => Object.assign(c, { order: o!.id, item: i + 1, stage: "made", seq: String(o!.seq), orderFile: o!.file, orderJpg: "" }));
+      return structuredClone({ order: o, cases: list, works: fake.works, missing: [] });
     }
     case "order_jpg": {
-      const c = findCase(a.no);
-      if (!c.orderFile) throw "nofile";
-      c.orderJpg = c.orderFile.replace(/\.(pptx|hwpx)$/i, ".jpg");
-      return structuredClone(c);
+      const o = fake.orders.find((x) => x.id === a.id);
+      if (!o?.file) throw "nofile";
+      const n = fake.cases.filter((c) => c.order === o.id).length > 1 ? 2 : 1;
+      const stem = o.file.replace(/\.hwpx$/i, "");
+      o.jpgs = n === 1 ? [`${stem}.jpg`] : [`${stem}_1.jpg`, `${stem}_2.jpg`];
+      fakeMirror(o);
+      return structuredClone(o);
     }
     case "send_order": {
-      const c = findCase(a.no);
-      if (!c.orderJpg) throw "nojpg";
-      Object.assign(c, { stage: "queued", outboxFile: `${a.outbox}\\${c.orderJpg.split("\\").pop()}` });
-      return structuredClone(c);
+      const o = fake.orders.find((x) => x.id === a.id);
+      if (!o?.jpgs.length) throw "nojpg";
+      Object.assign(o, { stage: "queued", outbox: o.jpgs.map((j) => `${a.outbox}\\${j.split("\\").pop()}`) });
+      fakeMirror(o);
+      return structuredClone(o);
     }
     case "check_sent":
       // 미리 보기에는 Claude가 없어요 — 보내는 중으로 남아요.
@@ -995,6 +1041,21 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
       return null;
   }
   return undefined;
+}
+
+/** 미리 보기: 지시부 진행을 든 건에도 맞춰요 */
+function fakeMirror(o: Order) {
+  fake.cases.forEach((c) => c.order === o.id && Object.assign(c, { stage: o.stage, orderFile: o.file, orderJpg: o.jpgs[0] ?? "", sentAt: o.sentAt }));
+}
+
+/** 미리 보기: 건 하나를 지시부에서 빼요(남은 번호 다시, 비면 지시부 기록 지움) */
+function fakeLeave(c: Case) {
+  const id = c.order;
+  Object.assign(c, { order: null, item: 0, stage: "new", seq: "", orderFile: "", orderJpg: "", outboxFile: "", sentAt: "" });
+  const rest = fake.cases.filter((x) => x.order === id && x.no !== c.no).sort((x, y) => x.item - y.item);
+  rest.forEach((x, i) => (x.item = i + 1));
+  if (!rest.length) fake.orders = fake.orders.filter((o) => o.id !== id);
+  else fake.orders.forEach((o) => o.id === id && (o.dirty = true));
 }
 
 /** 미리 보기 전용: 가져올 폴더에 보기 민원을 넣어요(앱에서는 아무것도 안 해요). */
@@ -1239,10 +1300,10 @@ export const api = {
   updateCase: (no: string, patch: CasePatch) => call<Case>("update_case", { no, patch }),
   deleteCase: (no: string) => call<null>("delete_case", { no }),
   readInbox: (inbox: string, downloads: string, root: string) => call<InboxResult>("read_inbox", { inbox, downloads, root }),
-  makeOrder: (req: { no: string; root: string; signer: string; date: string }) => call<OrderResult>("make_order", { req }),
-  orderJpg: (no: string) => call<Case>("order_jpg", { no }),
-  sendOrder: (no: string, outbox: string) => call<Case>("send_order", { no, outbox }),
-  checkSent: (now: string) => call<Case[]>("check_sent", { now }),
+  makeOrder: (req: { nos: string[]; order: number | null; root: string; date: string; tpl: string }) => call<OrderResult>("make_order", { req }),
+  orderJpg: (id: number) => call<Order>("order_jpg", { id }),
+  sendOrder: (id: number, outbox: string) => call<Order>("send_order", { id, outbox }),
+  checkSent: (now: string) => call<Order[]>("check_sent", { now }),
   openPath: (path: string) => call<null>("open_path", { path }),
   showInFolder: (path: string) => call<null>("show_in_folder", { path }),
   openPortal: (url: string) => call<null>("open_portal", { url }),

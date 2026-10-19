@@ -51,7 +51,7 @@ fn bad(msg: impl Into<String>) -> Error {
     Error::Invalid(msg.into())
 }
 
-fn esc(s: &str) -> String {
+pub(crate) fn esc(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
 
@@ -61,7 +61,7 @@ fn unesc(s: &str) -> String {
 
 /// `<tag ...>…</tag>`·`<tag/>` 덩어리의 [시작, 끝) 자리들(겹치지 않게 바깥 것만).
 /// `tag`는 "a:p"처럼 접두어까지 넣어요. "a:pPr" 같은 더 긴 이름은 건너뛰어요.
-fn elements(xml: &str, tag: &str) -> Vec<(usize, usize)> {
+pub(crate) fn elements(xml: &str, tag: &str) -> Vec<(usize, usize)> {
     let open = format!("<{tag}");
     let close = format!("</{tag}>");
     let mut out = Vec::new();
@@ -169,7 +169,7 @@ fn fill_paragraph(p: &str, t: &str, text: &BTreeMap<String, String>, used: &mut 
     Some(lines.iter().map(|l| one(l)).collect())
 }
 
-fn fill_text(xml: &str, p_tag: &str, t_tag: &str, text: &BTreeMap<String, String>, used: &mut Vec<String>) -> String {
+pub(crate) fn fill_text(xml: &str, p_tag: &str, t_tag: &str, text: &BTreeMap<String, String>, used: &mut Vec<String>) -> String {
     // 바깥 문단만 보면 표 안 문단을 못 보니, 안쪽 문단(안에 같은 태그가 없는 것)을 차례로 바꿔요.
     let mut s = xml.to_string();
     let mut i = 0;
@@ -226,7 +226,7 @@ pub fn image_size(bytes: &[u8]) -> Option<(u32, u32)> {
     None
 }
 
-fn attr<'a>(tag: &'a str, name: &str) -> Option<&'a str> {
+pub(crate) fn attr<'a>(tag: &'a str, name: &str) -> Option<&'a str> {
     let key = format!(" {name}=\"");
     let s = tag.find(&key)? + key.len();
     let e = tag[s..].find('"')? + s;
@@ -341,7 +341,7 @@ fn max_shape_id(slide: &str) -> u32 {
     m
 }
 
-fn read_zip(path: &Path) -> Result<Vec<(String, Vec<u8>, bool)>> {
+pub(crate) fn read_zip(path: &Path) -> Result<Vec<(String, Vec<u8>, bool)>> {
     let f = std::fs::File::open(path)?;
     let mut z = zip::ZipArchive::new(f).map_err(|_| bad("양식 파일을 열 수 없어요"))?;
     let mut out = Vec::new();
@@ -355,7 +355,7 @@ fn read_zip(path: &Path) -> Result<Vec<(String, Vec<u8>, bool)>> {
     Ok(out)
 }
 
-fn write_zip(path: &Path, files: &[(String, Vec<u8>, bool)]) -> Result<()> {
+pub(crate) fn write_zip(path: &Path, files: &[(String, Vec<u8>, bool)]) -> Result<()> {
     let tmp = path.with_extension("tmp");
     {
         let f = std::fs::File::create(&tmp)?;

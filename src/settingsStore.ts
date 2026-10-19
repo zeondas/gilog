@@ -21,6 +21,8 @@ export type ProcessSettings = {
   outbox: string;
   /** Claude Code 실행 파일(경로를 비우면 "claude") */
   claude: string;
+  /** 표준 지시부 양식(hwpx). 비우면 앱에 들어 있는 양식(2026-10-19) */
+  tpl: string;
 };
 
 export const DEFAULT_PROCESS: ProcessSettings = {
@@ -31,6 +33,7 @@ export const DEFAULT_PROCESS: ProcessSettings = {
   downloads: "D:\\",
   outbox: "D:\\민원처리\\보내기",
   claude: "claude",
+  tpl: "",
 };
 
 export type Settings = {

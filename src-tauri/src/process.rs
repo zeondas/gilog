@@ -4,8 +4,9 @@
 //!   사진·위치도 파일 이름은 가져올 폴더 → 다운로드 폴더 순으로 찾고, 민원 폴더(설정, 기본 D:\민원처리) 한 곳에
 //!   `접수일_위치_보수내용_사진1.jpg`처럼 이름을 붙여 옮겨요(시안 Process·Files 판 — 파일함이 이 이름으로 찾아요).
 //!   읽은 JSON은 가져올 폴더의 "읽음" 폴더로 옮겨요(이미 있는 접수번호도). 못 읽은 파일은 그대로 두고 이름을 알려 줘요.
-//! - 지시부: 양식을 채워 민원 폴더에 쓰고(`make_order`), JPG는 파워포인트·한글로 따로 만들어요(`order_jpg`, 몇 초 걸려 따로 돌려요).
-//! - 폰으로 보내기(사용자 2안): JPG를 보낼 폴더 폴더에 복사하고 "보내는 중"(queued)으로 둬요.
+//! - 지시부(2026-10-19 표준 지시부): 같은 공사 민원 여러 건을 표준 hwpx 양식 한 파일(`지시일_축약 공사명-연번.hwpx`)로
+//!   민원 폴더에 써요(`make_order`). JPG는 한글로 쪽마다 따로 만들어요(`order_jpg`, 몇 초 걸려 따로 돌려요).
+//! - 폰으로 보내기(사용자 2안): 지시부의 JPG를 모두 보낼 폴더에 복사하고 "보내는 중"(queued)으로 둬요.
 //!   Claude가 대화에 올린 뒤 그 파일을 보낼 폴더의 "보냄" 폴더로 옮기면 `check_sent`가 보고 전송 완료(sent)로 바꿔요.
 //!   보낼 폴더에도 "보냄"에도 없으면(누가 지웠으면) 다시 보낼 수 있게 지시부 만듦(made)으로 돌려요.
 
@@ -13,7 +14,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use gilog_core::{fill_order, Case, CaseInput, CasePatch, OrderFill, ProcessData, Work, WorkInput};
+use gilog_core::{fill_standard, korean_date, Case, CaseInput, CasePatch, Order, OrderPatch, ProcessData, StdItem, Work, WorkInput};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
@@ -209,21 +210,28 @@ pub fn read_inbox(state: State<AppState>, inbox: String, downloads: String, root
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OrderRequest {
-    pub no: String,
-    /// 민원 폴더의 맨 위(설정, 기본 D:\민원처리)
+    /// 새 지시부로 묶을 접수번호들(같은 공사). `order`가 있으면 쓰지 않아요.
+    #[serde(default)]
+    pub nos: Vec<String>,
+    /// 다시 만들 지시부 번호(같은 연번·같은 파일 이름)
+    #[serde(default)]
+    pub order: Option<i64>,
+    /// 민원 폴더(설정)
     pub root: String,
-    /// 지시자(설정의 이름·연락처를 화면이 이어 붙여요)
-    pub signer: String,
-    /// 지시일 "2026. 10. 17."
+    /// 지시일 YYYY-MM-DD
     pub date: String,
+    /// 표준 양식 파일(설정). 비우면 앱에 넣어 둔 양식.
+    #[serde(default)]
+    pub tpl: String,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OrderResult {
-    pub case: Case,
-    pub seq: i64,
-    pub work_name: String,
+    pub order: Order,
+    /// 지시부에 든 건(항목 순서)
+    pub cases: Vec<Case>,
+    pub works: Vec<Work>,
     /// 양식에 없던 자리
     pub missing: Vec<String>,
 }
@@ -237,63 +245,111 @@ fn address(c: &Case) -> String {
     }
 }
 
+/// 지시부 파일 이름 앞부분: 지시일(YYMMDD)_축약 공사명-연번(두 자리). 예: 261019_동부권 도로시설물 1지구-03
+pub fn order_stem(date: &str, work: &str, seq: i64) -> String {
+    let d: String = date.chars().filter(|c| c.is_ascii_digit()).collect();
+    let d = if d.len() == 8 { d[2..].to_string() } else { d };
+    format!("{d}_{}-{seq:02}", safe_name(work))
+}
+
+/// 쪽마다 만든 JPG 이름: 한 쪽이면 stem.jpg, 여러 쪽이면 stem_1.jpg, stem_2.jpg…
+fn page_names(stem: &str, n: usize) -> Vec<String> {
+    if n == 1 {
+        vec![format!("{stem}.jpg")]
+    } else {
+        (1..=n).map(|k| format!("{stem}_{k}.jpg")).collect()
+    }
+}
+
+/// 한글이 쪽마다 쓴 그림 파일을 쪽 순서로(이름 끝 숫자 순, 숫자 없는 것이 첫 쪽)
+fn sort_pages(names: &mut [String]) {
+    let key = |n: &String| -> u64 {
+        let stem = n.rsplit_once('.').map(|x| x.0).unwrap_or(n);
+        let digits: String = stem.chars().rev().take_while(|c| c.is_ascii_digit()).collect::<Vec<_>>().into_iter().rev().collect();
+        digits.parse().unwrap_or(0)
+    };
+    names.sort_by(|a, b| key(a).cmp(&key(b)).then(a.cmp(b)));
+}
+
+/// [지시부 만들기]: 같은 공사 민원 여러 건을 표준 양식 한 파일로(민원 폴더에 `지시일_축약-연번.hwpx`).
+/// `order`가 있으면 그 지시부를 다시 만들어요(같은 연번·같은 파일, JPG는 지워요).
 #[tauri::command]
 pub fn make_order(state: State<AppState>, req: OrderRequest) -> Result<OrderResult, String> {
-    let (c, w) = with_store(&state, |s| {
-        let c = s.case(&req.no)?;
-        let id = c.work.ok_or_else(|| gilog_core::Error::Invalid("공사를 먼저 골라 주세요".into()))?;
-        Ok((c.clone(), s.work(id)?))
+    let (old, work, cases, agent) = with_store(&state, |s| {
+        let (old, work, cases) = match req.order {
+            Some(id) => {
+                let o = s.order(id)?;
+                let cases = s.order_cases(id)?;
+                (Some(o.clone()), s.work(o.work)?, cases)
+            }
+            None => {
+                let (w, list) = s.plan_order(&req.nos)?;
+                (None, w, list)
+            }
+        };
+        let agent = work
+            .contact
+            .and_then(|id| s.contacts_data().ok()?.contacts.into_iter().find(|c| c.id == id))
+            .map(|c| c.name)
+            .unwrap_or_default();
+        Ok((old, work, cases, agent))
     })?;
-    let tpl = PathBuf::from(w.tpl.trim());
-    if w.tpl.trim().is_empty() || !tpl.is_file() {
+    if cases.is_empty() {
+        return Err("고른 민원이 없어요".into());
+    }
+    let tpl = req.tpl.trim();
+    if !tpl.is_empty() && !Path::new(tpl).is_file() {
         return Err("template".into());
     }
-    let ext = tpl.extension().and_then(|e| e.to_str()).unwrap_or("pptx").to_ascii_lowercase();
-    let folder = PathBuf::from(if c.folder.trim().is_empty() { req.root.trim() } else { c.folder.trim() });
+    let seq = old.as_ref().map(|o| o.seq).unwrap_or(work.next_seq);
+    let date = old.as_ref().map(|o| o.date.clone()).filter(|d| !d.is_empty()).unwrap_or_else(|| req.date.trim().to_string());
+    let folder = PathBuf::from(req.root.trim());
     fs::create_dir_all(&folder).map_err(io)?;
-
-    // 연번은 쓰기 직전에 받아요(적어 둔 번호가 있으면 그것).
-    let seq = with_store(&state, |s| s.take_seq(w.id, &c.seq))?;
-    let mut text = BTreeMap::new();
-    text.insert("연번".to_string(), seq.to_string());
-    text.insert("지시자".to_string(), req.signer.trim().to_string());
-    text.insert("주소".to_string(), address(&c));
-    text.insert("보수내용".to_string(), c.summary.clone());
-    text.insert("고려사항".to_string(), c.note.clone());
-    text.insert("지시일".to_string(), req.date.trim().to_string());
-    let mut images = BTreeMap::new();
-    if !c.map.is_empty() {
-        images.insert("위치도".to_string(), c.map.clone());
-    }
-    for (i, p) in c.photos.iter().enumerate() {
-        let key = if i == 0 { "현장사진".to_string() } else { format!("현장사진{}", i + 1) };
-        images.insert(key, p.clone());
-    }
-    // 같은 민원을 다시 만들면 그 파일을 덮어쓰고, 다른 민원과 이름이 겹치면 "(2)"를 붙여요.
-    let same_kind = Path::new(&c.order_file).extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case(&ext));
-    let out = if !c.order_file.is_empty() && same_kind && Path::new(&c.order_file).parent() == Some(folder.as_path()) {
-        PathBuf::from(&c.order_file)
-    } else {
-        order_path(&folder, &case_stem(&c.received, &c.place, &c.short), &ext)
+    let out = match &old {
+        Some(o) if !o.file.is_empty() && Path::new(&o.file).parent().is_some_and(|p| p.is_dir()) => PathBuf::from(&o.file),
+        _ => order_path(&folder, &order_stem(&date, &work.name, seq), "hwpx"),
     };
-    // 그림 자리가 없는 사진(현장사진2…)은 "없는 자리"로 알리지 않아요.
-    let report = fill_order(&tpl, &out, &OrderFill { text, images }).map_err(crate::code)?;
-    let missing = report.missing.into_iter().filter(|m| m.starts_with('{') || m == "위치도" || m == "현장사진").collect();
 
-    let case = with_store(&state, |s| {
-        s.update_case(
-            &c.no,
-            &CasePatch {
-                seq: Some(seq.to_string()),
-                stage: Some("made".into()),
-                folder: Some(folder.display().to_string()),
-                order_file: Some(out.display().to_string()),
-                order_jpg: Some(String::new()),
-                ..Default::default()
-            },
-        )
+    let mut header = BTreeMap::new();
+    header.insert("공사명".to_string(), if work.full.trim().is_empty() { work.name.clone() } else { work.full.clone() });
+    header.insert("축약 공사명".to_string(), work.name.clone());
+    header.insert("연번".to_string(), format!("{seq:02}"));
+    header.insert("지시일".to_string(), korean_date(&date));
+    header.insert("현장대리인".to_string(), agent);
+    header.insert("시공사".to_string(), work.co.clone());
+    let items: Vec<StdItem> = cases
+        .iter()
+        .map(|c| StdItem {
+            title: if c.short.trim().is_empty() { c.summary.clone() } else { c.short.clone() },
+            address: address(c),
+            note: c.note.clone(),
+            map: c.map.clone(),
+            photo: c.photos.first().cloned().unwrap_or_default(),
+        })
+        .collect();
+    let report = fill_standard((!tpl.is_empty()).then(|| Path::new(tpl)), &out, &header, &items).map_err(crate::code)?;
+
+    let file = out.display().to_string();
+    let (order, cases, works) = with_store(&state, |s| {
+        let order = match &old {
+            Some(o) => {
+                for j in &o.jpgs {
+                    let _ = fs::remove_file(j);
+                }
+                s.update_order(
+                    o.id,
+                    &OrderPatch { file: Some(file.clone()), jpgs: Some(vec![]), stage: Some("made".into()), outbox: Some(vec![]), sent_at: Some(String::new()), dirty: Some(false) },
+                )?
+            }
+            None => {
+                let nos: Vec<String> = cases.iter().map(|c| c.no.clone()).collect();
+                s.create_order(work.id, seq, &date, &file, &nos)?
+            }
+        };
+        let cases = s.order_cases(order.id)?;
+        Ok((order, cases, s.process_data()?.works))
     })?;
-    Ok(OrderResult { case, seq, work_name: w.name, missing })
+    Ok(OrderResult { order, cases, works, missing: report.missing })
 }
 
 /// PowerShell 글자 안에 넣을 경로('는 두 번).
@@ -304,42 +360,19 @@ fn ps_str(p: &Path) -> String {
 
 #[cfg_attr(not(windows), allow(dead_code))]
 fn jpg_script(file: &Path, jpg: &Path) -> String {
-    let is_hwpx = file.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("hwpx"));
-    if is_hwpx {
-        // 한글: 그림으로 저장하면 쪽마다 파일이 생길 수 있어 첫 쪽을 찾아 이름을 맞춰요.
-        format!(
-            "$ErrorActionPreference='Stop'\n\
-             $h = New-Object -ComObject HWPFrame.HwpObject\n\
-             try {{ $h.RegisterModule('FilePathCheckDLL','FilePathCheckerModule') | Out-Null }} catch {{}}\n\
-             try {{ $h.XHwpWindows.Item(0).Visible = $false }} catch {{}}\n\
-             try {{\n\
-               if (-not $h.Open({src}, 'HWPX', 'forceopen:true')) {{ throw 'open' }}\n\
-               $h.SaveAs({dst}, 'JPG', '') | Out-Null\n\
-             }} finally {{ $h.Clear(1); $h.Quit() }}\n\
-             $want = {dst}\n\
-             if (-not (Test-Path -LiteralPath $want)) {{\n\
-               $stem = [IO.Path]::GetFileNameWithoutExtension($want)\n\
-               $f = Get-ChildItem -LiteralPath ([IO.Path]::GetDirectoryName($want)) -Filter ($stem + '*.jpg') | Sort-Object Name | Select-Object -First 1\n\
-               if ($f) {{ Move-Item -LiteralPath $f.FullName -Destination $want }} else {{ throw 'nojpg' }}\n\
-             }}\n",
-            src = ps_str(file),
-            dst = ps_str(jpg)
-        )
-    } else {
-        // 파워포인트: 첫 장을 가로 1920px로 내보내요. 다른 발표 파일이 열려 있으면 파워포인트는 그대로 둬요.
-        format!(
-            "$ErrorActionPreference='Stop'\n\
-             $pp = New-Object -ComObject PowerPoint.Application\n\
-             $p = $pp.Presentations.Open({src}, -1, 0, 0)\n\
-             try {{\n\
-               $w = 1920; $hh = [int](1920 * $p.PageSetup.SlideHeight / $p.PageSetup.SlideWidth)\n\
-               $p.Slides.Item(1).Export({dst}, 'JPG', $w, $hh)\n\
-             }} finally {{ $p.Close() }}\n\
-             if ($pp.Presentations.Count -eq 0) {{ $pp.Quit() }}\n",
-            src = ps_str(file),
-            dst = ps_str(jpg)
-        )
-    }
+    // 한글: 그림(JPG)으로 저장하면 쪽마다 파일이 생겨요(빈 임시 폴더에 받아요).
+    format!(
+        "$ErrorActionPreference='Stop'\n\
+         $h = New-Object -ComObject HWPFrame.HwpObject\n\
+         try {{ $h.RegisterModule('FilePathCheckDLL','FilePathCheckerModule') | Out-Null }} catch {{}}\n\
+         try {{ $h.XHwpWindows.Item(0).Visible = $false }} catch {{}}\n\
+         try {{\n\
+           if (-not $h.Open({src}, 'HWPX', 'forceopen:true')) {{ throw 'open' }}\n\
+           $h.SaveAs({dst}, 'JPG', '') | Out-Null\n\
+         }} finally {{ $h.Clear(1); $h.Quit() }}\n",
+        src = ps_str(file),
+        dst = ps_str(jpg)
+    )
 }
 
 #[cfg(windows)]
@@ -367,74 +400,105 @@ fn run_powershell(script: &str) -> Result<(), String> {
     }
 }
 
-/// 지시부 파일로 JPG를 만들어 경로를 돌려줘요. pptx는 파워포인트, hwpx는 한글이 있어야 해요.
+/// 지시부 파일로 쪽마다 JPG를 만들어요(한글이 있어야 해요). 바뀐 지시부를 돌려줘요.
 #[tauri::command]
-pub async fn order_jpg(state: State<'_, AppState>, no: String) -> Result<Case, String> {
-    let c = with_store(&state, |s| s.case(&no))?;
-    let file = PathBuf::from(&c.order_file);
-    if c.order_file.is_empty() || !file.is_file() {
+pub async fn order_jpg(state: State<'_, AppState>, id: i64) -> Result<Order, String> {
+    let o = with_store(&state, |s| s.order(id))?;
+    let file = PathBuf::from(&o.file);
+    if o.file.is_empty() || !file.is_file() {
         return Err("nofile".into());
     }
-    let jpg = file.with_extension("jpg");
-    let _ = fs::remove_file(&jpg);
+    for j in &o.jpgs {
+        let _ = fs::remove_file(j);
+    }
+    // 한글이 쪽마다 파일을 쓰니 빈 임시 폴더에 받아 쪽 순서로 옮겨요.
+    let tmp = std::env::temp_dir().join(format!("gilog_jpg_{}_{id}", std::process::id()));
+    let _ = fs::remove_dir_all(&tmp);
+    fs::create_dir_all(&tmp).map_err(io)?;
     #[cfg(windows)]
     {
-        let script = jpg_script(&file, &jpg);
-        tauri::async_runtime::spawn_blocking(move || run_powershell(&script)).await.map_err(|e| e.to_string())??;
+        let script = jpg_script(&file, &tmp.join("p.jpg"));
+        let r = tauri::async_runtime::spawn_blocking(move || run_powershell(&script)).await.map_err(|e| e.to_string())?;
+        if let Err(e) = r {
+            let _ = fs::remove_dir_all(&tmp);
+            return Err(e);
+        }
     }
     #[cfg(not(windows))]
     {
-        let _ = jpg_script;
+        let _ = (jpg_script, fs::remove_dir_all(&tmp));
         return Err("windows".into());
     }
     #[allow(unreachable_code)]
     {
-        if !jpg.is_file() {
+        let mut names: Vec<String> = fs::read_dir(&tmp)
+            .map_err(io)?
+            .filter_map(|e| e.ok()?.file_name().into_string().ok())
+            .filter(|n| n.to_ascii_lowercase().ends_with(".jpg") || n.to_ascii_lowercase().ends_with(".jpeg"))
+            .collect();
+        sort_pages(&mut names);
+        if names.is_empty() {
+            let _ = fs::remove_dir_all(&tmp);
             return Err("nojpg".into());
         }
-        with_store(&state, |s| s.update_case(&no, &CasePatch { order_jpg: Some(jpg.display().to_string()), ..Default::default() }))
+        let dir = file.parent().unwrap_or(Path::new(".")).to_path_buf();
+        let stem = file.file_stem().and_then(|s| s.to_str()).unwrap_or("지시부").to_string();
+        let mut jpgs = Vec::new();
+        for (from, to) in names.iter().zip(page_names(&stem, names.len())) {
+            let to = dir.join(to);
+            let _ = fs::remove_file(&to);
+            move_file(&tmp.join(from), &to).map_err(io)?;
+            jpgs.push(to.display().to_string());
+        }
+        let _ = fs::remove_dir_all(&tmp);
+        with_store(&state, |s| s.update_order(id, &OrderPatch { jpgs: Some(jpgs.clone()), ..Default::default() }))
     }
 }
 
-/// 폰으로 보내기: JPG를 보낼 폴더에 복사하고 "보내는 중"으로 적어요.
+/// 폰으로 보내기: 지시부의 JPG(쪽마다)를 모두 보낼 폴더에 복사하고 "보내는 중"으로 적어요.
 #[tauri::command]
-pub fn send_order(state: State<AppState>, no: String, outbox: String) -> Result<Case, String> {
-    let c = with_store(&state, |s| s.case(&no))?;
-    let jpg = PathBuf::from(&c.order_jpg);
-    if c.order_jpg.is_empty() || !jpg.is_file() {
+pub fn send_order(state: State<AppState>, id: i64, outbox: String) -> Result<Order, String> {
+    let o = with_store(&state, |s| s.order(id))?;
+    if o.jpgs.is_empty() || o.jpgs.iter().any(|j| !Path::new(j).is_file()) {
         return Err("nojpg".into());
     }
     let outbox = PathBuf::from(outbox.trim());
     fs::create_dir_all(&outbox).map_err(io)?;
-    let name = jpg.file_name().and_then(|n| n.to_str()).unwrap_or("지시부.jpg").to_string();
-    let to = free_path(&outbox, &name);
-    fs::copy(&jpg, &to).map_err(io)?;
-    with_store(&state, |s| {
-        s.update_case(&no, &CasePatch { stage: Some("queued".into()), outbox_file: Some(to.display().to_string()), ..Default::default() })
-    })
+    let mut sent = Vec::new();
+    for j in &o.jpgs {
+        let jpg = Path::new(j);
+        let name = jpg.file_name().and_then(|n| n.to_str()).unwrap_or("지시부.jpg").to_string();
+        let to = free_path(&outbox, &name);
+        fs::copy(jpg, &to).map_err(io)?;
+        sent.push(to.display().to_string());
+    }
+    with_store(&state, |s| s.update_order(id, &OrderPatch { stage: Some("queued".into()), outbox: Some(sent.clone()), ..Default::default() }))
 }
 
-/// 보내는 중인 건을 살펴요: "보냄" 폴더에 있으면 전송 완료(보낼 폴더의 원본은 지워요), 어디에도 없으면 다시 보낼 수 있게 되돌려요. 바뀐 건만 돌려줘요.
+/// 보내는 중인 지시부를 살펴요: JPG가 모두 "보냄" 폴더에 있으면 전송 완료(보낼 폴더의 원본은 지워요),
+/// 하나라도 어디에도 없으면 다시 보낼 수 있게 되돌려요. 바뀐 지시부만 돌려줘요.
 #[tauri::command]
-pub fn check_sent(state: State<AppState>, now: String) -> Result<Vec<Case>, String> {
-    let list = with_store(&state, |s| s.process_data())?.cases;
+pub fn check_sent(state: State<AppState>, now: String) -> Result<Vec<Order>, String> {
+    let list = with_store(&state, |s| s.process_data())?.orders;
     let mut changed = Vec::new();
-    for c in list.into_iter().filter(|c| c.stage == "queued") {
-        let f = PathBuf::from(&c.outbox_file);
-        // Claude(민원처리 세션)가 대화에 올린 뒤 "보냄" 폴더에 같은 이름을 써 두면 전송 완료예요.
+    for o in list.into_iter().filter(|o| o.stage == "queued") {
+        // Claude(민원처리 세션)가 대화에 올린 뒤 "보냄" 폴더에 같은 이름을 써 두면 그 쪽은 보낸 거예요.
         // 세션은 파일을 옮기거나 지울 수 없어서 원본은 기록이 지워요(2026-10-18).
-        let done = f.parent().zip(f.file_name()).map(|(d, n)| d.join(SENT_DIR).join(n)).is_some_and(|p| p.is_file());
-        if done {
-            let _ = fs::remove_file(&f);
-        } else if f.is_file() {
-            continue;
-        }
-        let patch = if done {
-            CasePatch { stage: Some("sent".into()), sent_at: Some(now.clone()), ..Default::default() }
+        let done_of = |f: &Path| f.parent().zip(f.file_name()).map(|(d, n)| d.join(SENT_DIR).join(n)).is_some_and(|p| p.is_file());
+        let files: Vec<PathBuf> = o.outbox.iter().map(PathBuf::from).collect();
+        let all_done = !files.is_empty() && files.iter().all(|f| done_of(f));
+        let lost = files.is_empty() || files.iter().any(|f| !done_of(f) && !f.is_file());
+        let patch = if all_done {
+            for f in &files {
+                let _ = fs::remove_file(f);
+            }
+            OrderPatch { stage: Some("sent".into()), sent_at: Some(now.clone()), ..Default::default() }
+        } else if lost {
+            OrderPatch { stage: Some("made".into()), outbox: Some(vec![]), ..Default::default() }
         } else {
-            CasePatch { stage: Some("made".into()), outbox_file: Some(String::new()), ..Default::default() }
+            continue;
         };
-        changed.push(with_store(&state, |s| s.update_case(&c.no, &patch))?);
+        changed.push(with_store(&state, |s| s.update_order(o.id, &patch))?);
     }
     Ok(changed)
 }
@@ -543,10 +607,19 @@ mod tests {
 
     #[test]
     fn script_quotes_paths() {
-        let s = jpg_script(Path::new("D:/민원/지시부_1_O'Neil.pptx"), Path::new("D:/민원/지시부_1_O'Neil.jpg"));
-        assert!(s.contains("'D:/민원/지시부_1_O''Neil.pptx'"));
-        assert!(s.contains("PowerPoint.Application"));
-        assert!(jpg_script(Path::new("a.hwpx"), Path::new("a.jpg")).contains("HWPFrame.HwpObject"));
+        let s = jpg_script(Path::new("D:/민원/261019_O'Neil-03.hwpx"), Path::new("C:/t/p.jpg"));
+        assert!(s.contains("'D:/민원/261019_O''Neil-03.hwpx'"));
+        assert!(s.contains("HWPFrame.HwpObject"));
+    }
+
+    #[test]
+    fn order_names_and_pages() {
+        assert_eq!(order_stem("2026-10-19", "동부권 도로시설물 1지구", 3), "261019_동부권 도로시설물 1지구-03");
+        assert_eq!(page_names("a", 1), vec!["a.jpg"]);
+        assert_eq!(page_names("a", 2), vec!["a_1.jpg", "a_2.jpg"]);
+        let mut v: Vec<String> = ["p010.jpg", "p002.jpg", "p.jpg", "p9.jpg"].iter().map(|s| s.to_string()).collect();
+        sort_pages(&mut v);
+        assert_eq!(v, ["p.jpg", "p002.jpg", "p9.jpg", "p010.jpg"]);
     }
 }
 

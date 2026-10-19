@@ -2,7 +2,6 @@ import { FormEvent, Fragment, useEffect, useLayoutEffect, useRef, useState } fro
 import { ACCENTS, api, DEFAULT_PREFS, errorText, inApp, Prefs, Status } from "./api";
 import { splitJamo } from "./journal";
 import { DEFAULT_SETTINGS, DONE_STATUS, Kind, loadSettings, MEMO_KIND, ProcessSettings, saveSettings, Settings, FilesSettings, STATUS_COLORS } from "./settingsStore";
-import { PhoneInput } from "./PhoneInput";
 import { aiGuide, phoneGuide } from "./process";
 import { isOn, MODULE_DESC, ModuleId, Modules, onScreens, SCREENS, firstOn } from "./screens";
 import { NavIcon, NavIconName } from "./Icons";
@@ -1546,7 +1545,6 @@ const PROCESS_DIRS: { key: "root" | "inbox" | "downloads" | "outbox"; label: str
 ];
 
 function ProcessRows({ p, onChange }: { p: ProcessSettings; onChange: (p: ProcessSettings) => void }) {
-  const [phone, setPhone] = useState(p.signerPhone);
   const [copied, setCopied] = useState<"ai" | "phone" | null>(null);
   async function copyGuide(which: "ai" | "phone") {
     const text = which === "ai" ? aiGuide(p, (await api.processData()).works) : phoneGuide(p);
@@ -1564,12 +1562,28 @@ function ProcessRows({ p, onChange }: { p: ProcessSettings; onChange: (p: Proces
     const r = await open({ directory: true, title, defaultPath: p[k] || undefined });
     if (typeof r === "string") onChange({ ...p, [k]: r });
   }
+  async function pickTpl() {
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const r = await open({ multiple: false, title: "지시부 양식", filters: [{ name: "한글 hwpx", extensions: ["hwpx"] }] });
+    if (typeof r === "string") onChange({ ...p, tpl: r });
+  }
   return (
     <>
-      <Row label="지시자" desc="지시부의 지시자 칸에 들어가요. 연락처는 이름 아래 줄에 붙어요.">
-        <span className="proc-signer">
-          <input className="input" aria-label="지시자 이름" style={{ width: 150 }} defaultValue={p.signer} onBlur={(e) => text("signer", e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
-          <PhoneInput className="input" aria-label="지시자 연락처" style={{ width: 130 }} value={phone} onChange={setPhone} onBlur={() => text("signerPhone", phone)} />
+      <Row label="지시부 양식" desc="모든 공사가 표준 양식 하나를 써요(hwpx). 비워 두면 앱에 들어 있는 표준 양식이에요.">
+        <span className="proc-dir">
+          <span className="proc-tpl" title={p.tpl || undefined}>
+            {p.tpl ? p.tpl.split(/[\\/]/).pop() : "표준 양식(앱에 들어 있음)"}
+          </span>
+          {inApp && (
+            <button type="button" className="btn btn-xs" onClick={pickTpl}>
+              고르기
+            </button>
+          )}
+          {p.tpl && (
+            <button type="button" className="btn btn-xs" onClick={() => onChange({ ...p, tpl: "" })}>
+              기본으로
+            </button>
+          )}
         </span>
       </Row>
       {PROCESS_DIRS.map((d) => (

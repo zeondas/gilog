@@ -1,20 +1,21 @@
 // 민원처리 화면이에요(10단계). 시안 Process.dc.html과 사양서 "민원처리" 절을 따라요.
 //
-// - 상태 열이 없어요. 맨 오른쪽 단추 자리 하나가 진행을 보여 줘요: [지시부 만들기] → [폰으로 보내기] → ✓ 전송 완료.
-// - [민원 불러오기]는 가져올 폴더 폴더의 결과 파일(JSON)을 읽어요(AI가 놓아요). 사진은 민원 폴더로 옮겨요.
-// - [지시부 만들기] = 양식 채우기(민원 폴더에 접수일_위치_보수내용.pptx/hwpx) + 민원대장 등록(조치내용 "□ 공사명 지시(연번)")
-//   + JPG(파워포인트·한글). 민원대장에서 완료하면 이 표에서 숨어요.
-// - [폰으로 보내기] = JPG를 보낼 폴더에 복사 → "보내는 중". Claude가 대화에 올리고 "보냄" 폴더로 옮기면 ✓ 전송 완료(사용자 2안).
+// - 표준 지시부(2026-10-19 사용자 1안, 시안 ProcessOrder.dc.html): 같은 공사 민원을 골라(줄 앞 고르기 칸) [지시부 만들기]
+//   → 표준 양식 한 파일(민원 폴더에 지시일_축약 공사명-연번.hwpx, 항목은 접수일 순) + 민원대장 등록(조치내용 "□ 공사명 지시(1지구-03 · 2)")
+//   + 쪽마다 JPG(한글). 민원대장에서 완료하면 이 표에서 숨어요.
+// - 줄 끝 지시부 칸: "1지구-03 · 1" + 진행 [폰 전송] → 보내는 중 → ✓ 전송 완료(지시부째 함께 바뀌어요).
+//   지시부에 든 건의 공사·주소·고려사항을 고치면 그 지시부를 다시 만들어요(같은 연번·같은 파일).
+// - [폰 전송] = 지시부의 JPG를 보낼 폴더에 복사 → "보내는 중". Claude가 대화에 올리고 "보냄" 폴더에 써 두면 ✓ 전송 완료(사용자 2안).
 // - 대상이 아닌 건은 줄 끝 ×(작은 묻기 창). 지운 건은 다음 불러오기 때 다시 와요.
 // - 공사 관리 창: 현장대리인은 업무연락처에서 골라요(같은 연락처 하나 — 쌍방향), 공사명은 업무연락처 프로젝트로도 등록돼요.
 import { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { api, Case, Complaint, Contact, ContactsData, errorText, inApp, previewInbox, RunStatus, Work, WorkInput } from "./api";
+import { api, Case, Complaint, Contact, ContactsData, errorText, inApp, Order, OrderResult, previewInbox, RunStatus, Work, WorkInput } from "./api";
 import { COL_MIN, daysBetween, fitWidths, gridTemplate, maxWidthOf } from "./complaints";
 import { projectColor } from "./ContactsScreen";
 import { DelIcon } from "./Icons";
 import { koIndex, todayStr } from "./journal";
 import { PlaceInput } from "./PlaceInputs";
-import { actionLine, aiGuide, fileName, md, orderDate, PORTAL_URL, processError, SAMPLE_WORKS, SAMPLES, signerText } from "./process";
+import { actionLine, aiGuide, fileName, md, orderLabel, orderTag, PORTAL_URL, processError, SAMPLE_WORKS, SAMPLES } from "./process";
 import { DEFAULT_PROCESS, DONE_STATUS, loadSettings, ProcessSettings } from "./settingsStore";
 
 type Props = { urgentDays: number; onOpenComplaint: (id: number) => void };
@@ -31,7 +32,8 @@ const FETCHED_KEY = "process.fetched";
 const COLS_KEY = "process.colWidths";
 
 /** 열 제목과 처음 폭. null은 남는 폭을 쓰는 열(민원 요약)이에요. 끌어서 바꾼 폭은 COLS_KEY에 저장해요. */
-const COLUMNS: { label: string; w: number | null; center?: boolean }[] = [
+const COLUMNS: { label: string; w: number | null; center?: boolean; fixed?: boolean }[] = [
+  { label: "", w: 36, fixed: true },
   { label: "접수번호", w: 140 },
   { label: "접수", w: 60 },
   { label: "기한", w: 100 },
@@ -39,8 +41,7 @@ const COLUMNS: { label: string; w: number | null; center?: boolean }[] = [
   { label: "민원 요약 · 판단 이유", w: null },
   { label: "판단 공사", w: 160 },
   { label: "고려사항", w: 140 },
-  { label: "연번", w: 64 },
-  { label: "지시부 작성", w: 228 },
+  { label: "지시부", w: 312 },
 ];
 const defaultWidths = () => COLUMNS.map((c) => c.w);
 
@@ -77,6 +78,9 @@ const stamp = () => {
 export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   const [works, setWorks] = useState<Work[] | null>(null);
   const [cases, setCases] = useState<Case[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  // 지시부로 묶으려고 고른 줄(같은 공사만)
+  const [chosen, setChosen] = useState<string[]>([]);
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [cd, setCd] = useState<ContactsData | null>(null);
   const [ps, setPs] = useState<ProcessSettings>(DEFAULT_PROCESS);
@@ -93,7 +97,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   const [worksOpen, setWorksOpen] = useState(false);
   // Claude가 신문고를 읽는 중: 가져온 수 / 가져올 수(모르면 null)
   const [run, setRun] = useState<{ n: number; total: number | null } | null>(null);
-  // 지시부·JPG를 만드는 중인 줄
+  // 지시부·JPG를 만드는 중인 지시부(번호, 새로 만드는 중이면 "new")
   const [busy, setBusy] = useState<Record<string, string>>({});
   // 뜨는 목록(공사 고르기)과 지우기 묻기 창
   const [pick, setPick] = useState<{ no: string; rect: DOMRect } | null>(null);
@@ -106,6 +110,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
       const [pd, cl, cdata, st, f, cw] = await Promise.all([api.processData(), api.complaints(), api.contactsData(), loadSettings(), api.get(FETCHED_KEY), api.get(COLS_KEY)]);
       setWidths(readWidths(cw));
       setCases(pd.cases);
+      setOrders(pd.orders);
       setComplaints(cl);
       setCd(cdata);
       setPs(st.process);
@@ -124,17 +129,34 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
       data = await api.addContact({ name: s.agent, org: s.co, role: "현장대리인", mobile: s.phone, tel: "", email: "", projects: [s.name] });
       const c = data.contacts.find((x) => x.name === s.agent && x.org === s.co) ?? null;
       const p = data.projects.find((x) => x.name === s.name) ?? null;
-      list = await api.saveWork(null, { name: s.name, co: s.co, contact: c?.id ?? null, project: p?.id ?? null, scope: s.scope, nextSeq: s.nextSeq, tpl: s.tpl });
+      list = await api.saveWork(null, { name: s.name, full: s.full, co: s.co, contact: c?.id ?? null, project: p?.id ?? null, scope: s.scope, nextSeq: s.nextSeq, tpl: "" });
     }
     setWorks(list);
     setCd(data);
   }
 
   const putCase = (c: Case) => setCases((l) => l.map((x) => (x.no === c.no ? c : x)));
+  /** 지시부를 바꾸고 든 건의 진행도 같게 맞춰요(앱이 저장할 때 하는 것과 같아요). */
+  const putOrder = (o: Order) => {
+    setOrders((l) => (l.some((x) => x.id === o.id) ? l.map((x) => (x.id === o.id ? o : x)) : [...l, o]));
+    setCases((l) => l.map((c) => (c.order === o.id ? { ...c, stage: o.stage, orderFile: o.file, orderJpg: o.jpgs[0] ?? "", sentAt: o.sentAt } : c)));
+  };
+  const orderOf = (c: Case) => (c.order != null ? orders.find((o) => o.id === c.order) : undefined);
+
   const patch = async (no: string, p: Parameters<typeof api.updateCase>[1]): Promise<Case | null> => {
+    const before = cases.find((x) => x.no === no);
     try {
       const c = await api.updateCase(no, p);
       putCase(c);
+      // 지시부에 든 건이었으면: 지시부에서 빠졌거나 다시 만들어야 해요 → 표를 새로 읽고 그 지시부를 다시 만들어요.
+      if (before?.order != null) {
+        const pd = await api.processData();
+        setCases(pd.cases);
+        setOrders(pd.orders);
+        const o = pd.orders.find((x) => x.id === before.order);
+        if (c.order == null) await clearAction(c);
+        if (o?.dirty) await remakeOrder(o.id);
+      }
       return c;
     } catch (e) {
       setNote(errText(e));
@@ -180,7 +202,16 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     }
   }
 
-  /** 주소를 고쳐요. 민원대장에 넣은 건이면 그 줄의 지역·위치도 고치고, 지시부를 만든 건은 다시 만들어요. */
+  /** 지시부에서 빠진 건: 민원대장 조치내용의 지시 줄을 지워요(공사를 바꾸면 다시 만들 때 새로 적어요). */
+  async function clearAction(c: Case) {
+    const old = c.complaint != null ? complaints.find((x) => x.id === c.complaint) : undefined;
+    if (!old || !old.action) return;
+    const { id, no: _n, memo: _m, ...input } = old;
+    const m = await api.updateComplaint(id, { ...input, action: "" });
+    setComplaints((l) => l.map((x) => (x.id === m.id ? m : x)));
+  }
+
+  /** 주소를 고쳐요. 민원대장에 넣은 건이면 그 줄의 지역·위치도 고치고, 지시부에 든 건은 그 지시부를 다시 만들어요. */
   async function saveAddress(c: Case, area: string, place: string, road: string) {
     const n = await patch(c.no, { area, place, road });
     if (!n) return;
@@ -195,7 +226,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
       setNote(errText(e));
       return;
     }
-    setNote(c.stage !== "new" && n.stage === "new" ? "주소를 고쳤어요 · 지시부를 다시 만들어 주세요" : "주소를 고쳤어요" + (old ? ` · 민원대장 ${old.no}번도 고쳤어요` : ""));
+    setNote("주소를 고쳤어요" + (old ? ` · 민원대장 ${old.no}번도 고쳤어요` : "") + (n.order != null ? " · 지시부를 다시 만들었어요" : ""));
   }
 
   const isDone = (c: Case) => {
@@ -271,58 +302,92 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     await api.stopClaude().catch(() => {});
   }
 
-  // ---------- 지시부 만들기 · 폰으로 보내기 ----------
-  async function makeJpg(no: string): Promise<Case | null> {
-    setBusy((b) => ({ ...b, [no]: "만드는 중" }));
+  // ---------- 지시부 만들기 · 폰으로 보내기 (지시부째) ----------
+  const setBusyOf = (k: string, v: string | null) => setBusy(({ [k]: _, ...b }) => (v ? { ...b, [k]: v } : b));
+
+  async function makeJpg(id: number): Promise<Order | null> {
+    setBusyOf(String(id), "만드는 중");
     try {
-      const c = await api.orderJpg(no);
-      putCase(c);
-      return c;
+      const o = await api.orderJpg(id);
+      putOrder(o);
+      return o;
     } catch (e) {
       setNote(`JPG를 만들지 못했어요 — ${errText(e)}`);
       return null;
     } finally {
-      setBusy(({ [no]: _, ...b }) => b);
+      setBusyOf(String(id), null);
     }
   }
 
-  async function makeOrder(c: Case) {
-    const w = works?.find((x) => x.id === c.work);
-    if (!w || busy[c.no]) return;
-    setBusy((b) => ({ ...b, [c.no]: "만드는 중" }));
-    try {
-      const r = await api.makeOrder({ no: c.no, root: ps.root, signer: signerText(ps.signer, ps.signerPhone), date: orderDate(today) });
-      // 민원대장: 처음이면 등록, 다시 만들면(공사를 바꾼 뒤) 그 줄의 조치내용을 고쳐요.
-      const action = JSON.stringify([{ t: actionLine(r.workName, r.seq), k: "sq" }]);
-      const old = linked(c);
+  /** 만든(다시 만든) 지시부의 건들을 민원대장에 적어요: 처음이면 등록, 있으면 그 줄의 조치내용·주소를 고쳐요. */
+  async function writeComplaints(r: OrderResult): Promise<{ added: number; fixed: number }> {
+    const w = r.works.find((x) => x.id === r.order.work);
+    let added = 0;
+    let fixed = 0;
+    const list = [...complaints];
+    for (const c of r.cases) {
+      const action = JSON.stringify([{ t: actionLine(w?.name ?? "", r.order.seq, c.item), k: "sq" }]);
+      const old = c.complaint != null ? list.find((x) => x.id === c.complaint) : undefined;
       let m: Complaint;
       if (old) {
         const { id, no: _n, memo: _m, ...input } = old;
         m = await api.updateComplaint(id, { ...input, area: c.area, place: c.place, road: c.road, action });
-        setComplaints((l) => l.map((x) => (x.id === m.id ? m : x)));
+        list.splice(list.indexOf(old), 1, m);
+        fixed++;
       } else {
         m = await api.addComplaint(complaintOf(c, action));
-        setComplaints((l) => [...l, m]);
+        list.push(m);
+        putCase(await api.updateCase(c.no, { complaint: m.id }));
+        added++;
       }
-      putCase(await api.updateCase(c.no, { complaint: m.id }));
-      setWorks((l) => l && l.map((x) => (x.id === w.id ? { ...x, nextSeq: Math.max(x.nextSeq, r.seq + 1) } : x)));
-      setNote(`지시부를 만들고 민원대장 ${m.no}번에 ${old ? "고쳐 적었어요" : "등록했어요"}` + (r.missing.length ? ` · 양식에 없는 자리 ${r.missing.join(" ")}` : ""));
+    }
+    setComplaints(list);
+    return { added, fixed };
+  }
+
+  async function runOrder(req: { nos: string[]; order: number | null }, key: string) {
+    if (busy[key]) return;
+    setBusyOf(key, "만드는 중");
+    let r: OrderResult;
+    try {
+      r = await api.makeOrder({ ...req, root: ps.root, date: today, tpl: ps.tpl });
+      setWorks(r.works);
+      setCases((l) => l.map((x) => r.cases.find((y) => y.no === x.no) ?? x));
+      putOrder(r.order);
+      const w = r.works.find((x) => x.id === r.order.work);
+      const n = await writeComplaints(r);
+      const tag = w ? orderTag(w.name, r.order.seq) : String(r.order.seq);
+      setNote(
+        `지시부 ${tag}(${r.cases.length}건)를 ${req.order != null ? "다시 " : ""}만들었어요` +
+          (n.added ? ` · 민원대장 ${n.added}건 등록` : "") +
+          (n.fixed ? ` · 민원대장 ${n.fixed}건 고침` : "") +
+          (r.missing.length ? ` · 양식에 없는 자리 ${r.missing.join(" ")}` : ""),
+      );
     } catch (e) {
       setNote(errText(e));
       return;
     } finally {
-      setBusy(({ [c.no]: _, ...b }) => b);
+      setBusyOf(key, null);
     }
-    await makeJpg(c.no);
+    await makeJpg(r.order.id);
   }
 
-  async function send(c: Case) {
-    if (busy[c.no]) return;
-    const ready = c.orderJpg ? c : await makeJpg(c.no);
-    if (!ready?.orderJpg) return;
+  async function makeOrder() {
+    if (!chosen.length) return;
+    const nos = chosen;
+    setChosen([]);
+    await runOrder({ nos, order: null }, "new");
+  }
+
+  const remakeOrder = (id: number) => runOrder({ nos: [], order: id }, String(id));
+
+  async function send(o: Order) {
+    if (busy[o.id]) return;
+    const ready = o.jpgs.length ? o : await makeJpg(o.id);
+    if (!ready?.jpgs.length) return;
     try {
-      putCase(await api.sendOrder(c.no, ps.outbox));
-      setNote("보낼 폴더에 넣었어요 · Claude 앱 \"민원처리\" 대화에 \"보내\"라고 하세요");
+      putOrder(await api.sendOrder(o.id, ps.outbox));
+      setNote(`보낼 폴더에 JPG ${ready.jpgs.length}장을 넣었어요 · Claude 앱 “민원처리” 대화에 “보내”라고 하세요`);
     } catch (e) {
       setNote(errText(e));
     }
@@ -355,15 +420,25 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   async function changeWork(c: Case, id: number) {
     setPick(null);
     if (c.work === id) return;
-    // 지시부를 만든 뒤 공사를 바꾸면 [지시부 만들기]로 돌아가요(만들면 민원대장 조치내용을 고쳐요).
+    setChosen((l) => l.filter((n) => n !== c.no));
+    // 지시부에 든 건이면 그 지시부에서 빠지고(남은 건으로 다시 만들어요), 새 공사로 다시 골라 만들어요.
     await patch(c.no, { work: id });
   }
 
   async function remove(no: string) {
     setAsk(null);
+    const c = cases.find((x) => x.no === no);
+    setChosen((l) => l.filter((n) => n !== no));
     try {
       await api.deleteCase(no);
-      setCases((l) => l.filter((c) => c.no !== no));
+      setCases((l) => l.filter((x) => x.no !== no));
+      if (c?.order != null) {
+        const pd = await api.processData();
+        setCases(pd.cases);
+        setOrders(pd.orders);
+        const o = pd.orders.find((x) => x.id === c.order);
+        if (o?.dirty) await remakeOrder(o.id);
+      }
     } catch (e) {
       setNote(errText(e));
     }
@@ -373,16 +448,18 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   const saveWork = useCallback(async (id: number | null, input: WorkInput) => setWorks(await api.saveWork(id, input)), []);
   const deleteWork = useCallback(async (id: number) => {
     setWorks(await api.deleteWork(id));
-    setCases((await api.processData()).cases);
+    const pd = await api.processData();
+    setCases(pd.cases);
+    setOrders(pd.orders);
   }, []);
 
-  // 보내는 중인 건: Claude가 올렸는지 화면을 연 동안 15초마다 봐요.
-  const queued = cases.some((c) => c.stage === "queued");
+  // 보내는 중인 지시부: Claude가 올렸는지 화면을 연 동안 15초마다 봐요.
+  const queued = orders.some((o) => o.stage === "queued");
   useEffect(() => {
     if (!queued) return;
     const look = () =>
       api.checkSent(`${todayStr()} ${stamp().slice(6)}`).then(
-        (l) => l.length && setCases((all) => all.map((x) => l.find((y) => y.no === x.no) ?? x)),
+        (l) => l.forEach(putOrder),
         () => {},
       );
     look();
@@ -423,6 +500,10 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   }
 
   const pickCase = pick && cases.find((c) => c.no === pick.no);
+  // 고른 줄의 공사(같은 공사만 함께 골라요)와 새 지시부 이름
+  const chosenWork = chosen.length ? works.find((w) => w.id === cases.find((c) => c.no === chosen[0])?.work) : undefined;
+  const canChoose = (c: Case) => c.work != null && c.order == null && !isDone(c) && (!chosenWork || c.work === chosenWork.id);
+  const toggle = (c: Case) => setChosen((l) => (l.includes(c.no) ? l.filter((n) => n !== c.no) : canChoose(c) ? [...l, c.no] : l));
   const total = cases.filter((c) => !isDone(c)).length;
   const shownWidths = fitWidths(widths, avail);
   const tableStyle = { "--pr-cols": gridTemplate(shownWidths), "--pr-gutter": `${gutter}px` } as CSSProperties;
@@ -470,6 +551,27 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
         </div>
       )}
 
+      {chosen.length > 0 && chosenWork && (
+        <div className="pr-pickbar" role="status">
+          <span
+            className="pr-work"
+            style={{ "--wc": `var(--pj-${workColor(chosenWork, cd)}-line)`, "--wf": `var(--pj-${workColor(chosenWork, cd)}-fg)` } as CSSProperties}
+          >
+            {chosenWork.name}
+          </span>
+          <span>
+            <b>{chosen.length}건</b> 골랐어요 · 지시부 <b>{chosenWork.name}-{String(chosenWork.nextSeq).padStart(2, "0")}</b> 으로 묶어요
+          </span>
+          <span className="pr-sub">같은 공사만 함께 고를 수 있어요</span>
+          <button type="button" className="btn btn-ctrl btn-text pr-push" onClick={() => setChosen([])}>
+            선택 해제
+          </button>
+          <button type="button" className="btn-primary btn-ctrl" disabled={!!busy.new} onClick={makeOrder}>
+            {busy.new ? "만드는 중…" : "지시부 만들기"}
+          </button>
+        </div>
+      )}
+
       <div className="pr-table" role="table" aria-label="민원처리 목록" style={tableStyle}>
         <HeadRow widths={shownWidths} avail={avail} onResize={setWidths} onResized={saveWidths} onReset={() => saveWidths(defaultWidths())} />
         <div className="pr-body" ref={bodyRef}>
@@ -482,17 +584,32 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
             const left = c.due ? daysBetween(today, c.due) : null;
             const k = workColor(w, cd);
             const asking = ask?.no === c.no;
-            const b = busy[c.no];
+            const o = orderOf(c);
+            const ow = o ? works.find((x) => x.id === o.work) : undefined;
+            const b = o ? busy[o.id] : undefined;
+            const picked = chosen.includes(c.no);
             return (
               <div
                 key={c.no}
                 className="pr-row"
                 role="row"
-                data-sel={sel === c.no || asking ? "1" : undefined}
+                data-sel={sel === c.no || asking || picked ? "1" : undefined}
                 data-done={isD ? "1" : undefined}
                 onClick={() => setSel(sel === c.no ? null : c.no)}
                 onDoubleClick={() => c.complaint != null && onOpenComplaint(c.complaint)}
               >
+                <div className="pr-check" onClick={(e) => e.stopPropagation()}>
+                  {c.order == null && (
+                    <input
+                      type="checkbox"
+                      aria-label={`${c.no} 고르기`}
+                      checked={picked}
+                      disabled={!picked && !canChoose(c)}
+                      title={c.work == null ? "먼저 공사를 골라요" : !picked && !canChoose(c) ? "같은 공사만 함께 고를 수 있어요" : "지시부로 묶을 민원 고르기"}
+                      onChange={() => toggle(c)}
+                    />
+                  )}
+                </div>
                 <div className="pr-no">
                   <button
                     type="button"
@@ -529,7 +646,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                     className={"pr-work" + (w ? "" : " none")}
                     style={w ? ({ "--wc": `var(--pj-${k}-line)`, "--wf": `var(--pj-${k}-fg)` } as CSSProperties) : undefined}
                     disabled={isD || !!b}
-                    title={isD ? undefined : c.stage === "new" ? "눌러서 공사 고르기" : "공사를 바꾸면 지시부를 다시 만들어요"}
+                    title={isD ? undefined : c.order == null ? "눌러서 공사 고르기" : "공사를 바꾸면 이 지시부에서 빠져요(남은 건으로 다시 만들어요)"}
                     onClick={(e) => {
                       e.stopPropagation();
                       setAsk(null);
@@ -542,38 +659,30 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                 <div onClick={(e) => e.stopPropagation()}>
                   <TextCell value={c.note} disabled={isD} placeholder={isD ? "" : "예: 야간 작업, 교통 통제 협의"} onSave={(v) => patch(c.no, { note: v })} />
                 </div>
-                <div onClick={(e) => e.stopPropagation()}>
-                  <TextCell
-                    value={c.seq}
-                    disabled={isD || c.stage !== "new"}
-                    center
-                    placeholder={w && !isD ? String(w.nextSeq) : ""}
-                    title="비우면 다음 번호가 자동으로 붙어요"
-                    clean={(v) => v.replace(/\D/g, "")}
-                    onSave={(v) => patch(c.no, { seq: v })}
-                  />
-                </div>
                 <div className="pr-acts" onClick={(e) => e.stopPropagation()}>
-                  {/* 진행 단추 · 지시부 열람 · 폴더 열기 · 대장 등록 · × (2026-10-18 사용자) */}
-                  {b ? (
+                  {/* 지시부 이름 · 진행 · 지시부 열람 · 폴더 열기 · 대장 등록 · × (2026-10-19 표준 지시부) */}
+                  {o ? (
+                    <span className="pr-chip" title={`${fileName(o.file)} · ${c.item}번째 항목`}>
+                      {orderLabel(ow?.name ?? "", o.seq, c.item)}
+                    </span>
+                  ) : (
+                    <span className="pr-chip none">—</span>
+                  )}
+                  {!o ? (
+                    <span className="pr-next-gap" />
+                  ) : b ? (
                     <button type="button" className="pr-next go" disabled>
                       {b}
                     </button>
-                  ) : c.stage === "new" ? (
-                    <button
-                      type="button"
-                      className={"pr-next" + (w ? " go" : "")}
-                      disabled={!w || isD}
-                      title={w ? "지시부 파일·JPG를 만들고 민원대장에 등록해요" : "먼저 공사를 골라요"}
-                      onClick={() => makeOrder(c)}
-                    >
-                      지시부
+                  ) : o.dirty ? (
+                    <button type="button" className="pr-next go" disabled={isD} title="든 민원을 고쳤어요. 같은 연번·같은 파일로 다시 만들어요" onClick={() => remakeOrder(o.id)}>
+                      다시 만들기
                     </button>
-                  ) : c.stage === "made" ? (
-                    <button type="button" className="pr-next go" disabled={isD} title="JPG를 보낼 폴더에 넣어요. Claude 앱 “민원처리” 대화에 “보내”라고 하면 폰으로 올려 줘요" onClick={() => send(c)}>
+                  ) : o.stage === "made" ? (
+                    <button type="button" className="pr-next go" disabled={isD} title="이 지시부의 JPG(쪽마다)를 보낼 폴더에 넣어요. Claude 앱 “민원처리” 대화에 “보내”라고 하면 폰으로 올려 줘요" onClick={() => send(o)}>
                       폰 전송
                     </button>
-                  ) : c.stage === "queued" ? (
+                  ) : o.stage === "queued" ? (
                     <span className="pr-sent pr-queued" title="보낼 폴더에 있어요. Claude 앱 “민원처리” 대화에 “보내”라고 하면 올려 주고 전송 완료로 바뀌어요">
                       보내는 중
                     </span>
@@ -589,9 +698,9 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                     type="button"
                     className="pr-icon"
                     aria-label="지시부 열기"
-                    title={c.orderFile ? `${fileName(c.orderFile)}\n파워포인트(한글)로 열어요` : "아직 지시부가 없어요"}
-                    disabled={!c.orderFile}
-                    onClick={() => openFile(c.orderFile)}
+                    title={o?.file ? `${fileName(o.file)}\n한글로 열어요` : "아직 지시부가 없어요"}
+                    disabled={!o?.file}
+                    onClick={() => o && openFile(o.file)}
                   >
                     <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
@@ -604,7 +713,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                     aria-label="이 민원 파일 보기"
                     title="탐색기를 열어 이 민원 파일을 보여요"
                     onClick={() => {
-                      const f = c.orderFile || c.photos[0] || c.map;
+                      const f = o?.file || c.photos[0] || c.map;
                       openFile(f || c.folder || ps.root, !!f);
                     }}
                   >
@@ -628,7 +737,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                     className={"pr-del" + (asking ? " on" : "")}
                     aria-label="이 민원 지우기"
                     aria-expanded={asking}
-                    title="지시부를 만들 건이 아니면 지워요"
+                    title={c.order != null ? "지시부를 만들 건이 아니면 지워요(이 지시부에서도 빠져요)" : "지시부를 만들 건이 아니면 지워요"}
                     onClick={(e) => {
                       setPick(null);
                       setAsk(asking ? null : { no: c.no, rect: e.currentTarget.getBoundingClientRect() });
@@ -657,7 +766,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
             {note}
           </span>
         )}
-        <span className="pr-folder">저장 폴더 {ps.root} · 파일 이름 접수일_위치_보수내용</span>
+        <span className="pr-folder">저장 폴더 {ps.root}</span>
         <button type="button" className="btn btn-xs" onClick={() => openFile(ps.root)}>
           폴더 열기
         </button>
@@ -756,7 +865,7 @@ function HeadRow({
         <div role="columnheader" key={col.label} className={col.center ? "pr-c" : undefined}>
           {col.label}
           {/* 남는 폭을 쓰는 열(민원 요약)은 끌지 않아요 — 옆 열을 끌면 따라 바뀌어요. */}
-          {i < COLUMNS.length - 1 && col.w !== null && <span className="cm-grip" aria-hidden="true" title="끌어서 열 너비 바꾸기" onMouseDown={(e) => start(e, i)} />}
+          {i < COLUMNS.length - 1 && col.w !== null && !col.fixed && <span className="cm-grip" aria-hidden="true" title="끌어서 열 너비 바꾸기" onMouseDown={(e) => start(e, i)} />}
         </div>
       ))}
       {menu && (
@@ -935,23 +1044,8 @@ function Floating({ rect, align, onClose, children }: { rect: DOMRect; align: "l
 
 // ---------- 공사 관리 창 ----------
 
-type Draft = { name: string; co: string; contact: number | null; agent: string; phone: string; scope: string; nextSeq: string; tpl: string };
-const EMPTY_DRAFT: Draft = { name: "", co: "", contact: null, agent: "", phone: "", scope: "", nextSeq: "1", tpl: "" };
-
-async function chooseTemplate(): Promise<string | null> {
-  if (inApp) {
-    const { open } = await import("@tauri-apps/plugin-dialog");
-    const p = await open({ multiple: false, filters: [{ name: "지시부 양식", extensions: ["pptx", "hwpx"] }] });
-    return typeof p === "string" ? p : null;
-  }
-  return new Promise((resolve) => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".pptx,.hwpx";
-    input.onchange = () => resolve(input.files?.[0] ? `D:\\지시부\\${input.files[0].name}` : null);
-    input.click();
-  });
-}
+type Draft = { name: string; full: string; co: string; contact: number | null; agent: string; phone: string; scope: string; nextSeq: string };
+const EMPTY_DRAFT: Draft = { name: "", full: "", co: "", contact: null, agent: "", phone: "", scope: "", nextSeq: "1" };
 
 function WorksDialog({
   works,
@@ -993,15 +1087,18 @@ function WorksDialog({
     let data = cd;
     let projectId = oldProject;
     const name = d.name.trim();
-    // 공사명 = 프로젝트 이름(바꾸면 따라가요)
-    if (projectId != null && data.projects.some((p) => p.id === projectId)) {
-      const p = data.projects.find((x) => x.id === projectId)!;
-      if (p.name !== name) data = await api.renameProject(projectId, name);
-    } else {
+    const full = d.full.trim();
+    // 공사명 = 업무연락처 프로젝트: 정식 공사명이 프로젝트 정식 이름, 축약 공사명이 줄인 이름(바꾸면 따라가요)
+    const same = (p: { name: string; alias: string }) => p.name === name || p.alias === name || (!!full && p.name === full);
+    if (projectId == null || !data.projects.some((p) => p.id === projectId)) {
       // 줄인 이름(alias)이 같은 프로젝트도 같은 것으로 봐요(core add_project와 같게, 2026-10-18 업무연락처 세션 전달)
-      const same = data.projects.find((p) => p.name === name || p.alias === name);
-      if (!same) data = await api.addProject(name);
-      projectId = data.projects.find((p) => p.name === name || p.alias === name)?.id ?? null;
+      if (!data.projects.some(same)) data = await api.addProject(name);
+      projectId = data.projects.find(same)?.id ?? null;
+    }
+    const p = data.projects.find((x) => x.id === projectId);
+    if (p) {
+      const want = full && full !== name ? { name: full, alias: name } : { name, alias: "" };
+      if (p.name !== want.name || p.alias !== want.alias) data = await api.setProjectNames(p.id, want.name, want.alias);
     }
     const pname = name;
     let contactId = d.contact;
@@ -1034,12 +1131,12 @@ function WorksDialog({
   async function add() {
     setErr("");
     if (!draft.name.trim()) {
-      setErr("공사명을 적어요");
+      setErr("축약 공사명을 적어요");
       return;
     }
     try {
       const [contact, project] = await link(draft, null);
-      await onSave(null, { name: draft.name.trim(), co: draft.co.trim(), contact, project, scope: draft.scope.trim(), nextSeq: Math.max(1, Number(draft.nextSeq) || 1), tpl: draft.tpl });
+      await onSave(null, { name: draft.name.trim(), full: draft.full.trim(), co: draft.co.trim(), contact, project, scope: draft.scope.trim(), nextSeq: Math.max(1, Number(draft.nextSeq) || 1), tpl: "" });
       setDraft(EMPTY_DRAFT);
     } catch (e) {
       setErr(errorText(e));
@@ -1048,7 +1145,7 @@ function WorksDialog({
 
   function startEdit(w: Work) {
     const c = contactOf(w.contact);
-    setEdit({ name: w.name, co: w.co, contact: w.contact, agent: c?.name ?? "", phone: phoneOf(c), scope: w.scope, nextSeq: String(w.nextSeq), tpl: w.tpl });
+    setEdit({ name: w.name, full: w.full, co: w.co, contact: w.contact, agent: c?.name ?? "", phone: phoneOf(c), scope: w.scope, nextSeq: String(w.nextSeq) });
     setEditing(w.id);
     setSelW(w.id);
   }
@@ -1059,7 +1156,7 @@ function WorksDialog({
     if (!w || !edit.name.trim()) return;
     try {
       const [contact, project] = await link(edit, w.project);
-      await onSave(w.id, { name: edit.name.trim(), co: edit.co.trim(), contact, project, scope: edit.scope.trim(), nextSeq: Math.max(1, Number(edit.nextSeq) || w.nextSeq), tpl: edit.tpl });
+      await onSave(w.id, { name: edit.name.trim(), full: edit.full.trim(), co: edit.co.trim(), contact, project, scope: edit.scope.trim(), nextSeq: Math.max(1, Number(edit.nextSeq) || w.nextSeq), tpl: w.tpl });
     } catch (e) {
       setErr(errorText(e));
     }
@@ -1079,17 +1176,6 @@ function WorksDialog({
     return () => window.removeEventListener("mousedown", down);
   }, [editing, saveEdit]);
 
-  async function changeTpl(w: Work) {
-    const p = await chooseTemplate();
-    if (!p) return;
-    const { id, ...input } = w;
-    try {
-      await onSave(id, { ...input, tpl: p });
-    } catch (e) {
-      setErr(errorText(e));
-    }
-  }
-
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && editing == null && onClose()}>
       <div className="dialog pr-works" role="dialog" aria-modal="true" aria-label="공사 관리">
@@ -1098,12 +1184,12 @@ function WorksDialog({
           <span className="pr-sub">계약된 공사와 시공사예요. 민원을 어느 공사로 보낼지 여기 처리 범위를 보고 판단해요.</span>
         </div>
         <div className="pr-wgrid pr-whead">
-          <span>공사명</span>
+          <span>축약 공사명 (표·파일)</span>
+          <span>정식 공사명 (지시부)</span>
           <span>시공사</span>
           <span>현장대리인 (업무연락처)</span>
           <span>처리 범위 (판단 기준)</span>
           <span>다음 연번</span>
-          <span>지시부 양식</span>
           <span />
         </div>
         <div className="pr-wlist">
@@ -1113,15 +1199,12 @@ function WorksDialog({
             if (editing === w.id) {
               return (
                 <div key={w.id} ref={editRef} className="pr-wgrid pr-wrow pr-wedit" onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing && (e.target as HTMLElement).tagName === "INPUT" && !document.querySelector(".pr-cmenu")) saveEdit(); }}>
-                  <input className="cell-input" aria-label="공사명" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} />
+                  <input className="cell-input" aria-label="축약 공사명" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} />
+                  <input className="cell-input" aria-label="정식 공사명" value={edit.full} onChange={(e) => setEdit({ ...edit, full: e.target.value })} />
                   <input className="cell-input" aria-label="시공사" value={edit.co} onChange={(e) => setEdit({ ...edit, co: e.target.value })} />
                   <AgentInputs d={edit} contacts={cd.contacts} onChange={setEdit} />
                   <input className="cell-input" aria-label="처리 범위" value={edit.scope} onChange={(e) => setEdit({ ...edit, scope: e.target.value })} />
                   <input className="cell-input pr-in center" aria-label="다음 연번" value={edit.nextSeq} onChange={(e) => setEdit({ ...edit, nextSeq: e.target.value.replace(/\D/g, "") })} />
-                  <TplButton path={edit.tpl} onPick={async () => {
-                    const p = await chooseTemplate();
-                    if (p) setEdit((d) => ({ ...d, tpl: p }));
-                  }} />
                   <button type="button" className="pr-save" title="저장 (Enter)" onClick={saveEdit}>
                     저장
                   </button>
@@ -1141,6 +1224,9 @@ function WorksDialog({
                   <span className="pr-dot" style={{ background: `var(--pj-${k}-line)` }} />
                   <span>{w.name}</span>
                 </span>
+                <span className="pr-ell" title={w.full || undefined}>
+                  {w.full || <span className="pr-sub">축약 공사명과 같음</span>}
+                </span>
                 <span className="pr-ell">{w.co}</span>
                 <span className="pr-agent" title="업무연락처와 같은 연락처예요. 어느 쪽에서 고쳐도 함께 바뀌어요">
                   {c ? (
@@ -1153,8 +1239,7 @@ function WorksDialog({
                   )}
                 </span>
                 <span className="pr-scope">{w.scope}</span>
-                <span className="pr-num">{w.nextSeq}</span>
-                <TplButton path={w.tpl} onPick={() => changeTpl(w)} />
+                <span className="pr-num">{String(w.nextSeq).padStart(2, "0")}</span>
                 <button
                   type="button"
                   className="pr-del"
@@ -1170,15 +1255,12 @@ function WorksDialog({
             );
           })}
           <div className="pr-wgrid pr-wrow pr-wnew">
-            <input className="cell-input" placeholder="공사명" aria-label="새 공사명" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+            <input className="cell-input" placeholder="예: 동부권 도로시설물 1지구" aria-label="새 축약 공사명" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+            <input className="cell-input" placeholder="계약서의 공사명" aria-label="새 정식 공사명" value={draft.full} onChange={(e) => setDraft({ ...draft, full: e.target.value })} />
             <input className="cell-input" placeholder="시공사" aria-label="새 시공사" value={draft.co} onChange={(e) => setDraft({ ...draft, co: e.target.value })} />
             <AgentInputs d={draft} contacts={cd.contacts} onChange={setDraft} />
             <input className="cell-input" placeholder="예: 반사경, 시선유도봉, 작은 포트홀" aria-label="새 처리 범위" value={draft.scope} onChange={(e) => setDraft({ ...draft, scope: e.target.value })} />
             <input className="cell-input pr-in center" title="처음 연번(보통 1)" aria-label="새 다음 연번" value={draft.nextSeq} onChange={(e) => setDraft({ ...draft, nextSeq: e.target.value.replace(/\D/g, "") })} />
-            <TplButton path={draft.tpl} empty="양식 파일 고르기" onPick={async () => {
-              const p = await chooseTemplate();
-              if (p) setDraft((d) => ({ ...d, tpl: p }));
-            }} />
             <button type="button" className="pr-add" aria-label="공사 등록" onClick={add}>
               <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
                 <path d="M12 5v14M5 12h14" />
@@ -1189,7 +1271,7 @@ function WorksDialog({
         <div className="pr-hints">
           {err && <span className="pr-err">{err}</span>}
           <span>현장대리인은 업무연락처에서 골라요(어느 쪽에서 고쳐도 함께 바뀌어요). 공사명은 업무연락처 프로젝트로도 등록되고 현장대리인에게 붙어요. 줄을 두 번 누르면 고치고 [저장]·Enter로 저장해요(Esc 취소).</span>
-          <span>양식은 pptx·hwpx 중 골라요. 양식 이름을 누르면 파일을 바꿔요. 양식에 글자 자리 {"{주소} {보수내용} {고려사항} {연번} {지시일} {지시자}"} 와 그림 자리 "위치도"·"현장사진"을 두면 돼요.</span>
+          <span>지시부는 모든 공사가 표준 양식 하나를 써요(설정 “민원처리”). 정식 공사명은 지시부 맨 위, 축약 공사명은 표의 공사 배지·지시부 번호·파일 이름에 들어가요.</span>
         </div>
         <div className="dialog-foot">
           <button type="button" className="btn btn-ctrl btn-text" onClick={() => (editing != null ? saveEdit().then(onClose) : onClose())}>
@@ -1286,25 +1368,6 @@ function AgentInputs({ d, contacts, onChange }: { d: Draft; contacts: Contact[];
         </Floating>
       )}
     </span>
-  );
-}
-
-function TplButton({ path, onPick, empty }: { path: string; onPick: () => void; empty?: string }) {
-  if (!path && empty) {
-    return (
-      <button type="button" className="btn btn-xs pr-tpl-pick" title="pptx·hwpx" onClick={onPick}>
-        {empty}
-      </button>
-    );
-  }
-  return (
-    <button type="button" className="pr-tpl" title={`${path}\n눌러서 양식 파일 바꾸기 (pptx·hwpx)`} onClick={(e) => (e.stopPropagation(), onPick())}>
-      <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
-        <path d="M14 3v5h5" />
-      </svg>
-      <span className="pr-ell">{path ? fileName(path) : "양식 없음"}</span>
-    </button>
   );
 }
 
