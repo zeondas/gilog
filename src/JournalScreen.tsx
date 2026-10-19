@@ -265,34 +265,6 @@ export default function JournalScreen({
 
   return (
     <div className="jn">
-      {/* 왼쪽 열(시안 JournalCal1.dc.html 1안): 위 월 달력, 아래 챙길 일 */}
-      <div className="jn-left">
-        <JournalCalendar
-          day={day}
-          today={today}
-          counts={counts}
-          holidays={holidays}
-          onPick={go}
-          hasHead={(d) => data.days.some((x) => x.date === d)}
-          onDelete={removeDay}
-        />
-        <section className="jn-aside" aria-label="챙길 일">
-          <div className="jn-aside-head">
-            <span className="jn-aside-title">챙길 일</span>
-            <span className="muted small">마감 7일 이내</span>
-          </div>
-          <DueList
-            list={dueSoon(complaints, today)}
-            tasks={tasksDueSoon(tasks.tasks, today)}
-            lists={tasks.lists}
-            today={today}
-            urgentDays={urgentDays}
-            onOpen={onOpenComplaint}
-            onOpenTask={onOpenTask}
-          />
-        </section>
-      </div>
-
       <div className="jn-body">
         <div className="jn-head">
           <h1 className="title">{dayTitle(day)}</h1>
@@ -396,6 +368,34 @@ export default function JournalScreen({
             )}
           </>
         )}
+      </div>
+
+      {/* 오른쪽 열(2026-10-19 사용자 — 시안 JournalRight.dc.html 1안, 폭 260): 위 월 달력, 아래 챙길 일 */}
+      <div className="jn-left">
+        <JournalCalendar
+          day={day}
+          today={today}
+          counts={counts}
+          holidays={holidays}
+          onPick={go}
+          hasHead={(d) => data.days.some((x) => x.date === d)}
+          onDelete={removeDay}
+        />
+        <section className="jn-aside" aria-label="챙길 일">
+          <div className="jn-aside-head">
+            <span className="jn-aside-title">챙길 일</span>
+            <span className="muted small">마감 7일 이내</span>
+          </div>
+          <DueList
+            list={dueSoon(complaints, today)}
+            tasks={tasksDueSoon(tasks.tasks, today)}
+            lists={tasks.lists}
+            today={today}
+            urgentDays={urgentDays}
+            onOpen={onOpenComplaint}
+            onOpenTask={onOpenTask}
+          />
+        </section>
       </div>
     </div>
   );
