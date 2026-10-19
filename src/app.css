@@ -9679,6 +9679,9 @@ button.bd-chip:hover {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
+.bd-sumbar b.neg {
+  color: var(--danger);
+}
 .bd-sumbar button {
   display: grid;
   place-items: center;
