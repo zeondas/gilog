@@ -94,7 +94,9 @@ function FileShape({ size, name }: { size: number; name: string }) {
 // rev: 파일이 바뀌면(보안 해제 등으로 수정 시각·크기가 달라지면) 아이콘을 다시 받게 하는 표
 // — 윈도우 탐색기처럼 자물쇠가 사라지거나 종류 아이콘이 바뀌어도 따라가요(2026-10-19).
 export function FileIcon({ name, path, dir, size, rev }: { name: string; path: string; dir: boolean; size: number; rev?: string | number }) {
-  const want = size <= 20 ? 16 : 32;
+  // 보이는 크기보다 한 단계 큰 그림을 받아 줄여 그려요(윈도우 탐색기처럼 또렷하게).
+  // 16px 목록도 32를 받아 2배로 선명, 44 그리드는 48, 64 썸네일 자리는 256(점보)로.
+  const want = size <= 24 ? 32 : size <= 48 ? 48 : 256;
   const key = iconKey(name, path, dir);
   const ck = rev ? `${want}|${key}|${rev}` : `${want}|${key}`;
   const [, tick] = useState(0);
