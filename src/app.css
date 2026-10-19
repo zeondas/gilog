@@ -10407,3 +10407,12 @@ select.input.fx-set-date { width: 190px; }
 .dialog .pjm-row .cal-cbtn[aria-expanded="true"] {
   box-shadow: 0 0 0 2px var(--surface-raised), 0 0 0 3px var(--accent);
 }
+
+
+/* 머리 줄 단추(2026-10-19 사용자 1안): 90px 고정(기준 크기 1600×900에서 오른쪽 끝 = 창 끝), 넓어지면 남는 폭은 오른쪽 빈 곳.
+   좁아서 다 안 들어가면 글자 없이 34×34 정사각형 고정, 앞에서부터 차례로. 폭은 FilesScreen이 --tool-w로 넣어요. */
+.fx-tools .fx-tool,
+.fx-tools .fx-tool:last-child { flex: none; width: var(--tool-w, 90px); min-width: 0; }
+.fx-tools[data-compact="1"] .fx-tl { display: none; }
+.fx-tools[data-compact="1"] .fx-tool { gap: 0; }
+.fx-tools { overflow: hidden; }
