@@ -8,6 +8,7 @@
 // - [폰 전송] = 지시부의 JPG를 보낼 폴더에 복사 → "보내는 중". Claude가 대화에 올리고 "보냄" 폴더에 써 두면 ✓ 전송 완료(사용자 2안).
 // - 대상이 아닌 건은 줄 끝 ×(작은 묻기 창). 지운 건은 다음 불러오기 때 다시 와요.
 // - 공사 관리 창: 현장대리인은 업무연락처에서 골라요(같은 연락처 하나 — 쌍방향), 공사명은 업무연락처 프로젝트로도 등록돼요.
+import { createPortal } from "react-dom";
 import { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, Case, Complaint, Contact, ContactsData, errorText, inApp, Order, OrderResult, previewInbox, RunStatus, Work, WorkInput } from "./api";
 import { COL_MIN, daysBetween, fitWidths, gridTemplate, maxWidthOf } from "./complaints";
@@ -1044,10 +1045,12 @@ function Floating({ rect, align, onClose, children }: { rect: DOMRect; align: "l
       window.removeEventListener("mousedown", down);
     };
   }, [onClose]);
-  return (
+  // 화면 맨 위(body)에 띄워요 — 가운데 뜨는 창(.overlay) 안에 두면 창 자리 맞추기(snap.ts)가 이 상자까지 옮겨 화면 밖으로 밀려났어요(2026-10-19 공사 지우기 버그).
+  return createPortal(
     <div ref={ref} className="pr-float" style={pos} onClick={(e) => e.stopPropagation()}>
       {children}
-    </div>
+    </div>,
+    document.body,
   );
 }
 
