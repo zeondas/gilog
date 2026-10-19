@@ -4,7 +4,10 @@
 //   - 집행현황에 그 해 자료가 있으면 당해예산(본예산)·집행액(당해)은 거기서 와요. 이월 사업을 이으면 그 예산은 전년도 이월(명시), 집행액은 집행(명시).
 //   - 없는 해는 직접 적어요. 불용액은 늘 직접 적어요. 재원이 둘 이상이면 재원 줄은 직접 적고 합계 줄은 집행현황 값 — 다르면 붉게.
 //   - 단년도 사업(처음 값)은 집행현황에 있는 해마다 따로(해 사이 이월 없음). 다년도 사업은 기간(시작~끝 해)을 적고, 남은 돈이 다음 해 전년도 이월로 이어져요(결산 표시는 없어요 — 2026-10-19 사용자).
-//   - 예산현액 = 당해예산 + 전년도 이월 · 집행률 = 집행액 ÷ 예산현액 · 다음연도 이월 = 현액 − 집행 − 불용
+//   - 다음연도 이월(명시·사고)과 불용액은 늘 직접 적어요(2026-10-19 23:14 사용자 — 계산하지 않아요). 남은 돈(현액 − 집행 − 이월 − 불용)은 참고 값.
+//   - 집행현황의 "(명시이월)/(사고이월) …" 세부사업은 ⚙에서 어느 사업에 이으면 그 사업의 전년도 이월·집행(명시/사고)로 들어가고,
+//     잇지 않은 것은 그대로 한 줄로 보여요(예산 → 전년도 이월 명시/사고, 집행액 → 집행 명시/사고) — 집행현황의 모든 세부사업이 빠짐없이.
+//   - 예산현액 = 당해예산 + 전년도 이월 · 집행률 = 집행액 ÷ 예산현액
 //   - 다음 해 전년도 이월 ≠ 이 해 다음연도 이월이면 붉게(십원 단위까지 맞춰 보는 장부라서).
 // 저장: core 표 bstatus(세부사업 이름 → 이 Setup JSON). 계산은 화면이 해요.
 import type { BudgetProject } from "./budget";
@@ -18,6 +21,7 @@ export type Manual = {
   a1?: number; a2?: number; a3?: number; a4?: number; // 1추~4추
   pm?: number; ps?: number; // 전년도 이월 명시·사고(첫해만 — 그 뒤는 앞 해에서 자동)
   en?: number; em?: number; es?: number; // 집행 당해·명시·사고
+  nm?: number; ns?: number; // 다음연도 이월 명시·사고
   un?: number; // 불용액
 };
 
@@ -50,7 +54,7 @@ export type Line = {
   act: number;
   en: number; em: number; es: number; ex: number;
   rate: number | null;
-  left: number; nm: number; ns: number; // 다음연도 이월(소계·명시·사고 — 사고는 적는 칸이 없어 0)
+  left: number; nm: number; ns: number; next: number; // 남은 돈(참고) · 다음연도 이월 명시·사고·소계(직접 적은 값)
   un: number;
   mismatch?: boolean; // 전년도 이월이 앞 해 다음연도 이월과 다름
   diffSum?: boolean; // 재원 줄 합이 집행현황 값과 다름(합계 줄)
@@ -68,6 +72,8 @@ export function compute(name: string, setup: Setup, byYear: Record<number, Budge
   else years.push(...(present.length ? present : [setup.from]));
   const blocks: YearBlock[] = [];
   const prevLeft: Record<string, { nm: number; ns: number } | null> = {};
+  // 이 세부사업 자체가 집행현황의 이월 세부사업이면(잇지 않은 것) 그 예산·집행은 명시/사고 칸으로
+  const selfCarry = /^\(명시이월\)/.test(name) ? "m" : /^\(사고이월\)/.test(name) ? "s" : null;
   for (const y of years) {
     const projs = byYear[y] ?? [];
     const main = linkedOf(projs, name);
@@ -78,28 +84,35 @@ export function compute(name: string, setup: Setup, byYear: Record<number, Budge
     for (const s of setup.sources) {
       const m = setup.rows[`${y}:${s}`] ?? {};
       // 재원이 하나면 집행현황 값이 곧 그 줄, 둘 이상이면 직접 적은 값
-      const cur = one && main ? main.budget : z(m.cur);
-      const en = one && main ? main.exp : z(m.en);
+      const auto = one && main && !selfCarry ? main : null;
+      const autoM = one && main && selfCarry === "m" ? main : null;
+      const autoS = one && main && selfCarry === "s" ? main : null;
+      const cur = auto ? auto.budget : z(m.cur);
+      const en = auto ? auto.exp : z(m.en);
       const pl = prevLeft[s];
       const mine = carry != null && (one || s === (setup.carrySrc || setup.sources[0]));
-      const pm = mine ? carry!.budget : pl ? pl.nm : z(m.pm);
-      const ps = pl ? pl.ns : z(m.ps);
-      const em = mine ? carry!.exp : z(m.em);
-      const es = z(m.es);
+      // 이어 붙인 이월 사업이 "(사고이월)"이면 사고 칸으로, 아니면 명시 칸으로
+      const mineM = mine && !/^\(사고이월\)/.test(setup.carry) ? carry : null;
+      const mineS = mine && /^\(사고이월\)/.test(setup.carry) ? carry : null;
+      const pm = mineM ? mineM.budget : autoM ? autoM.budget : pl ? pl.nm : z(m.pm);
+      const ps = mineS ? mineS.budget : autoS ? autoS.budget : pl ? pl.ns : z(m.ps);
+      const em = mineM ? mineM.exp : autoM ? autoM.exp : z(m.em);
+      const es = mineS ? mineS.exp : autoS ? autoS.exp : z(m.es);
       const a = [z(m.a1), z(m.a2), z(m.a3), z(m.a4)];
       const curSum = cur + a[0] + a[1] + a[2] + a[3];
       const prev = pm + ps;
       const act = curSum + prev;
       const ex = en + em + es;
       const un = z(m.un);
-      const left = act - ex - un;
-      // 다음연도 이월 = 남은 돈(명시로, 사고는 적는 칸이 없어 0). 다년도 사업이면 다음 해 전년도 이월로 이어져요
-      const line: Line = { cur, a1: a[0], a2: a[1], a3: a[2], a4: a[3], curSum, pm, ps, prev, act, en, em, es, ex, rate: act ? (ex / act) * 100 : null, left, nm: left, ns: 0, un };
+      const nm = z(m.nm), ns = z(m.ns);
+      const left = act - ex - nm - ns - un;
+      // 다음연도 이월은 직접 적은 값. 다년도 사업이면 다음 해 전년도 이월로 이어져요
+      const line: Line = { cur, a1: a[0], a2: a[1], a3: a[2], a4: a[3], curSum, pm, ps, prev, act, en, em, es, ex, rate: act ? (ex / act) * 100 : null, left, nm, ns, next: nm + ns, un };
       bySrc[s] = line;
-      prevLeft[s] = setup.multi ? { nm: left, ns: 0 } : null;
+      prevLeft[s] = setup.multi ? { nm, ns } : null;
     }
     const total = sumLines(Object.values(bySrc));
-    if (!one && main && (total.curSum !== main.budget || total.en !== main.exp)) {
+    if (!one && main && !selfCarry && (total.curSum !== main.budget || total.en !== main.exp)) {
       // 재원 줄 합이 집행현황과 다르면 합계 줄은 집행현황 값으로 보여 주고 붉게
       total.diffSum = true;
     }
@@ -120,18 +133,18 @@ export function compute(name: string, setup: Setup, byYear: Record<number, Budge
     const f = blocks[0].total, l = blocks[blocks.length - 1].total;
     all.pm = f.pm; all.ps = f.ps; all.prev = f.prev;
     all.act = all.curSum + all.prev;
-    all.left = l.left; all.nm = l.nm; all.ns = l.ns;
+    all.left = l.left; all.nm = l.nm; all.ns = l.ns; all.next = l.next;
     all.rate = all.act ? (all.ex / all.act) * 100 : null;
   }
   return { years: blocks, total: all };
 }
 
 function sumLines(lines: Line[]): Line {
-  const t: Line = { cur: 0, a1: 0, a2: 0, a3: 0, a4: 0, curSum: 0, pm: 0, ps: 0, prev: 0, act: 0, en: 0, em: 0, es: 0, ex: 0, rate: null, left: 0, nm: 0, ns: 0, un: 0 };
+  const t: Line = { cur: 0, a1: 0, a2: 0, a3: 0, a4: 0, curSum: 0, pm: 0, ps: 0, prev: 0, act: 0, en: 0, em: 0, es: 0, ex: 0, rate: null, left: 0, nm: 0, ns: 0, next: 0, un: 0 };
   for (const l of lines) {
     t.cur += l.cur; t.a1 += l.a1; t.a2 += l.a2; t.a3 += l.a3; t.a4 += l.a4; t.curSum += l.curSum;
     t.pm += l.pm; t.ps += l.ps; t.prev += l.prev; t.act += l.act;
-    t.en += l.en; t.em += l.em; t.es += l.es; t.ex += l.ex; t.un += l.un; t.left += l.left; t.nm += l.nm; t.ns += l.ns;
+    t.en += l.en; t.em += l.em; t.es += l.es; t.ex += l.ex; t.un += l.un; t.left += l.left; t.nm += l.nm; t.ns += l.ns; t.next += l.next;
   }
   t.rate = t.act ? (t.ex / t.act) * 100 : null;
   return t;
@@ -154,7 +167,7 @@ export const isCarryName = (n: string) => /^\((명시|사고)이월\)/.test(n);
 
 // ---------- 엑셀 ----------
 /** 엑셀 C~U 19칸 순서(core bstatus.rs와 같아야 해요) */
-export const XL_FIELDS = ["curSum", "cur", "a1", "a2", "a3", "a4", "prev", "pm", "ps", "act", "ex", "en", "em", "es", "rate", "left", "nm", "ns", "un"] as const;
+export const XL_FIELDS = ["curSum", "cur", "a1", "a2", "a3", "a4", "prev", "pm", "ps", "act", "ex", "en", "em", "es", "rate", "next", "nm", "ns", "un"] as const;
 export type BStatusLine = { level: "pj" | "it" | "gun"; period: string; name: string; v: number[]; hasRate: boolean; memo: string };
 export type BStatusExport = { year: number; unit: number; date: string; lines: BStatusLine[] };
 
@@ -170,7 +183,7 @@ export const lineOf = (level: BStatusLine["level"], period: string, name: string
 /** 가져오기: 시트 칸 글자 → (세부사업, 해, 재원)마다 직접 적는 값. 집행현황에서 오는 칸은 화면이 걸러요.
  *  줄 알아보기: 사업기간 칸이 "단년도"·"NNNN~NNNN년"이면 세부사업 줄, "NNNN년"이면 연도 줄, 그 밖은 재원 줄. */
 export type ImportCell = { name: string; year: number; src: string; m: Manual };
-const XL_TO_MANUAL: Partial<Record<(typeof XL_FIELDS)[number], keyof Manual>> = { cur: "cur", a1: "a1", a2: "a2", a3: "a3", a4: "a4", pm: "pm", ps: "ps", en: "en", em: "em", es: "es", un: "un" };
+const XL_TO_MANUAL: Partial<Record<(typeof XL_FIELDS)[number], keyof Manual>> = { cur: "cur", a1: "a1", a2: "a2", a3: "a3", a4: "a4", pm: "pm", ps: "ps", en: "en", em: "em", es: "es", nm: "nm", ns: "ns", un: "un" };
 export function parseBStatusSheet(rows: string[][], year: number, setups: Record<string, Setup>): ImportCell[] | null {
   const hi = rows.findIndex((r) => r[0]?.trim() === "사업기간" && r[1]?.trim() === "사업명");
   if (hi < 0) return null;

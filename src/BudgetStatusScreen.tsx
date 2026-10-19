@@ -34,7 +34,7 @@ const SUM_COLS: Col[] = [
   { id: "act", label: "예산현액 ①+②", w: 152, num: true },
   { id: "ex", label: "집행액", w: 152, num: true },
   { id: "rate", label: "집행률", w: 112, num: true },
-  { id: "left", label: "다음연도 이월", w: 152, num: true },
+  { id: "next", label: "다음연도 이월", w: 152, num: true },
   { id: "un", label: "불용액", w: 152, num: true },
   { id: "memo", label: "메모", w: 48 },
 ];
@@ -56,14 +56,14 @@ const DET_COLS: Col[] = [
   { id: "em", label: "", sub: "명시", w: 132, num: true },
   { id: "es", label: "", sub: "사고", w: 132, num: true },
   { id: "rate", label: "집행률", w: 112, num: true },
-  { id: "left", label: "다음연도 이월", sub: "소계", w: 132, num: true },
+  { id: "next", label: "다음연도 이월", sub: "소계", w: 132, num: true },
   { id: "nm", label: "", sub: "명시이월", w: 132, num: true },
   { id: "ns", label: "", sub: "사고이월", w: 132, num: true },
   { id: "un", label: "불용액", w: 132, num: true },
   { id: "memo", label: "메모", w: 48 },
 ];
 /** 직접 적을 수 있는 칸(재원 줄) */
-const EDIT_FIELDS: (keyof Manual)[] = ["cur", "a1", "a2", "a3", "a4", "pm", "ps", "en", "em", "es", "un"];
+const EDIT_FIELDS: (keyof Manual)[] = ["cur", "a1", "a2", "a3", "a4", "pm", "ps", "en", "em", "es", "nm", "ns", "un"];
 
 type Pop = { t: "setup"; name: string; x: number; y: number } | { t: "src"; name: string; x: number; y: number } | { t: "menu"; name: string; x: number; y: number } | { t: "memo"; name: string; x: number; y: number } | { t: "excel"; x: number; y: number };
 type Ask = { path: string; cells: { name: string; year: number; src: string; m: Manual }[]; skipped: number };
@@ -112,7 +112,7 @@ export default function BudgetStatusScreen() {
       }
     }
     setByYear(out);
-    const names = projectNames(out).filter((p) => !p.carry);
+    const names = projectNames(out);
     const st: Record<string, Setup> = {};
     const saved = new Map<string, string>();
     try {
@@ -163,10 +163,12 @@ export default function BudgetStatusScreen() {
   }, []);
 
   const names = useMemo(() => {
-    const all = projectNames(byYear).filter((p) => !p.carry);
+    // 이월 세부사업은 어느 사업에 이어져 있으면 빼고, 잇지 않은 것은 그대로 한 줄(집행현황의 모든 세부사업이 보이게 — 2026-10-19 사용자)
+    const linked = new Set(Object.values(setups).map((s) => s.carry).filter(Boolean));
+    const all = projectNames(byYear).filter((p) => !p.carry || !linked.has(p.name));
     const pos = new Map(order.map((n, i) => [n, i]));
     return [...all].sort((a, b) => (pos.get(a.name) ?? 1e9) - (pos.get(b.name) ?? 1e9));
-  }, [byYear, order]);
+  }, [byYear, order, setups]);
   const carryNames = useMemo(() => projectNames(byYear).filter((p) => p.carry), [byYear]);
   const shown = names.filter((p) => {
     if (q && !p.name.includes(q)) return false;
@@ -357,6 +359,8 @@ export default function BudgetStatusScreen() {
     );
 
   /** 숫자 칸들(구분·메모 사이) */
+  /** 집행현황에서 오는 칸: 보통 본예산·집행 당해, 잇지 않은 이월 세부사업은 명시/사고 쪽 */
+  const lockOf = (name: string) => (/^\(명시이월\)/.test(name) ? ["pm", "em"] : /^\(사고이월\)/.test(name) ? ["ps", "es"] : ["cur", "en"]);
   // lock: 집행현황에서 오는 칸(재원 하나 + 그 해 집행현황 있음 → 본예산·집행 당해)은 고치는 줄에서도 값만 보여요
   const numCells = (l: Line, kind: "pj" | "it" | "gun", editing: Form | null, year?: number, first = false, lock: string[] = []) => {
     const out: ReactNode[] = [];
@@ -386,6 +390,7 @@ export default function BudgetStatusScreen() {
         if (id === "curSum" && !lock.includes("cur")) { out.push(edit("cur", "본예산")); continue; }
         if (id === "prev" && first) { out.push(edit("pm", "명시이월")); continue; }
         if (id === "ex" && !lock.includes("en")) { out.push(edit("en", "집행액(당해)")); continue; }
+        if (id === "next") { out.push(edit("nm", "다음연도 이월(명시)")); continue; }
       }
       if (id === "rate") {
         out.push(<div className="bd-c n bs-rate" role="cell" key={id}>{bar(l.rate, kind !== "pj", kind === "gun")}</div>);
@@ -395,12 +400,8 @@ export default function BudgetStatusScreen() {
         out.push(cell("", " n"));
         continue;
       }
-      if (id === "left") {
-        out.push(
-          <div className="bd-c n" role="cell" key={id}>
-            {fz(l.left)}
-          </div>,
-        );
+      if (id === "next") {
+        out.push(num(l.next, "", l.left ? `남은 돈 ${fz(l.left)}(현액 − 집행 − 이월 − 불용)` : undefined));
         continue;
       }
       if (id === "nm" || id === "ns") {
@@ -562,10 +563,7 @@ export default function BudgetStatusScreen() {
       if (!s) continue;
       const m: Manual = { ...c.m };
       // 집행현황에서 오는 칸(재원 하나 + 그 해 집행현황 있음)은 파일 값을 받지 않아요
-      if (s.sources.length === 1 && linkedOf(byYear[c.year] ?? [], c.name)) {
-        delete m.cur;
-        delete m.en;
-      }
+      if (s.sources.length === 1 && linkedOf(byYear[c.year] ?? [], c.name)) for (const k of lockOf(c.name)) delete m[k as keyof Manual];
       next[c.name] = { ...s, rows: { ...s.rows, [`${c.year}:${c.src}`]: { ...(s.rows[`${c.year}:${c.src}`] ?? {}), ...m } } };
     }
     setSetups(next);
@@ -652,7 +650,7 @@ export default function BudgetStatusScreen() {
           <span className="bs-lab">이월 사업</span>
           <select className="fld bd-in bs-sel" aria-label="이어 붙일 이월 세부사업" value={s.carry} onChange={(e) => saveSetup(name, { ...s, carry: e.target.value })}>
             <option value="">없음</option>
-            {carryNames.map((c) => (
+            {carryNames.filter((c) => c.name !== name).map((c) => (
               <option key={c.name} value={c.name}>
                 {c.name} · {c.years.join("·")}
               </option>
@@ -755,7 +753,7 @@ export default function BudgetStatusScreen() {
           )}
           <span className="bd-nm" title={p.name}>{p.name}</span>
         </div>
-        {single && one && yb ? numCells(yb.bySrc[oneSrc], "pj", pjEditing, year, true, yb.hasMain ? ["cur", "en"] : []) : numCells(book.total, "pj", null)}
+        {single && one && yb ? numCells(yb.bySrc[oneSrc], "pj", pjEditing, year, true, yb.hasMain ? lockOf(p.name) : []) : numCells(book.total, "pj", null)}
         {memoBtn(p.name)}
       </div>,
     );
@@ -822,7 +820,7 @@ export default function BudgetStatusScreen() {
             <span className="bd-nm">{b.year}년</span>
             <span className="bs-note">{b.linked ? "집행현황" : "직접 입력"}</span>
           </div>
-          {one ? numCells(b.bySrc[oneSrc], "it", yEditing, b.year, first, b.hasMain ? ["cur", "en"] : []) : numCells(b.total, "it", null, b.year, first)}
+          {one ? numCells(b.bySrc[oneSrc], "it", yEditing, b.year, first, b.hasMain ? lockOf(p.name) : []) : numCells(b.total, "it", null, b.year, first)}
           {memoCell}
         </div>,
       );
