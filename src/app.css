@@ -10240,3 +10240,169 @@ select.input.fx-set-date { width: 190px; }
 .mgr-padd .mgr-short-in {
   flex: 0 0 140px;
 }
+
+/* ---------- 프로젝트 관리 창 · 표 모양 (2026-10-19 사용자 1안, 시안 ProjectMgr) ---------- */
+.mgr.pjm {
+  width: 760px;
+  height: min(760px, 100%);
+}
+
+.pjm-head {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.pjm-find {
+  width: 200px;
+  margin-left: auto;
+}
+
+.pjm-add {
+  display: grid;
+  grid-template-columns: 1fr 180px auto;
+  gap: var(--space-2);
+  padding: 0 20px var(--space-3);
+}
+
+.pjm-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 28px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.pjm-row {
+  display: grid;
+  grid-template-columns: 22px 200px minmax(0, 1fr) 56px 28px 28px;
+  align-items: center;
+  column-gap: 10px;
+  min-height: 32px;
+  padding: 0 4px;
+  border-bottom: 1px solid var(--line-row);
+}
+
+.pjm-th {
+  flex: none;
+  min-height: 28px;
+  margin: 0 20px;
+  border-top: 1px solid var(--line-row);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.pjm-sort {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+
+.pjm-sort[aria-pressed="true"] {
+  color: var(--ink);
+}
+
+.pjm-th .pjm-n {
+  justify-self: end;
+}
+
+.pjm-body {
+  flex: 1;
+  min-height: 0;
+  padding-bottom: var(--space-2);
+}
+
+.pjm-row .cal-cbtn {
+  width: 14px;
+  height: 14px;
+}
+
+.pjm-short,
+.pjm-full {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pjm-short {
+  font-weight: 600;
+}
+
+.pjm-full {
+  color: var(--muted);
+}
+
+.pjm-n {
+  text-align: right;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pjm-zero {
+  color: var(--muted);
+}
+
+.pjm-row > .tool-box.pjm-tool {
+  margin: 0;
+  width: 28px;
+  height: 28px;
+  color: var(--muted);
+}
+
+.pjm-row > .tool-box.pjm-tool:hover:not(:disabled):first-of-type {
+  background: var(--surface-band);
+  color: var(--ink);
+}
+
+.pjm-edit {
+  grid-column: 2 / 4;
+  padding: 4px 0;
+}
+
+.pjm-edit .mgr-names {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.pjm-edit .mgr-names-l {
+  display: none;
+}
+
+.pjm-edit #pj-full {
+  order: 2;
+}
+
+.pjm-edit #pj-short {
+  order: 1;
+}
+
+.pjm-ask {
+  grid-column: 1 / -1;
+  margin: 2px 0 6px;
+}
+
+.pjm-empty {
+  padding: var(--space-3) 4px;
+}
+
+.pjm-row .cpick {
+  display: flex;
+}
+
+.dialog .pjm-row .cal-cbtn {
+  box-shadow: none;
+}
+
+.dialog .pjm-row .cal-cbtn:hover,
+.dialog .pjm-row .cal-cbtn[aria-expanded="true"] {
+  box-shadow: 0 0 0 2px var(--surface-raised), 0 0 0 3px var(--accent);
+}

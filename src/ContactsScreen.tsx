@@ -1091,6 +1091,10 @@ function ProjectDialog({
   const [ask, setAsk] = useState<number | null>(null);
   /** 이름을 고치고 있는 프로젝트 */
   const [editId, setEditId] = useState<number | null>(null);
+  const [pq, setPq] = useState("");
+  const [sort, setSort] = useState<"name" | "count">("name");
+  /** 방금 더한 프로젝트 이름(그 줄로 내려가요) */
+  const [added, setAdded] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => inputRef.current?.focus(), []);
@@ -1132,118 +1136,152 @@ function ProjectDialog({
     if (ok) {
       setDraft("");
       setDraftShort("");
+      setPq("");
+      setAdded(name);
     }
     inputRef.current?.focus();
   }
+
+  const ql = pq.trim().toLowerCase();
+  const count = (id: number) => data.contacts.filter((c) => c.projects.includes(id)).length;
+  const rows = data.projects
+    .filter((p) => !ql || p.name.toLowerCase().includes(ql) || p.alias.toLowerCase().includes(ql) || (/[ㄱ-ㅎ]/.test(ql) && koIndex(pjLabel(p), ql) >= 0))
+    .map((p) => ({ p, users: count(p.id) }))
+    .sort((x, y) => (sort === "count" ? y.users - x.users : 0) || koSort(x.p, y.p));
+
+  // 방금 더한 프로젝트가 보이게 내려가요.
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!added) return;
+    bodyRef.current?.querySelector(`[data-pj="${CSS.escape(added)}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [added, data]);
 
   return (
     <div
       className="overlay"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="dialog mgr" role="dialog" aria-modal="true" aria-label="프로젝트 관리">
-        <div className="dialog-head">
+      <div className="dialog mgr pjm" role="dialog" aria-modal="true" aria-label="프로젝트 관리">
+        <div className="dialog-head pjm-head">
           <span className="dialog-title">프로젝트 관리</span>
+          <span className="mgr-info">{data.projects.length}개</span>
+          <input
+            className="input pjm-find"
+            aria-label="프로젝트 찾기"
+            placeholder="찾기"
+            value={pq}
+            onChange={(e) => setPq(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape" && pq) {
+                e.preventDefault();
+                e.nativeEvent.stopImmediatePropagation();
+                setPq("");
+              }
+            }}
+          />
         </div>
-        <div className="dialog-body">
-          {data.projects.length === 0 && <p className="muted small">아직 프로젝트가 없어요.</p>}
-          {data.projects.map((p) => {
-            const k = projectColor(p);
-            const users = data.contacts.filter((c) => c.projects.includes(p.id)).length;
-            return (
-              <div key={p.id} className="prow">
-                <div className="prow-name mgr-name pj-mname">
-                  {editId === p.id ? (
-                    <NamesEdit
-                      full={fullDraft(p)}
-                      short={p.alias}
-                      taken={(n) => data.projects.some((x) => x.id !== p.id && (x.name === n || x.alias === n))}
-                      onDone={async (v) => {
-                        setEditId(null);
-                        if (v && (v.full !== fullDraft(p) || v.short !== p.alias)) await run(api.setProjectNames(p.id, v.full, v.short));
-                      }}
-                    />
-                  ) : (
-                    <>
-                      <span className="mgr-badge-line">
-                        <button type="button" className="pbadge mgr-badge-btn" style={pjStyle(p)} title="눌러서 이름 고치기" onClick={() => setEditId(p.id)}>
-                          <span className="pbadge-t">{pjLabel(p)}</span>
-                        </button>
-                        <span className="mgr-info">{users ? `연락처 ${users}명` : "연락처 없음"}</span>
-                      </span>
-                      {pjOther(p) && (
-                        <span className="mgr-full" title={pjOther(p)}>
-                          {pjOther(p)}
-                        </span>
-                      )}
-                    </>
-                  )}
+        <div className="pjm-add">
+          <input
+            ref={inputRef}
+            className={"input" + (badFull ? " invalid" : "")}
+            aria-label="전체 공사명"
+            placeholder="전체 공사명"
+            title={badFull ? "같은 이름의 프로젝트가 있어요" : undefined}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !isComposing(e)) {
+                e.preventDefault();
+                add();
+              }
+            }}
+          />
+          <input
+            className={"input" + (badShort ? " invalid" : "")}
+            aria-label="축약 공사명"
+            placeholder="축약 공사명"
+            title={badShort ? "같은 이름의 프로젝트가 있어요" : "비우면 전체 공사명으로 보여요"}
+            value={draftShort}
+            onChange={(e) => setDraftShort(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !isComposing(e)) {
+                e.preventDefault();
+                add();
+              }
+            }}
+          />
+          <button type="button" className="btn-primary pjm-add-btn" onClick={add}>
+            <Plus size={14} /> 추가
+          </button>
+        </div>
+        <div className="pjm-row pjm-th" role="row">
+          <span>색</span>
+          <button type="button" className="pjm-sort" aria-pressed={sort === "name"} onClick={() => setSort("name")}>
+            축약 공사명{sort === "name" ? " ↓" : ""}
+          </button>
+          <span>전체 공사명</span>
+          <button type="button" className="pjm-sort pjm-n" aria-pressed={sort === "count"} onClick={() => setSort("count")}>
+            {sort === "count" ? "↓ " : ""}연락처
+          </button>
+          <span />
+          <span />
+        </div>
+        <div className="dialog-body pjm-body" ref={bodyRef}>
+          {data.projects.length === 0 && <p className="muted small pjm-empty">아직 프로젝트가 없어요.</p>}
+          {data.projects.length > 0 && rows.length === 0 && <p className="muted small pjm-empty">맞는 프로젝트가 없어요.</p>}
+          {rows.map(({ p, users }) => (
+            <div key={p.id} className={"pjm-row" + (editId === p.id ? " pjm-editing" : "")} data-pj={p.name} onDoubleClick={(e) => !(e.target as HTMLElement).closest("button, input, .ask-band") && setEditId(p.id)}>
+              <ColorPick name={p.name} current={projectColor(p)} auto={p.color === null} onPick={(c) => run(api.setProjectColor(p.id, c))} />
+              {editId === p.id ? (
+                <div className="pjm-edit">
+                  <NamesEdit
+                    full={fullDraft(p)}
+                    short={p.alias}
+                    taken={(n) => data.projects.some((x) => x.id !== p.id && (x.name === n || x.alias === n))}
+                    onDone={async (v) => {
+                      setEditId(null);
+                      if (v && (v.full !== fullDraft(p) || v.short !== p.alias)) await run(api.setProjectNames(p.id, v.full, v.short));
+                    }}
+                  />
                 </div>
-                <ColorPick
-                  name={p.name}
-                  current={k}
-                  auto={p.color === null}
-                  onPick={(c) => run(api.setProjectColor(p.id, c))}
-                />
-                <button type="button" className="tool-box" aria-label={`${p.name} 지우기`} title="이 프로젝트 지우기" onClick={() => setAsk(p.id)}>
-                  <DelIcon />
-                </button>
-                {ask === p.id && (
-                  <div className="ask-band ask-wide" role="alertdialog" aria-label="프로젝트 지우기 확인">
-                    <span>{users ? `${users}명에게 붙어 있어요. 지워도 사람은 남고 배지만 빠져요.` : "아무에게도 붙어 있지 않아요. 지울까요?"}</span>
-                    <button type="button" className="btn btn-xs" autoFocus onClick={() => setAsk(null)}>
-                      취소
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-xs btn-danger"
-                      onClick={async () => {
-                        setAsk(null);
-                        await run(api.deleteProject(p.id));
-                        inputRef.current?.focus();
-                      }}
-                    >
-                      지우기
-                    </button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-          <div className="padd mgr-padd">
-            <input
-              ref={inputRef}
-              className={"input" + (badFull ? " invalid" : "")}
-              aria-label="전체 공사명"
-              placeholder="전체 공사명"
-              title={badFull ? "같은 이름의 프로젝트가 있어요" : undefined}
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !isComposing(e)) {
-                  e.preventDefault();
-                  add();
-                }
-              }}
-            />
-            <input
-              className={"input mgr-short-in" + (badShort ? " invalid" : "")}
-              aria-label="축약 공사명"
-              placeholder="축약 공사명"
-              title={badShort ? "같은 이름의 프로젝트가 있어요" : "비우면 전체 공사명으로 보여요"}
-              value={draftShort}
-              onChange={(e) => setDraftShort(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !isComposing(e)) {
-                  e.preventDefault();
-                  add();
-                }
-              }}
-            />
-            <button type="button" className="btn-primary btn-ctrl mgr-add" onClick={add}>
-              <Plus size={16} /> 추가
-            </button>
-          </div>
+              ) : (
+                <>
+                  <span className="pjm-short" title={pjLabel(p)}>{pjLabel(p)}</span>
+                  <span className="pjm-full" title={pjFull(p)}>
+                    {pjFull(p)}
+                  </span>
+                </>
+              )}
+              <span className={"pjm-n" + (users ? "" : " pjm-zero")}>{users}명</span>
+              <button type="button" className="tool-box pjm-tool" aria-label={`${p.name} 이름 고치기`} title="이름 고치기(줄을 두 번 눌러도 돼요)" onClick={() => setEditId(p.id)}>
+                <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 20h4L19 9l-4-4L4 16z" />
+                </svg>
+              </button>
+              <button type="button" className="tool-box pjm-tool" aria-label={`${p.name} 지우기`} title="이 프로젝트 지우기" onClick={() => setAsk(p.id)}>
+                <DelIcon />
+              </button>
+              {ask === p.id && (
+                <div className="ask-band ask-wide pjm-ask" role="alertdialog" aria-label="프로젝트 지우기 확인">
+                  <span>{users ? `${users}명에게 붙어 있어요. 지워도 사람은 남고 배지만 빠져요.` : "아무에게도 붙어 있지 않아요. 지울까요?"}</span>
+                  <button type="button" className="btn btn-xs" autoFocus onClick={() => setAsk(null)}>
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-xs btn-danger"
+                    onClick={async () => {
+                      setAsk(null);
+                      await run(api.deleteProject(p.id));
+                      inputRef.current?.focus();
+                    }}
+                  >
+                    지우기
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
         <div className="dialog-foot">
           <button type="button" className="btn btn-ctrl btn-text" onClick={onClose}>
@@ -1322,6 +1360,7 @@ function NamesEdit({
         aria-invalid={empty || badFull || undefined}
         title={tip(empty || badFull, badFull)}
         autoFocus
+        placeholder="전체 공사명"
         value={full}
         onFocus={(e) => e.currentTarget.select()}
         onChange={(e) => setFull(e.target.value)}
