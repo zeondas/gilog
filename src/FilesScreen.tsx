@@ -869,6 +869,25 @@ export default function FilesScreen() {
     void loadTree(path);
   };
 
+  /** 트리 줄 누르기: 그 폴더로 가면서 펼쳐요. 이미 보고 있는 펼친 폴더를 다시 누르면 접어요(2026-10-19 사용자) */
+  const clickTreeRow = (r: { path: string; hasKids: boolean; special?: "home" | "pc" }, on: boolean) => {
+    if (r.special) {
+      go(st!.active, r.path);
+      const key = r.special === "home" ? HOME : PC_FOLD;
+      const shut = r.special === "home" ? !homeOpen : pcFolded; // 지금 접혀 있음
+      if (on || shut)
+        setSt((s) => (s ? { ...s, tree: { ...s.tree, open: s.tree.open.includes(key) ? s.tree.open.filter((x) => x !== key) : [...s.tree.open, key] } } : s));
+      return;
+    }
+    const isOpen = !!st?.tree.open.includes(r.path);
+    if (on && isOpen) return toggleOpen(r.path);
+    go(st!.active, r.path);
+    if (r.hasKids && !isOpen) {
+      setSt((s) => (s && !s.tree.open.includes(r.path) ? { ...s, tree: { ...s.tree, open: [...s.tree.open, r.path] } } : s));
+      void loadTree(r.path);
+    }
+  };
+
   // 트리 맨 위 묶음: 홈(윈도우 "홈"의 즐겨찾기 폴더, 처음 접힘)·내 PC(드라이브, 처음 펼침) — 접기는 tree.open에 HOME·"::pc:fold"
   const [homeDirs, setHomeDirs] = useState<FsEntry[]>([]);
   const showHome = !cfg.hiddenDrives.includes(HOME);
@@ -1700,7 +1719,8 @@ export default function FilesScreen() {
                         data-on={on ? "1" : "0"}
                         data-path={path ? "1" : "0"}
                         title={r.path}
-                        onClick={() => go(st.active, r.path)}
+                        onMouseDown={(e) => e.detail > 1 && e.preventDefault()}
+                        onClick={() => clickTreeRow(r, on)}
                         onDragOver={(e) => dragSrc.current && e.preventDefault()}
                         onDrop={(e) => dropTo(st.active, e, r.path)}
                         onContextMenu={(e) => {
