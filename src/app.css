@@ -10753,20 +10753,22 @@ body.ew-dragging * {
 .bs .bd-rw { border-bottom-color: var(--line); } /* 구분선은 집행현황보다 진하게(2026-10-19 사용자) */
 .bs .bd-rw > .bd-c { border-right-color: var(--line); }
 .bs .bd-rw > .bd-c:last-child, .bs .bd-h:last-child { border-right: 1px solid var(--line); } /* 메모 뒤에도 세로 선 */
-.bs .bd-rw.pj > .bd-c:first-child .bs-years { margin-left: auto; } /* 연도·⚙는 구분 칸 오른쪽 끝 */
+.bs .bd-c.bs-yrs { padding-left: 12px; font-weight: 400; }
+.bs .bd-rw > .bd-c:nth-child(2) { justify-content: flex-start; } /* 사업명 칸(집행현황 2열 가운데 규칙 덮음) */
+.bs .bd-rw.it > .bd-c:nth-child(2) { font-weight: 600; } /* 연도 줄 이름(집행현황의 첫 칸 굵게 규칙을 둘째 칸으로) */ /* 사업연도 칸: "2026년"·"2025~2027년" + ⚙ */
 .bs-kind { margin-right: 4px; }
 .bs-noexp { pointer-events: none; }
 .bs .bd-rw > .bd-c { user-select: none; } /* 두 번 누르기가 글자를 긁지 않게 */
 .bs .bd-in { user-select: text; }
 .bs-lab2 { margin-left: 8px; } /* 집행현황의 2·9·11·12열 가운데 규칙을 덮어요 — 숫자는 모두 오른쪽 */
-.bs .bd-rw.pj > .bd-c:first-child { overflow: visible; }
+.bs .bd-rw.pj > .bd-c.bs-yrs { overflow: visible; }
 .bs .bd-rw.pj .bd-nm { flex: 0 1 auto; min-width: 0; }
-.bs-years { flex: none; margin-left: auto; padding-left: 8px; font-size: 11.5px; font-weight: 500; color: var(--muted); white-space: nowrap; }
-.bs-gear { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-left: 6px; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--muted); }
+.bs-years { flex: none; font-size: 13px; font-weight: 500; color: var(--ink-2); white-space: nowrap; }
+.bs-gear { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-left: auto; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--muted); }
 .bs-gear:hover, .bs-gear.on { color: var(--accent); border-color: var(--accent-line); background: var(--accent-wash); }
 .bs-note { margin-left: 8px; font-size: 11.5px; font-weight: 500; color: var(--muted); white-space: nowrap; }
 .bs .bd-rw.it .bd-nm { flex: none; }
-.bs .bd-rw.gun > .bd-c:first-child .bd-nm { font-weight: 500; color: var(--ink-2); }
+.bs .bd-rw.gun > .bd-c .bd-nm { font-weight: 500; color: var(--ink-2); }
 .bs-open { color: var(--muted); }
 .bs .bd-rw.edit > .bd-c.n { padding: 0 4px; }
 .bs .bd-rw.edit .bd-in { height: 28px; }

@@ -25,7 +25,8 @@ const COLS_KEY = "bstatus.cols";
 /** 자세히 머리 줄 두 줄: 위 줄은 묶음 이름(여러 열에 걸침), 아래 줄은 열 이름. sub가 없는 열은 두 줄을 한 칸으로. */
 /** 엑셀 "집행·이월 현황" 열 비율 참고: 숫자 열은 같은 폭, 구분 열은 1.3배쯤 + 설정 단추 자리 */
 const SUM_COLS: Col[] = [
-  { id: "name", label: "구분", w: 300 },
+  { id: "yrs", label: "사업연도", w: 136 },
+  { id: "name", label: "사업명", w: 240 },
   { id: "curSum", label: "당해예산 ①", w: 152, num: true },
   { id: "prev", label: "전년도 이월 ②", w: 152, num: true },
   { id: "act", label: "예산현액 ①+②", w: 152, num: true },
@@ -36,7 +37,8 @@ const SUM_COLS: Col[] = [
   { id: "memo", label: "메모", w: 48 },
 ];
 const DET_COLS: Col[] = [
-  { id: "name", label: "구분", w: 260 },
+  { id: "yrs", label: "사업연도", w: 136 },
+  { id: "name", label: "사업명", w: 240 },
   { id: "curSum", label: "당해예산 ①", sub: "소계", w: 132, num: true },
   { id: "cur", label: "", sub: "본예산", w: 132, num: true },
   { id: "a1", label: "", sub: "1추", w: 132, num: true },
@@ -275,7 +277,7 @@ export default function BudgetStatusScreen() {
   /** 그 열에 보이는 내용(열 제목 포함) 가운데 가장 긴 폭 */
   const fitOf = (ci: number, head: HTMLElement) => {
     const cells = [head, ...document.querySelectorAll<HTMLElement>(`.bs .bd-body .bd-rw > .bd-c:nth-child(${ci + 1})`)];
-    return Math.max(ci === 0 ? 160 : 36, Math.max(...cells.map(need)) + 1);
+    return Math.max(cols[ci]?.id === "name" ? 160 : 36, Math.max(...cells.map(need)) + 1);
   };
   /** 배치최적화: 고정 폭 열 빼고 모든 열을 보이는 내용 폭에 맞춰요 */
   const fitAll = () => {
@@ -344,7 +346,7 @@ export default function BudgetStatusScreen() {
       </div>
     );
     for (const c of cols) {
-      if (c.id === "name" || c.id === "memo") continue;
+      if (c.id === "name" || c.id === "memo" || c.id === "yrs") continue;
       const id = c.id;
       if (editing && (EDIT_FIELDS as string[]).includes(id) && !lock.includes(id) && !((id === "pm" || id === "ps") && !first)) {
         out.push(edit(id as keyof Manual, c.sub || c.label));
@@ -512,7 +514,7 @@ export default function BudgetStatusScreen() {
     const oneSrc = s.sources[0];
     const yb = single ? book.years[0] : null;
     const isOpen = single ? !one && openY[p.name + ":" + year] !== false : !!open[p.name];
-    const srcLabel = s.multi ? `${String(s.from).slice(2)}~${String(s.to).slice(2)}` : "단년도"; // 연도만(재원은 설정 상자에서 — 2026-10-19 사용자: 자리가 빠듯)
+    const srcLabel = s.multi ? `${s.from}~${s.to}년` : `${year}년`; // 사업연도 열(2026-10-19 사용자): 단년도 "2026년", 다년도 "2025~2027년"
     const pjEditing = single && one && form && form.name === p.name && form.year === year && form.src === oneSrc ? form : null;
     rows.push(
       <div
@@ -524,16 +526,7 @@ export default function BudgetStatusScreen() {
         onDoubleClick={single && one ? () => !pjEditing && startEdit(p.name, year, oneSrc) : undefined}
         onKeyDown={pjEditing ? formKeys : undefined}
       >
-        <div className="bd-c" role="cell">
-          {isOpen && <span className="bd-tl v1 dn1" />}
-          {single && one ? (
-            <span className="bd-cr bs-noexp" aria-hidden="true" />
-          ) : (
-            <button type="button" className="bd-cr" aria-label={isOpen ? "접기" : "펼치기"} onClick={(e) => { e.stopPropagation(); single ? setOpenY((o) => ({ ...o, [p.name + ":" + year]: !isOpen })) : setOpen((o) => ({ ...o, [p.name]: !isOpen })); }}>
-              {ICON(isOpen ? CD : CR, 14, 2.2)}
-            </button>
-          )}
-          <span className="bd-nm" title={p.name}>{p.name}</span>
+        <div className="bd-c bs-yrs" role="cell">
           <span className="bs-years" title={`${s.multi ? `다년도 ${s.from}~${s.to}` : "단년도"} · 재원 ${s.sources.join("·")}`}>{srcLabel}</span>
           <button
             type="button"
@@ -549,6 +542,17 @@ export default function BudgetStatusScreen() {
           >
             {ICON(GEAR, 12)}
           </button>
+        </div>
+        <div className="bd-c" role="cell">
+          {isOpen && <span className="bd-tl v1 dn1" />}
+          {single && one ? (
+            <span className="bd-cr bs-noexp" aria-hidden="true" />
+          ) : (
+            <button type="button" className="bd-cr" aria-label={isOpen ? "접기" : "펼치기"} onClick={(e) => { e.stopPropagation(); single ? setOpenY((o) => ({ ...o, [p.name + ":" + year]: !isOpen })) : setOpen((o) => ({ ...o, [p.name]: !isOpen })); }}>
+              {ICON(isOpen ? CD : CR, 14, 2.2)}
+            </button>
+          )}
+          <span className="bd-nm" title={p.name}>{p.name}</span>
         </div>
         {single && one && yb ? numCells(yb.bySrc[oneSrc], "pj", pjEditing, year, true, yb.hasMain ? ["cur", "en"] : []) : numCells(book.total, "pj", null)}
         {memoCell}
@@ -570,6 +574,7 @@ export default function BudgetStatusScreen() {
             onDoubleClick={() => !editing && startEdit(p.name, year, src)}
             onKeyDown={editing ? formKeys : undefined}
           >
+            <div className="bd-c bs-yrs" role="cell" />
             <div className="bd-c" role="cell">
               <span className={"bd-tl v1" + (last ? " half" : "")} />
               <span className="bd-tl h1" />
@@ -601,6 +606,7 @@ export default function BudgetStatusScreen() {
           onDoubleClick={one ? () => !yEditing && startEdit(p.name, b.year, oneSrc) : undefined}
           onKeyDown={yEditing ? formKeys : undefined}
         >
+          <div className="bd-c bs-yrs" role="cell" />
           <div className="bd-c" role="cell">
             <span className={"bd-tl v1" + (lastY ? " half" : "")} />
             <span className="bd-tl h1" />
@@ -633,6 +639,7 @@ export default function BudgetStatusScreen() {
             onDoubleClick={() => !editing && startEdit(p.name, b.year, src)}
             onKeyDown={editing ? formKeys : undefined}
           >
+            <div className="bd-c bs-yrs" role="cell" />
             <div className="bd-c" role="cell">
               {!lastY && <span className="bd-tl v1" />}{/* 바깥 세로선은 마지막 해 아래로는 안 내려가요 */}
               <span className={"bd-tl v2" + (last ? " half" : "")} />
