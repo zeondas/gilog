@@ -34,11 +34,11 @@
   --st-long-bg: #EFE9DE;
   --st-long-fg: #5E4B2A;
   /* 민원 상태 배지(2026-10-19 사용자): 신경 쓸 것(접수·진행·답변)은 따뜻한 색 진한 채움, 덜한 것(보류·장기)은 차가운 색 바탕, 끝난 것(완료)은 흐리게 */
-  --cs-new-bg: #B45309; --cs-new-fg: #FFFFFF;
-  --cs-work-bg: #C2410C; --cs-work-fg: #FFFFFF;
-  --cs-reply-bg: #BE123C; --cs-reply-fg: #FFFFFF;
-  --cs-hold-bg: #DCE3EE; --cs-hold-fg: #334155;
-  --cs-long-bg: #D6E4F0; --cs-long-fg: #1E4E79;
+  --cs-new-bg: #FACC15; --cs-new-fg: #3D2A00;
+  --cs-work-bg: #EA580C; --cs-work-fg: #FFFFFF;
+  --cs-reply-bg: #BE185D; --cs-reply-fg: #FFFFFF;
+  --cs-hold-bg: #E2E5EA; --cs-hold-fg: #3F4652;
+  --cs-long-bg: #BAE3F5; --cs-long-fg: #0B4A6B;
   --cs-done-bg: #F5F5F7; --cs-done-fg: #A3A1AE;
   --st-new-bg: #EEEAFF;
   --st-new-fg: #4B37C4;
@@ -191,11 +191,11 @@
     --st-long-bg: #2F2A20;
     --st-long-fg: #D6C6A4;
     /* 민원 상태 배지(2026-10-19 사용자): 신경 쓸 것(접수·진행·답변)은 따뜻한 색 진한 채움, 덜한 것(보류·장기)은 차가운 색 바탕, 끝난 것(완료)은 흐리게 */
-    --cs-new-bg: #F59E0B; --cs-new-fg: #1E1100;
-    --cs-work-bg: #FB923C; --cs-work-fg: #1E0E00;
-    --cs-reply-bg: #FB7185; --cs-reply-fg: #2A0710;
-    --cs-hold-bg: #334155; --cs-hold-fg: #D3DCE8;
-    --cs-long-bg: #1E3A55; --cs-long-fg: #BFD8F0;
+    --cs-new-bg: #FACC15; --cs-new-fg: #2A1F00;
+    --cs-work-bg: #F97316; --cs-work-fg: #1C0A00;
+    --cs-reply-bg: #EC4899; --cs-reply-fg: #2A0016;
+    --cs-hold-bg: #3A3F49; --cs-hold-fg: #CDD2DA;
+    --cs-long-bg: #0E4A63; --cs-long-fg: #A9E0F5;
     --cs-done-bg: #1F1E25; --cs-done-fg: #6F6D7A;
     --st-new-bg: #2B2552;
     --st-new-fg: #C9C0FF;
@@ -259,11 +259,11 @@
   --st-long-bg: #2F2A20;
   --st-long-fg: #D6C6A4;
   /* 민원 상태 배지(2026-10-19 사용자): 신경 쓸 것(접수·진행·답변)은 따뜻한 색 진한 채움, 덜한 것(보류·장기)은 차가운 색 바탕, 끝난 것(완료)은 흐리게 */
-  --cs-new-bg: #F59E0B; --cs-new-fg: #1E1100;
-  --cs-work-bg: #FB923C; --cs-work-fg: #1E0E00;
-  --cs-reply-bg: #FB7185; --cs-reply-fg: #2A0710;
-  --cs-hold-bg: #334155; --cs-hold-fg: #D3DCE8;
-  --cs-long-bg: #1E3A55; --cs-long-fg: #BFD8F0;
+  --cs-new-bg: #FACC15; --cs-new-fg: #2A1F00;
+  --cs-work-bg: #F97316; --cs-work-fg: #1C0A00;
+  --cs-reply-bg: #EC4899; --cs-reply-fg: #2A0016;
+  --cs-hold-bg: #3A3F49; --cs-hold-fg: #CDD2DA;
+  --cs-long-bg: #0E4A63; --cs-long-fg: #A9E0F5;
   --cs-done-bg: #1F1E25; --cs-done-fg: #6F6D7A;
   --danger: #F08A95;
   --urgent: #F28B82;
