@@ -108,6 +108,9 @@ export default function FilesScreen() {
     fsApi.types(keys).then((got) => setTypes((T) => ({ ...T, ...got })), () => {});
   }, [lists, st, cfg.cols.type]);
   const listsRef = useRef(lists);
+  /** 즐겨찾기 목록(load가 읽어요 — 바뀌면 즐겨찾기를 보는 창을 다시 읽어요) */
+  const favRef = useRef<string[]>([]);
+  favRef.current = st?.favorites ?? [];
   listsRef.current = lists;
   const [sels, setSels] = useState<Sel[]>([EMPTY_SEL, EMPTY_SEL, EMPTY_SEL, EMPTY_SEL]);
   const selsRef = useRef(sels);
@@ -168,7 +171,7 @@ export default function FilesScreen() {
     async (pane: number, path: string, keepSel = false) => {
       setLists((ls) => ls.map((l, i) => (i === pane ? { ...l, path, loading: true, error: "" } : l)));
       try {
-        const entries = await fsApi.list(path, cfg.showHidden);
+        const entries = path === HOME ? await favEntries(favRef.current) : await fsApi.list(path, cfg.showHidden);
         setLists((ls) => ls.map((l, i) => (i === pane && l.path === path ? { path, entries, error: "", loading: false } : l)));
         if (!keepSel) setSels((ss) => ss.map((s, i) => (i === pane ? EMPTY_SEL : s)));
         else
@@ -185,6 +188,13 @@ export default function FilesScreen() {
     },
     [cfg.showHidden],
   );
+
+  // 즐겨찾기를 더하거나 빼면 즐겨찾기를 보는 창을 다시 읽어요.
+  const favKey = (st?.favorites ?? []).join("\u0001");
+  useEffect(() => {
+    listsRef.current.forEach((l, i) => l.path === HOME && void load(i, HOME, true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [favKey]);
 
   // 보이는 창의 폴더가 바뀌면 읽어요.
   const paths = st ? st.panes.slice(0, paneCount).map((p) => (activeTab(p).find ? "" : activeTab(p).path)) : [];
@@ -878,17 +888,11 @@ export default function FilesScreen() {
     else if (r.hasKids) toggleOpen(r.path);
   };
 
-  // 트리 맨 위 묶음: 홈(윈도우 "홈"의 즐겨찾기 폴더, 처음 접힘)·내 PC(드라이브, 처음 펼침) — 접기는 tree.open에 HOME·"::pc:fold"
-  const [homeDirs, setHomeDirs] = useState<FsEntry[]>([]);
+  // 트리 맨 위 묶음: 즐겨찾기(★로 지정한 폴더, 처음 접힘 — 예전 "홈" 자리, 2026-10-19 사용자)·내 PC(드라이브, 처음 펼침) — 접기는 tree.open에 HOME·"::pc:fold"
   const showHome = !treeHidden.includes(HOME);
   const showPc = !treeHidden.includes(PC);
   const homeOpen = !!st?.tree.open.includes(HOME);
   const pcFolded = !!st?.tree.open.includes(PC_FOLD);
-  useEffect(() => {
-    if (!st?.tree.on || !showHome || !homeOpen) return;
-    fsApi.list(HOME, false).then((es) => setHomeDirs(es.filter((e) => e.dir)), () => setHomeDirs([]));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [st?.tree.on, showHome, homeOpen]);
   const toggleGroup = (key: string) => {
     if (!st) return;
     const open = st.tree.open.includes(key) ? st.tree.open.filter((p) => p !== key) : [...st.tree.open, key];
@@ -906,9 +910,10 @@ export default function FilesScreen() {
       }
     };
     if (showHome) {
-      out.push({ name: "홈", path: HOME, level: 0, hasKids: true, drive: false, first: true, special: "home", key: HOME });
+      out.push({ name: "즐겨찾기", path: HOME, level: 0, hasKids: st.favorites.length > 0, drive: false, first: true, special: "home", key: HOME });
       if (homeOpen)
-        homeDirs.forEach((d) => {
+        st.favorites.forEach((f) => {
+          const d = { name: baseName(f) || f, path: f };
           out.push({ name: d.name, path: d.path, level: 1, hasKids: true, drive: false, first: false, key: "h:" + d.path });
           if (st.tree.open.includes(d.path)) walk(d.path, 2, "h:");
         });
@@ -920,7 +925,7 @@ export default function FilesScreen() {
         if (st.tree.open.includes(d.path)) walk(d.path, 1, "");
       });
     return out;
-  }, [st, tree, treeDrives, showHome, showPc, homeOpen, pcFolded, homeDirs]);
+  }, [st, tree, treeDrives, showHome, showPc, homeOpen, pcFolded]);
 
   // 지금 경로의 위 폴더들(굵게·연보라 안내선)
   const onPath = useMemo(() => {
@@ -1169,9 +1174,9 @@ export default function FilesScreen() {
             </button>
           ))}
           {!cfg.hiddenDrives.includes(HOME) && (
-            <button type="button" className="fx-drv" data-on={t.path === HOME ? "1" : "0"} title="홈" aria-label="홈" onClick={() => go(pane, HOME)}>
+            <button type="button" className="fx-drv" data-on={t.path === HOME ? "1" : "0"} title="즐겨찾기" aria-label="즐겨찾기" onClick={() => go(pane, HOME)}>
               <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 11l9-7 9 7M5 9.5V20h5v-6h4v6h5V9.5" />
+                <path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z" />
               </svg>
             </button>
           )}
@@ -1282,47 +1287,20 @@ export default function FilesScreen() {
               <path d="M18 14v6H4V6h6" />
             </svg>
           </button>
-          <div className="fx-rel">
-            <button type="button" className="fx-ib fx-menu-btn" aria-label="즐겨찾기" data-on={fav ? "1" : "0"} onClick={() => setMenu(menu?.kind === "fav" && menu.pane === pane ? null : { kind: "fav", pane })}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill={fav ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z" />
-              </svg>
-            </button>
-            {menu?.kind === "fav" && menu.pane === pane && (
-              <div className="fx-menu fx-menu-r fx-fav" role="menu">
-                {!t.find && !isSpecial(t.path) && (
-                  <button
-                    type="button"
-                    className="fx-mi fx-strong"
-                    onClick={() => {
-                      setSt({ ...st, favorites: fav ? st.favorites.filter((f) => f !== t.path) : [...st.favorites, t.path] });
-                      setMenu(null);
-                    }}
-                  >
-                    {fav ? "★ 지금 폴더 빼기" : "☆ 지금 폴더 더하기"}
-                  </button>
-                )}
-                {st.favorites.length > 0 && <div className="fx-sep" />}
-                {st.favorites.map((f) => (
-                  <button
-                    key={f}
-                    type="button"
-                    className="fx-mi"
-                    title={f}
-                    onClick={() => {
-                      go(pane, f);
-                      setMenu(null);
-                    }}
-                  >
-                    <FileIcon name={baseName(f)} path={f} dir size={16} />
-                    <span className="fx-ellip">{baseName(f)}</span>
-                    <span className="fx-k fx-ellip">{parentOf(f) ?? ""}</span>
-                  </button>
-                ))}
-                {!st.favorites.length && t.find && <span className="fx-mi fx-dim">즐겨찾기가 없어요</span>}
-              </div>
-            )}
-          </div>
+          <button
+            type="button"
+            className="fx-ib"
+            aria-label={fav ? "즐겨찾기에서 빼기" : "즐겨찾기에 더하기"}
+            title={fav ? "즐겨찾기에서 빼기" : "즐겨찾기에 더하기"}
+            aria-pressed={fav}
+            data-on={fav ? "1" : "0"}
+            disabled={!!t.find || isSpecial(t.path)}
+            onClick={() => setSt({ ...st, favorites: fav ? st.favorites.filter((f) => f !== t.path) : [...st.favorites, t.path] })}
+          >
+            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill={fav ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z" />
+            </svg>
+          </button>
         </div>
         {t.find && (
           <div className="fx-findband">
@@ -1486,8 +1464,7 @@ export default function FilesScreen() {
                 </div>
               );
             }
-            // 홈: 윈도우처럼 "즐겨찾기"·"최근 파일" 묶음 이름
-            const groupHead = !t.find && t.path === HOME && r.group && (i === 0 || rows[i - 1].group !== r.group) ? (r.group === "fav" ? "즐겨찾기" : "최근 파일") : "";
+            const groupHead = "";
             return (
               <Fragment key={r.path}>
               {groupHead && <div className="fx-ghead">{groupHead}</div>}
@@ -1781,7 +1758,7 @@ export default function FilesScreen() {
                         <span className="fx-tico">
                           {r.special === "home" ? (
                             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M3 11l9-7 9 7M5 9.5V20h5v-6h4v6h5V9.5" />
+                              <path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z" />
                             </svg>
                           ) : r.special === "pc" ? (
                             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -2086,4 +2063,20 @@ function PreviewImage({ path }: { path: string }) {
     };
   }, [path]);
   return src ? <img className="fx-pv-img" src={src} alt="" draggable={false} /> : <div className="fx-pv-ph">사진은 앱에서 보여요</div>;
+}
+
+/** 즐겨찾기 보기: ★로 지정한 폴더를 목록 줄로(수정한 날은 위 폴더를 읽어 채워요, 없어진 폴더는 흐린 이름으로 남겨요) */
+async function favEntries(favs: string[]): Promise<FsEntry[]> {
+  const byParent = new Map<string, FsEntry[]>();
+  const out: FsEntry[] = [];
+  for (const f of favs) {
+    const par = parentOf(f);
+    let found: FsEntry | undefined;
+    if (par) {
+      if (!byParent.has(par)) byParent.set(par, await fsApi.list(par, true).catch(() => []));
+      found = byParent.get(par)!.find((e) => e.path === f);
+    }
+    out.push(found ?? { name: baseName(f) || f, path: f, dir: true, size: 0, modified: 0, created: 0, hidden: false, locked: false, kind: par ? undefined : "드라이브" });
+  }
+  return out;
 }
