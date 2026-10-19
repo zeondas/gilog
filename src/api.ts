@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { areaFor, fakeRoadToJibun, RoadLookup } from "./address";
 import type { BudgetLevel, BudgetProject, BudgetRowInput } from "./budget";
 import type { GridSheet, ImportProject } from "./budgetExcel";
+import type { BStatusExport } from "./budgetStatus";
 import { fakeBudget } from "./budgetFake";
 
 export type Status = { exists: boolean; unlocked: boolean; folder: string };
@@ -839,6 +840,15 @@ function fakeContacts(cmd: string, a: Record<string, unknown>): ContactsData | n
       for (const r of rows) {
         const t = (s: string) => (s ?? "").trim();
         const names = [...new Set(r.projects.map((p) => p.trim()).filter(Boolean))];
+        const dg = (x: string) => (x ?? "").replace(/\D/g, "");
+        const same = t(r.name) ? fake.contacts.find((c) => c.name === t(r.name) && c.org === t(r.org) && dg(c.mobile) === dg(r.mobile)) : undefined;
+        if (same) {
+          for (const n of names) {
+            const id = projectId(n);
+            if (!same.projects.includes(id)) same.projects.push(id);
+          }
+          continue;
+        }
         fake.contacts.push({
           id: fake.nextId++, name: t(r.name), org: t(r.org), role: t(r.role), mobile: t(r.mobile), tel: t(r.tel), email: t(r.email),
           memo: t(r.memo), projects: names.map(projectId),
@@ -1120,9 +1130,11 @@ function fakeCall(cmd: string, args: Record<string, unknown>): unknown {
       ? ["연번", "접수유형", "접수일", "민원유형", "지역", "위치", "민원인", "연락처", "내용", "조치내용", "마감일", "상태", "메모"]
       : a.kind === "journal"
         ? ["연번", "날짜", "시각", "구분", "상대", "연락처", "프로젝트", "내용"]
-        : ["연번", "이름", "소속", "직위", "무선", "유선", "이메일", "프로젝트", "메모"];
+        : ["연번", "이름", "소속", "직위", "무선", "유선", "이메일", "프로젝트", "메모", "그룹", "축약공사명", "색"];
     const d = args.data as { rows: string[][]; days?: string[][] };
-    const extra = a.kind === "journal" ? [{ headers: ["날짜", "출근", "교통", "날씨", "비고"], rows: d.days ?? [], extra: [] }] : [];
+    const extra = a.kind === "journal"
+      ? [{ headers: ["날짜", "출근", "교통", "날씨", "비고"], rows: d.days ?? [], extra: [] }]
+      : [];
     fakeExcel.set(a.path, { headers: heads, rows: d.rows, extra });
     return null;
   }
@@ -1134,6 +1146,19 @@ function fakeCall(cmd: string, args: Record<string, unknown>): unknown {
   if (cmd === "budget_excel_write") {
     fakeExcel.set(a.path, args.data);
     (window as unknown as { __budgetLastExport?: unknown }).__budgetLastExport = args.data;
+    return null;
+  }
+  if (cmd === "bstatus_list") {
+    if (!fake.unlocked) throw "locked";
+    return [...fake.values.entries()].filter(([k]) => k.startsWith("bstatus:")).map(([k, v]) => ({ name: k.slice(8), setup: v }));
+  }
+  if (cmd === "bstatus_set") {
+    if (!fake.unlocked) throw "locked";
+    fake.values.set("bstatus:" + a.name, a.setup);
+    return null;
+  }
+  if (cmd === "bstatus_excel_write") {
+    (window as unknown as { __bstatusLastExport?: unknown }).__bstatusLastExport = args.data;
     return null;
   }
   if (cmd === "budget_excel_read") {
@@ -1351,6 +1376,10 @@ export const api = {
   importBudget: (year: number, projects: ImportProject[]) => call<[BudgetProject[], number, number]>("import_budget", { year, projects }),
   budgetExcelWrite: (path: string, data: { year: number; unit: number; basis?: string; date: string; projects: BudgetProject[] }) => call<null>("budget_excel_write", { path, data }),
   budgetExcelRead: (path: string) => call<GridSheet[]>("budget_excel_read", { path }),
+  // 예산현황(13단계): 세부사업 설정 JSON(core 표 bstatus), 엑셀 쓰기(읽기는 budgetExcelRead)
+  bstatusList: () => call<{ name: string; setup: string }[]>("bstatus_list", {}),
+  bstatusSet: (name: string, setup: string) => call<null>("bstatus_set", { name, setup }),
+  bstatusExcelWrite: (path: string, data: BStatusExport) => call<null>("bstatus_excel_write", { path, data }),
   saveWork: (id: number | null, work: WorkInput) => call<Work[]>("save_work", { id, work }),
   deleteWork: (id: number) => call<Work[]>("delete_work", { id }),
   updateCase: (no: string, patch: CasePatch) => call<Case>("update_case", { no, patch }),

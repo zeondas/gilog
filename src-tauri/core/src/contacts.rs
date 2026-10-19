@@ -195,6 +195,24 @@ fn set_projects(tx: &Transaction, contact: i64, names: &[String]) -> Result<()> 
     Ok(())
 }
 
+/// 가져오기에서 같은 사람: 이름이 있고, 이름·소속이 같고 무선 번호 숫자가 같은 사람(번호가 둘 다 비어도 같음).
+fn same_person(tx: &Transaction, name: &str, org: &str, mobile: &str) -> Result<Option<i64>> {
+    if name.is_empty() {
+        return Ok(None);
+    }
+    let digits = |s: &str| s.chars().filter(|c| c.is_ascii_digit()).collect::<String>();
+    let want = digits(mobile);
+    let mut st = tx.prepare("SELECT id, mobile FROM contacts WHERE name = ?1 AND org = ?2 ORDER BY id")?;
+    let rows = st.query_map(params![name, org], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))?;
+    for row in rows {
+        let (id, m) = row?;
+        if digits(&m) == want {
+            return Ok(Some(id));
+        }
+    }
+    Ok(None)
+}
+
 fn exists(tx: &Transaction, table: &str, id: i64) -> Result<bool> {
     let sql = format!("SELECT 1 FROM {table} WHERE id = ?1");
     Ok(tx.query_row(&sql, params![id], |_| Ok(())).optional()?.is_some())
@@ -282,8 +300,11 @@ impl Store {
     }
 
     /// 엑셀 가져오기: 모든 줄을 한 번에 넣어요(하나라도 실패하면 아무것도 안 들어가요). 없는 프로젝트는 만들어요.
+    /// 이름·소속·무선 번호(숫자만 비교)가 같은 사람이 이미 있으면 새로 만들지 않고, 그 사람에게 없는 프로젝트만
+    /// 뒤에 붙여요(2026-10-19 사용자 1안 — 백업 파일을 다시 가져와도 사람이 늘지 않게). 새로 만든 사람 수를 돌려줘요.
     pub fn import_contacts(&mut self, rows: &[ContactImport]) -> Result<usize> {
         let tx = self.conn.transaction()?;
+        let mut added = 0;
         for r in rows {
             let c = &r.input;
             let t = |s: &str| s.trim().to_string();
@@ -294,15 +315,32 @@ impl Store {
                     projects.push(p.to_string());
                 }
             }
+            if let Some(id) = same_person(&tx, &t(&c.name), &t(&c.org), &c.mobile)? {
+                let mut pos: i64 = tx.query_row(
+                    "SELECT COALESCE(MAX(pos), -1) + 1 FROM contact_projects WHERE contact_id = ?1",
+                    params![id],
+                    |row| row.get(0),
+                )?;
+                for name in &projects {
+                    let pid = project_id(&tx, name)?;
+                    let n = tx.execute(
+                        "INSERT OR IGNORE INTO contact_projects (contact_id, project_id, pos) VALUES (?1, ?2, ?3)",
+                        params![id, pid, pos],
+                    )?;
+                    pos += n as i64;
+                }
+                continue;
+            }
             tx.execute(
                 "INSERT INTO contacts (name, org, role, mobile, tel, email, memo) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
                 params![t(&c.name), t(&c.org), t(&c.role), t(&c.mobile), t(&c.tel), t(&c.email), r.memo.trim()],
             )?;
             let id = tx.last_insert_rowid();
             set_projects(&tx, id, &projects)?;
+            added += 1;
         }
         tx.commit()?;
-        Ok(rows.len())
+        Ok(added)
     }
 
     pub fn delete_contact(&mut self, id: i64) -> Result<()> {
@@ -676,5 +714,29 @@ mod tests {
         let d = s.contacts_data().unwrap();
         assert_eq!(d.contacts[0].name, "CONTACT-MARKER");
         assert_eq!(d.projects[0].name, "PROJECT-MARKER");
+    }
+
+    #[test]
+    fn import_merges_same_person() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut s = Store::create(tmp.path(), "abcd1234").unwrap();
+        s.add_contact(&input("박은철", &["P1"])).unwrap();
+        let row = |name: &str, mobile: &str, projects: &[&str]| ContactImport {
+            input: ContactInput {
+                name: name.into(),
+                org: "경기도청 도로정책과".into(),
+                mobile: mobile.into(),
+                projects: projects.iter().map(|s| s.to_string()).collect(),
+                ..Default::default()
+            },
+            memo: String::new(),
+        };
+        // 같은 사람(번호 모양만 다름) → 프로젝트만 뒤에 붙음, 다른 번호 → 새 사람
+        let n = s.import_contacts(&[row("박은철", "01000000101", &["P1", "P2"]), row("박은철", "010-9999-9999", &["P3"])]).unwrap();
+        assert_eq!(n, 1);
+        let d = s.contacts_data().unwrap();
+        assert_eq!(d.contacts.len(), 2);
+        let first = d.contacts.iter().min_by_key(|c| c.id).unwrap();
+        assert_eq!(names(&d, first), vec!["P1", "P2"]);
     }
 }

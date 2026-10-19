@@ -4,8 +4,9 @@ export const SCREENS = [
   { id: "explorer", name: "탐색기", side: "탐색기", step: 11, group: 0 },
   { id: "complaints", name: "민원대장", side: "민원대장", step: 6, group: 1 },
   { id: "process", name: "민원처리", side: "민원처리", step: 10, group: 1 },
-  // 예산 묶음(2026-10-18 사용자): 집행현황, 다음에 이월사업
+  // 예산 묶음(2026-10-18 사용자): 집행현황 · 예산현황(2026-10-19, 옛 이월사업)
   { id: "budget", name: "집행현황", side: "집행현황", step: 12, group: 4 },
+  { id: "bstatus", name: "예산현황", side: "예산현황", step: 13, group: 4 },
   { id: "calendar", name: "캘린더", side: "캘린더", step: 8, group: 2 },
   { id: "todo", name: "할 일 목록", side: "할 일", step: 7, group: 2 },
   { id: "journal", name: "업무일지", side: "업무일지", step: 5, group: 3 },
@@ -37,6 +38,7 @@ export const MODULE_DESC: Record<ModuleId, string> = {
   complaints: "민원 접수·처리 기록",
   process: "신문고 민원 → 지시부 → 폰으로 보내기",
   budget: "예산 집행률·가용액",
+  bstatus: "세부사업별 연도·재원 예산 장부(이월·불용)",
   calendar: "일정·공휴일·알림",
   todo: "목록별 할 일·마감",
   journal: "누가 언제 무슨 말을 했는지",

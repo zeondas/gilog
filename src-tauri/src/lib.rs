@@ -1,5 +1,7 @@
+mod accent_icon;
 mod autostart;
 mod budget;
+mod bstatus;
 mod calendar;
 mod ime;
 mod google;
@@ -169,6 +171,9 @@ fn set_prefs(app: AppHandle, state: State<AppState>, prefs: Prefs) -> Result<(),
     }
     write_prefs(&app, &prefs)?;
     window::apply_theme(&app, &prefs.theme);
+    if prefs.accent != old.accent {
+        accent_icon::apply(&app, &prefs.accent);
+    }
     Ok(())
 }
 
@@ -621,6 +626,9 @@ pub fn run() {
             // 자동 실행(--autostart)으로 켜지면 창을 보이지 않고 트레이에만 둬요(2026-10-19 사용자 2안).
             window::create(app, &theme, autostart::launched())?;
             calendar::setup_tray(app)?;
+            // 작업표시줄·창 제목·트레이 아이콘을 고른 강조색으로(2026-10-19 사용자).
+            let accent = read_prefs(app.handle()).map(|p| p.accent).unwrap_or_default();
+            accent_icon::apply(app.handle(), &accent);
             // 도로명주소 표를 미리 풀어 둬요(처음 바꿀 때 기다리지 않게).
             std::thread::spawn(|| {
                 gilog_core::road_to_jibun("");
@@ -727,6 +735,9 @@ pub fn run() {
             budget::import_budget,
             budget::budget_excel_write,
             budget::budget_excel_read,
+            bstatus::bstatus_list,
+            bstatus::bstatus_set,
+            bstatus::bstatus_excel_write,
             process::process_data,
             process::save_work,
             process::delete_work,

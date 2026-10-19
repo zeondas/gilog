@@ -24,13 +24,16 @@ import { api, Complaint, ComplaintInput, errorText } from "./api";
 import {
   COL_MIN,
   COLUMNS,
+  ColKey,
   ColFilters,
   daysLeft,
+  daysTaken,
+  takenText,
   ddayText,
   defaultWidths,
   expandType,
   FILTER_KEYS,
-  fitWidths,
+  fitComplaintCols,
   FilterKey,
   filterValues,
   gridTemplate,
@@ -59,6 +62,9 @@ const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode
 const COLS_KEY = "complaints.colWidths";
 /** 상태 필터만 마지막 것을 기억해요(2026-10-17 사용자 2안 + 상태 예외). 다른 열 필터는 앱을 끄면 풀려요. */
 const STATUS_FILTER_KEY = "complaints.statusFilter";
+/** 조치완료일 열 접기(2026-10-19 사용자) — 접으면 걸린 날 "Nd"만 보여요. */
+const DONE_FOLD_KEY = "complaints.doneFolded";
+const DONE_FOLD_W = 48;
 
 const FILTER_LABEL: Record<FilterKey, string> = { intake: "접수유형", ctype: "민원유형", area: "지역", status: "상태" };
 
@@ -70,6 +76,7 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
   const [list, setList] = useState<Complaint[] | null>(null);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [widths, setWidths] = useState<(number | null)[]>(defaultWidths());
+  const [doneFolded, setDoneFolded] = useState(true); // 처음엔 접혀 있어요(2026-10-19 사용자)
   // 표가 쓸 수 있는 폭. 저장된 열 너비가 이보다 넓으면 비율대로 줄여 보여요(가로 스크롤 없음).
   const tableRef = useRef<HTMLDivElement>(null);
   const [avail, setAvail] = useState(0);
@@ -102,6 +109,7 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
       .then(setList, (e) => setNote(errorText(e)));
     loadSettings().then(setSettings, () => {});
     api.get(COLS_KEY).then((raw) => setWidths(readWidths(raw)), () => {});
+    api.get(DONE_FOLD_KEY).then((raw) => setDoneFolded(raw !== "false"), () => {});
     api.get(STATUS_FILTER_KEY).then((raw) => setFilters((f) => ({ ...f, status: readStatusFilter(raw) })), () => {});
     // 구글 할 일에서 민원을 체크하면 상태가 바뀌어요 → 다시 읽어요.
     const reload = () => api.complaints().then(setList, () => {});
@@ -164,6 +172,45 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
   }
 
   const all = list ?? [];
+
+  /**
+   * 배치최적화(2026-10-19 사용자): 내용·조치내용과 폭 고정 열을 뺀 열(연번·접수유형·민원유형·지역·위치·민원인)을
+   * 민원 전체에서 가장 긴 글이 한 줄에 들어가는 폭 + 여유로 맞추고, 남는 폭은 내용·조치내용이 반씩 가져요.
+   * 가장 좁아도 열 제목(+ 거르기 아이콘) 폭. 열 제목 줄 우클릭 "열 너비 초기화"로 처음대로.
+   */
+  function fitColumns() {
+    const table = tableRef.current;
+    if (!table) return;
+    const ctx = document.createElement("canvas").getContext("2d");
+    if (!ctx) return;
+    const family = getComputedStyle(table).fontFamily;
+    const textW = (s: string, weight: number, size: number) => {
+      ctx.font = `${weight} ${size}px ${family}`;
+      return ctx.measureText(s).width;
+    };
+    const PAD = 20; // 칸 좌우 10px
+    const SLACK = 12; // 너무 꼭 맞지 않게 좌우 6px씩(사용자)
+    const FILTER_EXTRA = 40; // 거르기 단추 여백·테두리·아이콘
+    const field: Partial<Record<ColKey, (c: Complaint) => string>> = {
+      no: (c) => String(c.no),
+      intake: (c) => c.intake,
+      ctype: (c) => c.ctype,
+      area: (c) => c.area,
+      place: (c) => c.place,
+      person: (c) => c.person,
+    };
+    const next = COLUMNS.map((col, i) => {
+      if (col.w === null) return null; // 내용·조치내용은 남는 폭 반씩
+      const get = field[col.key];
+      if (col.fixed || !get) return widths[i];
+      const weight = col.key === "intake" ? 500 : 400;
+      const body = Math.max(0, ...all.map((c) => textW(get(c), weight, 13)));
+      const filt = (FILTER_KEYS as string[]).includes(col.key);
+      const head = textW(col.label, 600, 12) + (filt ? FILTER_EXTRA : PAD);
+      return Math.max(COL_MIN, Math.ceil(Math.max(body + PAD, head) + SLACK));
+    });
+    saveWidths(next);
+  }
   const query = q.trim().toLowerCase();
   const found = all.filter((c) => matches(c, query));
   const shown = found.filter((c) => passes(c, filters));
@@ -199,8 +246,14 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.status, statuses, list]);
 
-  const shownWidths = fitWidths(widths, avail);
-  const tableStyle = { "--cm-cols": gridTemplate(shownWidths) } as CSSProperties;
+  const doneIdx = COLUMNS.findIndex((c) => c.key === "done");
+  const fitted = fitComplaintCols(doneFolded ? widths.map((w, i) => (i === doneIdx ? DONE_FOLD_W : w)) : widths, avail);
+  const shownWidths = fitted.ws;
+  const foldDone = (v: boolean) => {
+    setDoneFolded(v);
+    run(api.set(DONE_FOLD_KEY, v ? "true" : "false"));
+  };
+  const tableStyle = { "--cm-cols": gridTemplate(shownWidths, fitted.flexMin) } as CSSProperties;
   const memoOf = all.find((c) => c.id === memoId) ?? null;
 
   // 표 안쪽 폭을 재요(창 크기를 바꾸면 다시).
@@ -231,8 +284,6 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
           statuses={statuses}
           base={found.filter((c) => passes(c, filters, "status"))}
           filters={filters}
-          total={all.length}
-          shown={shown.length}
           onStatus={(v) => setFilter("status", v)}
           onOpen={setOpenFilter}
           onClear={(k) => setFilter(k, null)}
@@ -253,6 +304,12 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
             onCompositionEnd={qGuard.onCompositionEnd}
           />
         </label>
+        <button type="button" className="btn btn-ctrl cm-tool" title="열 폭을 글 길이에 맞추고 남는 폭은 내용·조치내용에 반씩 · 열 제목 우클릭으로 처음대로" onClick={fitColumns}>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 5v14M21 5v14M3 12h6M21 12h-6M6 9l3 3-3 3M18 9l-3 3 3 3" />
+          </svg>
+          배치최적화
+        </button>
         <button type="button" className="btn btn-ctrl btn-text" onClick={() => setCatsOpen(true)}>
           분류 관리
         </button>
@@ -271,13 +328,15 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
 
       {note && <p className="note" role="status">{note}</p>}
 
-      <div className="cm" role="table" aria-label="민원 목록" style={tableStyle} ref={tableRef}>
+      <div className={"cm" + (doneFolded ? " cm-fold-done" : "")} role="table" aria-label="민원 목록" style={tableStyle} ref={tableRef}>
         <HeadRow
           widths={shownWidths}
           avail={avail}
           onResize={setWidths}
           onResized={saveWidths}
           onResetWidths={() => saveWidths(defaultWidths())}
+          doneFolded={doneFolded}
+          onFoldDone={foldDone}
           filters={filters}
           open={openFilter}
           onToggle={(k) => setOpenFilter(openFilter === k ? null : k)}
@@ -348,6 +407,10 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
                 const r = await run(api.setComplaintStatus(c.id, status, done));
                 if (r) put(r);
               }}
+              onDone={async (done) => {
+                const r = await run(api.setComplaintStatus(c.id, c.status, done));
+                if (r) put(r);
+              }}
             />
           ),
         )}
@@ -393,6 +456,8 @@ function HeadRow({
   open,
   onToggle,
   dropdown,
+  doneFolded,
+  onFoldDone,
 }: {
   widths: (number | null)[];
   avail: number;
@@ -403,6 +468,8 @@ function HeadRow({
   open: FilterKey | null;
   onToggle: (k: FilterKey) => void;
   dropdown: ReactNode;
+  doneFolded: boolean;
+  onFoldDone: (v: boolean) => void;
 }) {
   const rowRef = useRef<HTMLDivElement>(null);
   // 열 제목 줄 우클릭 메뉴: 열 너비 초기화 (2026-10-17 사용자 2안)
@@ -449,8 +516,22 @@ function HeadRow({
         const fk = (FILTER_KEYS as string[]).includes(col.key) ? (col.key as FilterKey) : null;
         const on = fk !== null && filters[fk] !== null;
         return (
-          <div role="columnheader" key={col.key} className={"cm-hcell" + (col.key === "no" ? " right" : "") + (fk ? " cm-hf" : "")}>
-            {fk ? (
+          <div role="columnheader" key={col.key} className={"cm-hcell" + (col.key === "no" ? " right" : "") + (fk || col.key === "done" ? " cm-hf" : "")}>
+            {col.key === "done" ? (
+              <button
+                type="button"
+                className={"cm-hbtn cm-fold" + (doneFolded ? " folded" : "")}
+                aria-expanded={!doneFolded}
+                aria-label={doneFolded ? "조치완료일 펼치기" : "조치완료일 접기"}
+                title={doneFolded ? "조치완료일 펼치기" : "조치완료일 접기"}
+                onClick={() => onFoldDone(!doneFolded)}
+              >
+                {!doneFolded && <span>{col.label}</span>}
+                <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                  <path d={doneFolded ? "M9 6l6 6-6 6" : "M15 6l-6 6 6 6"} />
+                </svg>
+              </button>
+            ) : fk ? (
               <button
                 type="button"
                 className={"cm-hbtn" + (on ? " on" : "")}
@@ -466,7 +547,7 @@ function HeadRow({
               col.label
             )}
             {open === fk && fk && dropdown}
-            {i < COLUMNS.length - 1 && <span className="cm-grip" aria-hidden="true" title="끌어서 열 너비 바꾸기" onMouseDown={(e) => start(e, i)} />}
+            {i < COLUMNS.length - 1 && !col.fixed && <span className="cm-grip" aria-hidden="true" title="끌어서 열 너비 바꾸기" onMouseDown={(e) => start(e, i)} />}
           </div>
         );
       })}
@@ -520,13 +601,11 @@ function HeadMenu({ x, y, onClose, onReset }: { x: number; y: number; onClose: (
 
 // ---------- 열 필터 (시안 ComplaintFilter.dc.html) ----------
 
-/** 상태 칩 줄 + 걸린 필터 알약 + 오른쪽 끝 "N건 중 M건" */
+/** 상태 칩 줄 + 걸린 필터 알약 (건수 글줄은 2026-10-19 사용자가 뺌) */
 function FilterChips({
   statuses,
   base,
   filters,
-  total,
-  shown,
   onStatus,
   onOpen,
   onClear,
@@ -536,8 +615,6 @@ function FilterChips({
   /** 상태 필터만 뺀 나머지 필터·검색을 건 민원 (칩 숫자) */
   base: Complaint[];
   filters: ColFilters;
-  total: number;
-  shown: number;
   onStatus: (v: string[] | null) => void;
   onOpen: (k: FilterKey) => void;
   onClear: (k: FilterKey) => void;
@@ -557,7 +634,11 @@ function FilterChips({
       {statuses.map((s) => {
         const on = sf !== null && sf.includes(s);
         return (
-          <button key={s} type="button" className="pchip" aria-pressed={on} onClick={() => onStatus(sf && sf.length === 1 && sf[0] === s ? null : [s])}>
+          <button key={s} type="button" className="pchip" aria-pressed={on} onClick={() => {
+              // 여러 개를 골라요(2026-10-19 사용자): 누르면 넣고·빼고, 다 빠지거나 전부 고르면 전체예요.
+              const next = sf === null ? [s] : on ? sf.filter((x) => x !== s) : [...sf, s];
+              onStatus(next.length === 0 || next.length === statuses.length ? null : statuses.filter((x) => next.includes(x)));
+            }}>
             <span>{s}</span>
             <span className="pchip-n">{base.filter((c) => c.status === s).length}</span>
           </button>
@@ -590,9 +671,6 @@ function FilterChips({
           모두 풀기
         </button>
       )}
-      <span className="cm-fcount">
-        {total}건 중 {shown}건
-      </span>
     </div>
   );
 }
@@ -958,7 +1036,7 @@ function Cells({
           }
         />
       </div>
-      <div role="cell" className="cm-c">
+      <div role="cell" className="cm-c cm-done-in">
         <input
           name="done"
           aria-label="조치완료일"
@@ -1209,6 +1287,7 @@ function ViewRow({
   onEdit,
   onMemo,
   onStatus,
+  onDone,
 }: {
   c: Complaint;
   alt: boolean;
@@ -1222,8 +1301,10 @@ function ViewRow({
   onEdit: () => void;
   onMemo: () => void;
   onStatus: (status: string) => void;
+  onDone: (done: string) => void;
 }) {
   const n = daysLeft(c, today);
+  const taken = daysTaken(c);
   const [bg, fg] = statusColor(c.status);
   const hasMemo = parseMemo(c.memo).length > 0;
   const t = (s: string): ReactNode => <Hl text={s} q={q} />;
@@ -1288,8 +1369,9 @@ function ViewRow({
       <div role="cell" className="cm-c">
         <StatusPick status={c.status} statuses={statuses} bg={bg} fg={fg} render={t} onPick={onStatus} />
       </div>
-      <div role="cell" className="cm-c cm-num">
-        {t(c.done ?? "")}
+      <div role="cell" className="cm-c cm-num cm-due cm-done-c">
+        <span className="cm-done-d">{t(c.done ?? "")}</span>
+        {taken !== null && <TakenPick c={c} taken={taken} onSave={onDone} />}
       </div>
       <div role="cell" className="cm-c cm-center">
         <span onDoubleClick={(e) => e.stopPropagation()}>
@@ -1444,6 +1526,95 @@ function StatusPick({
               </span>
             );
           })}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * 걸린 날 "4d"를 누르면 조치완료일을 고치는 작은 칸(2026-10-19 사용자 — 열을 접어 둔 채로도 고쳐요).
+ * Enter·바깥 누르기 저장, Esc 그대로. 날짜 칸 규칙(parseDate)과 같고, 읽을 수 없거나 접수일보다 앞이면 빨간 테두리.
+ */
+function TakenPick({ c, taken, onSave }: { c: Complaint; taken: number; onSave: (done: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [v, setV] = useState("");
+  const [bad, setBad] = useState(false);
+  const box = useRef<HTMLSpanElement>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const live = useRef({ v, c });
+  live.current = { v, c };
+
+  // 저장하면 true, 못 읽으면 false(칸은 열어 둬요).
+  function commit(): boolean {
+    const { v: raw, c: cur } = live.current;
+    const d = parseDate(raw);
+    if (!d || d < cur.received) {
+      setBad(true);
+      return false;
+    }
+    setOpen(false);
+    if (d !== cur.done) onSave(d);
+    return true;
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    input.current?.focus();
+    input.current?.select();
+    const down = (e: MouseEvent) => {
+      if (box.current?.contains(e.target as Node)) return;
+      if (!commit()) setOpen(false);
+    };
+    document.addEventListener("mousedown", down);
+    return () => document.removeEventListener("mousedown", down);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  return (
+    <span ref={box} className="cm-tpick" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        className="cm-dday cm-taken cm-taken-btn"
+        title={`조치완료일 ${c.done} · 접수부터 ${taken}일 — 눌러서 고치기`}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => {
+          setV(c.done ?? "");
+          setBad(false);
+          setOpen(!open);
+        }}
+      >
+        {takenText(c, taken)}
+      </button>
+      {open && (
+        <span className="cm-tpick-pop" role="dialog" aria-label="조치완료일 고치기">
+          <span className="cm-tpick-label">조치완료일</span>
+          <input
+            ref={input}
+            aria-label="조치완료일"
+            aria-invalid={bad || undefined}
+            className={"cell-input num" + (bad ? " invalid" : "")}
+            inputMode="numeric"
+            placeholder="연-월-일"
+            value={v}
+            onChange={(e) => {
+              setV(e.target.value);
+              setBad(false);
+            }}
+            onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing) return;
+              if (e.key === "Enter" || e.key === "Tab") {
+                e.preventDefault();
+                e.stopPropagation();
+                commit();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                e.stopPropagation();
+                setOpen(false);
+              }
+            }}
+          />
         </span>
       )}
     </span>

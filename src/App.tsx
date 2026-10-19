@@ -7,6 +7,7 @@ import ComplaintsScreen from "./ComplaintsScreen";
 import ContactsScreen from "./ContactsScreen";
 import ProcessScreen from "./ProcessScreen";
 import BudgetScreen from "./BudgetScreen";
+import BudgetStatusScreen from "./BudgetStatusScreen";
 import FilesScreen from "./FilesScreen";
 import Gate from "./Gate";
 import Logo, { AppIcon } from "./Logo";
@@ -253,7 +254,7 @@ export default function App() {
           </button>
         </div>
       </nav>
-      <main className={current === "explorer" || current === "budget" ? "main main-fill" : "main"}>
+      <main className={current === "explorer" || current === "budget" || current === "bstatus" ? "main main-fill" : "main"}>
         {current === SETTINGS.id ? (
           <SettingsScreen prefs={prefs} onPrefs={savePrefs} status={status} onLocked={refresh} onModules={changeModules} onClose={closeSettings} />
         ) : current === "explorer" ? (
@@ -266,6 +267,8 @@ export default function App() {
           <ComplaintsScreen urgentDays={prefs.urgentDays} focusId={focusComplaint} onFocused={clearFocus} />
         ) : current === "budget" ? (
           <BudgetScreen />
+        ) : current === "bstatus" ? (
+          <BudgetStatusScreen />
         ) : current === "process" ? (
           <ProcessScreen urgentDays={prefs.urgentDays} onOpenComplaint={openComplaint} />
         ) : current === "calendar" ? (

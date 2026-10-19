@@ -4,7 +4,7 @@
 //   가져올 때는 거꾸로 기호를 알아보고, 빈 줄(묶음 나누기)은 남겨요.
 // - 가져오기는 판단하지 않아요: 중복 검사·값 고치기 없이 모든 줄(모든 칸이 빈 줄만 빼고)을 넣어요.
 //   다만 날짜 칸은 앱이 읽을 수 있으면 2026-10-15 모양으로 맞춰요(마감 계산이 되게). 읽을 수 없으면 그대로예요.
-import type { Complaint, ComplaintInput, Contact, ContactInput, DayInfo, Entry, EntryInput, JournalLine, Project } from "./api";
+import type { Complaint, ComplaintInput, Contact, ContactInput, DayInfo, Entry, EntryInput, JournalLine, Project, ProjectGroup } from "./api";
 import { splitProjects } from "./projectNames";
 import { BKind, BLine, layout, linePrefix, parseLines, stringifyLines } from "./bullets";
 import { isMemo, normTime, parseDate, whoNames } from "./journal";
@@ -15,7 +15,7 @@ export const SHEET_TITLE: Record<SheetKind, string> = { complaints: "민원대�
 
 /** 양식의 열 순서(3행 제목) */
 export const COMPLAINT_HEADERS = ["연번", "접수유형", "접수일", "민원유형", "지역", "위치", "민원인", "연락처", "내용", "조치내용", "마감일", "상태", "조치완료일", "메모"];
-export const CONTACT_HEADERS = ["연번", "이름", "소속", "직위", "무선", "유선", "이메일", "프로젝트", "메모"];
+export const CONTACT_HEADERS = ["연번", "이름", "소속", "직위", "무선", "유선", "이메일", "프로젝트", "메모", "그룹", "축약 공사명", "색"];
 
 export type ExcelExport = { rows: string[][]; intake: string[]; status: string[]; days?: string[][] };
 export type ExcelSheet = { headers: string[]; rows: string[][]; extra?: ExcelSheet[] };
@@ -113,33 +113,116 @@ export function complaintImports(sheet: ExcelSheet): ComplaintImport[] {
   }));
 }
 
-// ---------- 업무연락처 ----------
+// ---------- 업무연락처 (양식: 2026-10-19 사용자 파일) ----------
+// 한 시트 "업무연락처" A~L. J 그룹·K 축약 공사명·L 색(1~8, 비우면 자동)은 숨긴 열로 그 줄 프로젝트의 정보예요.
+// 한 사람 = 한 줄(2026-10-19 사용자: 사람이 중심이라 프로젝트 수만큼 같은 사람이 있으면 안 돼요). 프로젝트가 여러 개면
+// 프로젝트 칸에 "쉼표 + 줄바꿈"으로 한 줄에 하나씩, 숨긴 그룹·축약·색도 같은 줄 순서로 적어요(사용자). 행 높이는 프로젝트 줄 수만큼.
+// 연락처가 없는 프로젝트는 맨 아래에 이름 칸이 빈 "프로젝트만 있는 줄"로 적어요(사용자 1안, 가져오면 프로젝트만 생겨요).
 
-/** 등록한 순서대로, 연번은 1부터 매겨요(앱에는 연번이 없어요). */
-export function contactRows(list: Contact[], projects: Project[]): string[][] {
-  const byId = new Map(projects.map((p) => [p.id, p.name]));
-  return [...list]
-    .sort((a, b) => a.id - b.id)
-    .map((c, i) => [
-      String(i + 1), c.name, c.org, c.role, c.mobile, c.tel, c.email,
-      c.projects.map((id) => byId.get(id) ?? "").filter(Boolean).join(", "),
-      cellOfLines(c.memo),
-    ]);
+export type ProjectImport = { group: string; name: string; alias: string; color: number | null };
+export type ContactsImport = { contacts: ContactImport[]; projects: ProjectImport[] };
+
+function projectCells(p: Project | undefined, gname: Map<number, string>): string[] {
+  if (!p) return ["", "", ""];
+  return [p.group !== null ? gname.get(p.group) ?? "" : "", p.alias && p.alias !== p.name ? p.alias : "", p.color !== null ? String(p.color + 1) : ""];
 }
 
-/** 연번은 읽지 않아요. 프로젝트는 쉼표로 나눠요(없는 이름은 새로 만들어져요). */
-export function contactImports(sheet: ExcelSheet): ContactImport[] {
+/**
+ * 가져올 때 같은 사람(2026-10-19 사용자 1안): 이름이 있고 이름·소속이 같고 무선 번호 숫자가 같은 사람 —
+ * 새로 만들지 않고 없는 프로젝트만 붙여요(core `same_person`과 같은 규칙).
+ */
+export function samePerson(a: { name: string; org: string; mobile: string }, b: { name: string; org: string; mobile: string }): boolean {
+  const d = (s: string) => (s ?? "").replace(/\D/g, "");
+  const name = (a.name ?? "").trim();
+  return !!name && name === (b.name ?? "").trim() && (a.org ?? "").trim() === (b.org ?? "").trim() && d(a.mobile) === d(b.mobile);
+}
+
+/** 프로젝트 여러 개를 한 칸에: "가,\n나,\n다"(쉼표 + 줄바꿈) */
+export const joinLines = (xs: string[]) => xs.join(",\n");
+
+/** joinLines의 거꾸로 — 줄로 나누고 줄 끝 쉼표를 떼요(빈 줄도 자리로 남겨요). */
+export function splitLines(v: string): string[] {
+  return v.split(/\r?\n/).map((x) => x.trim().replace(/,$/, "").trim());
+}
+
+/** 등록한 순서대로, 연번은 사람마다 1부터(앱에는 연번이 없어요). 맨 아래 프로젝트만 있는 줄은 그룹 순서 → 공사명 가나다순. */
+export function contactRows(list: Contact[], projects: Project[], groups: ProjectGroup[] = []): string[][] {
+  const byId = new Map(projects.map((p) => [p.id, p]));
+  const gname = new Map(groups.map((g) => [g.id, g.name]));
+  const order = new Map(groups.map((g, i) => [g.id, i]));
+  const rank = (p: Project) => (p.group !== null && order.has(p.group) ? order.get(p.group)! : groups.length);
+  const cmp = (a: Project, b: Project) => rank(a) - rank(b) || a.name.localeCompare(b.name, "ko");
+  const rows: string[][] = [];
+  const used = new Set<number>();
+  [...list]
+    .sort((a, b) => a.id - b.id)
+    .forEach((c, i) => {
+      const base = [String(i + 1), c.name, c.org, c.role, c.mobile, c.tel, c.email];
+      const memo = cellOfLines(c.memo);
+      // 사람의 프로젝트는 붙인 순서 그대로(첫 프로젝트가 업무일지에 저절로 붙는 프로젝트라 가져와도 같아야 해요).
+      const ps = c.projects.map((id) => byId.get(id)).filter((p): p is Project => !!p);
+      ps.forEach((p) => used.add(p.id));
+      const cells = ps.map((p) => projectCells(p, gname));
+      const col = (k: number) => (cells.some((x) => x[k]) ? joinLines(cells.map((x) => x[k])) : "");
+      rows.push([...base, joinLines(ps.map((p) => p.name)), memo, col(0), col(1), col(2)]);
+    });
+  for (const p of [...projects].sort(cmp)) {
+    if (!used.has(p.id)) rows.push(["", "", "", "", "", "", "", p.name, "", ...projectCells(p, gname)]);
+  }
+  return rows;
+}
+
+/**
+ * 연번은 같은 사람 줄을 묶을 때만 봐요(앱에는 연번이 없어요). 같은 사람 = 연번과 이름이 같은 줄(떨어져 있어도 —
+ * 엑셀에서 프로젝트로 정렬해도 돼요), 연번이 비었으면 이름~메모가 모두 같은 줄. 묶인 사람의 소속·번호·메모 등은
+ * 처음 나온 줄 것을 쓰고, 그 칸이 비어 있으면 다음 줄 것으로 채워요.
+ * 이름~메모가 모두 빈 줄은 프로젝트만 만들어요. 프로젝트 칸은 줄바꿈(쉼표 + 줄바꿈)으로 여러 개, 예전 파일처럼 쉼표만이어도 돼요.
+ */
+export function contactImports(sheet: ExcelSheet): ContactsImport {
   const get = picker(sheet.headers);
-  return dataRows(sheet).map((r) => ({
-    name: get(r, "이름"),
-    org: get(r, "소속"),
-    role: get(r, "직위"),
-    mobile: get(r, "무선"),
-    tel: get(r, "유선"),
-    email: get(r, "이메일").replace(/^mailto:/i, ""),
-    projects: splitProjects(get(r, "프로젝트")),
-    memo: linesOfCell(get(r, "메모")),
-  }));
+  const contacts: ContactImport[] = [];
+  const byKey = new Map<string, ContactImport>();
+  const metas = new Map<string, ProjectImport>();
+  for (const r of dataRows(sheet)) {
+    const c: ContactImport = {
+      name: get(r, "이름"),
+      org: get(r, "소속"),
+      role: get(r, "직위"),
+      mobile: get(r, "무선"),
+      tel: get(r, "유선"),
+      email: get(r, "이메일").replace(/^mailto:/i, ""),
+      projects: [],
+      memo: linesOfCell(get(r, "메모")),
+    };
+    const pcell = get(r, "프로젝트");
+    const multi = /\n/.test(pcell);
+    const plines = multi ? splitLines(pcell) : splitProjects(pcell);
+    c.projects = plines.filter(Boolean);
+    const no = get(r, "연번");
+    // 숨긴 열: 줄바꿈으로 적은 칸은 프로젝트와 같은 줄 순서로, 프로젝트가 한 개면 칸 전체로 읽어요.
+    // (쉼표만으로 여러 개 적은 예전 칸은 어느 것의 정보인지 몰라 읽지 않아요.) 같은 프로젝트는 처음 줄 것.
+    const hidden = (h: string) => (multi ? splitLines(get(r, h)) : plines.length === 1 ? [splitLines(get(r, h))[0] ?? ""] : []);
+    const hg = hidden("그룹"), ha = hidden("축약공사명"), hc = hidden("색");
+    plines.forEach((name, i) => {
+      if (!name || metas.has(name) || (!multi && plines.length !== 1)) return;
+      const n = Number(hc[i] ?? "");
+      const alias = ha[i] ?? "";
+      metas.set(name, { group: hg[i] ?? "", name, alias: alias !== name ? alias : "", color: Number.isInteger(n) && n >= 1 && n <= 8 ? n - 1 : null });
+    });
+    const blank = !c.name && !c.org && !c.role && !c.mobile && !c.tel && !c.email && !c.memo;
+    for (const p of c.projects) if (!metas.has(p)) metas.set(p, { group: "", name: p, alias: "", color: null });
+    if (blank) continue;
+    const key = no ? JSON.stringify(["no", no, c.name]) : JSON.stringify([c.name, c.org, c.role, c.mobile, c.tel, c.email, c.memo]);
+    const had = byKey.get(key);
+    if (!had) {
+      byKey.set(key, c);
+      contacts.push(c);
+      continue;
+    }
+    for (const p of c.projects) if (!had.projects.includes(p)) had.projects.push(p);
+    for (const k of ["org", "role", "mobile", "tel", "email", "memo"] as const) if (!had[k] && c[k]) had[k] = c[k];
+  }
+  return { contacts, projects: [...metas.values()] };
 }
 
 // ---------- 업무일지 (2026-10-19 사용자 1안·1안) ----------

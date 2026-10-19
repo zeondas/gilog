@@ -57,14 +57,18 @@ impl SheetKind {
             ],
             SheetKind::Contacts => &[
                 ("연번", 6.0, false),
-                ("이름", 11.8, false),
+                ("이름", 11.9, false),
                 ("소속", 20.0, false),
                 ("직위", 16.0, false),
-                ("무선", 13.5, false),
-                ("유선", 13.5, false),
+                ("무선", 13.6, false),
+                ("유선", 13.6, false),
                 ("이메일", 23.6, false),
-                ("프로젝트", 33.5, false),
+                ("프로젝트", 37.2, false),
                 ("메모", 34.0, true),
+                // 숨긴 열(2026-10-19 사용자 양식): 그 줄 프로젝트의 그룹·축약 공사명·색(1~8, 비우면 자동)
+                ("그룹", 21.7, true),
+                ("축약 공사명", 30.0, false),
+                ("색", 9.0, false),
             ],
             SheetKind::Journal => &[
                 ("연번", 6.0, false),
@@ -195,9 +199,16 @@ fn write_sheet(wb: &mut Workbook, kind: SheetKind, rows: &[Vec<String>], data: &
     }
     // 1행 제목(병합), 2행 빈 줄, 3행 열 제목
     ws.merge_range(0, 0, 0, last_col, kind.title(), &title).map_err(xerr)?;
-    ws.set_row_height(0, 50).map_err(xerr)?;
-    ws.set_row_height(1, 30).map_err(xerr)?;
-    ws.set_row_height(2, 30).map_err(xerr)?;
+    // 업무연락처는 사용자 양식(2026-10-19): 1행 30, 2행·3행·자료 행 18. 다른 시트는 1행 50, 나머지 30.
+    let (h_title, h_row) = if kind == SheetKind::Contacts { (30.0, 18.0) } else { (50.0, 30.0) };
+    ws.set_row_height(0, h_title).map_err(xerr)?;
+    ws.set_row_height(1, h_row).map_err(xerr)?;
+    ws.set_row_height(2, h_row).map_err(xerr)?;
+    if kind == SheetKind::Contacts {
+        for c in 9..=11u16 {
+            ws.set_column_hidden(c).map_err(xerr)?;
+        }
+    }
     for (i, (name, _, _)) in cols.iter().enumerate() {
         ws.write_string_with_format(2, i as u16, *name, &head).map_err(xerr)?;
     }
@@ -221,7 +232,15 @@ fn write_sheet(wb: &mut Workbook, kind: SheetKind, rows: &[Vec<String>], data: &
         }
         // 1행 제목만 50, 나머지 모든 행은 30 고정(2026-10-17 사용자 — 여러 줄이어도 늘리지 않아요).
         // 업무일지만 내용 줄 수만큼 늘려요(2026-10-19 사용자 2안 — 말 줄이 여러 줄이라 잘려 보여요).
-        let h = if kind == SheetKind::Journal { journal_row_height(row, cols) } else { 30.0 };
+        // 업무연락처는 프로젝트 칸 줄 수만큼(한 사람 = 한 줄, 프로젝트 여러 개는 칸 안 줄바꿈 — 2026-10-19 사용자): 1줄 18, 줄마다 13.5씩.
+        let h = match kind {
+            SheetKind::Journal => journal_row_height(row, cols),
+            SheetKind::Contacts => {
+                let n = row.get(7).map(|v| v.split('\n').count()).unwrap_or(1).max(1);
+                (h_row + (n as f64 - 1.0) * 13.5).min(409.0)
+            }
+            _ => h_row,
+        };
         ws.set_row_height(rr, h).map_err(xerr)?;
     }
     let last_row = (rows.len() + 2) as u32;
@@ -387,7 +406,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("c.xlsx");
         let row = |n: &str, name: &str| -> Vec<String> {
-            [n, name, "A시공사", "현장대리인", "010-0000-0034", "031-940-0000", "hong@example.com", "시도15호선, 실정보고", "○ 메모"]
+            [n, name, "A시공사", "현장대리인", "010-0000-0034", "031-940-0000", "hong@example.com", "2026년 동부권 도로정비 연간단가 공사", "○ 메모", "연간단가", "2026 동부 도로정비", "3"]
                 .iter()
                 .map(|s| s.to_string())
                 .collect()
@@ -396,6 +415,8 @@ mod tests {
         write_xlsx(&path, SheetKind::Contacts, &data).unwrap();
         let back = read_xlsx(&path, SheetKind::Contacts).unwrap();
         assert_eq!(back.rows.len(), 2);
+        // 숨긴 열 그룹·축약 공사명·색도 읽혀요.
+        assert_eq!(&back.headers[9..], &["그룹", "축약공사명", "색"]);
         assert_eq!(back.rows[0], row("1", "홍길동"));
         assert_eq!(back.rows[1][6], "hong@example.com");
         // 민원대장 양식이 아니면 알려 줘요.

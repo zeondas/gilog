@@ -810,7 +810,7 @@ export default function BudgetScreen() {
       }
       const [r0, r1] = [Math.min(a, b), Math.max(a, b)];
       const [c0, c1] = [Math.min(+aci, ci), Math.max(+aci, ci)];
-      const keys = new Set(mod ? cs.keys : []);
+      const keys = new Set(mod ? cs.keys : [cs.anchor]); // 기준 칸이 먼저(차액 = 먼저 − 나중)
       for (let i = r0; i <= r1; i++) for (const n of NUM_IX) if (n >= c0 && n <= c1) keys.add(order[i] + ":" + n);
       setCs({ keys: [...keys], anchor: cs.anchor });
     } else if (mod) {
@@ -819,14 +819,19 @@ export default function BudgetScreen() {
   };
   let csN = 0;
   let csSum = 0;
+  const csVals: number[] = [];
   for (const k of cs.keys) {
     const [sk, ci] = k.split(":");
     const v = cellVal(sk, Number(ci));
     if (v != null) {
       csN++;
       csSum += v;
+      csVals.push(v);
     }
   }
+  /** 두 칸만 골랐을 때 차액 = 먼저 누른 칸 − 나중에 누른 칸 */
+  const csDiff = csVals.length === 2 ? csVals[0] - csVals[1] : null;
+  const won = unit === 1000 ? " 천원" : " 원";
   const csStyle = cs.keys.length
     ? cs.keys
         .map((k) => {
@@ -1556,8 +1561,13 @@ export default function BudgetScreen() {
               개수<b>{csN.toLocaleString("ko-KR")}</b>
             </span>
             <span>
-              합계<b>{(fmt(csSum, unit) || "0") + (unit === 1000 ? " 천원" : " 원")}</b>
+              합계<b>{(fmt(csSum, unit) || "0") + won}</b>
             </span>
+            {csDiff != null && (
+              <span>
+                차액<b className={csDiff < 0 ? "neg" : undefined}>{(fmt(csDiff, unit) || "0") + won}</b>
+              </span>
+            )}
             <button type="button" title="고르기 풀기 · Esc" aria-label="고르기 풀기" onClick={() => setCs(NO_CELLS)}>
               {ICON("M6 6l12 12M18 6L6 18", 14, 2.4)}
             </button>
