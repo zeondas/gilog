@@ -28,6 +28,18 @@ export function daysTaken(c: Pick<Complaint, "received" | "done">): number | nul
   return n < 0 ? null : n;
 }
 
+/**
+ * 걸린 날 글자(2026-10-19 사용자): 30일까지는 "12d", 넘으면 달 "3m", 1년부터는 해 "2y".
+ * 달·해는 달력으로 센 만큼(다 채우지 못한 달은 버림). 정확한 날 수는 마우스를 올리면 보여요.
+ */
+export function takenText(c: Pick<Complaint, "received" | "done">, n: number): string {
+  if (n <= 30) return `${n}d`;
+  const [y1, m1, d1] = c.received.split("-").map(Number);
+  const [y2, m2, d2] = c.done!.split("-").map(Number);
+  const months = Math.max(1, (y2 - y1) * 12 + (m2 - m1) - (d2 < d1 ? 1 : 0));
+  return months < 12 ? `${months}m` : `${Math.floor(months / 12)}y`;
+}
+
 /** 3 → "D-3", 0 → "D-day", -2 → "D+2" */
 export function ddayText(n: number): string {
   return n > 0 ? `D-${n}` : n === 0 ? "D-day" : `D+${-n}`;

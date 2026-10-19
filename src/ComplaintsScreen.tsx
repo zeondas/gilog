@@ -27,6 +27,7 @@ import {
   ColFilters,
   daysLeft,
   daysTaken,
+  takenText,
   ddayText,
   defaultWidths,
   expandType,
@@ -1327,8 +1328,8 @@ function ViewRow({
       <div role="cell" className="cm-c cm-num cm-due cm-done-c">
         <span className="cm-done-d">{t(c.done ?? "")}</span>
         {taken !== null && (
-          <span className="cm-dday cm-taken" title="접수부터 조치완료까지">
-            {taken}d
+          <span className="cm-dday cm-taken" title={`접수부터 조치완료까지 ${taken}일`}>
+            {takenText(c, taken)}
           </span>
         )}
       </div>
