@@ -10814,3 +10814,14 @@ body.ew-dragging * {
 .cm-view .cm-copy { margin-top: -2px; }
 .cm-view .cm-spick { margin-top: -3px; }
 .cm-view .cm-memo { margin-top: -5px; }
+
+/* 민원대장 고치는 줄 정리(2026-10-19 사용자, 시안 editcmp3 1안 + 저장 단추): 칸은 보기 줄과 같은 열 그대로, 입력 칸 높이 28,
+   아래 띠는 점선 위 — 왼쪽 "× 이 민원 지우기"(×를 연번 숫자 왼쪽 끝에 맞춤, 재서 넣어요), 오른쪽 짧은 안내·취소·저장 */
+.cm-edit > .cm-c { padding: 6px 4px; min-height: 0; }
+.cm-edit > .cm-no { display: block; padding: 6px 10px; line-height: 28px; text-align: right; }
+.cm-edit > .cm-area-auto { padding: 6px 10px; line-height: 28px; }
+.cm-edit input.cell-input { height: 28px; }
+.cm-edit-foot { margin: 0 8px; padding: 6px 4px 8px 0; border-top: 1px dashed var(--line); gap: 8px; }
+.cm-edit-foot > .cm-del { width: auto; gap: 4px; padding: 0 10px 0 0; margin-left: 0; border-radius: var(--radius-sm); font-size: 12.5px; font-weight: 600; }
+.cm-edit-foot > .cm-del:hover { padding-left: 0; }
+.cm-edit-hint { flex: 1; margin: 0 4px 0 0; text-align: right; }

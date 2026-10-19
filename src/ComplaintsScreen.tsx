@@ -11,6 +11,7 @@ import {
   ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -1213,6 +1214,22 @@ function EditRow({
   const latest = useRef({ save, asking });
   latest.current = { save, asking };
 
+  // "× 이 민원 지우기"의 × 왼쪽 끝을 연번 숫자 왼쪽 끝에 맞춰요(2026-10-19 사용자 — 숫자 자릿수마다 달라 재서 맞춰요).
+  useLayoutEffect(() => {
+    const row = ref.current;
+    const foot = row?.querySelector<HTMLElement>(".cm-edit-foot");
+    const no = row?.querySelector<HTMLElement>(".cm-no");
+    const mark = foot?.querySelector<SVGPathElement>(".cm-del path");
+    if (!row || !foot || !no || !mark || !no.firstChild) return;
+    foot.style.paddingLeft = "";
+    const g = document.createRange();
+    g.selectNodeContents(no);
+    const numLeft = g.getBoundingClientRect().left;
+    const delta = numLeft - mark.getBoundingClientRect().left;
+    const base = parseFloat(getComputedStyle(foot).paddingLeft) || 0;
+    foot.style.paddingLeft = `${Math.max(0, Math.round(base + delta))}px`;
+  });
+
   // 처음에 내용 칸에 커서를 둬요.
   useEffect(() => {
     const all = ref.current?.querySelectorAll<HTMLTextAreaElement>(".bl-ed")[0]?.querySelectorAll("textarea");
@@ -1270,11 +1287,12 @@ function EditRow({
             </button>
           </div>
         ) : (
-          <button ref={trashRef} type="button" className="tool-box" aria-label={`${c.no}번 민원 지우기`} title="이 민원 지우기" onClick={() => setAsking(true)}>
+          <button ref={trashRef} type="button" className="tool-box cm-del" aria-label={`${c.no}번 민원 지우기`} onClick={() => setAsking(true)}>
             <DelIcon />
+            <span>이 민원 지우기</span>
           </button>
         )}
-        <span className="hint cm-edit-hint">Tab·Enter 다음 칸 · 마지막 칸이면 저장 · Esc 취소 · 바깥을 누르면 저장</span>
+        <span className="hint cm-edit-hint">Esc 취소 · 바깥을 누르면 저장</span>
         <button type="button" className="btn btn-xs" onClick={onCancel}>
           취소
         </button>
