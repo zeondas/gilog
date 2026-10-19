@@ -106,7 +106,9 @@ pub fn apply_theme(app: &AppHandle, theme_pref: &str) {
 }
 
 /// 앱을 켤 때(setup) 창을 숨긴 채 만들고 자리·크기를 정해요.
-pub fn create(app: &mut App, theme_pref: &str) -> tauri::Result<()> {
+/// `tray_only`(윈도우 시작할 때 자동 실행 — 실행 인자 --autostart)면 화면이 준비돼도 보이지 않고 트레이에만 둬요.
+/// 트레이 아이콘·알림 누르기·한 번 더 켜기(`calendar::show_main`)가 창을 꺼내면 그때 잠금 화면이 보여요.
+pub fn create(app: &mut App, theme_pref: &str, tray_only: bool) -> tauri::Result<()> {
     let handle = app.handle().clone();
     let config = app
         .config()
@@ -125,6 +127,11 @@ pub fn create(app: &mut App, theme_pref: &str) -> tauri::Result<()> {
     apply_theme(&handle, theme_pref);
     restore(&w);
     seed(&w);
+    if tray_only {
+        // "이미 보였다"로 적어 두면 window_ready·안전장치가 창을 보이지 않아요.
+        mark_shown();
+        return Ok(());
+    }
 
     // 안전장치: 화면이 준비를 알리지 못해도 몇 초 뒤엔 보여요.
     let h = handle.clone();

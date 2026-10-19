@@ -40,6 +40,8 @@ export type Prefs = {
   sideCollapsed: boolean;
   /** 창 닫기(X) 단추 — 작업표시줄로 / 트레이로(처음 값) / 묻고 끝내기 */
   closeAction: CloseAction;
+  /** 윈도우 시작할 때 자동 실행(2026-10-19). 앱이 켤 때 레지스트리 실제 상태로 맞춰 돌려줘요. 미리 보기는 흉내만 */
+  autoStart: boolean;
 };
 
 export type CloseAction = "minimize" | "tray" | "quit";
@@ -56,6 +58,7 @@ export const DEFAULT_PREFS: Prefs = {
   autoLockMin: 10,
   sideCollapsed: false,
   closeAction: "tray",
+  autoStart: false,
 };
 
 /** 저장 쪽이 돌려주는 실패 이름이에요. */
@@ -66,6 +69,7 @@ export type ErrorCode =
   | "password_too_short"
   | "locked"
   | "keyring"
+  | "autostart"
   | "io"
   | "db"
   | "meta"
@@ -1314,6 +1318,8 @@ export function errorText(e: unknown): string {
       return "자료 파일을 찾지 못했어요.";
     case "locked":
       return "잠겨 있어요. 다시 열어 주세요.";
+    case "autostart":
+      return "윈도우 시작 프로그램에 등록하지 못했어요.";
     case "keyring":
       return "윈도우 자격 증명 관리자에 열쇠를 맡기지 못했어요.";
     case "meta":

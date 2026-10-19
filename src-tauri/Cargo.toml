@@ -20,6 +20,8 @@ tauri-plugin-dialog = "2"
 keyring = { version = "3", features = ["windows-native"] }
 # 창을 닫아도 트레이에 남으니, 앱을 한 번 더 켜면 새로 열지 않고 떠 있는 창을 보여 줘요(자료 파일을 두 곳에서 열지 않게).
 tauri-plugin-single-instance = "2"
+# 윈도우 시작할 때 자동 실행(설정 → 일반, 2026-10-19). HKCU\…\Run에 "giLog" = 실행 파일 + --autostart
+tauri-plugin-autostart = "2"
 # 공휴일을 인터넷에서 받아요. 윈도우의 인증서와 프록시 설정을 그대로 써요(사무실 망).
 reqwest = { version = "0.13", default-features = false, features = ["native-tls", "charset", "http2", "system-proxy"] }
 # 탐색기(11단계): 휴지통으로 지우기, 폴더 바뀜 알기, 찾기의 "안의 글자"(오피스·hwpx 압축, 한글 hwp, PDF, 한국어 글자 파일)

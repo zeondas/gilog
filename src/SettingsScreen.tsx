@@ -301,6 +301,13 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
             <option value={5}>5일 전부터</option>
           </select>
         </Row>
+        <Toggle
+          k="부팅 시작 프로그램 자동 켜기 트레이"
+          label="윈도우 시작할 때 자동 실행"
+          desc="컴퓨터를 켜면 트레이에서 조용히 켜져요"
+          on={!!prefs.autoStart}
+          onChange={(v) => setPref("autoStart", v)}
+        />
         <Row
           k="닫기 X 종료 끝내기 트레이 최소화 작업표시줄 창"
           label="닫기(X) 단추"
