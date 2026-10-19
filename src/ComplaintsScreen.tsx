@@ -378,7 +378,8 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
               }}
               onRemove={async () => {
                 setEditId(null);
-                if ((await run(api.deleteComplaint(c.id))) !== null) setList((old) => (old ?? []).filter((x) => x.id !== c.id));
+                // delete_complaint는 성공해도 null을 돌려줘요 → true로 바꿔 실패(null)와 가려요(2026-10-19 사용자: 지우기가 안 먹음)
+                if (await run(api.deleteComplaint(c.id).then(() => true))) setList((old) => (old ?? []).filter((x) => x.id !== c.id));
               }}
               onMemo={() => setMemoId(c.id)}
             />
