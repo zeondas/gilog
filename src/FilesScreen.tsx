@@ -1460,7 +1460,7 @@ export default function FilesScreen() {
               return (
                 <div key={r.path} className="fx-gcell" {...common} title={r.name}>
                   <span className="fx-gicon" style={{ width: p.view === "thumb" ? 88 : 48, height: p.view === "thumb" ? 66 : 48 }}>
-                    {thumb ? <Thumb path={r.path} /> : <FileIcon name={r.name} path={r.path} dir={r.dir} size={big} />}
+                    {thumb ? <Thumb path={r.path} /> : <FileIcon name={r.name} path={r.path} dir={r.dir} size={big} rev={r.modified} />}
                     {r.locked && <LockBadge small />}
                   </span>
                   <span className="fx-gname" style={{ fontWeight: r.dir ? 600 : 400 }}>
@@ -1472,7 +1472,7 @@ export default function FilesScreen() {
             if (p.view === "brief" && !t.find) {
               return (
                 <div key={r.path} className="fx-brow" {...common} title={r.name}>
-                  <FileIcon name={r.name} path={r.path} dir={r.dir} size={16} />
+                  <FileIcon name={r.name} path={r.path} dir={r.dir} size={16} rev={r.modified} />
                   <span className="fx-bn" style={{ fontWeight: r.dir ? 600 : 400 }}>
                     {inline && inline.path === r.path ? nameCell(r) : r.name}
                   </span>
@@ -1486,7 +1486,7 @@ export default function FilesScreen() {
               {groupHead && <div className="fx-ghead">{groupHead}</div>}
               <div className="fx-frow" style={colStyle} {...common}>
                 <span className="fx-icell">
-                  <FileIcon name={r.name} path={r.path} dir={r.dir} size={16} />
+                  <FileIcon name={r.name} path={r.path} dir={r.dir} size={16} rev={r.modified} />
                 </span>
                 <span className="fx-ncell" style={{ fontWeight: r.dir ? 600 : 400 }}>
                   {nameCell(r)}
@@ -2043,7 +2043,7 @@ function Preview({ row, fmt, typeOf }: { row: Row | undefined; fmt: string; type
   const img = !row.dir && IMAGE_EXT.has(extOf(row.name));
   return (
     <div className="fx-pv">
-      <div className="fx-pv-pic">{img ? <PreviewImage path={row.path} /> : <FileIcon name={row.name} path={row.path} dir={row.dir} size={64} />}</div>
+      <div className="fx-pv-pic">{img ? <PreviewImage path={row.path} /> : <FileIcon name={row.name} path={row.path} dir={row.dir} size={64} rev={row.modified} />}</div>
       <div className="fx-pv-name">{row.name}</div>
       <dl className="fx-pv-info">
         <dt>파일 형식</dt>
