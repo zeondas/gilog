@@ -776,6 +776,8 @@ export default function FilesScreen() {
     [tree, cfg.showHidden],
   );
   const visibleDrives = drives.filter((d) => !cfg.hiddenDrives.includes(d.name));
+  const treeHidden = cfg.treeHidden ?? cfg.hiddenDrives;
+  const treeDrives = drives.filter((d) => !treeHidden.includes(d.name));
   const curPath = st ? (activeTab(st.panes[st.active]).find ? "" : activeTab(st.panes[st.active]).path) : "";
 
   // ---------- 머리 줄 단추 (2026-10-19 확정) ----------
@@ -857,7 +859,7 @@ export default function FilesScreen() {
   }, [curPath, st?.tree.on]);
   useEffect(() => {
     if (!st?.tree.on) return;
-    visibleDrives.forEach((d) => st.tree.open.includes(d.path) && void loadTree(d.path));
+    treeDrives.forEach((d) => st.tree.open.includes(d.path) && void loadTree(d.path));
     st.tree.open.forEach((p) => void loadTree(p));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [st?.tree.on, drives]);
@@ -878,8 +880,8 @@ export default function FilesScreen() {
 
   // 트리 맨 위 묶음: 홈(윈도우 "홈"의 즐겨찾기 폴더, 처음 접힘)·내 PC(드라이브, 처음 펼침) — 접기는 tree.open에 HOME·"::pc:fold"
   const [homeDirs, setHomeDirs] = useState<FsEntry[]>([]);
-  const showHome = !cfg.hiddenDrives.includes(HOME);
-  const showPc = !cfg.hiddenDrives.includes(PC);
+  const showHome = !treeHidden.includes(HOME);
+  const showPc = !treeHidden.includes(PC);
   const homeOpen = !!st?.tree.open.includes(HOME);
   const pcFolded = !!st?.tree.open.includes(PC_FOLD);
   useEffect(() => {
@@ -913,12 +915,12 @@ export default function FilesScreen() {
     }
     if (showPc) out.push({ name: "내 PC", path: PC, level: 0, hasKids: true, drive: false, first: !showHome, special: "pc", key: PC });
     if (!showPc || !pcFolded)
-      visibleDrives.forEach((d, i) => {
+      treeDrives.forEach((d, i) => {
         out.push({ name: d.name, path: d.path, level: 0, hasKids: true, drive: true, first: i === 0 && (showPc || !showHome), key: d.path });
         if (st.tree.open.includes(d.path)) walk(d.path, 1, "");
       });
     return out;
-  }, [st, tree, visibleDrives, showHome, showPc, homeOpen, pcFolded, homeDirs]);
+  }, [st, tree, treeDrives, showHome, showPc, homeOpen, pcFolded, homeDirs]);
 
   // 지금 경로의 위 폴더들(굵게·연보라 안내선)
   const onPath = useMemo(() => {

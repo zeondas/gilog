@@ -871,6 +871,25 @@ function GoogleCard() {
 
 // ---------- 탐색기 카드 (11단계, 시안 FilesSettings.dc.html) ----------
 
+
+/** 탐색기 설정: 보일 드라이브 고르기(끈 것은 숨긴 목록에 들어가요) */
+function DriveRow({ label, desc, list, drives, onSet }: { label: string; desc: string; list: string[]; drives: { name: string; label: string }[]; onSet: (l: string[]) => void }) {
+  return (
+    <Row label={label} desc={desc}>
+      <span className="fx-set-drives">
+        {[{ name: PC, label: "내 PC" }, ...drives.map((d) => ({ name: d.name, label: `${d.name} ${d.label}` })), { name: HOME, label: "홈" }].map((d) => {
+          const on = !list.includes(d.name);
+          return (
+            <button key={d.name} type="button" className={"chip fx-set-drive" + (on ? " on" : "")} aria-pressed={on} onClick={() => onSet(on ? [...list, d.name] : list.filter((x) => x !== d.name))}>
+              {d.label}
+            </button>
+          );
+        })}
+      </span>
+    </Row>
+  );
+}
+
 function FilesRows({ value, onChange }: { value: FilesSettings; onChange: (v: FilesSettings) => void }) {
   const [drives, setDrives] = useState<FsDrive[]>([]);
   const [dir, setDir] = useState(value.newTabDir);
@@ -896,26 +915,8 @@ function FilesRows({ value, onChange }: { value: FilesSettings; onChange: (v: Fi
           ))}
         </select>
       </Row>
-      <Row label="보이는 드라이브" desc="끈 것은 드라이브 단추와 폴더 트리에서 빠져요.">
-        <span className="fx-set-drives">
-          {[{ name: PC, label: "내 PC" }, ...drives.map((d) => ({ name: d.name, label: `${d.name} ${d.label}` })), { name: HOME, label: "홈" }].map((d) => {
-            const on = !value.hiddenDrives.includes(d.name);
-            return (
-              <button
-                key={d.name}
-                type="button"
-                className={"chip fx-set-drive" + (on ? " on" : "")}
-                aria-pressed={on}
-                onClick={() =>
-                  set({ hiddenDrives: on ? [...value.hiddenDrives, d.name] : value.hiddenDrives.filter((x) => x !== d.name) })
-                }
-              >
-                {d.label}
-              </button>
-            );
-          })}
-        </span>
-      </Row>
+      <DriveRow label="드라이브 단추" desc="위쪽 드라이브 단추 줄에 보일 것이에요." list={value.hiddenDrives} drives={drives} onSet={(l) => set({ hiddenDrives: l })} />
+      <DriveRow label="폴더 트리" desc="왼쪽 폴더 트리에 보일 것이에요." list={value.treeHidden} drives={drives} onSet={(l) => set({ treeHidden: l })} />
       <Row label="보이는 열" desc="자세히 보기의 열이에요. 이름은 늘 보여요.">
         <span className="fx-set-drives">
           {(
