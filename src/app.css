@@ -10805,3 +10805,12 @@ body.ew-dragging * {
 .bs .bd-bar.rowbar { height: 5px; background: var(--bd-bar-track); }
 .bs .bd-bar.rowbar > span { background: var(--bd-bar-fill); }
 .bs .bd-pct.rowp { font-weight: 400; color: var(--ink); }
+
+/* 민원대장 줄 위쪽 맞춤(2026-10-19 사용자 "굿", 시안 topcmp): 모든 칸의 첫 줄을 내용·조치내용 머릿기호 첫 줄(줄 위 17.5px)에 맞춰요.
+   한 줄 칸 위 9px·여러 줄 칸 8px, 높이가 다른 것(복사 단추 22·상태 배지 22·메모 단추 28)은 그만큼 위로 */
+.cm-view > .cm-c { align-items: flex-start; padding-top: 9px; padding-bottom: 8px; }
+.cm-view > .cm-multi { padding-top: 8px; }
+.cm-view > .cm-due { align-content: start; align-items: start; }
+.cm-view .cm-copy { margin-top: -2px; }
+.cm-view .cm-spick { margin-top: -3px; }
+.cm-view .cm-memo { margin-top: -5px; }

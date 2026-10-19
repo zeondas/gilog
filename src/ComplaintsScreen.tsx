@@ -188,25 +188,42 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
       ctx.font = `${weight} ${size}px ${family}`;
       return ctx.measureText(s).width;
     };
+    const maxW = (xs: string[], weight: number, size: number) => Math.max(0, ...xs.filter(Boolean).map((x) => textW(x, weight, size)));
     const PAD = 20; // 칸 좌우 10px
-    const SLACK = 12; // 너무 꼭 맞지 않게 좌우 6px씩(사용자)
+    const SLACK = 24; // 글 앞뒤 여유 — 너무 조이지 않게 좌우 12px씩(2026-10-19 사용자)
+    const SLACK_UI = 8; // 배지·단추만 있는 칸
     const FILTER_EXTRA = 40; // 거르기 단추 여백·테두리·아이콘
-    const field: Partial<Record<ColKey, (c: Complaint) => string>> = {
-      no: (c) => String(c.no),
-      intake: (c) => c.intake,
-      ctype: (c) => c.ctype,
-      area: (c) => c.area,
-      place: (c) => c.place,
-      person: (c) => c.person,
+    const GAP = 8; // 날짜와 D-day·걸린 날 사이
+    const today = todayStr();
+    // 열마다 보이는 글 가장 긴 폭(민원 전체)
+    const need: Partial<Record<ColKey, () => number>> = {
+      no: () => maxW(all.map((c) => String(c.no)), 400, 13),
+      intake: () => maxW(all.map((c) => c.intake), 500, 13),
+      received: () => maxW(all.map((c) => c.received), 400, 13),
+      ctype: () => maxW(all.map((c) => c.ctype), 400, 13),
+      area: () => maxW(all.map((c) => c.area), 400, 13),
+      place: () => maxW(all.map((c) => c.place), 400, 13),
+      person: () => maxW(all.map((c) => c.person), 400, 13),
+      phone: () => maxW(all.map((c) => c.phone), 400, 13),
+      due: () => {
+        const d = maxW(all.map((c) => c.due), 400, 13);
+        const n = maxW(all.map((c) => daysLeft(c, today)).filter((x): x is number => x !== null).map(ddayText), 700, 11.5);
+        return d + (n ? GAP + n : 0);
+      },
+      done: () => {
+        const d = maxW(all.map((c) => c.done ?? ""), 400, 13);
+        const n = maxW(all.map((c) => { const t = daysTaken(c); return t === null ? "" : takenText(c, t); }), 600, 11.5);
+        return d + (n ? GAP + n : 0);
+      },
     };
-    const next = COLUMNS.map((col, i) => {
+    const UI: Partial<Record<ColKey, number>> = { status: 52, memo: 28 }; // 상태 배지 폭 52 · 메모 단추 28
+    const next = COLUMNS.map((col) => {
       if (col.w === null) return null; // 내용·조치내용은 남는 폭 반씩
-      const get = field[col.key];
-      if (col.fixed || !get) return widths[i];
-      const weight = col.key === "intake" ? 500 : 400;
-      const body = Math.max(0, ...all.map((c) => textW(get(c), weight, 13)));
       const filt = (FILTER_KEYS as string[]).includes(col.key);
-      const head = textW(col.label, 600, 12) + (filt ? FILTER_EXTRA : PAD);
+      const head = textW(col.label, 600, 12) + (filt ? FILTER_EXTRA : PAD) + (col.key === "done" ? 16 : 0); // 조치완료일 머리엔 접기 단추
+      const ui = UI[col.key];
+      if (ui !== undefined) return Math.max(COL_MIN, Math.ceil(Math.max(ui + PAD, head) + SLACK_UI));
+      const body = need[col.key]?.() ?? 0;
       return Math.max(COL_MIN, Math.ceil(Math.max(body + PAD, head) + SLACK));
     });
     saveWidths(next);
