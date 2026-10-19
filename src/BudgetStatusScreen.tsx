@@ -82,8 +82,6 @@ export default function BudgetStatusScreen() {
   const [popPos, setPopPos] = useState<{ left: number; top: number } | null>(null);
   // 열 폭(집행현황과 같은 배치최적화·끌기·두 번 누르기·우클릭 처음대로) — 요약·자세히 따로, kv bstatus.cols
   const [W, setW] = useState<Record<string, Record<string, number>>>({});
-  const [nameFixed, setNameFixed] = useState<Record<string, boolean>>({});
-  const [avail, setAvail] = useState(1200);
   const [boxW, setBoxW] = useState(0);
   const [sbw, setSbw] = useState(0);
   const [toast, setToast] = useState("");
@@ -121,9 +119,8 @@ export default function BudgetStatusScreen() {
     api.get(VIEW_KEY).then((v) => setDetail(v === "detail"), () => {});
     api.get(COLS_KEY).then((v) => {
       if (!v) return;
-      const o = JSON.parse(v) as { w?: Record<string, Record<string, number>>; fixed?: Record<string, boolean> };
+      const o = JSON.parse(v) as { w?: Record<string, Record<string, number>> };
       if (o.w) setW(o.w);
-      if (o.fixed) setNameFixed(o.fixed);
     }, () => {});
   }, [load]);
   useEffect(() => {
@@ -131,12 +128,11 @@ export default function BudgetStatusScreen() {
     const t = window.setTimeout(() => setToast(""), 2200);
     return () => window.clearTimeout(t);
   }, [toast]);
-  // 표 폭(구분 열이 남는 폭을 채울 때·배치최적화 뒤 왼쪽으로 모을 때 씀)
+  // 표 폭(남는 폭이 있으면 왼쪽으로 모을 때 씀)
   useLayoutEffect(() => {
     const el = scroller.current;
     if (!el) return;
     const measure = () => {
-      setAvail(el.clientWidth);
       setSbw(el.offsetWidth - el.clientWidth);
       if (rootRef.current) setBoxW(rootRef.current.clientWidth);
     };
@@ -219,40 +215,35 @@ export default function BudgetStatusScreen() {
   const view = detail ? "detail" : "summary";
   const base = detail ? DET_COLS : SUM_COLS;
   const wv = W[view] ?? {};
-  const fixedName = !!nameFixed[view];
   const widthOf = (c: Col) => (FIXED.has(c.id) ? c.w : wv[c.id] ?? c.w);
-  const rest = base.reduce((a, c) => a + (c.id === "name" ? 0 : widthOf(c)), 0);
-  const nameW = fixedName ? widthOf(base[0]) : Math.max(base[0].w, Math.floor(avail - 6 - rest)); // 구분 열은 남는 폭(최소 처음 폭)
-  const cols = base.map((c) => ({ ...c, w: c.id === "name" ? nameW : widthOf(c) }));
+  // 구분 열도 다른 열과 같은 규칙(2026-10-19 사용자 — 집행현황의 "남는 폭 채우기"는 여기선 안 써요)
+  const cols = base.map((c) => ({ ...c, w: widthOf(c) }));
   const tmpl = cols.map((c) => c.w + "px").join(" ");
   const colSum = cols.reduce((a, c) => a + c.w, 0);
-  // 배치최적화(또는 구분 열을 직접 맞춘) 뒤 남는 폭이 있으면 왼쪽으로 모아요(집행현황과 같게)
-  const packed = fixedName && boxW > 0 && colSum + 2 + sbw <= boxW;
-  const saveCols = (w: Record<string, number>, fixed: boolean) => {
-    const nw = { ...W, [view]: w }, nf = { ...nameFixed, [view]: fixed };
+  // 남는 폭이 있으면 왼쪽으로 모아요(집행현황 배치최적화 뒤와 같게): 머리 줄 끝 = 메모 끝
+  const packed = boxW > 0 && colSum + 2 + sbw <= boxW;
+  const saveCols = (w: Record<string, number>) => {
+    const nw = { ...W, [view]: w };
     setW(nw);
-    setNameFixed(nf);
-    api.set(COLS_KEY, JSON.stringify({ w: nw, fixed: nf })).catch(() => {});
+    api.set(COLS_KEY, JSON.stringify({ w: nw })).catch(() => {});
   };
   const startDrag = (e: React.MouseEvent, id: string) => {
     e.preventDefault();
     e.stopPropagation();
     const x0 = e.clientX;
     const w0 = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect().width;
-    let w: Record<string, number> = { ...wv, name: id === "name" ? Math.round(w0) : nameW };
-    const fixed = fixedName || id === "name";
+    let w: Record<string, number> = { ...wv };
     const grip = e.currentTarget as HTMLElement;
     grip.classList.add("drag");
     const mv = (ev: MouseEvent) => {
       w = { ...w, [id]: Math.max(id === "name" ? 160 : 36, Math.round(w0 + ev.clientX - x0)) };
       setW((o) => ({ ...o, [view]: w }));
-      if (fixed) setNameFixed((o) => ({ ...o, [view]: true }));
     };
     const up = () => {
       grip.classList.remove("drag");
       removeEventListener("mousemove", mv);
       removeEventListener("mouseup", up);
-      saveCols(w, fixed);
+      saveCols(w);
     };
     addEventListener("mousemove", mv);
     addEventListener("mouseup", up);
@@ -280,18 +271,18 @@ export default function BudgetStatusScreen() {
       const head = document.querySelector<HTMLElement>(`.bs .bd-hd > .bd-h[data-ci="${i}"]`);
       if (head) w[c.id] = fitOf(i, head);
     });
-    saveCols(w, true);
+    saveCols(w);
     setToast("열 간격을 내용에 맞췄어요 · 열 제목 우클릭으로 처음대로");
   };
   const autoFit = (e: React.MouseEvent, ci: number, id: string) => {
     e.preventDefault();
     e.stopPropagation();
     const fit = fitOf(ci, (e.currentTarget as HTMLElement).parentElement as HTMLElement);
-    saveCols({ ...wv, name: nameW, [id]: fit }, fixedName || id === "name");
+    saveCols({ ...wv, [id]: fit });
   };
   const resetCols = (e: React.MouseEvent) => {
     e.preventDefault();
-    saveCols({}, false);
+    saveCols({});
     setToast("열 너비를 처음으로 돌렸어요");
   };
   const grip = (c: Col) => {
@@ -321,7 +312,8 @@ export default function BudgetStatusScreen() {
     );
 
   /** 숫자 칸들(구분·메모 사이) */
-  const numCells = (l: Line, kind: "pj" | "it" | "gun", editing: Form | null, year?: number, first = false) => {
+  // lock: 집행현황에서 오는 칸(재원 하나 + 그 해 집행현황 있음 → 본예산·집행 당해)은 고치는 줄에서도 값만 보여요
+  const numCells = (l: Line, kind: "pj" | "it" | "gun", editing: Form | null, year?: number, first = false, lock: string[] = []) => {
     const out: ReactNode[] = [];
     const edit = (k: keyof Manual, label: string) => (
       <div className="bd-c n" role="cell" key={k}>
@@ -340,15 +332,15 @@ export default function BudgetStatusScreen() {
     for (const c of cols) {
       if (c.id === "name" || c.id === "memo") continue;
       const id = c.id;
-      if (editing && (EDIT_FIELDS as string[]).includes(id) && !((id === "pm" || id === "ps") && !first)) {
+      if (editing && (EDIT_FIELDS as string[]).includes(id) && !lock.includes(id) && !((id === "pm" || id === "ps") && !first)) {
         out.push(edit(id as keyof Manual, c.sub || c.label));
         continue;
       }
       // 요약의 당해예산·전년도 이월·집행액 칸을 고칠 때는 본예산·명시이월·당해로 받아요
       if (editing && !detail) {
-        if (id === "curSum") { out.push(edit("cur", "본예산")); continue; }
+        if (id === "curSum" && !lock.includes("cur")) { out.push(edit("cur", "본예산")); continue; }
         if (id === "prev" && first) { out.push(edit("pm", "명시이월")); continue; }
-        if (id === "ex") { out.push(edit("en", "집행액(당해)")); continue; }
+        if (id === "ex" && !lock.includes("en")) { out.push(edit("en", "집행액(당해)")); continue; }
       }
       if (id === "rate") {
         out.push(<div className="bd-c n bs-rate" role="cell" key={id}>{bar(l.rate, kind !== "pj", kind === "gun")}</div>);
@@ -537,23 +529,38 @@ export default function BudgetStatusScreen() {
       const yk = p.name + ":" + b.year;
       const yOpen = openY[yk] !== false;
       const first = yi === 0;
+      // 재원이 하나면 재원 줄은 연도 줄과 값이 같아 그리지 않아요(2026-10-19 사용자) — 연도 줄을 두 번 누르면 바로 고쳐요
+      const one = s.sources.length === 1;
+      const oneSrc = s.sources[0];
+      const yEditing = one && form && form.name === p.name && form.year === b.year && form.src === oneSrc ? form : null;
       rows.push(
-        <div key={yk} className="bd-rw it" role="row">
+        <div
+          key={yk}
+          ref={yEditing ? formRow : undefined}
+          className={"bd-rw it" + (yEditing ? " edit" : "")}
+          role="row"
+          onDoubleClick={one ? () => !yEditing && startEdit(p.name, b.year, oneSrc) : undefined}
+          onKeyDown={yEditing ? formKeys : undefined}
+        >
           <div className="bd-c" role="cell">
             <span className={"bd-tl v1" + (lastY ? " half" : "")} />
             <span className="bd-tl h1" />
-            {yOpen && <span className="bd-tl v2 dn2" />}
-            <button type="button" className="bd-cr ind1" aria-label={yOpen ? "접기" : "펼치기"} onClick={() => setOpenY((o) => ({ ...o, [yk]: !yOpen }))}>
-              {ICON(yOpen ? CD : CR, 14, 2.2)}
-            </button>
+            {!one && yOpen && <span className="bd-tl v2 dn2" />}
+            {one ? (
+              <span className="bd-cr ind1 bs-noexp" aria-hidden="true" />
+            ) : (
+              <button type="button" className="bd-cr ind1" aria-label={yOpen ? "접기" : "펼치기"} onClick={() => setOpenY((o) => ({ ...o, [yk]: !yOpen }))}>
+                {ICON(yOpen ? CD : CR, 14, 2.2)}
+              </button>
+            )}
             <span className="bd-nm">{b.year}년</span>
             <span className="bs-note">{b.linked ? "집행현황" : "직접 입력"}</span>
           </div>
-          {numCells(b.total, "it", null, b.year, first)}
+          {one ? numCells(b.bySrc[oneSrc], "it", yEditing, b.year, first, b.hasMain ? ["cur", "en"] : []) : numCells(b.total, "it", null, b.year, first)}
           {memoCell}
         </div>,
       );
-      if (!yOpen) return;
+      if (one || !yOpen) return;
       s.sources.forEach((src, si) => {
         const l = b.bySrc[src];
         const last = lastY && si === s.sources.length - 1;

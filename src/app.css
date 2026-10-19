@@ -10755,6 +10755,7 @@ body.ew-dragging * {
 .bs .bd-rw > .bd-c:last-child, .bs .bd-h:last-child { border-right: 1px solid var(--line); } /* 메모 뒤에도 세로 선 */
 .bs .bd-rw.pj > .bd-c:first-child .bs-years { margin-left: auto; } /* 연도·⚙는 구분 칸 오른쪽 끝 */
 .bs-kind { margin-right: 4px; }
+.bs-noexp { pointer-events: none; }
 .bs-lab2 { margin-left: 8px; } /* 집행현황의 2·9·11·12열 가운데 규칙을 덮어요 — 숫자는 모두 오른쪽 */
 .bs .bd-rw.pj > .bd-c:first-child { overflow: visible; }
 .bs .bd-rw.pj .bd-nm { flex: 0 1 auto; min-width: 0; }

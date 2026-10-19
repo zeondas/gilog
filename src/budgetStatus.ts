@@ -55,7 +55,7 @@ export type Line = {
   diffSum?: boolean; // 재원 줄 합이 집행현황 값과 다름(합계 줄)
 };
 
-export type YearBlock = { year: number; linked: boolean; total: Line; bySrc: Record<string, Line> };
+export type YearBlock = { year: number; linked: boolean; hasMain: boolean; total: Line; bySrc: Record<string, Line> }; // hasMain = 그 해 집행현황에 이 세부사업이 있음
 export type Book = { years: YearBlock[]; total: Line };
 
 const z = (v: number | undefined) => v ?? 0;
@@ -102,7 +102,7 @@ export function compute(name: string, setup: Setup, byYear: Record<number, Budge
       // 재원 줄 합이 집행현황과 다르면 합계 줄은 집행현황 값으로 보여 주고 붉게
       total.diffSum = true;
     }
-    blocks.push({ year: y, linked, total, bySrc });
+    blocks.push({ year: y, linked, hasMain: main != null, total, bySrc });
   }
   // 이월 맞춰 보기: 이어 붙인 이월 사업 예산이 앞 해 다음연도 이월과 다르면
   for (let i = 1; i < blocks.length; i++) {
