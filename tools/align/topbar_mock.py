@@ -73,12 +73,12 @@ ONE = {
     "예산현황": {"L": [["@title"], ["@year"], ["@seg:요약"]], "R": [["@seg:원", "배치최적화"], ["엑셀"], ["@search"]], "S": "세부사업 검색"},
     "설정":     {"L": [["@title"]], "R": [["기본값으로 되돌리기"], ["@search"], ["설정 닫기"]], "S": "설정 검색"},
 }
-SIX = {  # 23:56 사용자 바로잡음: 입력창 단추 → 검색 → 엑셀(맨 오른쪽)
-    "민원대장": {"L": [], "R": [["배치최적화", "분류 관리", "@search", "엑셀"]], "orig": True},  # 00:05 배치최적화 그대로 승계
-    "민원처리": {"L": [], "R": [["공사 관리", "@search"]], "orig": True, "padR": 82, "keep": ["신문고 열기", "민원 불러오기"]},  # 엑셀 없음 → 엑셀 자리(74 + 8) 비움
-    "업무연락처": {"L": [], "R": [["프로젝트 관리", "@search", "엑셀"]], "orig": True},
-    "집행현황": {"L": [], "R": [["세부사업 추가", "@search", "엑셀"]], "orig": True},
-    "예산현황": {"L": [], "R": [["@search", "엑셀"]], "orig": True},
+SIX = {  # 00:10 사용자: 왼쪽 요소는 모두 그대로, 입력창 단추 → 검색 → 엑셀, 세부사업 추가 → 사업 추가 · 프로젝트 관리 → 사업 관리
+    "민원대장": {"L": [], "R": [["배치최적화", "분류 관리", "@search", "엑셀"]], "orig": True, "keepSel": [".pchip"]},
+    "민원처리": {"L": [], "R": [["공사 관리", "@search"]], "orig": True, "padR": 82, "keep": ["신문고 열기", "민원 불러오기"], "keepSel": ["h1.title"]},
+    "업무연락처": {"L": [], "R": [["프로젝트 관리", "@search", "엑셀"]], "orig": True, "keepSel": ["h1.title"], "rename": {"프로젝트 관리": "사업 관리"}},
+    "집행현황": {"L": [], "R": [["배치최적화", "@unit:0", "@unit:1", "세부사업 추가", "@search", "엑셀"]], "orig": True, "keepSel": ["h1.title", ".bd-year"], "rename": {"세부사업 추가": "사업 추가"}},
+    "예산현황": {"L": [], "R": [["배치최적화", "@unit:0", "@unit:1", "@search", "엑셀"]], "orig": True, "keepSel": ["h1.title", ".bd-year"]},
 }
 if P.get("six"):
     SPEC = SIX
@@ -131,7 +131,9 @@ const get=(name)=>{
  if(name.startsWith('@seg')){const k=name.split(':')[1]; const s=k?segs.find(x=>x.innerText.trim().startsWith(k)):segs[0]; if(!s) return null; keepH(s); const n=mkSeg(s); s.style.visibility='hidden'; return n;}
  if(name==='@calmgr'){const b=all.find(el=>el.matches('.cal-manage')); if(!b) return null; b.style.visibility='hidden';
    const n=document.createElement('button'); n.type='button'; n.className='btn btn-ctrl btn-text'; n.textContent='종류 관리'; return n;}
- return byText(name)||null;};
+ if(name.startsWith('@unit:')){const u=segs[+name.split(':')[1]]; if(u){keepH(u); u.style.margin='0';} return u||null;}
+ const bb=byText(name); if(bb&&spec.rename&&spec.rename[name]){const tn=[...bb.childNodes].reverse().find(n=>n.nodeType===3&&n.textContent.trim()); if(tn) tn.textContent=spec.rename[name]; else bb.textContent=spec.rename[name];}
+ return bb||null;};
 const miss=[];
 const zone=(names,cls)=>{const z=document.createElement('div'); z.className='z '+(cls||'');
  for(const n of names){const el=get(n); if(!el){miss.push(n); continue;} if(el.parentElement) keepH(el); z.appendChild(el);} return z;};
@@ -157,9 +159,11 @@ if(P.groups){
       z.appendChild(gg);} return z;};
   tb.style.display='flex'; tb.style.justifyContent='space-between'; tb.style.columnGap=P.ggap+'px';
   tb.append(gz(spec.L),gz(spec.R));
+  for(const [a,b] of Object.entries(spec.rename||{})) for(const btn of tb.querySelectorAll('button')) if((btn.innerText||'').trim()===a){btn.textContent=b; btn.style.width='auto'; btn.style.minWidth='0';}
   if(spec.padR) tb.lastChild.style.marginRight=spec.padR+'px';
   document.body.appendChild(tb);
-  if(spec.orig){for(const el of all){ if(!tb.contains(el)&&!/(^| )jcal/.test(el.className||'')&&!(spec.keep||[]).some(k=>(el.innerText||'').trim().startsWith(k))) el.style.visibility='hidden'; } for(const e of document.querySelectorAll('.cm-top > *, .ct-head > *')) if(!tb.contains(e)&&!(spec.keep||[]).some(k=>(e.innerText||'').trim().startsWith(k))) e.style.visibility='hidden';}
+  const kept=(e)=>(spec.keepSel||[]).some(q=>e.matches(q)||e.closest(q)||e.querySelector(q));
+  if(spec.orig){for(const el of all){ if(!tb.contains(el)&&!/(^| )jcal/.test(el.className||'')&&!kept(el)&&!(spec.keep||[]).some(k=>(el.innerText||'').trim().startsWith(k))) el.style.visibility='hidden'; } for(const e of document.querySelectorAll('.cm-top > *, .ct-head > *')) if(!tb.contains(e)&&!kept(e)&&!(spec.keep||[]).some(k=>(e.innerText||'').trim().startsWith(k))) e.style.visibility='hidden';}
   const ft=document.querySelector('.fx-tools'); if(ft) ft.style.visibility='hidden';
   return {miss, x0, x1, over: tb.scrollWidth>tb.clientWidth+1};
 }
