@@ -33,7 +33,7 @@ import {
   defaultWidths,
   expandType,
   FILTER_KEYS,
-  fitWidths,
+  fitComplaintCols,
   FilterKey,
   filterValues,
   gridTemplate,
@@ -247,12 +247,13 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
   }, [filters.status, statuses, list]);
 
   const doneIdx = COLUMNS.findIndex((c) => c.key === "done");
-  const shownWidths = fitWidths(doneFolded ? widths.map((w, i) => (i === doneIdx ? DONE_FOLD_W : w)) : widths, avail);
+  const fitted = fitComplaintCols(doneFolded ? widths.map((w, i) => (i === doneIdx ? DONE_FOLD_W : w)) : widths, avail);
+  const shownWidths = fitted.ws;
   const foldDone = (v: boolean) => {
     setDoneFolded(v);
     run(api.set(DONE_FOLD_KEY, v ? "true" : "false"));
   };
-  const tableStyle = { "--cm-cols": gridTemplate(shownWidths) } as CSSProperties;
+  const tableStyle = { "--cm-cols": gridTemplate(shownWidths, fitted.flexMin) } as CSSProperties;
   const memoOf = all.find((c) => c.id === memoId) ?? null;
 
   // 표 안쪽 폭을 재요(창 크기를 바꾸면 다시).

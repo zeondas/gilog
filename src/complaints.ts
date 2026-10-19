@@ -155,8 +155,31 @@ export function fitWidths(ws: (number | null)[], avail: number): (number | null)
   return ws.map((w, i) => (w === null || COLUMNS[i]?.fixed ? w : Math.max(COL_MIN, Math.floor(w * k))));
 }
 
-export function gridTemplate(ws: (number | null)[]): string {
-  return ws.map((w) => (w === null ? `minmax(${FLEX_MIN}px, 1fr)` : `${w}px`)).join(" ");
+export function gridTemplate(ws: (number | null)[], flexMin = FLEX_MIN): string {
+  return ws.map((w) => (w === null ? `minmax(${flexMin}px, 1fr)` : `${w}px`)).join(" ");
+}
+
+/** 민원대장 내용·조치내용이 모자랄 때 줄어들 수 있는 가장 좁은 폭(2026-10-19 사용자: 모자라면 내용·조치내용도 줄어야지) */
+export const FLEX_SQUEEZE = 80;
+
+/**
+ * 민원대장 열 맞추기(2026-10-19 사용자): 표 폭이 모자라면 먼저 내용·조치내용을 140 → 80까지 줄이고,
+ * 그래도 모자랄 때만 다른 열(폭 고정 열 빼고)을 같은 비율로 줄여요 — 다른 칸이 두 줄로 넘어가는 일을 가장 늦게.
+ */
+export function fitComplaintCols(ws: (number | null)[], avail: number): { ws: (number | null)[]; flexMin: number } {
+  const nFlex = ws.filter((w) => w === null).length;
+  if (!(avail > 0) || nFlex === 0) return { ws, flexMin: FLEX_MIN };
+  const total = ws.reduce<number>((a, w) => a + (w ?? 0), 0);
+  const each = Math.floor((avail - total) / nFlex);
+  if (each >= FLEX_SQUEEZE) return { ws, flexMin: Math.min(FLEX_MIN, each) };
+  const locked = ws.reduce<number>((a, w, i) => a + (COLUMNS[i]?.fixed && w !== null ? w : 0), 0);
+  const free = total - locked;
+  if (free <= 0) return { ws, flexMin: FLEX_SQUEEZE };
+  const k = Math.max(0, avail - nFlex * FLEX_SQUEEZE - locked) / free;
+  return {
+    ws: ws.map((w, i) => (w === null || COLUMNS[i]?.fixed ? w : Math.max(COL_MIN, Math.floor(w * k)))),
+    flexMin: FLEX_SQUEEZE,
+  };
 }
 
 export const minWidth = (ws: (number | null)[]) => ws.reduce<number>((a, w) => a + (w ?? FLEX_MIN), 0);
