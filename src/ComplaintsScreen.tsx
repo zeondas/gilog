@@ -60,6 +60,9 @@ const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode
 const COLS_KEY = "complaints.colWidths";
 /** 상태 필터만 마지막 것을 기억해요(2026-10-17 사용자 2안 + 상태 예외). 다른 열 필터는 앱을 끄면 풀려요. */
 const STATUS_FILTER_KEY = "complaints.statusFilter";
+/** 조치완료일 열 접기(2026-10-19 사용자) — 접으면 걸린 날 "Nd"만 보여요. */
+const DONE_FOLD_KEY = "complaints.doneFolded";
+const DONE_FOLD_W = 48;
 
 const FILTER_LABEL: Record<FilterKey, string> = { intake: "접수유형", ctype: "민원유형", area: "지역", status: "상태" };
 
@@ -71,6 +74,7 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
   const [list, setList] = useState<Complaint[] | null>(null);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [widths, setWidths] = useState<(number | null)[]>(defaultWidths());
+  const [doneFolded, setDoneFolded] = useState(false);
   // 표가 쓸 수 있는 폭. 저장된 열 너비가 이보다 넓으면 비율대로 줄여 보여요(가로 스크롤 없음).
   const tableRef = useRef<HTMLDivElement>(null);
   const [avail, setAvail] = useState(0);
@@ -103,6 +107,7 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
       .then(setList, (e) => setNote(errorText(e)));
     loadSettings().then(setSettings, () => {});
     api.get(COLS_KEY).then((raw) => setWidths(readWidths(raw)), () => {});
+    api.get(DONE_FOLD_KEY).then((raw) => setDoneFolded(raw === "true"), () => {});
     api.get(STATUS_FILTER_KEY).then((raw) => setFilters((f) => ({ ...f, status: readStatusFilter(raw) })), () => {});
     // 구글 할 일에서 민원을 체크하면 상태가 바뀌어요 → 다시 읽어요.
     const reload = () => api.complaints().then(setList, () => {});
@@ -200,7 +205,12 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.status, statuses, list]);
 
-  const shownWidths = fitWidths(widths, avail);
+  const doneIdx = COLUMNS.findIndex((c) => c.key === "done");
+  const shownWidths = fitWidths(doneFolded ? widths.map((w, i) => (i === doneIdx ? DONE_FOLD_W : w)) : widths, avail);
+  const foldDone = (v: boolean) => {
+    setDoneFolded(v);
+    run(api.set(DONE_FOLD_KEY, v ? "true" : "false"));
+  };
   const tableStyle = { "--cm-cols": gridTemplate(shownWidths) } as CSSProperties;
   const memoOf = all.find((c) => c.id === memoId) ?? null;
 
@@ -272,13 +282,15 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
 
       {note && <p className="note" role="status">{note}</p>}
 
-      <div className="cm" role="table" aria-label="민원 목록" style={tableStyle} ref={tableRef}>
+      <div className={"cm" + (doneFolded ? " cm-fold-done" : "")} role="table" aria-label="민원 목록" style={tableStyle} ref={tableRef}>
         <HeadRow
           widths={shownWidths}
           avail={avail}
           onResize={setWidths}
           onResized={saveWidths}
           onResetWidths={() => saveWidths(defaultWidths())}
+          doneFolded={doneFolded}
+          onFoldDone={foldDone}
           filters={filters}
           open={openFilter}
           onToggle={(k) => setOpenFilter(openFilter === k ? null : k)}
@@ -394,6 +406,8 @@ function HeadRow({
   open,
   onToggle,
   dropdown,
+  doneFolded,
+  onFoldDone,
 }: {
   widths: (number | null)[];
   avail: number;
@@ -404,6 +418,8 @@ function HeadRow({
   open: FilterKey | null;
   onToggle: (k: FilterKey) => void;
   dropdown: ReactNode;
+  doneFolded: boolean;
+  onFoldDone: (v: boolean) => void;
 }) {
   const rowRef = useRef<HTMLDivElement>(null);
   // 열 제목 줄 우클릭 메뉴: 열 너비 초기화 (2026-10-17 사용자 2안)
@@ -450,8 +466,22 @@ function HeadRow({
         const fk = (FILTER_KEYS as string[]).includes(col.key) ? (col.key as FilterKey) : null;
         const on = fk !== null && filters[fk] !== null;
         return (
-          <div role="columnheader" key={col.key} className={"cm-hcell" + (col.key === "no" ? " right" : "") + (fk ? " cm-hf" : "")}>
-            {fk ? (
+          <div role="columnheader" key={col.key} className={"cm-hcell" + (col.key === "no" ? " right" : "") + (fk || col.key === "done" ? " cm-hf" : "")}>
+            {col.key === "done" ? (
+              <button
+                type="button"
+                className={"cm-hbtn cm-fold" + (doneFolded ? " folded" : "")}
+                aria-expanded={!doneFolded}
+                aria-label={doneFolded ? "조치완료일 펼치기" : "조치완료일 접기"}
+                title={doneFolded ? "조치완료일 펼치기" : "조치완료일 접기"}
+                onClick={() => onFoldDone(!doneFolded)}
+              >
+                {!doneFolded && <span>{col.label}</span>}
+                <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                  <path d={doneFolded ? "M9 6l6 6-6 6" : "M15 6l-6 6 6 6"} />
+                </svg>
+              </button>
+            ) : fk ? (
               <button
                 type="button"
                 className={"cm-hbtn" + (on ? " on" : "")}
@@ -963,7 +993,7 @@ function Cells({
           }
         />
       </div>
-      <div role="cell" className="cm-c">
+      <div role="cell" className="cm-c cm-done-in">
         <input
           name="done"
           aria-label="조치완료일"
@@ -1294,8 +1324,8 @@ function ViewRow({
       <div role="cell" className="cm-c">
         <StatusPick status={c.status} statuses={statuses} bg={bg} fg={fg} render={t} onPick={onStatus} />
       </div>
-      <div role="cell" className="cm-c cm-num cm-due">
-        <span>{t(c.done ?? "")}</span>
+      <div role="cell" className="cm-c cm-num cm-due cm-done-c">
+        <span className="cm-done-d">{t(c.done ?? "")}</span>
         {taken !== null && (
           <span className="cm-dday cm-taken" title="접수부터 조치완료까지">
             {taken}d

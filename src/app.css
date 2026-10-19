@@ -10670,3 +10670,30 @@ body.ew-dragging * {
   color: var(--muted);
   font-weight: 600;
 }
+
+/* 조치완료일 열 접기(2026-10-19 사용자) — 접으면 걸린 날 "Nd"만, 고치는 줄·새 줄은 칸을 숨겨요(상태로 저절로 채워져요). */
+.cm-hbtn.cm-fold[aria-expanded] {
+  border-color: transparent;
+}
+.cm-hbtn.cm-fold > svg {
+  color: var(--muted);
+}
+.cm-hbtn.cm-fold:hover > svg {
+  color: var(--ink);
+}
+.cm-hbtn.cm-fold.folded {
+  justify-content: center;
+}
+.cm-fold-done .cm-done-d,
+.cm-fold-done .cm-done-in > * {
+  display: none;
+}
+.cm-fold-done .cm-view > .cm-done-c {
+  display: flex;
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+.cm-fold-done .cm-view > .cm-done-c .cm-dday {
+  justify-self: auto;
+}
