@@ -425,7 +425,7 @@ export default function BudgetStatusScreen() {
     if (!s) return null;
     const yr = (k: "from" | "to") => (
       <input
-        className="fld bd-in n bs-yr"
+        className="fld bd-in bs-yr"
         aria-label={k === "from" ? "시작 연도" : "끝 연도"}
         value={s[k]}
         onChange={(e) => {
@@ -446,32 +446,41 @@ export default function BudgetStatusScreen() {
             <>
               <span className="bs-lab bs-lab2">기간</span>
               {yr("from")}
-              <span className="muted">~</span>
+              <span className="bs-tilde">~</span>
               {yr("to")}
             </>
           )}
         </div>
         <div className="bs-row">
           <span className="bs-lab">재원</span>
-          <span className="chips">
-            {s.sources.map((x) => (
-              <span key={x} className="chip bs-chip">
+          <span className="bs-srcs">
+            {SOURCES.filter((x) => x !== "기타").map((x) => {
+              const on = s.sources.includes(x);
+              const last = on && s.sources.length === 1;
+              return (
+                <button
+                  key={x}
+                  type="button"
+                  className={"bs-src" + (on ? " on" : "")}
+                  aria-pressed={on}
+                  title={last ? "재원은 하나 이상 있어야 해요" : undefined}
+                  onClick={() => { if (last) return; saveSetup(name, { ...s, sources: on ? s.sources.filter((y) => y !== x) : [...s.sources, x] }); }}
+                >
+                  {x}
+                </button>
+              );
+            })}
+            {s.sources.filter((x) => !(SOURCES as readonly string[]).includes(x)).map((x) => (
+              <span key={x} className="bs-src on bs-src-x">
                 {x}
-                {s.sources.length > 1 && (
-                  <button type="button" className="chip-x" aria-label={x + " 빼기"} onClick={() => saveSetup(name, { ...s, sources: s.sources.filter((y) => y !== x) })}>
-                    {ICON(X, 11)}
-                  </button>
-                )}
+                <button type="button" className="chip-x" aria-label={x + " 빼기"} disabled={s.sources.length === 1} onClick={() => saveSetup(name, { ...s, sources: s.sources.filter((y) => y !== x) })}>
+                  {ICON(X, 11)}
+                </button>
               </span>
-            ))}
-            {SOURCES.filter((x) => x !== "기타" && !s.sources.includes(x)).map((x) => (
-              <button key={x} type="button" className="btn bs-addsrc" onClick={() => saveSetup(name, { ...s, sources: [...s.sources, x] })}>
-                + {x}
-              </button>
             ))}
             <input
               className="fld bd-in bs-other"
-              placeholder="기타(예 특조)"
+              placeholder="기타 재원 · Enter"
               aria-label="기타 재원 이름"
               value={newSrc}
               onChange={(e) => setNewSrc(e.target.value)}
@@ -510,8 +519,7 @@ export default function BudgetStatusScreen() {
   };
 
   const mi = (t: string, onClick: (() => void) | null) => (
-    <div className={"bd-mi" + (!onClick ? " off" : "")} role="menuitem" aria-disabled={!onClick} onClick={(e) => { e.stopPropagation(); onClick?.(); }}>
-      <span className="bd-mi-ic" />
+    <div className={"bd-mi bs-mi" + (!onClick ? " off" : "")} role="menuitem" aria-disabled={!onClick} onClick={(e) => { e.stopPropagation(); onClick?.(); }}>
       <span className="bd-mi-t">{t}</span>
     </div>
   );

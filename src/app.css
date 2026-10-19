@@ -10756,7 +10756,6 @@ body.ew-dragging * {
 .bs .bd-c.bs-yrs { padding-left: 12px; font-weight: 400; }
 .bs .bd-rw > .bd-c:nth-child(2) { justify-content: flex-start; } /* 사업명 칸(집행현황 2열 가운데 규칙 덮음) */
 .bs .bd-rw.it > .bd-c:nth-child(2) { font-weight: 600; } /* 연도 줄 이름(집행현황의 첫 칸 굵게 규칙을 둘째 칸으로) */ /* 사업연도 칸: "2026년"·"2025~2027년" + ⚙ */
-.bs-kind { margin-right: 4px; }
 .bs-noexp { pointer-events: none; }
 .bs .bd-rw > .bd-c { user-select: none; } /* 두 번 누르기가 글자를 긁지 않게 */
 .bs .bd-in { user-select: text; }
@@ -10782,14 +10781,27 @@ body.ew-dragging * {
 .bs .bd-hd.bs-hd2 { height: 56px; grid-template-rows: 28px 28px; }
 .bs .bd-hd.bs-hd2 .bd-h.bs-grp { border-bottom: 1px solid var(--line-soft); }
 .bs .bd-hd .bd-h { white-space: nowrap; }
-.bs-setup { display: flex; flex-direction: column; gap: 10px; width: 460px; padding: 10px 12px 8px; }
-.bs-row { display: flex; align-items: center; gap: 8px; }
-.bs-lab { flex: none; width: 60px; font-size: 12px; font-weight: 600; color: var(--muted); }
-.bs-yr { width: 64px; height: 28px; text-align: center; }
-.bs-chip { height: 28px; padding-left: 10px; font-weight: 600; }
-.bs-addsrc { color: var(--accent); font-weight: 600; }
-.bs-other { width: 110px; height: 28px; }
-.bs-sel { flex: 1; height: 28px; }
-.bs-yrbtn.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-.bs-hint { padding-top: 8px; border-top: 1px solid var(--line-soft); font-size: 11.5px; color: var(--muted); }
-.bs-sel2 { flex: none; width: 88px; height: 28px; }
+/* ⚙ 설정 상자 — 줄마다 이름표 64 + 28 높이 부품(한 줄 칸 규칙 .fld), 단년도/다년도는 묶음 단추(34 상자 안 26) */
+.bs-setup { display: flex; flex-direction: column; gap: 10px; width: 480px; padding: 12px 14px 10px; }
+.bs-row { display: flex; align-items: center; gap: 8px; min-height: 28px; }
+.bs-lab { flex: none; width: 64px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.bs-lab2 { width: auto; margin-left: 12px; }
+.bs-tilde { color: var(--muted); }
+.bs-yr { width: 68px; text-align: center; }
+.bs-srcs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.bs-src { display: inline-flex; align-items: center; gap: 2px; height: 28px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--muted); font-size: 12.5px; font-weight: 600; }
+.bs-src:hover { color: var(--ink); }
+.bs-src.on { background: var(--accent-tint); border-color: var(--accent-line); color: var(--accent); }
+.bs-src-x { padding-right: 3px; }
+.bs-src-x .chip-x { width: 20px; height: 20px; color: var(--accent); }
+.bs-src-x .chip-x:disabled { opacity: 0.3; cursor: default; }
+.bs-other { width: 120px; }
+.bs-sel { flex: 1; }
+.bs-sel2 { flex: none; width: 96px; }
+.bs-hint { padding-top: 10px; border-top: 1px solid var(--line-soft); font-size: 11.5px; line-height: 16px; color: var(--muted); }
+/* 우클릭 메뉴: 아이콘 자리 없이 글자만, 폭 160 */
+.bs-mi { padding: 0 12px; min-width: 160px; }
+/* 집행률 막대·숫자는 재원 줄도 또렷하게(2026-10-19 사용자 1안) */
+.bs .bd-bar.rowbar { height: 5px; background: var(--bd-bar-track); }
+.bs .bd-bar.rowbar > span { background: var(--bd-bar-fill); }
+.bs .bd-pct.rowp { font-weight: 400; color: var(--ink); }
