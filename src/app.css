@@ -8056,19 +8056,6 @@ body.col-dragging * {
   height: 24px;
   font-size: 12.5px;
 }
-.fx-up {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--size-badge-h);
-  height: var(--size-badge-h);
-  border-radius: var(--radius-sm);
-  background: var(--up-bg);
-  color: var(--up-fg);
-}
-.fx-up-big {
-  border-radius: var(--radius-sm);
-}
 .fx-lock {
   display: inline-flex;
   align-items: center;
