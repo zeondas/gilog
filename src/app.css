@@ -10316,7 +10316,8 @@ select.input.fx-set-date { width: 190px; }
 
 /* ---------- 프로젝트 관리 창 · 표 모양 (2026-10-19 사용자 1안, 시안 ProjectMgr) ---------- */
 .mgr.pjm {
-  width: 760px;
+  position: relative;
+  width: 960px;
   height: min(760px, 100%);
 }
 
@@ -10333,7 +10334,7 @@ select.input.fx-set-date { width: 190px; }
 
 .pjm-add {
   display: grid;
-  grid-template-columns: 1fr 180px auto;
+  grid-template-columns: minmax(0, 1fr) 220px auto;
   gap: var(--space-2);
   padding: 0 20px var(--space-3);
 }
@@ -10351,7 +10352,7 @@ select.input.fx-set-date { width: 190px; }
 
 .pjm-row {
   display: grid;
-  grid-template-columns: 22px 200px minmax(0, 1fr) 56px 28px 28px;
+  grid-template-columns: 22px minmax(0, 1fr) 220px 56px 28px 28px;
   align-items: center;
   column-gap: 10px;
   min-height: 32px;
@@ -10409,7 +10410,8 @@ select.input.fx-set-date { width: 190px; }
   font-weight: 600;
 }
 
-.pjm-full {
+.pjm-short.pjm-same {
+  font-weight: 400;
   color: var(--muted);
 }
 
@@ -10442,7 +10444,7 @@ select.input.fx-set-date { width: 190px; }
 
 .pjm-edit .mgr-names {
   display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) 220px;
   gap: 10px;
 }
 
@@ -10450,13 +10452,6 @@ select.input.fx-set-date { width: 190px; }
   display: none;
 }
 
-.pjm-edit #pj-full {
-  order: 2;
-}
-
-.pjm-edit #pj-short {
-  order: 1;
-}
 
 .pjm-ask {
   grid-column: 1 / -1;
@@ -10488,3 +10483,31 @@ select.input.fx-set-date { width: 190px; }
 .fx-tools[data-compact="1"] .fx-tl { display: none; }
 .fx-tools[data-compact="1"] .fx-tool { gap: 0; }
 .fx-tools { overflow: hidden; }
+
+/* 프로젝트 관리 창 양옆 손잡이(2026-10-19 사용자: 양옆으로 늘릴 수 있게) */
+.pjm-grip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 8px;
+  cursor: ew-resize;
+}
+
+.pjm-grip-l {
+  left: -4px;
+}
+
+.pjm-grip-r {
+  right: -4px;
+}
+
+.pjm-grip:hover {
+  background: linear-gradient(90deg, transparent 3px, var(--accent) 3px, var(--accent) 5px, transparent 5px);
+}
+
+body.ew-dragging,
+body.ew-dragging * {
+  cursor: ew-resize !important;
+  user-select: none;
+}

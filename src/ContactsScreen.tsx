@@ -1077,6 +1077,45 @@ export function MemoEditor({
 
 // ---------- 프로젝트 관리 창 ----------
 
+const PJM_W = 960;
+const PJM_W_KEY = "contacts.projectDialogWidth";
+const clampW = (w: number) => Math.max(640, Math.min(Number.isFinite(w) ? w : PJM_W, window.innerWidth - 32));
+
+/** 창 왼쪽·오른쪽 가장자리 손잡이. 창은 가운데에 있으니 끈 만큼 양쪽이 같이 늘어요(손잡이가 마우스를 따라와요). */
+function EdgeGrip({ side, width, onWidth, onDone }: { side: "l" | "r"; width: number; onWidth: (w: number) => void; onDone: (w: number) => void }) {
+  return (
+    <div
+      className={"pjm-grip pjm-grip-" + side}
+      aria-hidden="true"
+      onMouseDown={(e) => {
+        e.preventDefault();
+        const x0 = e.clientX;
+        const w0 = width;
+        let w = w0;
+        const move = (ev: MouseEvent) => {
+          const dx = (ev.clientX - x0) * (side === "r" ? 1 : -1);
+          w = clampW(w0 + dx * 2);
+          onWidth(w);
+        };
+        const up = () => {
+          window.removeEventListener("mousemove", move);
+          window.removeEventListener("mouseup", up);
+          document.body.classList.remove("ew-dragging");
+          onDone(w);
+        };
+        document.body.classList.add("ew-dragging");
+        window.addEventListener("mousemove", move);
+        window.addEventListener("mouseup", up);
+      }}
+      onDoubleClick={() => {
+        onWidth(PJM_W);
+        onDone(PJM_W);
+      }}
+      title="끌어서 폭 바꾸기 · 두 번 누르면 처음 폭"
+    />
+  );
+}
+
 function ProjectDialog({
   data,
   run,
@@ -1093,6 +1132,12 @@ function ProjectDialog({
   const [editId, setEditId] = useState<number | null>(null);
   const [pq, setPq] = useState("");
   const [sort, setSort] = useState<"name" | "count">("name");
+  // 창 폭: 양옆 가장자리를 끌어 넓혀요(2026-10-19 사용자), 고른 폭은 기억해요.
+  const [pjmW, setPjmW] = useState(PJM_W);
+  useEffect(() => {
+    api.get(PJM_W_KEY).then((v) => v && setPjmW(clampW(Number(v))), () => {});
+  }, []);
+  const savePjmW = (w: number) => api.set(PJM_W_KEY, String(Math.round(w))).catch(() => {});
   /** 방금 더한 프로젝트 이름(그 줄로 내려가요) */
   const [added, setAdded] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -1119,7 +1164,7 @@ function ProjectDialog({
   const badFull = !!dFull && isTaken(dFull);
   const badShort = !!dShort && dShort !== dFull && isTaken(dShort);
 
-  /** 전체 공사명·축약 공사명 중 하나만 적어도 돼요(2026-10-19 사용자). */
+  /** 공사명·축약 공사명 중 하나만 적어도 돼요(2026-10-19 사용자). */
   async function add() {
     const name = dFull || dShort;
     if (!name || badFull || badShort) return;
@@ -1147,7 +1192,7 @@ function ProjectDialog({
   const rows = data.projects
     .filter((p) => !ql || p.name.toLowerCase().includes(ql) || p.alias.toLowerCase().includes(ql) || (/[ㄱ-ㅎ]/.test(ql) && koIndex(pjLabel(p), ql) >= 0))
     .map((p) => ({ p, users: count(p.id) }))
-    .sort((x, y) => (sort === "count" ? y.users - x.users : 0) || koSort(x.p, y.p));
+    .sort((x, y) => (sort === "count" ? y.users - x.users : 0) || pjFull(x.p).localeCompare(pjFull(y.p), "ko", { numeric: true }));
 
   // 방금 더한 프로젝트가 보이게 내려가요.
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -1161,7 +1206,9 @@ function ProjectDialog({
       className="overlay"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="dialog mgr pjm" role="dialog" aria-modal="true" aria-label="프로젝트 관리">
+      <div className="dialog mgr pjm" role="dialog" aria-modal="true" aria-label="프로젝트 관리" style={{ width: pjmW }}>
+        <EdgeGrip side="l" width={pjmW} onWidth={setPjmW} onDone={savePjmW} />
+        <EdgeGrip side="r" width={pjmW} onWidth={setPjmW} onDone={savePjmW} />
         <div className="dialog-head pjm-head">
           <span className="dialog-title">프로젝트 관리</span>
           <span className="mgr-info">{data.projects.length}개</span>
@@ -1184,8 +1231,8 @@ function ProjectDialog({
           <input
             ref={inputRef}
             className={"input" + (badFull ? " invalid" : "")}
-            aria-label="전체 공사명"
-            placeholder="전체 공사명"
+            aria-label="공사명"
+            placeholder="공사명"
             title={badFull ? "같은 이름의 프로젝트가 있어요" : undefined}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -1200,7 +1247,7 @@ function ProjectDialog({
             className={"input" + (badShort ? " invalid" : "")}
             aria-label="축약 공사명"
             placeholder="축약 공사명"
-            title={badShort ? "같은 이름의 프로젝트가 있어요" : "비우면 전체 공사명으로 보여요"}
+            title={badShort ? "같은 이름의 프로젝트가 있어요" : "비우면 공사명으로 보여요"}
             value={draftShort}
             onChange={(e) => setDraftShort(e.target.value)}
             onKeyDown={(e) => {
@@ -1217,9 +1264,9 @@ function ProjectDialog({
         <div className="pjm-row pjm-th" role="row">
           <span>색</span>
           <button type="button" className="pjm-sort" aria-pressed={sort === "name"} onClick={() => setSort("name")}>
-            축약 공사명{sort === "name" ? " ↓" : ""}
+            공사명{sort === "name" ? " ↓" : ""}
           </button>
-          <span>전체 공사명</span>
+          <span>축약 공사명</span>
           <button type="button" className="pjm-sort pjm-n" aria-pressed={sort === "count"} onClick={() => setSort("count")}>
             {sort === "count" ? "↓ " : ""}연락처
           </button>
@@ -1246,10 +1293,10 @@ function ProjectDialog({
                 </div>
               ) : (
                 <>
-                  <span className="pjm-short" title={pjLabel(p)}>{pjLabel(p)}</span>
                   <span className="pjm-full" title={pjFull(p)}>
                     {pjFull(p)}
                   </span>
+                  <span className={"pjm-short" + (p.alias ? "" : " pjm-same")} title={pjLabel(p)}>{p.alias || "—"}</span>
                 </>
               )}
               <span className={"pjm-n" + (users ? "" : " pjm-zero")}>{users}명</span>
@@ -1352,7 +1399,7 @@ function NamesEdit({
       }}
     >
       <label className="mgr-names-l" htmlFor="pj-full">
-        전체 공사명
+        공사명
       </label>
       <input
         id="pj-full"
@@ -1360,7 +1407,7 @@ function NamesEdit({
         aria-invalid={empty || badFull || undefined}
         title={tip(empty || badFull, badFull)}
         autoFocus
-        placeholder="전체 공사명"
+        placeholder="공사명"
         value={full}
         onFocus={(e) => e.currentTarget.select()}
         onChange={(e) => setFull(e.target.value)}
@@ -1374,7 +1421,7 @@ function NamesEdit({
         className={"input mgr-name-in" + (empty || badShort ? " invalid" : "")}
         aria-invalid={empty || badShort || undefined}
         title={tip(empty || badShort, badShort)}
-        placeholder="비우면 전체 공사명으로 보여요"
+        placeholder="비우면 공사명으로 보여요"
         value={short}
         onFocus={(e) => e.currentTarget.select()}
         onChange={(e) => setShort(e.target.value)}
