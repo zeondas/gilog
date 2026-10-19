@@ -1,7 +1,7 @@
 // 업무연락처 화면이에요. 시안 Contacts.dc.html과 사양서의 "업무연락처" 절을 따라요.
 import { KeyboardEvent, RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ExcelMenu } from "./ExcelMenu";
-import { ProjectImport, contactImports, contactRows, projectImports, projectRows } from "./excel";
+import { ProjectImport, contactImports, contactRows } from "./excel";
 import { DelIcon } from "./Icons";
 import { BLine, CYCLE, isBlank, kindOf, layout, newLineFor, NewLineMode, parseLines, stringifyLines, TRIGGERS, withKind } from "./bullets";
 import { isKey, keyAction, rowKeys } from "./keys";
@@ -177,15 +177,15 @@ export default function ContactsScreen() {
         <ExcelMenu
           kind="contacts"
           total={all.length}
-          build={() => ({ rows: contactRows(all, projects), projects: projectRows(projects, data.groups ?? []), intake: [], status: [] })}
-          parse={(sheet) => [{ contacts: contactImports(sheet), projects: projectImports(sheet.extra?.[0]) }]}
+          build={() => ({ rows: contactRows(all, projects, data.groups ?? []), intake: [], status: [] })}
+          parse={(sheet) => [contactImports(sheet)]}
           count={(rows) => rows[0]?.contacts.length ?? 0}
           note={(sheet) => {
-            const n = projectImports(sheet.extra?.[0]).length;
+            const n = contactImports(sheet).projects.length;
             return n ? `프로젝트 ${n}개의 축약 공사명·그룹·색도 맞춰요` : "";
           }}
           onImport={async ([r]) => {
-            // 프로젝트 시트를 먼저 넣어야 연락처의 프로젝트 칸이 그 프로젝트(축약 공사명·그룹·색)로 이어져요.
+            // 프로젝트(숨긴 열의 그룹·축약 공사명·색)를 먼저 넣어야 연락처의 프로젝트 칸이 그 프로젝트로 이어져요.
             await importProjects(r.projects);
             const n = await api.importContacts(r.contacts);
             setData(await api.contactsData());
@@ -1908,7 +1908,7 @@ function Arrow({ up }: { up?: boolean }) {
 }
 
 /**
- * 엑셀 둘째 시트 "프로젝트"를 넣어요. 같은 프로젝트(공사명·축약 공사명이 맞는 것)가 있으면
+ * 엑셀 숨긴 열(그룹·축약 공사명·색)로 읽은 프로젝트를 넣어요. 같은 프로젝트(공사명·축약 공사명이 맞는 것)가 있으면
  * 비어 있는 것만 채우고(축약 공사명·그룹·색 — 적어 둔 것은 그대로), 없으면 새로 만들어요.
  */
 async function importProjects(list: ProjectImport[]) {

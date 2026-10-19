@@ -24,8 +24,6 @@ pub enum SheetKind {
     Journal,
     /// 업무일지 둘째 시트 "날짜별" — 하루 한 줄(출근·교통·날씨·비고)
     JournalDays,
-    /// 업무연락처 둘째 시트 "프로젝트" — 프로젝트 한 개 = 한 줄(그룹·공사명·축약 공사명·색, 2026-10-19 사용자)
-    ContactProjects,
 }
 
 impl SheetKind {
@@ -35,7 +33,6 @@ impl SheetKind {
             SheetKind::Contacts => "업무연락처",
             SheetKind::Journal => "업무일지",
             SheetKind::JournalDays => "날짜별",
-            SheetKind::ContactProjects => "프로젝트",
         }
     }
 
@@ -60,14 +57,18 @@ impl SheetKind {
             ],
             SheetKind::Contacts => &[
                 ("연번", 6.0, false),
-                ("이름", 11.8, false),
+                ("이름", 11.9, false),
                 ("소속", 20.0, false),
                 ("직위", 16.0, false),
-                ("무선", 13.5, false),
-                ("유선", 13.5, false),
+                ("무선", 13.6, false),
+                ("유선", 13.6, false),
                 ("이메일", 23.6, false),
-                ("프로젝트", 33.5, false),
+                ("프로젝트", 37.2, false),
                 ("메모", 34.0, true),
+                // 숨긴 열(2026-10-19 사용자 양식): 그 줄 프로젝트의 그룹·축약 공사명·색(1~8, 비우면 자동)
+                ("그룹", 21.7, true),
+                ("축약 공사명", 30.0, false),
+                ("색", 9.0, false),
             ],
             SheetKind::Journal => &[
                 ("연번", 6.0, false),
@@ -86,12 +87,6 @@ impl SheetKind {
                 ("날씨", 12.0, false),
                 ("비고", 50.0, true),
             ],
-            SheetKind::ContactProjects => &[
-                ("그룹", 18.0, false),
-                ("공사명", 60.0, true),
-                ("축약 공사명", 30.0, false),
-                ("색", 6.0, false),
-            ],
         }
     }
 
@@ -102,7 +97,6 @@ impl SheetKind {
             SheetKind::Contacts => &["이름", "소속"],
             SheetKind::Journal => &["날짜", "내용"],
             SheetKind::JournalDays => &["날짜", "출근"],
-            SheetKind::ContactProjects => &["공사명", "축약공사명"],
         }
     }
 }
@@ -119,8 +113,6 @@ pub struct ExcelExport {
     pub status: Vec<String>,
     /// 업무일지 둘째 시트 "날짜별" 줄(업무일지일 때만)
     pub days: Vec<Vec<String>>,
-    /// 업무연락처 둘째 시트 "프로젝트" 줄(업무연락처일 때만)
-    pub projects: Vec<Vec<String>>,
 }
 
 /// 가져온 시트: 3행 열 제목과 그 아래 줄(모든 칸이 빈 줄은 빼요)
@@ -153,10 +145,6 @@ pub fn write_xlsx(path: &Path, kind: SheetKind, data: &ExcelExport) -> Result<()
     // 업무일지는 같은 파일에 둘째 시트 "날짜별"을 더해요.
     if kind == SheetKind::Journal {
         write_sheet(&mut wb, SheetKind::JournalDays, &data.days, data)?;
-    }
-    // 업무연락처는 둘째 시트 "프로젝트"에 축약 공사명·그룹·색까지 담아요(프로젝트 칸에는 공사명만 들어가요).
-    if kind == SheetKind::Contacts {
-        write_sheet(&mut wb, SheetKind::ContactProjects, &data.projects, data)?;
     }
     wb.save(path).map_err(xerr)?;
     Ok(())
@@ -211,9 +199,16 @@ fn write_sheet(wb: &mut Workbook, kind: SheetKind, rows: &[Vec<String>], data: &
     }
     // 1행 제목(병합), 2행 빈 줄, 3행 열 제목
     ws.merge_range(0, 0, 0, last_col, kind.title(), &title).map_err(xerr)?;
-    ws.set_row_height(0, 50).map_err(xerr)?;
-    ws.set_row_height(1, 30).map_err(xerr)?;
-    ws.set_row_height(2, 30).map_err(xerr)?;
+    // 업무연락처는 사용자 양식(2026-10-19): 1행 30, 2행·3행·자료 행 18. 다른 시트는 1행 50, 나머지 30.
+    let (h_title, h_row) = if kind == SheetKind::Contacts { (30.0, 18.0) } else { (50.0, 30.0) };
+    ws.set_row_height(0, h_title).map_err(xerr)?;
+    ws.set_row_height(1, h_row).map_err(xerr)?;
+    ws.set_row_height(2, h_row).map_err(xerr)?;
+    if kind == SheetKind::Contacts {
+        for c in 9..=11u16 {
+            ws.set_column_hidden(c).map_err(xerr)?;
+        }
+    }
     for (i, (name, _, _)) in cols.iter().enumerate() {
         ws.write_string_with_format(2, i as u16, *name, &head).map_err(xerr)?;
     }
@@ -237,7 +232,7 @@ fn write_sheet(wb: &mut Workbook, kind: SheetKind, rows: &[Vec<String>], data: &
         }
         // 1행 제목만 50, 나머지 모든 행은 30 고정(2026-10-17 사용자 — 여러 줄이어도 늘리지 않아요).
         // 업무일지만 내용 줄 수만큼 늘려요(2026-10-19 사용자 2안 — 말 줄이 여러 줄이라 잘려 보여요).
-        let h = if kind == SheetKind::Journal { journal_row_height(row, cols) } else { 30.0 };
+        let h = if kind == SheetKind::Journal { journal_row_height(row, cols) } else { h_row };
         ws.set_row_height(rr, h).map_err(xerr)?;
     }
     let last_row = (rows.len() + 2) as u32;
@@ -342,11 +337,6 @@ pub fn read_xlsx(path: &Path, kind: SheetKind) -> Result<ExcelSheet> {
             sheet.extra.push(days);
         }
     }
-    if kind == SheetKind::Contacts {
-        if let Ok(pj) = read_kind(&mut wb, SheetKind::ContactProjects) {
-            sheet.extra.push(pj);
-        }
-    }
     Ok(sheet)
 }
 
@@ -408,21 +398,17 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("c.xlsx");
         let row = |n: &str, name: &str| -> Vec<String> {
-            [n, name, "A시공사", "현장대리인", "010-0000-0034", "031-940-0000", "hong@example.com", "시도15호선, 실정보고", "○ 메모"]
+            [n, name, "A시공사", "현장대리인", "010-0000-0034", "031-940-0000", "hong@example.com", "2026년 동부권 도로정비 연간단가 공사", "○ 메모", "연간단가", "2026 동부 도로정비", "3"]
                 .iter()
                 .map(|s| s.to_string())
                 .collect()
         };
-        let pj = |g: &str, f: &str, a: &str, c: &str| vec![g.to_string(), f.to_string(), a.to_string(), c.to_string()];
-        let projects = vec![pj("연간단가", "2026년 동부권 도로정비 연간단가 공사", "2026 동부 도로정비", "3"), pj("", "시도15호선", "", "")];
-        let data = ExcelExport { rows: vec![row("1", "홍길동"), row("2", "김영희")], projects: projects.clone(), ..Default::default() };
+        let data = ExcelExport { rows: vec![row("1", "홍길동"), row("2", "김영희")], ..Default::default() };
         write_xlsx(&path, SheetKind::Contacts, &data).unwrap();
         let back = read_xlsx(&path, SheetKind::Contacts).unwrap();
         assert_eq!(back.rows.len(), 2);
-        // 둘째 시트 "프로젝트"에 축약 공사명이 남아요.
-        assert_eq!(back.extra.len(), 1);
-        assert_eq!(back.extra[0].headers, vec!["그룹", "공사명", "축약공사명", "색"]);
-        assert_eq!(back.extra[0].rows, projects);
+        // 숨긴 열 그룹·축약 공사명·색도 읽혀요.
+        assert_eq!(&back.headers[9..], &["그룹", "축약공사명", "색"]);
         assert_eq!(back.rows[0], row("1", "홍길동"));
         assert_eq!(back.rows[1][6], "hong@example.com");
         // 민원대장 양식이 아니면 알려 줘요.
