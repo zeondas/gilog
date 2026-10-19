@@ -10655,3 +10655,9 @@ body.ew-dragging * {
 .bd-packed .bd-top,
 .bd-packed .bd-tbl { max-width: 100%; }
 .bd-packed .bd-scroll { padding-right: 0; }
+
+/* 폴더트리 첫 줄·드라이브 단추 줄 간격 맞춤(2026-10-19 사용자 1안): 구분선 아래 8px, 상자 옆 끝에서 10px.
+   단추 줄 높이(42)는 그대로 두고 단추만 위로 붙여(위 8·아래 5 + 선 1) 아래 경로 줄·목록은 움직이지 않아요. */
+.fx-tree-list { padding-top: 8px; }
+.fx-tr { margin: 0 8px; }
+.fx-pane .fx-row1 { align-items: flex-start; padding: 8px 8px 5px; }
