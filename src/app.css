@@ -6973,11 +6973,12 @@ body.col-dragging * {
   color: var(--muted);
 }
 
-/* 기한: 날짜 아래 남은 날 배지 — 날짜가 옆 칸 글자와 같은 줄에 놓여요(2026-10-19 사용자) */
+/* 한 줄의 가운데 맞춤(2026-10-19 사용자): 첫 줄 글자 상자 11~29(가운데 20) — 고르기 칸·공사 배지 22·입력칸·단추 28도 가운데 20,
+   둘째 줄 31~49(가운데 40) — 기한의 남은 날 배지 22도 29~51로 가운데 40 */
 .pr-date.pr-due {
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
+  gap: 0;
 }
 
 .pr-d {
@@ -7022,7 +7023,7 @@ body.col-dragging * {
   max-width: 100%;
   min-height: var(--size-badge-h);
   margin-top: -2px;
-  padding: 3px 8px;
+  padding: 2px 8px;
   overflow: hidden;
   border: 1px solid var(--wc, var(--line));
   border-radius: var(--radius-sm);
@@ -7047,7 +7048,7 @@ body.col-dragging * {
 
 .pr-row > div:has(> .pr-in),
 .pr-row > div:has(> .cell-input) {
-  padding-top: 8px;
+  padding-top: 6px;
 }
 
 .pr-in.center {
@@ -7063,7 +7064,7 @@ body.col-dragging * {
   display: flex;
   align-items: center;
   gap: var(--space-1h);
-  padding-top: 8px !important;
+  padding-top: 6px !important;
 }
 
 /* 표준 지시부(2026-10-19): 줄 앞 고르기 칸 · 지시부 이름 칩 · 고른 줄 띠 */
