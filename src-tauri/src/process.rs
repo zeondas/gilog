@@ -594,7 +594,26 @@ mod tests {
     fn final_answer_states() {
         assert_eq!(final_state("LOGIN_REQUIRED", false).0, "login");
         assert_eq!(final_state("새 민원 3건을 가져왔어요", false).0, "done");
-        assert_eq!(final_state("오류: 확장 연결 안 됨\n자세히", true), ("error".into(), "오류: 확장 연결 안 됨".into()));
+        assert_eq!(final_state("오류: 확장 연결 안 됨\n자세히", true).0, "error");
+        assert_eq!(final_state("신문고 로그인 화면이 떠서 멈췄어요", false).0, "login");
+    }
+
+    #[test]
+    fn explain_reasons() {
+        assert!(explain("error: unknown option '--permission-prompts'", "", Some(1)).contains("옵션"));
+        assert!(explain("", "Claude in Chrome extension is not connected", Some(1)).contains("확장"));
+        assert!(explain("TypeError: fetch failed", "", Some(1)).contains("인터넷"));
+        assert!(explain("", "", Some(3)).contains("종료 코드 3"));
+    }
+
+    #[test]
+    fn log_line_hides_bodies() {
+        let v: serde_json::Value = serde_json::json!({"type":"user","message":{"content":[{"type":"tool_result","content":"홍길동 010-1234-5678","is_error":false}]}});
+        let l = log_line(&v, "");
+        assert!(!l.contains("홍길동") && l.contains("tool_result"));
+        let v: serde_json::Value = serde_json::json!({"type":"assistant","message":{"content":[{"type":"tool_use","name":"Write","input":{"file_path":"D:\\a.json","content":"비밀"}},{"type":"text","text":"적었어요"}]}});
+        let l = log_line(&v, "");
+        assert!(l.contains("tool_use Write file_path=D:\\a.json") && !l.contains("비밀") && !l.contains("적었어요"));
     }
 
     #[test]
@@ -649,12 +668,85 @@ pub struct RunStatus {
     pub state: String,
     pub total: Option<u32>,
     pub done: Option<u32>,
-    /// 오류일 때 이유(첫 줄)
+    /// 오류일 때 사람이 읽을 이유(`explain`)
     pub message: String,
+    /// 이번 실행의 `_claude.log` 경로(끝난 뒤, 화면의 [로그 열기])
+    pub log: String,
 }
 
 /// 진행 파일 이름(read_inbox는 `_`로 시작하는 파일을 읽지 않아요)
 pub const PROGRESS_FILE: &str = "_진행.json";
+/// 실행 기록 — 명령줄·Claude가 보낸 stream-json 요약·stderr·종료 코드(돌릴 때마다 덮어씀).
+/// 신문고 본문·민원인 정보가 섞이지 않게 도구 결과·Claude 글은 넣지 않고 종류·도구 이름·주소·파일 경로만 남겨요.
+pub const LOG_FILE: &str = "_claude.log";
+
+/// stream-json 한 줄을 로그에 남길 모양으로 줄여요(개인정보가 들어갈 수 있는 글·도구 결과는 길이만).
+fn log_line(v: &serde_json::Value, raw: &str) -> String {
+    let t = v["type"].as_str().unwrap_or("");
+    match t {
+        // 시작 정보(버전·도구·MCP 서버 상태)·마지막 답은 그대로 — 민원 글이 들어가지 않아요
+        "system" | "result" => raw.chars().take(4000).collect(),
+        "assistant" => {
+            let mut parts = Vec::new();
+            if let Some(blocks) = v["message"]["content"].as_array() {
+                for b in blocks {
+                    match b["type"].as_str().unwrap_or("") {
+                        "tool_use" => {
+                            let inp = &b["input"];
+                            let hint = ["url", "file_path", "path", "pattern", "command"]
+                                .iter()
+                                .find_map(|k| inp[k].as_str().map(|s| format!(" {k}={}", s.chars().take(160).collect::<String>())))
+                                .unwrap_or_default();
+                            parts.push(format!("tool_use {}{}", b["name"].as_str().unwrap_or("?"), hint));
+                        }
+                        "text" => parts.push(format!("text {}자", b["text"].as_str().map(|s| s.chars().count()).unwrap_or(0))),
+                        other => parts.push(other.to_string()),
+                    }
+                }
+            }
+            format!("assistant: {}", parts.join(" · "))
+        }
+        "user" => {
+            let mut parts = Vec::new();
+            if let Some(blocks) = v["message"]["content"].as_array() {
+                for b in blocks {
+                    if b["type"] == "tool_result" {
+                        let n = match &b["content"] {
+                            serde_json::Value::String(s) => s.chars().count(),
+                            serde_json::Value::Array(a) => a.iter().map(|c| c["text"].as_str().map(|s| s.chars().count()).unwrap_or(0)).sum(),
+                            _ => 0,
+                        };
+                        parts.push(format!("tool_result {}자{}", n, if b["is_error"] == true { " 오류" } else { "" }));
+                    }
+                }
+            }
+            format!("user: {}", parts.join(" · "))
+        }
+        _ => format!("{t} {}", v["subtype"].as_str().unwrap_or("")),
+    }
+}
+
+/// 멈춘 이유를 사람이 읽을 말로(원인 목록 ①~⑥). 모르면 첫 줄을 그대로 보여요.
+fn explain(stderr: &str, result: &str, code: Option<i32>) -> String {
+    let all = format!("{stderr}\n{result}");
+    let low = all.to_lowercase();
+    let first = all.lines().find(|l| !l.trim().is_empty()).unwrap_or("").chars().take(160).collect::<String>();
+    if low.contains("unknown option") || low.contains("unknown argument") || low.contains("invalid argument") || low.contains("too many arguments") {
+        format!("Claude Code 버전이 달라 옵션이 안 맞아요 — {first}")
+    } else if low.contains("not logged in") || low.contains("please run /login") || low.contains("invalid api key") || low.contains("authentication") || low.contains("oauth") {
+        "Claude Code 로그인이 필요해요 — 터미널에서 `claude`를 열어 로그인해 주세요".into()
+    } else if low.contains("chrome") || low.contains("extension") || low.contains("browser") {
+        format!("엣지의 Claude 확장과 이어지지 않았어요 — 엣지가 켜져 있고 확장에 로그인돼 있는지 봐 주세요 ({first})")
+    } else if low.contains("enotfound") || low.contains("econnrefused") || low.contains("etimedout") || low.contains("fetch failed") || low.contains("certificate") || low.contains("proxy") || low.contains("network") {
+        format!("인터넷 연결이 막혔어요(회사 프록시·보안 프로그램) — {first}")
+    } else if low.contains("rate limit") || low.contains("usage limit") || low.contains("overloaded") {
+        "Claude 사용 한도에 걸렸어요 — 잠시 뒤 다시 눌러 주세요".into()
+    } else if !first.is_empty() {
+        first
+    } else {
+        format!("이유를 남기지 않고 끝났어요(종료 코드 {})", code.map(|c| c.to_string()).unwrap_or_else(|| "없음".into()))
+    }
+}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -669,12 +761,12 @@ pub struct RunRequest {
     pub guide: String,
 }
 
-/// 마지막 답에서 상태를 읽어요.
+/// 마지막 답에서 상태를 읽어요. 지침대로 LOGIN_REQUIRED가 아니어도 "로그인" 얘기로 끝나면 로그인 풀림으로 봐요(원인 ⑤).
 fn final_state(result: &str, is_error: bool) -> (String, String) {
-    if result.contains("LOGIN_REQUIRED") {
+    if result.contains("LOGIN_REQUIRED") || (!is_error && result.contains("로그인") && !result.contains("새 민원")) {
         ("login".into(), String::new())
     } else if is_error {
-        ("error".into(), result.lines().find(|l| !l.trim().is_empty()).unwrap_or("").chars().take(200).collect())
+        ("error".into(), result.to_string())
     } else {
         ("done".into(), String::new())
     }
@@ -709,29 +801,58 @@ pub fn run_claude(run: State<ClaudeRun>, req: RunRequest) -> Result<(), String> 
     fs::create_dir_all(&inbox).map_err(io)?;
     let _ = fs::remove_file(inbox.join(PROGRESS_FILE));
     let exe = claude_exe(req.exe.trim());
+    let args: Vec<String> = [
+        "-p", "아래 지침대로 국민신문고 민원을 가져와요.", "--chrome", "--output-format", "stream-json", "--verbose",
+        "--permission-mode", "acceptEdits", "--permission-prompts", "none",
+        "--allowedTools", "mcp__claude-in-chrome,Read,Write,Edit,Glob",
+        "--add-dir", req.downloads.trim(),
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+
+    // 실행 기록 — 돌릴 때마다 새로 써요. 지침 본문은 넣지 않아요(민원대장 기록 발췌가 들어 있어요).
+    let log_path = inbox.join(LOG_FILE);
+    let log = std::sync::Arc::new(std::sync::Mutex::new(fs::File::create(&log_path).map_err(io)?));
+    let w = |log: &std::sync::Arc<std::sync::Mutex<fs::File>>, s: &str| {
+        if let Ok(mut f) = log.lock() {
+            let _ = writeln!(f, "{s}");
+        }
+    };
+    w(&log, "# 기록 민원 불러오기 실행 기록(돌릴 때마다 덮어씀 — 시각은 파일 수정 시각)");
+    w(&log, &format!("exe: {}", exe.display()));
+    w(&log, &format!("cwd: {}", inbox.display()));
+    w(&log, &format!("args: {}", args.iter().map(|a| if a.contains(' ') { format!("\"{a}\"") } else { a.clone() }).collect::<Vec<_>>().join(" ")));
+    w(&log, &format!("stdin: 지침 {}자", req.guide.chars().count()));
+    w(&log, "");
+
     let mut cmd = Command::new(&exe);
-    cmd.current_dir(&inbox)
-        .args(["-p", "아래 지침대로 국민신문고 민원을 가져와요.", "--chrome", "--output-format", "stream-json", "--verbose"])
-        .args(["--permission-mode", "acceptEdits", "--permission-prompts", "none"])
-        .args(["--allowedTools", "mcp__claude-in-chrome,Read,Write,Edit,Glob"])
-        .arg("--add-dir")
-        .arg(req.downloads.trim())
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+    cmd.current_dir(&inbox).args(&args).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x0800_0000);
     }
-    let mut child = cmd.spawn().map_err(|e| if e.kind() == std::io::ErrorKind::NotFound { "noclaude".to_string() } else { e.to_string() })?;
+    let mut child = match cmd.spawn() {
+        Ok(c) => c,
+        Err(e) => {
+            w(&log, &format!("spawn 실패: {e}"));
+            return Err(if e.kind() == std::io::ErrorKind::NotFound { "noclaude".to_string() } else { e.to_string() });
+        }
+    };
     if let Some(mut stdin) = child.stdin.take() {
-        stdin.write_all(req.guide.as_bytes()).map_err(io)?;
+        if let Err(e) = stdin.write_all(req.guide.as_bytes()) {
+            w(&log, &format!("stdin 쓰기 실패: {e}"));
+            return Err(io(e));
+        }
+        // 닫아야 Claude가 지침 끝을 알아요.
+        drop(stdin);
+        w(&log, "stdin: 지침 넘김(닫음)");
     }
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
     g.child = Some(child);
-    g.status = RunStatus { state: "running".into(), ..Default::default() };
+    g.status = RunStatus { state: "running".into(), log: log_path.to_string_lossy().into_owned(), ..Default::default() };
     drop(g);
 
     // 사용자가 멈추면 child가 없어져요 — 읽는 쪽은 그때 "stopped"를 덮어쓰지 않아요.
@@ -739,10 +860,12 @@ pub fn run_claude(run: State<ClaudeRun>, req: RunRequest) -> Result<(), String> 
     let err_text = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
     if let Some(e) = stderr {
         let et = err_text.clone();
+        let log = log.clone();
         std::thread::spawn(move || {
             for line in std::io::BufReader::new(e).lines().map_while(Result::ok) {
+                w(&log, &format!("stderr: {line}"));
                 if let Ok(mut s) = et.lock() {
-                    if s.len() < 2000 {
+                    if s.len() < 4000 {
                         s.push_str(&line);
                         s.push('\n');
                     }
@@ -752,25 +875,36 @@ pub fn run_claude(run: State<ClaudeRun>, req: RunRequest) -> Result<(), String> 
     }
     std::thread::spawn(move || {
         let mut last: Option<(String, String)> = None;
+        let mut result_text = String::new();
         if let Some(out) = stdout {
             for line in std::io::BufReader::new(out).lines().map_while(Result::ok) {
-                let Ok(v) = serde_json::from_str::<serde_json::Value>(&line) else { continue };
+                let Ok(v) = serde_json::from_str::<serde_json::Value>(&line) else {
+                    w(&log, &format!("stdout: {}", line.chars().take(500).collect::<String>()));
+                    continue;
+                };
+                w(&log, &log_line(&v, &line));
                 if v["type"] == "result" {
-                    let text = v["result"].as_str().unwrap_or("").to_string();
-                    last = Some(final_state(&text, v["is_error"].as_bool().unwrap_or(false)));
+                    result_text = v["result"].as_str().unwrap_or("").to_string();
+                    last = Some(final_state(&result_text, v["is_error"].as_bool().unwrap_or(false)));
                 }
             }
         }
         let Ok(mut g) = inner.lock() else { return };
+        let code = g.child.as_mut().and_then(|c| c.wait().ok()).and_then(|s| s.code());
+        w(&log, "");
+        w(&log, &format!("exit: {}", code.map(|c| c.to_string()).unwrap_or_else(|| "없음".into())));
         if g.status.state != "running" {
+            w(&log, "state: stopped(사용자가 멈춤)");
             return;
         }
-        let code_ok = g.child.as_mut().and_then(|c| c.wait().ok()).map(|s| s.success()).unwrap_or(false);
+        let stderr_all = err_text.lock().map(|s| s.clone()).unwrap_or_default();
         let (state, message) = match last {
+            Some((s, r)) if s == "error" => ("error".to_string(), explain(&stderr_all, &r, code)),
             Some(x) => x,
-            None if code_ok => ("done".into(), String::new()),
-            None => ("error".into(), err_text.lock().map(|s| s.lines().find(|l| !l.trim().is_empty()).unwrap_or("").to_string()).unwrap_or_default()),
+            None if code == Some(0) => ("done".into(), String::new()),
+            None => ("error".into(), explain(&stderr_all, &result_text, code)),
         };
+        w(&log, &format!("state: {state}{}", if message.is_empty() { String::new() } else { format!(" — {message}") }));
         g.status.state = state;
         g.status.message = message;
         g.child = None;

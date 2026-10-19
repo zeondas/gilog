@@ -91,6 +91,8 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   const [gutter, setGutter] = useState(0);
   const bodyRef = useRef<HTMLDivElement>(null);
   const [note, setNote] = useState("");
+  // Claude가 멈춘 뒤 안내 줄 끝 [로그 열기]가 여는 `_claude.log` 경로
+  const [noteLog, setNoteLog] = useState("");
   const [q, setQ] = useState("");
   const [sel, setSel] = useState<string | null>(null);
   const [showDone, setShowDone] = useState(false);
@@ -256,6 +258,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   async function fetchCases() {
     if (run || !works) return;
     setNote("");
+    setNoteLog("");
     // 이미 있는 기록: 이 표의 접수번호 + 민원대장(최근 90일 접수, 민원인 정보는 빼요)
     const since = todayStr(new Date(Date.now() - 90 * 86400000));
     const known = {
@@ -276,7 +279,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     let st: RunStatus;
     for (;;) {
       await new Promise((r) => setTimeout(r, inApp ? 2000 : 700));
-      st = await api.claudeStatus(ps.inbox).catch(() => ({ state: "error", total: null, done: null, message: "" }) as RunStatus);
+      st = await api.claudeStatus(ps.inbox).catch(() => ({ state: "error", total: null, done: null, message: "", log: "" }) as RunStatus);
       await pullInbox(acc).catch(() => {});
       setRun({ n: st.done ?? acc.n, total: st.total });
       if (st.state !== "running") break;
@@ -293,6 +296,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
             ? `Claude가 멈췄어요${st.message ? ` — ${st.message}` : ""} · 새 민원 ${acc.n}건`
             : `새 민원 ${acc.n}건`;
     setNote([head, ...tail].join(" · "));
+    if (st.state === "error" || st.state === "stopped") setNoteLog(st.log);
     const f = `${stamp()} · 새 민원 ${acc.n}건`;
     setFetched(f);
     await api.set(FETCHED_KEY, f);
@@ -764,6 +768,11 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
         {note && (
           <span className="pr-note" role="status">
             {note}
+            {noteLog && (
+              <button type="button" className="btn btn-xs pr-log" title="Claude 실행 기록(_claude.log)을 탐색기에서 보여 줘요" onClick={() => openFile(noteLog, true)}>
+                로그 열기
+              </button>
+            )}
           </span>
         )}
         <span className="pr-folder">저장 폴더 {ps.root}</span>

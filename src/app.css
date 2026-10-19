@@ -7226,6 +7226,11 @@ body.col-dragging * {
   font-weight: 600;
 }
 
+.pr-note .pr-log {
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
 .pr-folder {
   margin-left: auto;
 }

@@ -336,7 +336,7 @@ export type Order = {
 export type CasePatch = Partial<Pick<Case, "work" | "area" | "place" | "road" | "note" | "short" | "seq" | "stage" | "complaint" | "folder" | "orderFile" | "orderJpg" | "outboxFile" | "sentAt">>;
 export type ProcessData = { works: Work[]; cases: Case[]; orders: Order[] };
 export type InboxResult = { added: Case[]; skipped: number; failed: string[]; missingFiles: string[] };
-export type RunStatus = { state: "idle" | "running" | "done" | "login" | "stopped" | "error"; total: number | null; done: number | null; message: string };
+export type RunStatus = { state: "idle" | "running" | "done" | "login" | "stopped" | "error"; total: number | null; done: number | null; message: string; log: string };
 export type OrderResult = { order: Order; cases: Case[]; works: Work[]; missing: string[] };
 
 export const inApp = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -365,7 +365,7 @@ const fake = {
   inbox: [] as Partial<Case>[],
   /** 미리 보기: Claude가 차례로 놓을 보기 민원과 진행 */
   runQueue: [] as Partial<Case>[],
-  run: { state: "idle", total: null, done: null, message: "" } as RunStatus,
+  run: { state: "idle", total: null, done: null, message: "", log: "" } as RunStatus,
   taskLists: [
     { id: 1, name: "민원", visible: true, builtin: true, ord: 0 },
     { id: 2, name: "행정업무", visible: true, builtin: false, ord: 1 },
@@ -1022,7 +1022,7 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
       return null;
     case "run_claude":
       // 미리 보기: 보기 민원을 몇 번에 나눠 가져올 폴더에 넣는 것처럼 보여요.
-      fake.run = { state: "running", total: fake.runQueue.length, done: 0, message: "" };
+      fake.run = { state: "running", total: fake.runQueue.length, done: 0, message: "", log: "D:\\민원처리\\받은편지함\\_claude.log" };
       return null;
     case "stop_claude":
       if (fake.run.state === "running") fake.run.state = "stopped";
