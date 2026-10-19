@@ -6,7 +6,7 @@
 //   - 단년도 사업(처음 값)은 집행현황에 있는 해마다 따로(해 사이 이월 없음). 다년도 사업은 기간(시작~끝 해)을 적고, 남은 돈이 다음 해 전년도 이월로 이어져요(결산 표시는 없어요 — 2026-10-19 사용자).
 //   - 예산현액 = 당해예산 + 전년도 이월 · 집행률 = 집행액 ÷ 예산현액 · 다음연도 이월 = 현액 − 집행 − 불용
 //   - 다음 해 전년도 이월 ≠ 이 해 다음연도 이월이면 붉게(십원 단위까지 맞춰 보는 장부라서).
-// 저장(목업): kv "bstatus.<세부사업 이름>" JSON — 설정(기간·재원·이월 사업)과 직접 적은 값. 실제 기능에서는 core 표로 옮겨요.
+// 저장: core 표 bstatus(세부사업 이름 → 이 Setup JSON). 계산은 화면이 해요.
 import type { BudgetProject } from "./budget";
 
 export const SOURCES = ["국비", "도비", "시비", "기타"] as const;
@@ -29,6 +29,7 @@ export type Setup = {
   carry: string; // 이어 붙인 집행현황 이월 세부사업 이름("(명시이월) …"), 없으면 ""
   carrySrc: string; // 이월 사업 값이 들어갈 재원(재원이 둘 이상일 때), 없으면 첫 재원
   rows: Record<string, Manual>; // "2025:시비" → 직접 적은 값
+  memo?: string; // 메모(메모 편집기 HTML)
 };
 
 export const defaultSetup = (years: number[]): Setup => ({ multi: false, from: Math.min(...years), to: Math.max(...years), sources: ["시비"], carry: "", carrySrc: "", rows: {} });
@@ -150,3 +151,61 @@ export function projectNames(byYear: Record<number, BudgetProject[]>): { name: s
 }
 
 export const isCarryName = (n: string) => /^\((명시|사고)이월\)/.test(n);
+
+// ---------- 엑셀 ----------
+/** 엑셀 C~U 19칸 순서(core bstatus.rs와 같아야 해요) */
+export const XL_FIELDS = ["curSum", "cur", "a1", "a2", "a3", "a4", "prev", "pm", "ps", "act", "ex", "en", "em", "es", "rate", "left", "nm", "ns", "un"] as const;
+export type BStatusLine = { level: "pj" | "it" | "gun"; period: string; name: string; v: number[]; hasRate: boolean; memo: string };
+export type BStatusExport = { year: number; unit: number; date: string; lines: BStatusLine[] };
+
+export const lineOf = (level: BStatusLine["level"], period: string, name: string, l: Line, memo = ""): BStatusLine => ({
+  level,
+  period,
+  name,
+  v: XL_FIELDS.map((k) => (k === "rate" ? l.rate ?? 0 : (l as unknown as Record<string, number>)[k] ?? 0)),
+  hasRate: l.rate != null,
+  memo,
+});
+
+/** 가져오기: 시트 칸 글자 → (세부사업, 해, 재원)마다 직접 적는 값. 집행현황에서 오는 칸은 화면이 걸러요.
+ *  줄 알아보기: 사업기간 칸이 "단년도"·"NNNN~NNNN년"이면 세부사업 줄, "NNNN년"이면 연도 줄, 그 밖은 재원 줄. */
+export type ImportCell = { name: string; year: number; src: string; m: Manual };
+const XL_TO_MANUAL: Partial<Record<(typeof XL_FIELDS)[number], keyof Manual>> = { cur: "cur", a1: "a1", a2: "a2", a3: "a3", a4: "a4", pm: "pm", ps: "ps", en: "en", em: "em", es: "es", un: "un" };
+export function parseBStatusSheet(rows: string[][], year: number, setups: Record<string, Setup>): ImportCell[] | null {
+  const hi = rows.findIndex((r) => r[0]?.trim() === "사업기간" && r[1]?.trim() === "사업명");
+  if (hi < 0) return null;
+  const out: ImportCell[] = [];
+  let name = "", y = year, single = true;
+  const num = (t: string | undefined) => {
+    const v = Number((t ?? "").replace(/[,\s]/g, "").replace("−", "-"));
+    return Number.isFinite(v) ? Math.round(v) : 0;
+  };
+  const push = (r: string[], src: string) => {
+    const m: Manual = {};
+    XL_FIELDS.forEach((k, i) => {
+      const mk = XL_TO_MANUAL[k];
+      if (mk) m[mk] = num(r[i + 2]);
+    });
+    out.push({ name, year: y, src, m });
+  };
+  for (const r of rows.slice(hi + 2)) {
+    const a = (r[0] ?? "").trim();
+    if (!a && !(r[1] ?? "").trim()) continue;
+    if (a === "단년도" || /^\d{4}~\d{4}년$/.test(a)) {
+      name = (r[1] ?? "").trim();
+      single = a === "단년도";
+      y = year;
+      const s = setups[name];
+      if (single && s && s.sources.length === 1) push(r, s.sources[0]);
+      continue;
+    }
+    if (/^\d{4}년$/.test(a)) {
+      y = Number(a.slice(0, 4));
+      const s = setups[name];
+      if (s && s.sources.length === 1) push(r, s.sources[0]);
+      continue;
+    }
+    if (name) push(r, a);
+  }
+  return out;
+}

@@ -20,8 +20,8 @@
   const seed = (f) => {
     f.password = "1234"; f.unlocked = true;
     f.prefs = { ...f.prefs, askPassword: false, theme: "light", startScreen: "bstatus" };
-    f.values.set("bstatus.시도57호선 배수개선", JSON.stringify(setup57));
-    f.values.set("bstatus.파주여고 앞 방호벽 정비", JSON.stringify({ multi: true, from: 2025, to: 2026, sources: ["시비"], carry: "(사고이월) 파주여고 앞 방호벽 정비", carrySrc: "", rows: {} }));
+    f.values.set("bstatus:시도57호선 배수개선", JSON.stringify(setup57));
+    f.values.set("bstatus:파주여고 앞 방호벽 정비", JSON.stringify({ multi: true, from: 2025, to: 2026, sources: ["시비"], carry: "(사고이월) 파주여고 앞 방호벽 정비", carrySrc: "", rows: {} }));
     setTimeout(() => { const b = window.__budgetFake; if (b) { b.import(2025, y2025); b.import(2026, y2026); } }, 0);
   };
   let v;

@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { areaFor, fakeRoadToJibun, RoadLookup } from "./address";
 import type { BudgetLevel, BudgetProject, BudgetRowInput } from "./budget";
 import type { GridSheet, ImportProject } from "./budgetExcel";
+import type { BStatusExport } from "./budgetStatus";
 import { fakeBudget } from "./budgetFake";
 
 export type Status = { exists: boolean; unlocked: boolean; folder: string };
@@ -1147,6 +1148,19 @@ function fakeCall(cmd: string, args: Record<string, unknown>): unknown {
     (window as unknown as { __budgetLastExport?: unknown }).__budgetLastExport = args.data;
     return null;
   }
+  if (cmd === "bstatus_list") {
+    if (!fake.unlocked) throw "locked";
+    return [...fake.values.entries()].filter(([k]) => k.startsWith("bstatus:")).map(([k, v]) => ({ name: k.slice(8), setup: v }));
+  }
+  if (cmd === "bstatus_set") {
+    if (!fake.unlocked) throw "locked";
+    fake.values.set("bstatus:" + a.name, a.setup);
+    return null;
+  }
+  if (cmd === "bstatus_excel_write") {
+    (window as unknown as { __bstatusLastExport?: unknown }).__bstatusLastExport = args.data;
+    return null;
+  }
   if (cmd === "budget_excel_read") {
     // 미리 보기 시험: window.__budgetGrid에 넣어 둔 시트를 읽어요.
     const d = fakeExcel.get(a.path) ?? (window as unknown as { __budgetGrid?: unknown }).__budgetGrid;
@@ -1362,6 +1376,10 @@ export const api = {
   importBudget: (year: number, projects: ImportProject[]) => call<[BudgetProject[], number, number]>("import_budget", { year, projects }),
   budgetExcelWrite: (path: string, data: { year: number; unit: number; basis?: string; date: string; projects: BudgetProject[] }) => call<null>("budget_excel_write", { path, data }),
   budgetExcelRead: (path: string) => call<GridSheet[]>("budget_excel_read", { path }),
+  // 예산현황(13단계): 세부사업 설정 JSON(core 표 bstatus), 엑셀 쓰기(읽기는 budgetExcelRead)
+  bstatusList: () => call<{ name: string; setup: string }[]>("bstatus_list", {}),
+  bstatusSet: (name: string, setup: string) => call<null>("bstatus_set", { name, setup }),
+  bstatusExcelWrite: (path: string, data: BStatusExport) => call<null>("bstatus_excel_write", { path, data }),
   saveWork: (id: number | null, work: WorkInput) => call<Work[]>("save_work", { id, work }),
   deleteWork: (id: number) => call<Work[]>("delete_work", { id }),
   updateCase: (no: string, patch: CasePatch) => call<Case>("update_case", { no, patch }),

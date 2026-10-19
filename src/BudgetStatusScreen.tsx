@@ -3,9 +3,12 @@
 // - 세부사업은 집행현황에서 자동으로 와요(이월 세부사업은 이어 붙이는 쪽). 사업명 옆 ⚙ 단추 → 단년도/다년도(기간)·재원·이월 사업.
 // - 재원 줄 두 번 누르기 = 고치는 줄(직접 적는 칸만 열려요), 바깥 누르기 = 저장, Esc = 취소. 규칙은 budgetStatus.ts.
 import React, { KeyboardEvent as RKeyboardEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Fragment } from "react";
-import { api } from "./api";
+import { api, errorText, inApp } from "./api";
 import { BudgetProject, fmt, okWon, parseWon, typing, Unit } from "./budget";
-import { compute, defaultSetup, Line, Manual, projectNames, Setup, SOURCES } from "./budgetStatus";
+import { BStatusLine, compute, defaultSetup, Line, lineOf, linkedOf, Manual, parseBStatusSheet, projectNames, Setup, SOURCES } from "./budgetStatus";
+import { dirOf, DIR_KEY, joinPath, lastDir } from "./ExcelMenu";
+import { isEmptyMemo, MemoEditor, sanitize } from "./RichMemo";
+import { memoToText } from "./budget";
 import { todayStr } from "./journal";
 import { keyAction } from "./keys";
 
@@ -15,7 +18,6 @@ const ICON = (d: string, s = 14, w = 2) => (
   </svg>
 );
 const CD = "M6 9l6 6 6-6", CR = "M9 6l6 6-6 6", GEAR = "M4 6h16 M4 12h16 M4 18h16 M9 4v4 M15 10v4 M7 16v4", X = "M6 6l12 12M18 6L6 18";
-const KEY = (name: string) => "bstatus." + name;
 const UNIT_KEY = "bstatus.unit", VIEW_KEY = "bstatus.view", YEAR_KEY = "bstatus.year", ORDER_KEY = "bstatus.order";
 
 type Col = { id: string; label: string; sub?: string; w: number; num?: boolean };
@@ -63,7 +65,8 @@ const DET_COLS: Col[] = [
 /** 직접 적을 수 있는 칸(재원 줄) */
 const EDIT_FIELDS: (keyof Manual)[] = ["cur", "a1", "a2", "a3", "a4", "pm", "ps", "en", "em", "es", "un"];
 
-type Pop = { t: "setup"; name: string; x: number; y: number } | { t: "src"; name: string; x: number; y: number } | { t: "menu"; name: string; x: number; y: number };
+type Pop = { t: "setup"; name: string; x: number; y: number } | { t: "src"; name: string; x: number; y: number } | { t: "menu"; name: string; x: number; y: number } | { t: "memo"; name: string; x: number; y: number } | { t: "excel"; x: number; y: number };
+type Ask = { path: string; cells: { name: string; year: number; src: string; m: Manual }[]; skipped: number };
 type Form = { name: string; year: number; src: string; text: Record<string, string> };
 
 export default function BudgetStatusScreen() {
@@ -91,6 +94,8 @@ export default function BudgetStatusScreen() {
   const [boxW, setBoxW] = useState(0);
   const [sbw, setSbw] = useState(0);
   const [toast, setToast] = useState("");
+  const [ask, setAsk] = useState<Ask | null>(null);
+  const memoHtml = useRef("");
   const scroller = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -109,9 +114,15 @@ export default function BudgetStatusScreen() {
     setByYear(out);
     const names = projectNames(out).filter((p) => !p.carry);
     const st: Record<string, Setup> = {};
+    const saved = new Map<string, string>();
+    try {
+      for (const r of await api.bstatusList()) saved.set(r.name, r.setup);
+    } catch {
+      /* 없으면 처음 값 */
+    }
     for (const p of names) {
+      const v = saved.get(p.name);
       try {
-        const v = await api.get(KEY(p.name));
         st[p.name] = v ? { ...defaultSetup(p.years), ...(JSON.parse(v) as Partial<Setup>) } : defaultSetup(p.years);
       } catch {
         st[p.name] = defaultSetup(p.years);
@@ -182,7 +193,7 @@ export default function BudgetStatusScreen() {
 
   const saveSetup = (name: string, s: Setup) => {
     setSetups((o) => ({ ...o, [name]: s }));
-    api.set(KEY(name), JSON.stringify(s)).catch(() => {});
+    api.bstatusSet(name, JSON.stringify(s)).catch(() => {});
   };
 
   // ---------- 고치는 줄 ----------
@@ -410,14 +421,158 @@ export default function BudgetStatusScreen() {
     return out;
   };
 
-  const memoCell = cell(
-    <button type="button" className="bd-memo" aria-label="메모 쓰기" title="메모 쓰기">
-      <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 20h9" />
-        <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z" />
-      </svg>
-    </button>,
-  );
+  // 메모는 세부사업마다 하나(사업 줄의 연필). 연도·재원 줄은 빈 칸
+  const memoCell = cell("");
+  const memoBtn = (name: string) => {
+    const memo = setups[name]?.memo ?? "";
+    const has = !isEmptyMemo(memo);
+    return cell(
+      <button
+        type="button"
+        className={"bd-memo" + (has ? " has" : "")}
+        aria-label={has ? "메모 편집" : "메모 쓰기"}
+        title={has ? memoToText(memo) : "메모 쓰기"}
+        onDoubleClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          const r = e.currentTarget.getBoundingClientRect();
+          setPop({ t: "memo", name, x: Math.max(8, r.right - 440), y: r.bottom + 4 });
+        }}
+      >
+        <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill={has ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 20h9" />
+          <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z" />
+        </svg>
+      </button>,
+    );
+  };
+  const saveMemo = (name: string) => {
+    const s = setups[name];
+    if (!s) return;
+    const html = memoHtml.current;
+    const clean = isEmptyMemo(html) ? "" : sanitize(html);
+    setPop(null);
+    if ((s.memo ?? "") !== clean) saveSetup(name, { ...s, memo: clean });
+  };
+  // 메모 창: 바깥 누르기 = 저장, Esc = 취소(집행현황과 같게)
+  useEffect(() => {
+    if (pop?.t !== "memo") return;
+    const { name } = pop;
+    memoHtml.current = setups[name]?.memo ?? "";
+    const t = window.setTimeout(() => popRef.current?.querySelector<HTMLElement>(".rte-area")?.focus(), 0);
+    const down = (e: MouseEvent) => {
+      if ((e.target as Element).closest?.(".bd-pop")) return;
+      saveMemo(name);
+    };
+    document.addEventListener("mousedown", down, true);
+    return () => {
+      window.clearTimeout(t);
+      document.removeEventListener("mousedown", down, true);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pop]);
+
+  // ---------- 엑셀 ----------
+  /** 보이는 해의 모든 줄(접힌 것도 펼쳐서) */
+  const exportLines = (): BStatusLine[] => {
+    const out: BStatusLine[] = [];
+    for (const p of shown) {
+      const s = setups[p.name];
+      if (!s) continue;
+      const single = !s.multi;
+      const book = compute(p.name, s, byYear, single ? [year] : p.years);
+      const one = s.sources.length === 1;
+      const period = s.multi ? `${s.from}~${s.to}년` : "단년도";
+      const memo = memoToText(s.memo ?? "");
+      if (single) {
+        const yb = book.years[0];
+        if (!yb) continue;
+        out.push(lineOf("pj", period, p.name, one ? yb.bySrc[s.sources[0]] : yb.total, memo));
+        if (!one) for (const src of s.sources) out.push(lineOf("gun", src, "", yb.bySrc[src]));
+        continue;
+      }
+      out.push(lineOf("pj", period, p.name, book.total, memo));
+      for (const b of book.years) {
+        out.push(lineOf("it", `${b.year}년`, "", one ? b.bySrc[s.sources[0]] : b.total));
+        if (!one) for (const src of s.sources) out.push(lineOf("gun", src, "", b.bySrc[src]));
+      }
+    }
+    return out;
+  };
+  const exportExcel = async () => {
+    setPop(null);
+    const fname = `예산현황_${year}_${todayStr()}.xlsx`;
+    const dir = await lastDir();
+    let path: string | null = joinPath(dir, fname);
+    if (inApp) {
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      path = await save({ title: "다른 이름으로 저장", defaultPath: path, filters: [{ name: "Excel 통합 문서", extensions: ["xlsx"] }] });
+      if (!path) return;
+      if (!/\.xlsx$/i.test(path)) path += ".xlsx";
+    }
+    try {
+      await api.bstatusExcelWrite(path, { year, unit, date: todayStr(), lines: exportLines() });
+      const d = dirOf(path);
+      if (d) api.set(DIR_KEY, d).catch(() => {});
+      setToast(`${year}년 예산현황을 저장했어요 · ${path}`);
+    } catch (e) {
+      setToast(e === "io" ? "저장하지 못했어요. 엑셀에서 열려 있으면 닫고 다시 해 주세요." : errorText(e));
+    }
+  };
+  const importExcel = async () => {
+    setPop(null);
+    let path: string | null = null;
+    if (inApp) {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const dir = await lastDir();
+      const p = await open({ title: "열기", defaultPath: dir || undefined, multiple: false, directory: false, filters: [{ name: "Excel 통합 문서", extensions: ["xlsx", "xlsm", "xls"] }] });
+      path = typeof p === "string" ? p : null;
+    } else path = joinPath(await lastDir(), `예산현황_${year}.xlsx`);
+    if (!path) return;
+    try {
+      const sheets = await api.budgetExcelRead(path);
+      const d = dirOf(path);
+      if (d) api.set(DIR_KEY, d).catch(() => {});
+      let cells: ReturnType<typeof parseBStatusSheet> = null;
+      for (const sh of sheets) {
+        cells = parseBStatusSheet(sh.rows, year, setups);
+        if (cells) break;
+      }
+      if (!cells) {
+        setToast("예산현황 모양의 시트를 찾지 못했어요");
+        return;
+      }
+      // 앱에 없는 세부사업·재원·기간 밖의 해는 건너뛰어요
+      const ok = cells.filter((c) => {
+        const s = setups[c.name];
+        if (!s || !s.sources.includes(c.src)) return false;
+        return s.multi ? c.year >= s.from && c.year <= s.to : c.year === year;
+      });
+      setAsk({ path, cells: ok, skipped: cells.length - ok.length });
+    } catch (e) {
+      setToast(e === "io" ? "파일을 열지 못했어요." : errorText(e));
+    }
+  };
+  const doImport = () => {
+    if (!ask) return;
+    const next = { ...setups };
+    for (const c of ask.cells) {
+      const s = next[c.name];
+      if (!s) continue;
+      const m: Manual = { ...c.m };
+      // 집행현황에서 오는 칸(재원 하나 + 그 해 집행현황 있음)은 파일 값을 받지 않아요
+      if (s.sources.length === 1 && linkedOf(byYear[c.year] ?? [], c.name)) {
+        delete m.cur;
+        delete m.en;
+      }
+      next[c.name] = { ...s, rows: { ...s.rows, [`${c.year}:${c.src}`]: { ...(s.rows[`${c.year}:${c.src}`] ?? {}), ...m } } };
+    }
+    setSetups(next);
+    for (const c of new Set(ask.cells.map((c) => c.name))) api.bstatusSet(c, JSON.stringify(next[c])).catch(() => {});
+    setToast(`${ask.cells.length}줄을 가져왔어요`);
+    setAsk(null);
+  };
 
   // ---------- 설정 상자 ----------
   const setupBody = (name: string) => {
@@ -601,7 +756,7 @@ export default function BudgetStatusScreen() {
           <span className="bd-nm" title={p.name}>{p.name}</span>
         </div>
         {single && one && yb ? numCells(yb.bySrc[oneSrc], "pj", pjEditing, year, true, yb.hasMain ? ["cur", "en"] : []) : numCells(book.total, "pj", null)}
-        {memoCell}
+        {memoBtn(p.name)}
       </div>,
     );
     if (!isOpen) continue;
@@ -733,7 +888,17 @@ export default function BudgetStatusScreen() {
           {ICON("M11 4a7 7 0 1 1 0 14a7 7 0 1 1 0-14z M20 20l-3.5-3.5", 16)}
           <input type="text" aria-label="세부사업 검색" placeholder="세부사업 검색" value={q} onChange={(e) => setQ(e.target.value)} autoComplete="off" />
         </label>
-        <button type="button" className="btn btn-ctrl btn-text xl-btn" aria-haspopup="menu">
+        <button
+          type="button"
+          className="btn btn-ctrl btn-text xl-btn"
+          aria-haspopup="menu"
+          aria-expanded={pop?.t === "excel"}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            setPop(pop?.t === "excel" ? null : { t: "excel", x: r.right - 200, y: r.bottom + 4 });
+          }}
+        >
           엑셀{ICON(CD, 13)}
         </button>
       </div>
@@ -768,6 +933,26 @@ export default function BudgetStatusScreen() {
           </div>
         </div>
       </div>
+      {ask && (
+        <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && setAsk(null)}>
+          <div className="dialog xl-ask" role="dialog" aria-modal="true" aria-label="엑셀 가져오기">
+            <div className="xl-ask-body">
+              <h2 className="xl-ask-title">{ask.cells.length ? `${ask.cells.length}줄의 직접 적는 값을 가져올까요?` : "가져올 줄이 없어요"}</h2>
+              <div className="xl-ask-path">
+                {ask.path}
+                {ask.skipped > 0 && ` · 앱에 없는 세부사업·재원·기간 밖의 해 ${ask.skipped}줄은 건너뛰어요`}
+                {" · 집행현황에서 오는 당해예산·집행액은 파일 값을 받지 않아요"}
+              </div>
+            </div>
+            <div className="xl-ask-foot">
+              <button type="button" className="btn btn-ctrl btn-text" onClick={() => setAsk(null)}>취소</button>
+              {ask.cells.length > 0 && (
+                <button type="button" className="btn-primary btn-ctrl" autoFocus onClick={doImport}>가져오기</button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       {toast && (
         <div className="bd-toast" role="status">
           {toast}
@@ -777,6 +962,25 @@ export default function BudgetStatusScreen() {
         <div ref={popRef} className="bd-pop" role={pop.t === "menu" ? "menu" : "dialog"} aria-label={pop.t === "menu" ? "세부사업 메뉴" : "사업 설정"} style={popPos ?? { left: pop.x, top: pop.y, visibility: "hidden" }} onMouseDown={(e) => e.stopPropagation()}>
           {pop.t === "setup" && setupBody(pop.name)}
           {pop.t === "menu" && menuBody(pop.name)}
+          {pop.t === "excel" && (
+            <div style={{ width: 200 }}>
+              {mi("가져오기", () => void importExcel())}
+              {mi(`내보내기 · ${unit === 1 ? "원" : "천원"}`, () => void exportExcel())}
+            </div>
+          )}
+          {pop.t === "memo" && (
+            <div className="bd-memopop">
+              <div className="bd-mh">{pop.name}</div>
+              <MemoEditor lite initial={setups[pop.name]?.memo ?? ""} placeholder="사업 메모" onChange={(h) => (memoHtml.current = h)} onSubmit={() => saveMemo(pop.name)} onCancel={() => setPop(null)} />
+              <div className="bd-mrow">
+                <span className="bd-kh">Enter 같은 위계 · Shift+Enter 아래 · Ctrl+Enter 위 · Tab 저장</span>
+                <span className="bd-mbtns">
+                  <button type="button" className="btn btn-xs" onClick={() => setPop(null)}>취소</button>
+                  <button type="button" className="btn btn-xs bd-p" onClick={() => saveMemo(pop.name)}>저장</button>
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

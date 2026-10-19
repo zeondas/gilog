@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 pub mod address;
 mod budget;
 pub mod budget_xlsx;
+pub mod bstatus;
 mod calendar;
 mod complaints;
 mod contacts;
@@ -25,6 +26,7 @@ mod standard;
 mod process;
 mod tasks;
 pub use address::{road_to_jibun, RoadHit, RoadLookup};
+pub use bstatus::{BStatusExport, BStatusLine, BStatusSetup};
 pub use budget::{BudgetImportItem, BudgetImportProject, BudgetImportRow, BudgetItem, BudgetLevel, BudgetProject, BudgetRow, BudgetRowInput, BUDGET_KINDS, BUDGET_STAGES};
 pub use calendar::{CalKind, CalendarData, Event, EventInput, Holiday, BUILTIN_HOLIDAYS, KIND_COLORS, REMIND_MAX, SYSTEM_KINDS};
 pub use complaints::{Complaint, ComplaintImport, ComplaintInput, DEFAULT_STATUS};
@@ -225,6 +227,7 @@ impl Store {
         self.conn.execute_batch(process::SCHEMA)?;
         process::upgrade(&self.conn)?;
         self.conn.execute_batch(budget::SCHEMA)?;
+        self.conn.execute_batch(bstatus::SCHEMA)?;
         Ok(())
     }
 

@@ -1,6 +1,7 @@
 mod accent_icon;
 mod autostart;
 mod budget;
+mod bstatus;
 mod calendar;
 mod ime;
 mod google;
@@ -734,6 +735,9 @@ pub fn run() {
             budget::import_budget,
             budget::budget_excel_write,
             budget::budget_excel_read,
+            bstatus::bstatus_list,
+            bstatus::bstatus_set,
+            bstatus::bstatus_excel_write,
             process::process_data,
             process::save_work,
             process::delete_work,
