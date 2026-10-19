@@ -8137,6 +8137,7 @@ body.col-dragging * {
   height: 8px;
 }
 .fx-tr {
+  user-select: none;
   display: flex;
   align-items: center;
   height: 28px;
