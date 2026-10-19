@@ -10666,3 +10666,10 @@ body.ew-dragging * {
   color: var(--accent);
   font-weight: 700;
 }
+
+/* 집행현황 — 배치최적화 단추(탐색기 배치복구 모양)와 왼쪽으로 모으기(2026-10-19 사용자) */
+.bd-tool { gap: 6px; flex: none; white-space: nowrap; }
+.bd-tool svg { flex: none; color: var(--muted); }
+.bd-packed .bd-top,
+.bd-packed .bd-tbl { max-width: 100%; }
+.bd-packed .bd-scroll { padding-right: 0; }
