@@ -10013,3 +10013,38 @@ select.input.fx-set-date { width: 190px; }
   text-decoration: line-through;
   text-decoration-thickness: 1px;
 }
+
+/* 민원대장 상태 배지 — 집행현황 단계 배지(.bd-chip.bd-stc)와 같은 규칙(2026-10-19 사용자): 폭 52 고정·가운데·▾, 글자 600, 누르면 살짝 어둡게 */
+.cm-status {
+  justify-content: center;
+  gap: 3px;
+  width: 52px;
+  padding: 0 4px 0 6px;
+  font-size: var(--fs-badge);
+  font-weight: 600;
+}
+.cm-status-btn:hover {
+  box-shadow: none;
+  filter: brightness(0.96);
+}
+.cm-status-btn svg {
+  opacity: 0.7;
+}
+/* 상태 고르기 목록도 집행현황 단계 목록(.bd-stlist)처럼: 배지만 가운데, 줄 28, 지금 상태는 연한 강조 바탕 */
+.cm-spick-list {
+  min-width: 0;
+  width: max-content;
+  padding: 3px;
+}
+.cm-spick-opt {
+  justify-content: center;
+  min-height: 28px;
+  height: 28px;
+  padding: 0 3px;
+}
+.cm-spick-opt.cur {
+  background: var(--accent-tint);
+}
+.cm-spick-opt .cm-status {
+  width: 52px;
+}

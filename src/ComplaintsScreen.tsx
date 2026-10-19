@@ -50,7 +50,7 @@ import { useJamoGuard } from "./koInput";
 import { PhoneInput } from "./PhoneInput";
 import { ChoiceInput, PlaceInput } from "./PlaceInputs";
 import { finalizePhone } from "./phone";
-import { KEEP_STATUS, ListGroup } from "./SettingsScreen";
+import { ListGroup } from "./SettingsScreen";
 import { DEFAULT_SETTINGS, isAnswered, loadSettings, saveSettings, Settings, STATUS_RENAME, statusColor } from "./settingsStore";
 
 const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
@@ -1392,6 +1392,9 @@ function StatusPick({
         }}
       >
         {render(status)}
+        <svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
       </button>
       {open && (
         <span className="cm-spick-list" role="listbox" aria-label="상태 바꾸기">
@@ -1402,7 +1405,7 @@ function StatusPick({
                 key={o}
                 role="option"
                 aria-selected={o === status}
-                className={"cm-spick-opt" + (i === hi ? " hi" : "")}
+                className={"cm-spick-opt" + (i === hi ? " hi" : "") + (o === status ? " cur" : "")}
                 onMouseEnter={() => setHi(i)}
                 onMouseDown={(e) => {
                   e.preventDefault();
@@ -1412,7 +1415,6 @@ function StatusPick({
                 <span className="cm-status" style={{ background: b, color: f }}>
                   {o}
                 </span>
-                {o === status && <span className="cm-spick-now">지금</span>}
               </span>
             );
           })}
@@ -1464,7 +1466,6 @@ function CatsDialog({ lists, onChange, onClose }: { lists: Lists; onChange: (l: 
           <span className="dialog-title">분류 관리</span>
         </div>
         <div className="dialog-body">
-          <ListGroup title="상태" items={cur.status} keep={KEEP_STATUS} colored stack onChange={(status) => onChange({ ...cur, status })} />
           <ListGroup title="접수유형" items={cur.intake} stack onChange={(intake) => onChange({ ...cur, intake })} />
           <ListGroup title="민원유형" items={cur.ctype} stack onChange={(ctype) => onChange({ ...cur, ctype })} last />
         </div>

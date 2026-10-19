@@ -35,8 +35,6 @@ export const DEFAULT_PROCESS: ProcessSettings = {
 
 export type Settings = {
   status: string[];
-  /** 상태 목록 판(2 = 답변·장기 넣음, 처리중 → 진행) */
-  statusV?: number;
   intake: string[];
   ctype: string[];
   myName: string;
@@ -69,7 +67,7 @@ export type FilesSettings = {
 export const DEFAULT_FILES_SETTINGS: FilesSettings = { dateFmt: DEFAULT_DATE_FORMAT, hiddenDrives: [], showHidden: false, newTabDir: "", askDelete: true, cols: { size: true, modified: true, type: true } };
 
 export const DEFAULT_SETTINGS: Settings = {
-  // 2026-10-19 사용자: 법정 답변기한(마감일)과 실제 해소를 나눠요 — 답변·완료·보류·장기는 "답변 끝남"
+  // 2026-10-19 사용자: 상태는 고정 6개예요(설정·분류 관리에서 바꾸지 않아요) — STATUSES
   status: ["접수", "진행", "답변", "완료", "보류", "장기"],
   intake: ["전화", "방문", "국민신문고", "정보공개청구", "진정민원"],
   // 민원유형은 사용자가 필요할 때 직접 적어요(2026-10-17 사용자) — 미리 넣는 예시는 없어요. 이미 저장된 목록은 그대로예요.
@@ -82,7 +80,6 @@ export const DEFAULT_SETTINGS: Settings = {
     ["회의", "ㅎㅇ"], ["협의", "ㅎㅂ"], ["출장", "ㅊㅈ"], ["메모", "ㅁㅁ"],
   ].map(([name, key]) => ({ name, key })),
   restShade: true,
-  statusV: 2,
   keys: {},
   process: { ...DEFAULT_PROCESS },
   files: { ...DEFAULT_FILES_SETTINGS },
@@ -102,29 +99,28 @@ export const ANSWER_STATUS = "답변";
 export const ANSWERED_STATUSES = [ANSWER_STATUS, DONE_STATUS, "보류", "장기"];
 export const isAnswered = (status: string) => ANSWERED_STATUSES.includes(status);
 
+/**
+ * 민원 상태는 고정 6개예요(2026-10-19 사용자 — 설정·분류 관리에서 바꾸지 않아요).
+ * 법정 답변기한(마감일)과 실제 해소를 나눠요: 답변·완료·보류·장기는 "답변 끝남".
+ */
+export const STATUSES = ["접수", "진행", "답변", "완료", "보류", "장기"];
+
 /** 예전 상태 이름 → 새 이름 (0.18.0까지 "처리중") */
 export const STATUS_RENAME: Record<string, string> = { 처리중: "진행" };
 
-/** 예전 상태 목록을 새 목록으로: 처리중 → 진행, 답변·장기가 없으면 넣어요(한 번만 — statusV). */
-function migrateStatus(list: string[]): string[] {
-  let out = list.map((x) => STATUS_RENAME[x] ?? x).filter((x, i, a) => a.indexOf(x) === i);
-  if (!out.includes(ANSWER_STATUS)) {
-    const at = out.indexOf("진행");
-    out.splice(at >= 0 ? at + 1 : Math.max(0, out.indexOf(DONE_STATUS)), 0, ANSWER_STATUS);
-  }
-  if (!out.includes("장기")) out = [...out, "장기"];
-  return out;
-}
 
-/** 상태 배지 색이에요. 여기 없는 상태는 연보라예요. */
+/**
+ * 상태 배지 색 — 집행현황 단계 배지와 같은 규칙(2026-10-19 사용자): 하는 중은 연한 바탕, 끝난 것은 진한 채움.
+ * 접수 = 준비(회색) · 진행 = 추진(주황) · 답변 = 하늘 · 완료 = 완료(진한 초록) · 보류 = 중지(연한 빨강) · 장기 = 타절(진한 먹색).
+ */
 export const STATUS_COLORS: Record<string, [string, string]> = {
-  접수: ["var(--accent-tint)", "var(--accent)"],
-  진행: ["var(--st-work-bg)", "var(--st-work-fg)"],
-  처리중: ["var(--st-work-bg)", "var(--st-work-fg)"],
+  접수: ["var(--bs-jun-bg)", "var(--bs-jun-fg)"],
+  진행: ["var(--bs-chu-bg)", "var(--bs-chu-fg)"],
+  처리중: ["var(--bs-chu-bg)", "var(--bs-chu-fg)"],
   답변: ["var(--st-reply-bg)", "var(--st-reply-fg)"],
-  완료: ["var(--st-done-bg)", "var(--st-done-fg)"],
-  보류: ["var(--st-hold-bg)", "var(--st-hold-fg)"],
-  장기: ["var(--st-long-bg)", "var(--st-long-fg)"],
+  완료: ["var(--bs-wan-bg)", "var(--bs-wan-fg)"],
+  보류: ["var(--bs-jung-bg)", "var(--bs-jung-fg)"],
+  장기: ["var(--bs-ta-bg)", "var(--bs-ta-fg)"],
 };
 
 /** 상태 배지 [바탕, 글자] 색 */
@@ -145,8 +141,7 @@ export async function loadSettings(): Promise<Settings> {
   if (!raw) return structuredClone(DEFAULT_SETTINGS);
   try {
     const saved = JSON.parse(raw) as Partial<Settings>;
-    if (saved.status && !saved.statusV) saved.status = migrateStatus(saved.status);
-    saved.statusV = 2;
+    saved.status = [...STATUSES];
     return withMemo({ ...structuredClone(DEFAULT_SETTINGS), ...saved, process: { ...DEFAULT_PROCESS, ...(saved.process ?? {}) }, files: { ...DEFAULT_FILES_SETTINGS, ...saved.files, dateFmt: dateFormatOf(saved.files?.dateFmt), cols: { ...DEFAULT_FILES_SETTINGS.cols, ...(saved.files?.cols ?? {}) } }, modules: { ...(saved.modules ?? {}) } });
   } catch {
     return structuredClone(DEFAULT_SETTINGS);
