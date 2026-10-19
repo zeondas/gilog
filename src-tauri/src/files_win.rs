@@ -31,7 +31,7 @@ use windows::Win32::UI::Shell::{
     DefSubclassProc, ILFree, IContextMenu, IContextMenu2, IContextMenu3, IShellFolder, RemoveWindowSubclass, SHBindToObject,
     SHGetFileInfoW, SHGetImageList, SHOpenFolderAndSelectItems, SHParseDisplayName, SetWindowSubclass, ShellExecuteW, CMF_EXPLORE, CMF_EXTENDEDVERBS, CMF_NORMAL, CMIC_MASK_PTINVOKE,
     CMINVOKECOMMANDINFO, CMINVOKECOMMANDINFOEX, GCS_VERBW, SHFILEINFOW, SHGFI_ICON, SHGFI_LARGEICON, SHGFI_OVERLAYINDEX, SHGFI_SMALLICON,
-    SHGFI_SYSICONINDEX, SHGFI_TYPENAME, SHGFI_USEFILEATTRIBUTES, SHIL_LARGE, SHIL_SMALL,
+    SHGFI_SYSICONINDEX, SHGFI_TYPENAME, SHGFI_USEFILEATTRIBUTES, SHIL_EXTRALARGE, SHIL_JUMBO, SHIL_LARGE, SHIL_SMALL,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CreatePopupMenu, DestroyIcon, DestroyMenu, GetClassNameW, GetCursorPos, GetForegroundWindow, GetIconInfo, TrackPopupMenuEx,
@@ -108,9 +108,17 @@ pub fn icons(keys: &[String], size: u32) -> HashMap<String, String> {
     unsafe {
         let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
     }
-    // 배율에 맞는 시스템 이미지 리스트(없으면 각 파일 아이콘을 바로 받는 길로 떨어져요).
-    let iml: Option<IImageList> =
-        unsafe { SHGetImageList((if size <= 16 { SHIL_SMALL } else { SHIL_LARGE }) as i32).ok() };
+    // 보이는 크기보다 한 단계 큰 그림을 받아 또렷하게(16→작은16·32→큰32·48→특대48·그 위→점보256).
+    let shil = if size <= 16 {
+        SHIL_SMALL
+    } else if size <= 32 {
+        SHIL_LARGE
+    } else if size <= 48 {
+        SHIL_EXTRALARGE
+    } else {
+        SHIL_JUMBO
+    };
+    let iml: Option<IImageList> = unsafe { SHGetImageList(shil as i32).ok() };
     let mut out = HashMap::new();
     // (아이콘 번호, 오버레이 번호) → PNG data: 주소. 같은 조합은 한 번만 만들어요.
     let mut combo: HashMap<(i32, u32), String> = HashMap::new();
