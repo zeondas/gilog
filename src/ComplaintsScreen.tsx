@@ -76,7 +76,7 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
   const [list, setList] = useState<Complaint[] | null>(null);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [widths, setWidths] = useState<(number | null)[]>(defaultWidths());
-  const [doneFolded, setDoneFolded] = useState(false);
+  const [doneFolded, setDoneFolded] = useState(true); // 처음엔 접혀 있어요(2026-10-19 사용자)
   // 표가 쓸 수 있는 폭. 저장된 열 너비가 이보다 넓으면 비율대로 줄여 보여요(가로 스크롤 없음).
   const tableRef = useRef<HTMLDivElement>(null);
   const [avail, setAvail] = useState(0);
@@ -109,7 +109,7 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
       .then(setList, (e) => setNote(errorText(e)));
     loadSettings().then(setSettings, () => {});
     api.get(COLS_KEY).then((raw) => setWidths(readWidths(raw)), () => {});
-    api.get(DONE_FOLD_KEY).then((raw) => setDoneFolded(raw === "true"), () => {});
+    api.get(DONE_FOLD_KEY).then((raw) => setDoneFolded(raw !== "false"), () => {});
     api.get(STATUS_FILTER_KEY).then((raw) => setFilters((f) => ({ ...f, status: readStatusFilter(raw) })), () => {});
     // 구글 할 일에서 민원을 체크하면 상태가 바뀌어요 → 다시 읽어요.
     const reload = () => api.complaints().then(setList, () => {});
