@@ -14,20 +14,21 @@ export const iconKey = (name: string, path: string, dir: boolean) => {
   return "." + (e || "_");
 };
 
+// 캐시 열쇠(ck)는 "크기|경로|수정표" — 파일이 바뀌면 열쇠가 달라져 다시 받아요.
+// 윈도우에 물을 때 쓰는 열쇠(key)는 경로만이에요.
 const cache = new Map<string, string>();
 const waiting = new Map<string, Set<() => void>>();
-let queue: { key: string; size: number }[] = [];
+let queue: { ck: string; key: string; size: number }[] = [];
 let timer = 0;
 
-function request(key: string, size: number, done: () => void) {
-  const k = `${size}|${key}`;
-  let w = waiting.get(k);
+function request(ck: string, key: string, size: number, done: () => void) {
+  let w = waiting.get(ck);
   if (!w) {
     w = new Set();
-    waiting.set(k, w);
-    queue.push({ key, size });
+    waiting.set(ck, w);
+    queue.push({ ck, key, size });
     if (!timer) {
-      // 한 번 그릴 때 보이는 확장자를 모아 한꺼번에 받아요.
+      // 한 번 그릴 때 보이는 것을 모아 한꺼번에 받아요.
       timer = window.setTimeout(flush, 16);
     }
   }
@@ -39,18 +40,17 @@ async function flush() {
   const q = queue;
   queue = [];
   for (const size of new Set(q.map((x) => x.size))) {
-    const keys = q.filter((x) => x.size === size).map((x) => x.key);
+    const items = q.filter((x) => x.size === size);
     let got: Record<string, string> = {};
     try {
-      got = await fsApi.icons(keys, size);
+      got = await fsApi.icons(items.map((x) => x.key), size);
     } catch {
       got = {};
     }
-    for (const key of keys) {
-      const k = `${size}|${key}`;
-      cache.set(k, got[key] ?? "");
-      for (const f of waiting.get(k) ?? []) f();
-      waiting.delete(k);
+    for (const { ck, key } of items) {
+      cache.set(ck, got[key] ?? "");
+      for (const f of waiting.get(ck) ?? []) f();
+      waiting.delete(ck);
     }
   }
 }
@@ -91,15 +91,17 @@ function FileShape({ size, name }: { size: number; name: string }) {
   );
 }
 
-export function FileIcon({ name, path, dir, size }: { name: string; path: string; dir: boolean; size: number }) {
+// rev: 파일이 바뀌면(보안 해제 등으로 수정 시각·크기가 달라지면) 아이콘을 다시 받게 하는 표
+// — 윈도우 탐색기처럼 자물쇠가 사라지거나 종류 아이콘이 바뀌어도 따라가요(2026-10-19).
+export function FileIcon({ name, path, dir, size, rev }: { name: string; path: string; dir: boolean; size: number; rev?: string | number }) {
   const want = size <= 20 ? 16 : 32;
   const key = iconKey(name, path, dir);
-  const k = `${want}|${key}`;
+  const ck = rev ? `${want}|${key}|${rev}` : `${want}|${key}`;
   const [, tick] = useState(0);
   useEffect(() => {
-    if (!cache.has(k)) request(key, want, () => tick((n) => n + 1));
-  }, [k, key, want]);
-  const url = cache.get(k);
+    if (!cache.has(ck)) request(ck, key, want, () => tick((n) => n + 1));
+  }, [ck, key, want]);
+  const url = cache.get(ck);
   if (url) return <img className="fx-icon" src={url} width={size} height={size} alt="" aria-hidden="true" draggable={false} />;
   return dir ? <FolderShape size={size} /> : <FileShape size={size} name={name} />;
 }
