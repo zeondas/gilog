@@ -19,8 +19,26 @@ PLANS = {
     "p1": {"gap": 8, "search": 280, "search_explorer": 280, "center": True, "seg": "box"},
     # 2안: 간격 12 하나 · 검색 320(탐색기만 240 — 단추 11개) · 검색은 오른쪽 단추 바로 앞 · 토글 28 상자 없음(칩 28·6)
     "p2": {"gap": 12, "search": 320, "search_explorer": 240, "center": False, "seg": "flat"},
+    # 규칙안(2026-10-19 23:23 사용자 확정한 배치 규칙): 요소 사이 8 · 묶음 사이·제목 뒤 16 · 검색 260은 오른쪽 묶음 안 · 토글 34 안 26
+    "rule": {"gap": 8, "ggap": 16, "search": 260, "search_explorer": 260, "center": False, "seg": "box", "groups": True},
 }
 P = PLANS[PLAN]
+
+# 규칙안: 묶음 목록(묶음 안 8, 묶음 사이 16). "@search"가 검색 자리.
+GROUPS = {
+    "탐색기":   {"L": [["트리보기", "두칸보기", "네칸보기"], ["펼쳐보기", "미리보기", "숨긴파일"]],
+                "R": [["배치복구", "@search"], ["새로고침", "같은폴더", "창바꾸기", "이름변경"]], "S": "파일 검색"},
+    "민원대장": {"L": [["@chips"]], "R": [["배치최적화", "@search"], ["엑셀"], ["분류 관리"]], "S": "위치·내용·민원인 검색", "typed": "봉일천"},
+    "민원처리": {"L": [["@title"]], "R": [["@search"], ["신문고 열기", "민원 불러오기"], ["공사 관리"]], "S": "접수번호·위치·내용 검색"},
+    "캘린더":   {"L": [["@title"], ["이전 달", "오늘", "다음 달"], ["@seg"]], "R": [["@search"], ["@calmgr"]], "S": "일정 검색"},
+    "할 일":    {"L": [["@title"]], "R": [["@search"]], "S": "할 일 검색", "hide": [".td-summary"]},
+    "업무일지": {"L": [["@title"]], "R": [["@search"], ["엑셀", "인쇄"]], "S": "사람·내용 검색"},
+    "업무연락처": {"L": [["@title"]], "R": [["@search"], ["엑셀"], ["프로젝트 관리"]], "S": "이름·소속·번호 검색"},
+    "집행현황": {"L": [["@title"], ["@year"]], "R": [["@seg:집행액", "@seg:원", "배치최적화", "@search"], ["세부사업 추가", "엑셀"]], "S": "공사명·업체 검색"},
+    "예산현황": {"L": [["@title"], ["@year"], ["@seg:요약"]], "R": [["@seg:원", "배치최적화", "@search"], ["엑셀"]], "S": "세부사업 검색"},
+    "설정":     {"L": [["@title"]], "R": [["@search"], ["기본값으로 되돌리기", "설정 닫기"]], "S": "설정 검색"},
+}
+
 
 # 화면마다 자리: L 왼쪽(제목·무엇을 보는지) / A 표 조정·단위(검색 왼쪽) / S 검색 / R 동작(추가 → 엑셀 → 인쇄 → 관리)
 # 요소 이름: 글자(단추 글자·aria-label 앞부분) 또는 특별 이름
@@ -38,11 +56,14 @@ SPEC = {
     "설정":     {"L": ["@title"], "A": [], "S": "설정 검색", "R": ["기본값으로 되돌리기", "설정 닫기"]},
 }
 
+if P.get("groups"):
+    SPEC = GROUPS
+
 CSS = """
 #tb{position:absolute;z-index:50;display:grid;align-items:center;height:34px}
 #tb .z{display:flex;align-items:center;gap:var(--g)}
 #tb .zr{justify-content:flex-end}
-#tb h1{margin:0 8px 0 0}
+#tb h1{margin:0}
 #tb .bd-year{margin-left:0}
 #tb .search{width:var(--sw);max-width:none;flex:none}
 #tb .fx-search{width:var(--sw)}
@@ -99,6 +120,17 @@ else{ if(search){keepH(search); search.style.visibility='hidden';}
 const tb=document.createElement('div'); tb.id='tb';
 tb.style.setProperty('--g',P.gap+'px'); tb.style.setProperty('--sw',(label==='탐색기'?P.search_explorer:P.search)+'px');
 tb.style.left=x0+'px'; tb.style.width=(x1-x0)+'px'; tb.style.top='24px'; tb.style.columnGap=P.gap+'px';
+for(const h of (spec.hide||[])) for(const e of document.querySelectorAll(h)) e.style.visibility='hidden';
+if(P.groups){
+  const gz=(groups)=>{const z=document.createElement('div'); z.className='z'; z.style.gap=P.ggap+'px';
+    for(const g of groups){const gg=document.createElement('div'); gg.className='z';
+      for(const n of g){ if(n==='@search'){gg.appendChild(S); continue;} const el=get(n); if(!el){miss.push(n); continue;} if(el.parentElement) keepH(el); gg.appendChild(el);}
+      z.appendChild(gg);} return z;};
+  tb.style.display='flex'; tb.style.justifyContent='space-between'; tb.style.columnGap=P.ggap+'px';
+  tb.append(gz(spec.L),gz(spec.R));
+  document.body.appendChild(tb);
+  return {miss, x0, x1, over: tb.scrollWidth>tb.clientWidth+1};
+}
 const L=zone(spec.L), A=zone(spec.A), R=zone(spec.R,'zr');
 // 제목 뒤는 16(8 + h1 오른쪽 8)
 if(P.center){ // 왼쪽 칸 [L ... A] | 검색 | 오른쪽 칸 [R]
