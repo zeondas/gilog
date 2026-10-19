@@ -187,21 +187,9 @@ export default function ContactsScreen() {
         />
       </div>
 
-      <div className="ct-chips" role="group" aria-label="프로젝트로 거르기">
-        <span className="ct-chips-label">프로젝트</span>
-        <button type="button" className="pchip" aria-pressed={sel === null} onClick={() => setSel(null)}>
-          <span>전체</span>
-          <span className="pchip-n">{all.length}</span>
-        </button>
-        {projects.map((p) => (
-          <button key={p.id} type="button" className="pchip" aria-pressed={sel === p.id} onClick={() => setSel(p.id)}>
-            <span className="pchip-dot" aria-hidden="true" style={{ background: sel === p.id ? undefined : `var(--pj-${projectColor(p)}-line)` }} />
-            <span className="pchip-t" title={pjOther(p) || undefined}>{pjLabel(p)}</span>
-            <span className="pchip-n">{all.filter((c) => c.projects.includes(p.id)).length}</span>
-          </button>
-        ))}
-      </div>
-
+      <div className="ct-body">
+      <ProjectList projects={projects} contacts={all} sel={sel} onSel={setSel} />
+      <div className="ct-main">
       {note && <p className="note" role="status">{note}</p>}
 
       <NewRow projects={projects} onAdd={(c) => run(api.addContact(c))} />
@@ -258,9 +246,76 @@ export default function ContactsScreen() {
       ) : shown.length === 0 ? (
         <p className="muted small">맞는 연락처가 없어요.</p>
       ) : null}
+      </div>
+      </div>
 
       {projOpen && <ProjectDialog data={data} run={run} onClose={() => setProjOpen(false)} />}
     </>
+  );
+}
+
+// ---------- 왼쪽 프로젝트 목록 (2026-10-19 사용자 1안, 시안 ProjectFilter) ----------
+
+const SORT_KEY = "contacts.projectSort";
+const koSort = (a: Project, b: Project) => pjLabel(a).localeCompare(pjLabel(b), "ko", { numeric: true });
+
+/** 프로젝트가 많아도 한 칸에 세로로 쌓여요. 가나다/많은 순, 찾기, 0명은 맨 아래 "연락처 없음". */
+function ProjectList({ projects, contacts, sel, onSel }: { projects: Project[]; contacts: Contact[]; sel: number | null; onSel: (id: number | null) => void }) {
+  const [sort, setSort] = useState<"name" | "count">("name");
+  const [pq, setPq] = useState("");
+  useEffect(() => {
+    api.get(SORT_KEY).then((v) => v === "count" && setSort("count"), () => {});
+  }, []);
+  const pick = (v: "name" | "count") => {
+    setSort(v);
+    api.set(SORT_KEY, v).catch(() => {});
+  };
+  const count = useMemo(() => {
+    const m = new Map<number, number>();
+    for (const c of contacts) for (const id of c.projects) m.set(id, (m.get(id) ?? 0) + 1);
+    return m;
+  }, [contacts]);
+  const ql = pq.trim().toLowerCase();
+  const list = projects
+    .filter((p) => !ql || p.name.toLowerCase().includes(ql) || p.alias.toLowerCase().includes(ql) || (/[ㄱ-ㅎ]/.test(ql) && koIndex(pjLabel(p), ql) >= 0))
+    .sort((a, b) => (sort === "count" ? (count.get(b.id) ?? 0) - (count.get(a.id) ?? 0) : 0) || koSort(a, b));
+  const used = list.filter((p) => count.get(p.id));
+  const empty = list.filter((p) => !count.get(p.id));
+  const row = (p: Project) => (
+    <button key={p.id} type="button" className="ct-pj" aria-pressed={sel === p.id} title={pjFull(p)} onClick={() => onSel(p.id)}>
+      <span className="ct-pj-dot" aria-hidden="true" style={{ background: `var(--pj-${projectColor(p)}-line)` }} />
+      <span className="ct-pj-t">{pjLabel(p)}</span>
+      <span className="ct-pj-n">{count.get(p.id) ?? 0}</span>
+    </button>
+  );
+  return (
+    <aside className="ct-side" aria-label="프로젝트로 거르기">
+      <div className="ct-side-head">
+        <div className="ct-side-top">
+          <span className="ct-side-label">프로젝트 {projects.length}</span>
+          <span className="ct-sort" role="group" aria-label="정렬">
+            <button type="button" aria-pressed={sort === "name"} onClick={() => pick("name")}>가나다</button>
+            <button type="button" aria-pressed={sort === "count"} onClick={() => pick("count")}>많은 순</button>
+          </span>
+        </div>
+        <input className="input" aria-label="프로젝트 찾기" placeholder="프로젝트 찾기" value={pq} onChange={(e) => setPq(e.target.value)} onKeyDown={(e) => e.key === "Escape" && pq && (e.preventDefault(), setPq(""))} />
+      </div>
+      <div className="ct-side-list">
+        <button type="button" className="ct-pj ct-pj-all" aria-pressed={sel === null} onClick={() => onSel(null)}>
+          <span className="ct-pj-t">전체</span>
+          <span className="ct-pj-n">{contacts.length}</span>
+        </button>
+        <div className="ct-side-div" />
+        {used.map(row)}
+        {empty.length > 0 && (
+          <>
+            <div className="ct-side-sub">연락처 없음</div>
+            <div className="ct-pj-zero">{empty.map(row)}</div>
+          </>
+        )}
+        {list.length === 0 && <p className="ct-side-none">맞는 프로젝트가 없어요</p>}
+      </div>
+    </aside>
   );
 }
 
@@ -1032,6 +1087,7 @@ function ProjectDialog({
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState("");
+  const [draftShort, setDraftShort] = useState("");
   const [ask, setAsk] = useState<number | null>(null);
   /** 이름을 고치고 있는 프로젝트 */
   const [editId, setEditId] = useState<number | null>(null);
@@ -1053,10 +1109,30 @@ function ProjectDialog({
     return () => window.removeEventListener("keydown", key);
   }, [onClose]);
 
+  const isTaken = (n: string) => data.projects.some((x) => x.name === n || x.alias === n);
+  const dFull = draft.trim();
+  const dShort = draftShort.trim();
+  const badFull = !!dFull && isTaken(dFull);
+  const badShort = !!dShort && dShort !== dFull && isTaken(dShort);
+
+  /** 전체 공사명·축약 공사명 중 하나만 적어도 돼요(2026-10-19 사용자). */
   async function add() {
-    const name = draft.trim();
-    if (!name) return;
-    if (await run(api.addProject(name))) setDraft("");
+    const name = dFull || dShort;
+    if (!name || badFull || badShort) return;
+    const ok = await run(
+      (async () => {
+        let d = await api.addProject(name);
+        if (dFull && dShort && dShort !== dFull) {
+          const p = d.projects.find((x) => x.name === name);
+          if (p) d = await api.setProjectNames(p.id, dFull, dShort);
+        }
+        return d;
+      })(),
+    );
+    if (ok) {
+      setDraft("");
+      setDraftShort("");
+    }
     inputRef.current?.focus();
   }
 
@@ -1134,14 +1210,29 @@ function ProjectDialog({
               </div>
             );
           })}
-          <div className="padd">
+          <div className="padd mgr-padd">
             <input
               ref={inputRef}
-              className="input"
-              aria-label="새 프로젝트 이름"
-              placeholder="새 프로젝트 이름"
+              className={"input" + (badFull ? " invalid" : "")}
+              aria-label="전체 공사명"
+              placeholder="전체 공사명"
+              title={badFull ? "같은 이름의 프로젝트가 있어요" : undefined}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !isComposing(e)) {
+                  e.preventDefault();
+                  add();
+                }
+              }}
+            />
+            <input
+              className={"input mgr-short-in" + (badShort ? " invalid" : "")}
+              aria-label="축약 공사명"
+              placeholder="축약 공사명"
+              title={badShort ? "같은 이름의 프로젝트가 있어요" : "비우면 전체 공사명으로 보여요"}
+              value={draftShort}
+              onChange={(e) => setDraftShort(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !isComposing(e)) {
                   e.preventDefault();
@@ -1223,7 +1314,7 @@ function NamesEdit({
       }}
     >
       <label className="mgr-names-l" htmlFor="pj-full">
-        정식 이름(문서용)
+        전체 공사명
       </label>
       <input
         id="pj-full"
@@ -1237,14 +1328,14 @@ function NamesEdit({
         onKeyDown={key}
       />
       <label className="mgr-names-l" htmlFor="pj-short">
-        줄인 이름(관리용)
+        축약 공사명
       </label>
       <input
         id="pj-short"
         className={"input mgr-name-in" + (empty || badShort ? " invalid" : "")}
         aria-invalid={empty || badShort || undefined}
         title={tip(empty || badShort, badShort)}
-        placeholder="비우면 정식 이름으로 보여요"
+        placeholder="비우면 전체 공사명으로 보여요"
         value={short}
         onFocus={(e) => e.currentTarget.select()}
         onChange={(e) => setShort(e.target.value)}
