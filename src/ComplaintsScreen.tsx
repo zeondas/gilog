@@ -284,8 +284,6 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
           statuses={statuses}
           base={found.filter((c) => passes(c, filters, "status"))}
           filters={filters}
-          total={all.length}
-          shown={shown.length}
           onStatus={(v) => setFilter("status", v)}
           onOpen={setOpenFilter}
           onClear={(k) => setFilter(k, null)}
@@ -603,13 +601,11 @@ function HeadMenu({ x, y, onClose, onReset }: { x: number; y: number; onClose: (
 
 // ---------- 열 필터 (시안 ComplaintFilter.dc.html) ----------
 
-/** 상태 칩 줄 + 걸린 필터 알약 + 오른쪽 끝 "N건 중 M건" */
+/** 상태 칩 줄 + 걸린 필터 알약 (건수 글줄은 2026-10-19 사용자가 뺌) */
 function FilterChips({
   statuses,
   base,
   filters,
-  total,
-  shown,
   onStatus,
   onOpen,
   onClear,
@@ -619,8 +615,6 @@ function FilterChips({
   /** 상태 필터만 뺀 나머지 필터·검색을 건 민원 (칩 숫자) */
   base: Complaint[];
   filters: ColFilters;
-  total: number;
-  shown: number;
   onStatus: (v: string[] | null) => void;
   onOpen: (k: FilterKey) => void;
   onClear: (k: FilterKey) => void;
@@ -677,9 +671,6 @@ function FilterChips({
           모두 풀기
         </button>
       )}
-      <span className="cm-fcount">
-        {total}건 중 {shown}건
-      </span>
     </div>
   );
 }
