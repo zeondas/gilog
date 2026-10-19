@@ -936,9 +936,11 @@ export default function FilesScreen() {
   // 트리 폭 끌기
   const dragW = useRef<{ x: number; w: number } | null>(null);
   const panesRef = useRef<HTMLDivElement>(null);
-  /** 머리 줄 단추 폭(2026-10-19 사용자): 창 폭이 바뀌면 단추가 모두 같이 늘고 줄어요(정수 px, 남는 1~11px은 마지막 단추).
-      글자가 들어갈 폭(84px)보다 좁으면 아이콘만 보이고 글자는 마우스를 올리면 떠요. */
+  /** 머리 줄 단추(2026-10-19 사용자 1안): 기준 크기(1600×900)에 맞춘 90px 고정 — 넓어져도 늘리지 않고 남는 폭은 오른쪽 빈 곳.
+      90px 단추가 다 안 들어가면 글자를 빼고 34×34 정사각형(고정)으로, 앞에서부터 차례로. 마우스를 올리면 이름이 떠요. */
   const toolsRef = useRef<HTMLDivElement>(null);
+  const TOOL_W = 90;
+  const TOOL_SQ = 34;
   const [toolFit, setToolFit] = useState({ w: 90, compact: false });
   useEffect(() => {
     const el = toolsRef.current;
@@ -948,8 +950,9 @@ export default function FilesScreen() {
       const btns = kids.filter((k) => k.classList.contains("fx-tool"));
       const other = kids.filter((k) => !k.classList.contains("fx-tool")).reduce((n, k) => n + k.offsetWidth + 4, 0); // 구분선 1 + 좌우 2
       const free = el.clientWidth - other - 8 * (kids.length - 1) - 1; // 마지막 단추 오른쪽 1px 착시 보정
-      const w = Math.max(34, Math.floor(free / btns.length));
-      setToolFit((o) => (o.w === w && o.compact === w < 84 ? o : { w, compact: w < 84 }));
+      const compact = free < TOOL_W * btns.length;
+      const w = compact ? TOOL_SQ : TOOL_W;
+      setToolFit((o) => (o.compact === compact ? o : { w, compact }));
     };
     fit();
     const ro = new ResizeObserver(fit);
