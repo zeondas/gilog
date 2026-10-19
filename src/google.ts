@@ -14,7 +14,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { api, CalEvent, CalKind, changeHooks, Complaint, inApp, Repeat, Task, TaskList } from "./api";
 import { linesToText, parseLines } from "./bullets";
 import { addDays, kindColor } from "./calendar";
-import { DONE_STATUS, loadSettings } from "./settingsStore";
+import { ANSWER_STATUS, isAnswered, loadSettings } from "./settingsStore";
 import { todayStr } from "./journal";
 import { complaintTitle } from "./tasks";
 import { stamp } from "./reminders";
@@ -495,7 +495,7 @@ export function desired(src: { kinds: CalKind[]; events: CalEvent[]; complaints:
   if (opts.complaints && ck) {
     const color = eventColorId(kindColor(ck, src.kinds));
     for (const c of src.complaints) {
-      if (!c.due || c.status === DONE_STATUS) continue;
+      if (!c.due || isAnswered(c.status)) continue; // 답변 끝난 민원은 빼요
       out.set("c" + c.id, allDayBody("c" + c.id, complaintGoogleTitle(c), c.due, color));
     }
   }
@@ -553,7 +553,7 @@ export function desiredTasks(src: { complaints: Complaint[]; tasks: Task[]; list
   if (opts.complaints) {
     const name = src.lists.find((l) => l.builtin)?.name ?? "민원";
     for (const c of src.complaints) {
-      const done = c.status === DONE_STATUS;
+      const done = isAnswered(c.status); // 답변 끝남 = 체크
       if (!c.due || (done && c.due < keepFrom)) continue;
       // 민원은 제목(접수유형·위치)만 보내요. 민원인 이름·연락처·내용·조치내용·메모는 보내지 않아요.
       out.set("c" + c.id, { title: complaintGoogleTitle(c), notes: "", due: c.due, done, parentKey: "", listName: name, prev: done ? undefined : c.status });
@@ -643,9 +643,9 @@ async function pullTaskChecks(s: GState, src: { complaints: Complaint[]; tasks: 
       }
     } else {
       const c = src.complaints.find((x) => x.id === id);
-      if (c && (c.status === DONE_STATUS) === it.done) {
-        if (!r.done && !it.prev && !firstOpen) firstOpen = (await loadSettings()).status.find((x) => x !== DONE_STATUS) ?? "접수";
-        await api.setComplaintStatus(id, r.done ? DONE_STATUS : it.prev || firstOpen);
+      if (c && isAnswered(c.status) === it.done) {
+        if (!r.done && !it.prev && !firstOpen) firstOpen = (await loadSettings()).status.find((x) => !isAnswered(x)) ?? "접수";
+        await api.setComplaintStatus(id, r.done ? ANSWER_STATUS : it.prev || firstOpen);
         changed = true;
       }
     }
