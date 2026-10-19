@@ -11,6 +11,7 @@ import { api, errorText, inApp } from "./api";
 import {
   allRows,
   balance,
+  Basis,
   BudgetLevel,
   BudgetProject,
   BudgetRow,
@@ -53,6 +54,7 @@ const FIXED = new Set<ColId>(["kind", "rate", "stage", "memo"]);
 const START_W = Object.fromEntries(COLS.map(([c, , w]) => [c, w])) as Record<ColId, number>;
 const COLS_KEY = "budget.cols";
 const UNIT_KEY = "budget.unit";
+const BASIS_KEY = "budget.basis";
 
 /** 고른 줄: p12(세부사업)·i3(부기사업)·g7(공사) */
 type Sel = string | null;
@@ -104,6 +106,7 @@ export default function BudgetScreen() {
   const [data, setData] = useState<BudgetProject[] | null>(null);
   const [note, setNote] = useState("");
   const [unit, setUnitState] = useState<Unit>(1);
+  const [basis, setBasisState] = useState<Basis>("exp");
   const [q, setQ] = useState("");
   const [sel, setSel] = useState<Sel>(null);
   const [cs, setCs] = useState<Cells>(NO_CELLS);
@@ -138,6 +141,7 @@ export default function BudgetScreen() {
   }, [year, load]);
   useEffect(() => {
     api.get(UNIT_KEY).then((v) => setUnitState(v === "1000" ? 1000 : 1), () => {});
+    api.get(BASIS_KEY).then((v) => setBasisState(v === "act" ? "act" : "exp"), () => {});
     api.get(COLS_KEY).then(
       (v) => {
         if (!v) return;
@@ -409,6 +413,12 @@ export default function BudgetScreen() {
     await run(() => api.setBudgetOpen(level, id, !open));
   };
 
+  const setBasis = async (b: Basis) => {
+    if (!(await commit())) return;
+    setBasisState(b);
+    api.set(BASIS_KEY, b).catch(() => {});
+  };
+
   const setUnit = async (u: Unit) => {
     if (!(await commit())) return;
     setUnitState(u);
@@ -502,7 +512,7 @@ export default function BudgetScreen() {
         memo: memoToText(p.memo),
         items: p.items.map((i) => ({ ...i, memo: memoToText(i.memo), rows: i.rows.map((r) => ({ ...r, memo: memoToText(r.memo) })) })),
       }));
-      await api.budgetExcelWrite(path, { year, unit, date: todayStr(), projects });
+      await api.budgetExcelWrite(path, { year, unit, basis, date: todayStr(), projects });
       const d = dirOf(path);
       if (d) api.set(DIR_KEY, d).catch(() => {});
       setToast(`${year}년 집행현황을 저장했어요 · ${path}`);
@@ -578,12 +588,12 @@ export default function BudgetScreen() {
           " n",
         );
   const rowRateCell = (r: BudgetRow) => {
-    const sp = rowRate(r);
+    const sp = rowRate(r, basis);
     return sp == null
       ? cell("", " n")
       : cell(
           <>
-            <span className="bd-bar rowbar" title="원인행위 대비">
+            <span className="bd-bar rowbar" title={(basis === "act" ? "시공량" : "집행액") + " ÷ 원인행위"}>
               <span style={{ width: Math.min(100, Math.max(0, sp)) + "%" }} />
             </span>
             <span className="bd-pct rowp">{Math.round(sp)}%</span>
@@ -616,7 +626,7 @@ export default function BudgetScreen() {
   };
   /** 합계 칸들(구분·업체 빈칸부터 메모까지) */
   const sumCells = (budget: number | null, rows: BudgetRow[], sm: boolean, memo: ReactNode, budgetCell?: ReactNode) => {
-    const s = sums(budget, rows);
+    const s = sums(budget, rows, basis);
     return (
       <>
         {cell("")}
@@ -719,7 +729,7 @@ export default function BudgetScreen() {
       const x = findRow(id);
       if (!x) return null;
       const r = x.r;
-      const v: Partial<Record<ColId, number>> = { cmt: r.cmt, exp: r.exp, act: r.act, bal: balance(r) };
+      const v: Partial<Record<ColId, number>> = { cmt: r.cmt, exp: r.exp, act: r.act, bal: balance(r, basis) };
       return v[col] ?? null;
     }
     let budget: number | null;
@@ -735,7 +745,7 @@ export default function BudgetScreen() {
       budget = budgetOf("item", x.it);
       rows = rowsOf(x.it);
     }
-    const t = sums(budget, rows);
+    const t = sums(budget, rows, basis);
     const v: Partial<Record<ColId, number | null>> = { bud: budget, cmt: t.cmt, exp: t.exp, act: t.act, bal: t.bal, avail: t.avail };
     return v[col] ?? null;
   };
@@ -860,7 +870,7 @@ export default function BudgetScreen() {
         {cell(moneyInput("cmt", "원인행위", f.cmt))}
         {cell(moneyInput("exp", "집행액", f.exp))}
         {cell(moneyInput("act", "시공량(사용량)", f.act))}
-        {draftRow && cell(fmt(balance(draftRow), unit), " n" + (balance(draftRow) < 0 ? " red" : ""))}
+        {draftRow && cell(fmt(balance(draftRow, basis), unit), " n" + (balance(draftRow, basis) < 0 ? " red" : ""))}
         {draftRow && rowRateCell(draftRow)}
         {cell("")}
         {cell(stageChip(f.stage, (r, from) => setPop({ t: "stage", x: r.left, y: r.bottom + 4, id: "form", from }), "form-stage"))}
@@ -1012,7 +1022,7 @@ export default function BudgetScreen() {
             {cell(fmt(r.cmt, unit), " n")}
             {cell(fmt(r.exp, unit), " n")}
             {cell(fmt(r.act, unit), " n")}
-            {cell(fmt(balance(r), unit), " n" + (balance(r) < 0 ? " red" : ""))}
+            {cell(fmt(balance(r, basis), unit), " n" + (balance(r, basis) < 0 ? " red" : ""))}
             {rowRateCell(r)}
             {cell("")}
             {cell(
@@ -1389,6 +1399,13 @@ export default function BudgetScreen() {
           </button>
         </span>
         <span className="bd-sp" />
+        <span className="bd-unit" role="group" aria-label="잔액·집행률 기준" title="잔액·집행률 기준">
+          {(["exp", "act"] as Basis[]).map((b) => (
+            <button key={b} type="button" className={basis === b ? "on" : ""} aria-pressed={basis === b} onClick={() => void setBasis(b)}>
+              {b === "exp" ? "집행액" : "시공량"}
+            </button>
+          ))}
+        </span>
         <span className="bd-unit" role="group" aria-label="금액 단위">
           {([1, 1000] as Unit[]).map((u) => (
             <button key={u} type="button" className={unit === u ? "on" : ""} aria-pressed={unit === u} onClick={() => void setUnit(u)}>
