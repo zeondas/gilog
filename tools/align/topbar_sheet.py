@@ -5,7 +5,8 @@ from PIL import Image, ImageDraw, ImageFont
 
 out, scale, dirs = sys.argv[1], float(sys.argv[2]), sys.argv[3:]
 names = ["탐색기", "민원대장", "민원처리", "캘린더", "할 일", "업무일지", "업무연락처", "집행현황", "예산현황", "설정"]
-tags = ["지금", "1안", "2안"][: len(dirs)]
+import os
+tags = os.environ.get("TAGS", "지금,1안,2안").split(",")[: len(dirs)]
 f = ImageFont.truetype("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", int(13 * scale))
 fb = ImageFont.truetype("/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc", int(13 * scale))
 lab = int(180 * scale)
