@@ -1540,7 +1540,7 @@ function Plus({ size = 14 }: { size?: number }) {
 const PROCESS_DIRS: { key: "root" | "inbox" | "downloads" | "outbox"; label: string; desc: string }[] = [
   { key: "root", label: "민원 폴더", desc: "사진·지시부를 이 폴더에 접수일_위치_보수내용 이름으로 둬요." },
   { key: "inbox", label: "가져올 폴더", desc: "Claude가 신문고에서 읽은 민원을 한 건씩 놓는 곳이에요." },
-  { key: "downloads", label: "다운로드 폴더", desc: "엣지가 신문고 첨부 사진을 받는 곳이에요." },
+  { key: "downloads", label: "다운로드 폴더", desc: "크롬이 신문고 첨부 사진을 받는 곳이에요." },
   { key: "outbox", label: "보낼 폴더", desc: "[폰 전송]이 지시부 JPG를 두는 곳이에요. Claude 앱 \"민원처리\" 대화가 폰으로 올려요." },
 ];
 

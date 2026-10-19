@@ -100,7 +100,7 @@ fn order_path(dir: &Path, stem: &str, ext: &str) -> PathBuf {
     dir.join(format!("{s}.{ext}"))
 }
 
-/// 이름만 적힌 첨부를 찾아요: 절대 경로면 그대로, 아니면 가져올 폴더 → 다운로드 폴더.
+/// 이름만 적힌 첨부를 찾아요: 절대 경로면 그대로, 아니면 가져올 폴더 → 다운로드 폴더 → 내 폴더\Downloads.
 fn find_file(name: &str, dirs: &[&Path]) -> Option<PathBuf> {
     let n = name.trim();
     if n.is_empty() {
@@ -175,7 +175,12 @@ pub fn read_inbox(state: State<AppState>, inbox: String, downloads: String, root
             let folder = root.clone();
             fs::create_dir_all(&folder).map_err(io)?;
             let stem = case_stem(&c.received, &c.place, &c.short);
-            let dirs = [inbox.as_path(), downloads.as_path()];
+            // 크롬 처음 값(내 폴더\Downloads)도 봐요 — 설정의 다운로드 폴더를 안 고쳐도 사진을 찾게(2026-10-19 1안).
+            let user_dl = std::env::var_os("USERPROFILE").map(|h| PathBuf::from(h).join("Downloads"));
+            let mut dirs = vec![inbox.as_path(), downloads.as_path()];
+            if let Some(d) = user_dl.as_deref() {
+                dirs.push(d);
+            }
             let mut take = |name: &str, label: &str| -> String {
                 match find_file(name, &dirs) {
                     Some(p) => {
@@ -524,7 +529,15 @@ pub fn open_path(path: String) -> Result<(), String> {
     Ok(())
 }
 
-/// 신문고(업무처리포털)를 엣지로 열어요. 엣지가 없으면 기본 브라우저로 열어요. 이 주소만 받아요.
+/// 크롬 실행 파일 자리(설치 위치 두 곳). 없으면 None.
+#[cfg(windows)]
+fn chrome_exe() -> Option<PathBuf> {
+    let rel = ["Google", "Chrome", "Application", "chrome.exe"];
+    ["ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"].iter().filter_map(std::env::var_os).map(|base| rel.iter().fold(PathBuf::from(base), |p, s| p.join(s))).find(|p| p.is_file())
+}
+
+/// 신문고(업무처리포털)를 **크롬**으로 열어요(2026-10-19 사용자 1안 — 회사 정책이 엣지에서 신문고를 IE 모드로 열어
+/// Claude 확장이 읽지 못해요). 크롬이 없으면 "nochrome". 이 주소만 받아요.
 #[tauri::command]
 pub fn open_portal(url: String) -> Result<(), String> {
     if !(url == "https://gov.epeople.go.kr" || url.starts_with("https://gov.epeople.go.kr/")) {
@@ -534,10 +547,8 @@ pub fn open_portal(url: String) -> Result<(), String> {
     {
         use std::os::windows::process::CommandExt;
         const NO_WINDOW: u32 = 0x0800_0000;
-        let edge = std::process::Command::new("cmd").args(["/C", "start", "", "msedge", &url]).creation_flags(NO_WINDOW).status();
-        if !edge.map(|s| s.success()).unwrap_or(false) {
-            std::process::Command::new("rundll32").args(["url.dll,FileProtocolHandler", &url]).creation_flags(NO_WINDOW).spawn().map_err(io)?;
-        }
+        let Some(chrome) = chrome_exe() else { return Err("nochrome".into()) };
+        std::process::Command::new(chrome).arg(&url).creation_flags(NO_WINDOW).spawn().map_err(io)?;
     }
     #[cfg(not(windows))]
     {
@@ -596,6 +607,7 @@ mod tests {
         assert_eq!(final_state("새 민원 3건을 가져왔어요", false).0, "done");
         assert_eq!(final_state("오류: 확장 연결 안 됨\n자세히", true).0, "error");
         assert_eq!(final_state("신문고 로그인 화면이 떠서 멈췄어요", false).0, "login");
+        assert!(final_state("PAGE_UNREADABLE", false).1.contains("IE 모드"));
     }
 
     #[test]
@@ -644,8 +656,10 @@ mod tests {
 
 // ---------- 민원 불러오기: Claude가 신문고를 읽어요 (2026-10-18 사용자 1안) ----------
 //
-// 단추를 누르면 Claude Code를 창 없이 실행해요(`claude -p --chrome`). Claude는 엣지 확장으로
+// 단추를 누르면 Claude Code를 창 없이 실행해요(`claude -p --chrome`). Claude는 **크롬**의 Claude 확장으로
 // 신문고 민원처리목록을 읽고, 새 민원 한 건마다 가져올 폴더에 결과 파일을 놓아요.
+// 엣지는 안 돼요(2026-10-19 확인): 회사 정책이 신문고를 IE 모드로 열어 확장이 그 탭을 읽지 못하고,
+// Claude는 멈추는 말이 LOGIN_REQUIRED뿐이라 "로그인 풀림"으로 끝났어요. 그래서 지침에 PAGE_UNREADABLE을 더했어요.
 // 화면은 2초마다 `claude_status`와 `read_inbox`로 진행과 새 줄을 가져와요.
 // 진행 수는 Claude가 가져올 폴더에 쓰는 `_진행.json`({"total":N,"done":k})에서 읽어요.
 // 신문고 로그인이 풀려 있으면 Claude는 아무것도 쓰지 않고 마지막 답을 `LOGIN_REQUIRED`로 끝내요(사용자 1안 — 멈추고 알림).
@@ -736,7 +750,7 @@ fn explain(stderr: &str, result: &str, code: Option<i32>) -> String {
     } else if low.contains("not logged in") || low.contains("please run /login") || low.contains("invalid api key") || low.contains("authentication") || low.contains("oauth") {
         "Claude Code 로그인이 필요해요 — 터미널에서 `claude`를 열어 로그인해 주세요".into()
     } else if low.contains("chrome") || low.contains("extension") || low.contains("browser") {
-        format!("엣지의 Claude 확장과 이어지지 않았어요 — 엣지가 켜져 있고 확장에 로그인돼 있는지 봐 주세요 ({first})")
+        format!("크롬의 Claude 확장과 이어지지 않았어요 — 크롬이 켜져 있고 확장에 로그인돼 있는지 봐 주세요 ({first})")
     } else if low.contains("enotfound") || low.contains("econnrefused") || low.contains("etimedout") || low.contains("fetch failed") || low.contains("certificate") || low.contains("proxy") || low.contains("network") {
         format!("인터넷 연결이 막혔어요(회사 프록시·보안 프로그램) — {first}")
     } else if low.contains("rate limit") || low.contains("usage limit") || low.contains("overloaded") {
@@ -755,7 +769,7 @@ pub struct RunRequest {
     pub exe: String,
     /// 가져올 폴더
     pub inbox: String,
-    /// 엣지 다운로드 폴더
+    /// 크롬 다운로드 폴더
     pub downloads: String,
     /// 지침 전체(화면이 만들어 넘겨요 — 공사 처리 범위·이미 있는 기록 포함)
     pub guide: String,
@@ -763,7 +777,9 @@ pub struct RunRequest {
 
 /// 마지막 답에서 상태를 읽어요. 지침대로 LOGIN_REQUIRED가 아니어도 "로그인" 얘기로 끝나면 로그인 풀림으로 봐요(원인 ⑤).
 fn final_state(result: &str, is_error: bool) -> (String, String) {
-    if result.contains("LOGIN_REQUIRED") || (!is_error && result.contains("로그인") && !result.contains("새 민원")) {
+    if result.contains("PAGE_UNREADABLE") {
+        ("error".into(), "Claude가 신문고 화면을 읽지 못했어요 — 크롬에 Claude 확장이 켜져 있고 엣지 확장은 꺼져 있는지 봐 주세요(엣지는 IE 모드라 못 읽어요)".into())
+    } else if result.contains("LOGIN_REQUIRED") || (!is_error && result.contains("로그인") && !result.contains("새 민원")) {
         ("login".into(), String::new())
     } else if is_error {
         ("error".into(), result.to_string())
@@ -899,7 +915,7 @@ pub fn run_claude(run: State<ClaudeRun>, req: RunRequest) -> Result<(), String> 
         }
         let stderr_all = err_text.lock().map(|s| s.clone()).unwrap_or_default();
         let (state, message) = match last {
-            Some((s, r)) if s == "error" => ("error".to_string(), explain(&stderr_all, &r, code)),
+            Some((s, r)) if s == "error" && !result_text.contains("PAGE_UNREADABLE") => ("error".to_string(), explain(&stderr_all, &r, code)),
             Some(x) => x,
             None if code == Some(0) => ("done".into(), String::new()),
             None => ("error".into(), explain(&stderr_all, &result_text, code)),

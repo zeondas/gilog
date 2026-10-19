@@ -516,13 +516,13 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     <div className="pr">
       <div className="ct-head">
         <h1 className="title">국민신문고 민원 불러오기</h1>
-        <button type="button" className="btn btn-ctrl btn-text" title="업무처리포털을 엣지로 열어요. 처음 한 번 로그인해 두면 돼요" onClick={() => (inApp ? api.openPortal(PORTAL_URL).catch((e) => setNote(errText(e))) : window.open(PORTAL_URL, "_blank"))}>
+        <button type="button" className="btn btn-ctrl btn-text" title="업무처리포털을 크롬으로 열어요. 처음 한 번 로그인해 두면 돼요" onClick={() => (inApp ? api.openPortal(PORTAL_URL).catch((e) => setNote(errText(e))) : window.open(PORTAL_URL, "_blank"))}>
           신문고 열기
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M14 4h6v6M20 4l-9 9M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" />
           </svg>
         </button>
-        <button type="button" className="btn-primary btn-ctrl pr-fetch" title="Claude가 엣지로 신문고 민원처리목록을 읽어 기록에 없는 민원을 가져와요" onClick={fetchCases} disabled={!!run}>
+        <button type="button" className="btn-primary btn-ctrl pr-fetch" title="Claude가 크롬으로 신문고 민원처리목록을 읽어 기록에 없는 민원을 가져와요" onClick={fetchCases} disabled={!!run}>
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 3v12M7 10l5 5 5-5M4 19h16" />
           </svg>

@@ -36,6 +36,8 @@ export function processError(e: unknown): string | null {
       return "JPG는 윈도우 앱에서 만들어요.";
     case "noclaude":
       return "Claude Code를 찾지 못했어요. 설치했는지, 설정의 Claude 실행 파일을 확인해 주세요.";
+    case "nochrome":
+      return "크롬을 찾지 못했어요. 신문고는 크롬으로 열어요(엣지는 IE 모드라 Claude가 읽지 못해요).";
     case "running":
       return "이미 민원을 불러오는 중이에요.";
     case "missing":
@@ -72,8 +74,9 @@ export function aiGuide(p: { inbox: string; downloads: string; outbox: string },
   return `# 기록 민원처리 지침
 
 ## 0. 시작
-- 엣지(Claude 확장)로 일해요. 새 탭을 열어 ${PORTAL_URL} 첫 화면을 열고 메뉴를 눌러 민원처리목록으로 들어가요(주소를 바로 열면 405 오류).
+- 크롬(Claude 확장)으로 일해요. 새 탭을 열어 ${PORTAL_URL} 첫 화면을 열고 메뉴를 눌러 민원처리목록으로 들어가요(주소를 바로 열면 405 오류).
 - 로그인 화면이 나오거나 로그인이 풀려 있으면 아무것도 쓰지 말고, 마지막 답을 정확히 LOGIN_REQUIRED 한 줄로 끝내요. 인증서 로그인은 담당자가 해요.
+- 탭이 열렸는데 화면을 읽을 수 없으면(IE 모드, 스크린샷·글 읽기 실패) 아무것도 쓰지 말고, 마지막 답을 정확히 PAGE_UNREADABLE 한 줄로 끝내요. 로그인 문제로 짐작하지 않아요.
 - 개인정보 창은 열지 않아요. 제목은 담당자가 붙인 것이라 판단에 쓰지 않아요.
 
 ## 1. 가져올 민원 고르기
@@ -87,7 +90,7 @@ export function aiGuide(p: { inbox: string; downloads: string; outbox: string },
 ${recs}
 
 ## 2. 한 건마다
-1. 본문을 읽고 첨부 사진은 [일괄다운로드]로 받아요(다운로드 폴더 ${p.downloads}). 받은 파일 이름을 확인해요.
+1. 본문을 읽고 첨부 사진은 [일괄다운로드]로 받아요(크롬이 받는 폴더 — 보통 ${p.downloads} 또는 내 폴더의 Downloads). 받은 파일 이름을 확인해요.
 2. 위치는 주소(리·동 + 지번)만 적어요. "앞", "버스정류장 뒤" 같은 말은 빼요. 본문·사진에 주소가 분명하지 않으면 "주소불명".
 3. 아래 공사의 처리 범위를 보고 공사 번호를 골라요. 애매하거나 공사 대상이 아니면 null.
 ${list}
