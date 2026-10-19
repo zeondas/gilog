@@ -28,9 +28,9 @@ export function daysTaken(c: Pick<Complaint, "received" | "done">): number | nul
   return n < 0 ? null : n;
 }
 
-/** 3 → "D-3", 0 → "D-day", -2 → "D+2"(plus를 끄면 "D2" — 민원대장, 2026-10-19 사용자) */
-export function ddayText(n: number, plus = true): string {
-  return n > 0 ? `D-${n}` : n === 0 ? "D-day" : `D${plus ? "+" : ""}${-n}`;
+/** 3 → "D-3", 0 → "D-day", -2 → "D+2" */
+export function ddayText(n: number): string {
+  return n > 0 ? `D-${n}` : n === 0 ? "D-day" : `D+${-n}`;
 }
 
 /** 임박(설정의 기준 안이거나 지났음)인지 */
