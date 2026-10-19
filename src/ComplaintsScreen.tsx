@@ -51,7 +51,7 @@ import { PhoneInput } from "./PhoneInput";
 import { ChoiceInput, PlaceInput } from "./PlaceInputs";
 import { finalizePhone } from "./phone";
 import { ListGroup } from "./SettingsScreen";
-import { DEFAULT_SETTINGS, isAnswered, loadSettings, saveSettings, Settings, STATUS_RENAME, statusColor } from "./settingsStore";
+import { DEFAULT_SETTINGS, DONE_STATUS, isAnswered, loadSettings, saveSettings, Settings, STATUS_RENAME, statusColor } from "./settingsStore";
 
 const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
 
@@ -1210,7 +1210,7 @@ function ViewRow({
       tabIndex={0}
       data-cid={c.id}
       aria-selected={selected}
-      className={"cm-row cm-view" + (alt ? " alt" : "") + (flash ? " flash" : "") + (selected ? " sel" : "")}
+      className={"cm-row cm-view" + (alt ? " alt" : "") + (flash ? " flash" : "") + (selected ? " sel" : "") + (c.status === DONE_STATUS ? " done" : "")}
       title="두 번 눌러서 고치기 (상태 배지는 바로 바꾸기, 연락처·위치는 복사)"
       onClick={onSelect}
       onDoubleClick={(e) => {

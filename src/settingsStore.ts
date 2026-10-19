@@ -110,17 +110,17 @@ export const STATUS_RENAME: Record<string, string> = { 처리중: "진행" };
 
 
 /**
- * 상태 배지 색 — 집행현황 단계 배지와 같은 규칙(2026-10-19 사용자): 하는 중은 연한 바탕, 끝난 것은 진한 채움.
- * 접수 = 준비(회색) · 진행 = 추진(주황) · 답변 = 하늘 · 완료 = 완료(진한 초록) · 보류 = 중지(연한 빨강) · 장기 = 타절(진한 먹색).
+ * 상태 배지 색 — 신경 쓸 순서로 진하게(2026-10-19 사용자). 모양은 집행현황 단계 배지와 같아요.
+ * 접수·진행·답변 = 진한 채움(먹색·주황·파랑) · 보류·장기 = 연한 바탕 · 완료 = 흐리게(줄 글자도 흐려요).
  */
 export const STATUS_COLORS: Record<string, [string, string]> = {
-  접수: ["var(--bs-jun-bg)", "var(--bs-jun-fg)"],
-  진행: ["var(--bs-chu-bg)", "var(--bs-chu-fg)"],
-  처리중: ["var(--bs-chu-bg)", "var(--bs-chu-fg)"],
-  답변: ["var(--st-reply-bg)", "var(--st-reply-fg)"],
-  완료: ["var(--bs-wan-bg)", "var(--bs-wan-fg)"],
-  보류: ["var(--bs-jung-bg)", "var(--bs-jung-fg)"],
-  장기: ["var(--bs-ta-bg)", "var(--bs-ta-fg)"],
+  접수: ["var(--cs-new-bg)", "var(--cs-new-fg)"],
+  진행: ["var(--cs-work-bg)", "var(--cs-work-fg)"],
+  처리중: ["var(--cs-work-bg)", "var(--cs-work-fg)"],
+  답변: ["var(--cs-reply-bg)", "var(--cs-reply-fg)"],
+  보류: ["var(--cs-hold-bg)", "var(--cs-hold-fg)"],
+  장기: ["var(--cs-long-bg)", "var(--cs-long-fg)"],
+  완료: ["var(--cs-done-bg)", "var(--cs-done-fg)"],
 };
 
 /** 상태 배지 [바탕, 글자] 색 */

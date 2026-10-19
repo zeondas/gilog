@@ -10048,3 +10048,12 @@ select.input.fx-set-date { width: 190px; }
 .cm-spick-opt .cm-status {
   width: 52px;
 }
+/* 완료한 민원 줄은 흐리게 — 집행현황 완료·타절 줄과 같아요(2026-10-19 사용자: 신경 안 써도 되는 것은 흐리게) */
+.cm-view.done > .cm-c,
+.cm-view.done > .cm-c :not(.cm-status):not(.cm-status *) {
+  color: var(--bd-faint);
+}
+.cm-view.done .bl-mark,
+.cm-view.done .cm-bullets [class*="mark"] {
+  opacity: 0.55;
+}
