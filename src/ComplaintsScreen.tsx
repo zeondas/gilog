@@ -362,6 +362,10 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
                 const r = await run(api.setComplaintStatus(c.id, status, done));
                 if (r) put(r);
               }}
+              onDone={async (done) => {
+                const r = await run(api.setComplaintStatus(c.id, c.status, done));
+                if (r) put(r);
+              }}
             />
           ),
         )}
@@ -1245,6 +1249,7 @@ function ViewRow({
   onEdit,
   onMemo,
   onStatus,
+  onDone,
 }: {
   c: Complaint;
   alt: boolean;
@@ -1258,6 +1263,7 @@ function ViewRow({
   onEdit: () => void;
   onMemo: () => void;
   onStatus: (status: string) => void;
+  onDone: (done: string) => void;
 }) {
   const n = daysLeft(c, today);
   const taken = daysTaken(c);
@@ -1327,11 +1333,7 @@ function ViewRow({
       </div>
       <div role="cell" className="cm-c cm-num cm-due cm-done-c">
         <span className="cm-done-d">{t(c.done ?? "")}</span>
-        {taken !== null && (
-          <span className="cm-dday cm-taken" title={`접수부터 조치완료까지 ${taken}일`}>
-            {takenText(c, taken)}
-          </span>
-        )}
+        {taken !== null && <TakenPick c={c} taken={taken} onSave={onDone} />}
       </div>
       <div role="cell" className="cm-c cm-center">
         <span onDoubleClick={(e) => e.stopPropagation()}>
@@ -1486,6 +1488,95 @@ function StatusPick({
               </span>
             );
           })}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * 걸린 날 "4d"를 누르면 조치완료일을 고치는 작은 칸(2026-10-19 사용자 — 열을 접어 둔 채로도 고쳐요).
+ * Enter·바깥 누르기 저장, Esc 그대로. 날짜 칸 규칙(parseDate)과 같고, 읽을 수 없거나 접수일보다 앞이면 빨간 테두리.
+ */
+function TakenPick({ c, taken, onSave }: { c: Complaint; taken: number; onSave: (done: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [v, setV] = useState("");
+  const [bad, setBad] = useState(false);
+  const box = useRef<HTMLSpanElement>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const live = useRef({ v, c });
+  live.current = { v, c };
+
+  // 저장하면 true, 못 읽으면 false(칸은 열어 둬요).
+  function commit(): boolean {
+    const { v: raw, c: cur } = live.current;
+    const d = parseDate(raw);
+    if (!d || d < cur.received) {
+      setBad(true);
+      return false;
+    }
+    setOpen(false);
+    if (d !== cur.done) onSave(d);
+    return true;
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    input.current?.focus();
+    input.current?.select();
+    const down = (e: MouseEvent) => {
+      if (box.current?.contains(e.target as Node)) return;
+      if (!commit()) setOpen(false);
+    };
+    document.addEventListener("mousedown", down);
+    return () => document.removeEventListener("mousedown", down);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  return (
+    <span ref={box} className="cm-tpick" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        className="cm-dday cm-taken cm-taken-btn"
+        title={`조치완료일 ${c.done} · 접수부터 ${taken}일 — 눌러서 고치기`}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => {
+          setV(c.done ?? "");
+          setBad(false);
+          setOpen(!open);
+        }}
+      >
+        {takenText(c, taken)}
+      </button>
+      {open && (
+        <span className="cm-tpick-pop" role="dialog" aria-label="조치완료일 고치기">
+          <span className="cm-tpick-label">조치완료일</span>
+          <input
+            ref={input}
+            aria-label="조치완료일"
+            aria-invalid={bad || undefined}
+            className={"cell-input num" + (bad ? " invalid" : "")}
+            inputMode="numeric"
+            placeholder="연-월-일"
+            value={v}
+            onChange={(e) => {
+              setV(e.target.value);
+              setBad(false);
+            }}
+            onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing) return;
+              if (e.key === "Enter" || e.key === "Tab") {
+                e.preventDefault();
+                e.stopPropagation();
+                commit();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                e.stopPropagation();
+                setOpen(false);
+              }
+            }}
+          />
         </span>
       )}
     </span>
