@@ -43,7 +43,7 @@ export function dueSoon(list: Complaint[], today: string, within = 7): Complaint
 export function matches(c: Complaint, q: string): boolean {
   if (!q) return true;
   const memo = parseMemo(c.memo).map((l) => l.t).join(" ");
-  const hay = [String(c.no), c.intake, c.received, c.ctype, c.area, c.place, c.person, c.phone, plainOf(c.body), plainOf(c.action), c.due, c.status, memo]
+  const hay = [String(c.no), c.intake, c.received, c.ctype, c.area, c.place, c.person, c.phone, plainOf(c.body), plainOf(c.action), c.due, c.status, c.done ?? "", memo]
     .join("\n")
     .toLowerCase();
   if (hay.includes(q)) return true;
@@ -66,10 +66,10 @@ export function expandType(v: string, options: string[]): string {
 
 export type ColKey =
   | "no" | "intake" | "received" | "ctype" | "area" | "place" | "person"
-  | "phone" | "body" | "action" | "due" | "status" | "memo";
+  | "phone" | "body" | "action" | "due" | "status" | "done" | "memo";
 
 /**
- * 사양서 순서 13열. w가 null인 열(내용·조치내용)은 남는 폭을 반씩 나눠 가져요.
+ * 사양서 순서 14열(2026-10-19 상태 뒤에 조치완료일). w가 null인 열(내용·조치내용)은 남는 폭을 반씩 나눠 가져요.
  * 기본 폭은 1600×900 창 기준(2026-10-17 사용자 1안, 시안 ComplaintCols.dc.html): 열마다 글 폭에 맞춰 줄이고
  * 위치·내용·조치내용의 긴 글은 칸 안에서 다음 줄로 넘겨요. 가로 스크롤이 없어야 해요.
  */
@@ -86,6 +86,7 @@ export const COLUMNS: { key: ColKey; label: string; w: number | null }[] = [
   { key: "action", label: "조치내용", w: null },
   { key: "due", label: "마감일", w: 130 },
   { key: "status", label: "상태", w: 72 },
+  { key: "done", label: "조치완료일", w: 96 },
   { key: "memo", label: "메모", w: 40 },
 ];
 
@@ -102,8 +103,12 @@ const OLD_DEFAULT = [52, 108, 106, 100, 76, 132, 76, 128, null, null, 150, 100, 
 export function readWidths(raw: string | null): (number | null)[] {
   try {
     const v = JSON.parse(raw ?? "");
-    if (Array.isArray(v) && v.length === COLUMNS.length && v.every((x) => x === null || (typeof x === "number" && x >= COL_MIN))) {
+    // 조치완료일이 생기기 전(13열)에 저장한 폭이면 상태 뒤에 처음 폭을 끼워요(예전 처음 폭이면 새 처음 폭).
+    if (Array.isArray(v) && v.length === COLUMNS.length - 1) {
       if (v.every((x, i) => x === OLD_DEFAULT[i])) return defaultWidths();
+      v.splice(12, 0, 96);
+    }
+    if (Array.isArray(v) && v.length === COLUMNS.length && v.every((x) => x === null || (typeof x === "number" && x >= COL_MIN))) {
       return v;
     }
   } catch {

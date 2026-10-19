@@ -14,7 +14,7 @@ export type SheetKind = "complaints" | "contacts" | "journal";
 export const SHEET_TITLE: Record<SheetKind, string> = { complaints: "민원대장", contacts: "업무연락처", journal: "업무일지" };
 
 /** 양식의 열 순서(3행 제목) */
-export const COMPLAINT_HEADERS = ["연번", "접수유형", "접수일", "민원유형", "지역", "위치", "민원인", "연락처", "내용", "조치내용", "마감일", "상태", "메모"];
+export const COMPLAINT_HEADERS = ["연번", "접수유형", "접수일", "민원유형", "지역", "위치", "민원인", "연락처", "내용", "조치내용", "마감일", "상태", "조치완료일", "메모"];
 export const CONTACT_HEADERS = ["연번", "이름", "소속", "직위", "무선", "유선", "이메일", "프로젝트", "메모"];
 
 export type ExcelExport = { rows: string[][]; intake: string[]; status: string[]; days?: string[][] };
@@ -66,7 +66,7 @@ export function complaintRows(list: Complaint[]): string[][] {
     .sort((a, b) => a.no - b.no || a.id - b.id)
     .map((c) => [
       String(c.no), c.intake, c.received, c.ctype, c.area, c.place, c.person, c.phone,
-      cellOfLines(c.body), cellOfLines(c.action), c.due, c.status, cellOfLines(c.memo),
+      cellOfLines(c.body), cellOfLines(c.action), c.due, c.status, c.done ?? "", cellOfLines(c.memo),
     ]);
 }
 
@@ -108,6 +108,7 @@ export function complaintImports(sheet: ExcelSheet): ComplaintImport[] {
     action: linesOfCell(get(r, "조치내용")),
     due: dateOf(get(r, "마감일")),
     status: get(r, "상태"),
+    done: dateOf(get(r, "조치완료일")),
     memo: linesOfCell(get(r, "메모")),
   }));
 }

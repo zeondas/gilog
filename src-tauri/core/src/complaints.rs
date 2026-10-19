@@ -40,6 +40,8 @@ pub struct ComplaintInput {
     /// 마감일. 비어 있으면 마감이 없어요.
     pub due: String,
     pub status: String,
+    /// 조치완료일(2026-10-19 사용자). 비어 있으면 아직이에요. 완료·미수용이 되면 화면이 오늘 날짜를 넣고, 고칠 수 있어요.
+    pub done: String,
     /// 위치를 도로명주소에서 바꿨으면 바꾸기 전 글(마우스를 올리면 보여요). 직접 친 위치면 비어 있어요.
     pub road: String,
 }
@@ -71,6 +73,8 @@ pub struct Complaint {
     pub action: String,
     pub due: String,
     pub status: String,
+    /// 조치완료일
+    pub done: String,
     /// 메모(JSON 글자). 비어 있으면 메모가 없어요.
     pub memo: String,
     /// 바꾸기 전 도로명주소(위치를 바꾼 민원만)
@@ -103,10 +107,15 @@ pub(crate) fn upgrade(conn: &rusqlite::Connection) -> Result<()> {
     if !has {
         conn.execute_batch("ALTER TABLE complaints ADD COLUMN road TEXT NOT NULL DEFAULT '';")?;
     }
+    // 조치완료일 칸(2026-10-19)
+    let has: bool = conn.prepare("SELECT 1 FROM pragma_table_info('complaints') WHERE name = 'done'")?.exists([])?;
+    if !has {
+        conn.execute_batch("ALTER TABLE complaints ADD COLUMN done TEXT NOT NULL DEFAULT '';")?;
+    }
     Ok(())
 }
 
-const COLS: &str = "id, no, intake, received, ctype, area, place, person, phone, body, action, due, status, memo, road";
+const COLS: &str = "id, no, intake, received, ctype, area, place, person, phone, body, action, due, status, memo, road, done";
 
 fn bad(msg: &str) -> Error {
     Error::Invalid(msg.into())
@@ -160,6 +169,10 @@ fn clean(input: &ComplaintInput) -> Result<ComplaintInput> {
     if !due.is_empty() && !valid_date(&due) {
         return Err(bad("마감일이 맞지 않아요"));
     }
+    let done = t(&input.done);
+    if !done.is_empty() && !valid_date(&done) {
+        return Err(bad("조치완료일이 맞지 않아요"));
+    }
     let status = t(&input.status);
     Ok(ComplaintInput {
         intake: t(&input.intake),
@@ -173,6 +186,7 @@ fn clean(input: &ComplaintInput) -> Result<ComplaintInput> {
         action: lines(&input.action),
         due,
         status: if status.is_empty() { DEFAULT_STATUS.into() } else { status },
+        done,
         // 위치가 비었거나 바꾸기 전 글과 같으면 남길 것이 없어요.
         road: {
             let (p, r) = (t(&input.place), t(&input.road));
@@ -198,6 +212,7 @@ fn row(r: &Row) -> rusqlite::Result<Complaint> {
         status: r.get(12)?,
         memo: r.get(13)?,
         road: r.get(14)?,
+        done: r.get(15)?,
     })
 }
 
@@ -240,9 +255,9 @@ impl Store {
         let tx = self.conn.transaction()?;
         let no: i64 = tx.query_row("SELECT COALESCE(MAX(no), 0) + 1 FROM complaints", [], |r| r.get(0))?;
         tx.execute(
-            "INSERT INTO complaints (no, intake, received, ctype, area, place, person, phone, body, action, due, status, road)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
-            params![no, c.intake, c.received, c.ctype, c.area, c.place, c.person, c.phone, c.body, c.action, c.due, c.status, c.road],
+            "INSERT INTO complaints (no, intake, received, ctype, area, place, person, phone, body, action, due, status, road, done)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+            params![no, c.intake, c.received, c.ctype, c.area, c.place, c.person, c.phone, c.body, c.action, c.due, c.status, c.road, c.done],
         )?;
         let id = tx.last_insert_rowid();
         tx.commit()?;
@@ -254,9 +269,9 @@ impl Store {
         let c = clean(input)?;
         let n = self.conn.execute(
             "UPDATE complaints SET intake = ?2, received = ?3, ctype = ?4, area = ?5, place = ?6, person = ?7,
-                    phone = ?8, body = ?9, action = ?10, due = ?11, status = ?12, road = ?13
+                    phone = ?8, body = ?9, action = ?10, due = ?11, status = ?12, road = ?13, done = ?14
              WHERE id = ?1",
-            params![id, c.intake, c.received, c.ctype, c.area, c.place, c.person, c.phone, c.body, c.action, c.due, c.status, c.road],
+            params![id, c.intake, c.received, c.ctype, c.area, c.place, c.person, c.phone, c.body, c.action, c.due, c.status, c.road, c.done],
         )?;
         if n == 0 {
             return Err(Error::NotFound);
@@ -265,10 +280,19 @@ impl Store {
     }
 
     /// 상태만 바꿔요. 할 일 목록에서 체크할 때 써요.
-    pub fn set_complaint_status(&self, id: i64, status: &str) -> Result<Complaint> {
+    /// `done`이 있으면 조치완료일도 함께 바꿔요(민원대장 배지: 완료·미수용이면 오늘, 다른 상태면 비움). 없으면 그대로예요.
+    pub fn set_complaint_status(&self, id: i64, status: &str, done: Option<&str>) -> Result<Complaint> {
         let status = status.trim();
         let status = if status.is_empty() { DEFAULT_STATUS } else { status };
-        let n = self.conn.execute("UPDATE complaints SET status = ?2 WHERE id = ?1", params![id, status])?;
+        let n = match done.map(str::trim) {
+            Some(d) => {
+                if !d.is_empty() && !valid_date(d) {
+                    return Err(bad("조치완료일이 맞지 않아요"));
+                }
+                self.conn.execute("UPDATE complaints SET status = ?2, done = ?3 WHERE id = ?1", params![id, status, d])?
+            }
+            None => self.conn.execute("UPDATE complaints SET status = ?2 WHERE id = ?1", params![id, status])?,
+        };
         if n == 0 {
             return Err(Error::NotFound);
         }
@@ -301,8 +325,8 @@ impl Store {
             let (area, place, road) = convert(&t(&c.area), &t(&c.place), &t(&c.road));
             no += 1;
             tx.execute(
-                "INSERT INTO complaints (no, intake, received, ctype, area, place, person, phone, body, action, due, status, memo, road)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+                "INSERT INTO complaints (no, intake, received, ctype, area, place, person, phone, body, action, due, status, memo, road, done)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
                 params![
                     no,
                     t(&c.intake),
@@ -317,7 +341,8 @@ impl Store {
                     t(&c.due),
                     if status.is_empty() { DEFAULT_STATUS.to_string() } else { status },
                     r.memo.trim(),
-                    road
+                    road,
+                    t(&c.done)
                 ],
             )?;
         }
@@ -343,8 +368,24 @@ mod tests {
             action: String::new(),
             due: "2026-10-21".into(),
             status: "처리중".into(),
+            done: String::new(),
             road: String::new(),
         }
+    }
+
+    #[test]
+    fn done_date_is_kept_and_set_with_status() {
+        let d = tempfile::tempdir().unwrap();
+        let mut s = Store::create(d.path(), "1234").unwrap();
+        let c = s.add_complaint(&ComplaintInput { status: "완료".into(), done: "2026-10-19".into(), ..input("가") }).unwrap();
+        assert_eq!(c.done, "2026-10-19");
+        assert!(s.add_complaint(&ComplaintInput { done: "1019".into(), ..input("가") }).is_err());
+        // 배지: 미수용이면 날짜를 넣고, 다시 진행이면 비워요. 날짜를 주지 않으면 그대로예요.
+        let c = s.set_complaint_status(c.id, "미수용", Some("2026-10-20")).unwrap();
+        assert_eq!((c.status.as_str(), c.done.as_str()), ("미수용", "2026-10-20"));
+        assert_eq!(s.set_complaint_status(c.id, "답변", None).unwrap().done, "2026-10-20");
+        assert_eq!(s.set_complaint_status(c.id, "진행", Some("")).unwrap().done, "");
+        assert!(s.set_complaint_status(c.id, "완료", Some("1020")).is_err());
     }
 
     #[test]
@@ -450,10 +491,10 @@ mod tests {
         assert_eq!(u.body, "둘 (고침)");
         assert_eq!(u.status, "완료");
         assert_eq!(u.memo, r#"[{"t":"오후 통화"}]"#);
-        assert_eq!(s.set_complaint_status(c.id, "처리중").unwrap().status, "처리중");
+        assert_eq!(s.set_complaint_status(c.id, "처리중", None).unwrap().status, "처리중");
         assert_eq!(s.update_complaint(999, &i).err().unwrap().code(), "not_found");
         assert_eq!(s.set_complaint_memo(999, "").err().unwrap().code(), "not_found");
-        assert_eq!(s.set_complaint_status(999, "완료").err().unwrap().code(), "not_found");
+        assert_eq!(s.set_complaint_status(999, "완료", None).err().unwrap().code(), "not_found");
         // 고치다 실패하면 그대로예요.
         assert_eq!(s.update_complaint(c.id, &input(" ")).err().unwrap().code(), "invalid");
         assert_eq!(s.complaints().unwrap()[0].body, "둘 (고침)");

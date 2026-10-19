@@ -52,6 +52,7 @@ impl SheetKind {
                 ("조치내용", 34.0, true),
                 ("마감일", 11.0, false),
                 ("상태", 11.1, false),
+                ("조치완료일", 11.0, false),
                 ("메모", 34.0, true),
             ],
             SheetKind::Contacts => &[
@@ -358,7 +359,7 @@ mod tests {
     use super::*;
 
     fn complaint_row(no: &str, body: &str) -> Vec<String> {
-        [no, "전화", "2026-10-15", "포트홀", "조리읍", "봉일천리 113 일원", "홍길동", "010-1234-5678", body, "□ 현장 확인\n  ○ 보수 완료", "2026-10-20", "처리중", ""]
+        [no, "전화", "2026-10-15", "포트홀", "조리읍", "봉일천리 113 일원", "홍길동", "010-1234-5678", body, "□ 현장 확인\n  ○ 보수 완료", "2026-10-20", "처리중", "2026-10-21", ""]
             .iter()
             .map(|s| s.to_string())
             .collect()
@@ -373,10 +374,11 @@ mod tests {
         write_xlsx(&path, SheetKind::Complaints, &data).unwrap();
         let back = read_xlsx(&path, SheetKind::Complaints).unwrap();
         assert_eq!(back.headers[0], "연번");
-        assert_eq!(back.headers[12], "메모");
+        assert_eq!(back.headers[12], "조치완료일");
+        assert_eq!(back.headers[13], "메모");
         assert_eq!(back.rows.len(), 2);
-        // 빈 칸은 calamine이 줄 끝에서 자를 수 있어 앞 12칸만 비교해요.
-        assert_eq!(back.rows[0][..12], rows[0][..12]);
+        // 빈 칸은 calamine이 줄 끝에서 자를 수 있어 앞 13칸만 비교해요.
+        assert_eq!(back.rows[0][..13], rows[0][..13]);
         assert_eq!(back.rows[1][8], "○ 한 줄");
     }
 

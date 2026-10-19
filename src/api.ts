@@ -164,6 +164,8 @@ export type ComplaintInput = {
   /** 마감일. 비어 있으면 마감이 없어요. */
   due: string;
   status: string;
+  /** 조치완료일 2026-10-19. 비어 있으면 아직이에요(완료·미수용이 되면 오늘 날짜가 들어가고 고칠 수 있어요). */
+  done?: string;
   /** 위치를 도로명주소에서 바꿨으면 바꾸기 전 글(마우스를 올리면 보여요). 직접 친 위치면 비어요. */
   road?: string;
 };
@@ -671,11 +673,12 @@ function fakeComplaints(cmd: string, a: Record<string, unknown>): unknown {
     const body = lines(c.body);
     const received = c.received.trim();
     const due = c.due.trim();
-    if (!body || !isDate(received) || (due && !isDate(due))) throw "invalid";
+    const done = (c.done ?? "").trim();
+    if (!body || !isDate(received) || (due && !isDate(due)) || (done && !isDate(done))) throw "invalid";
     const t = (s: string) => s.trim();
     return {
       intake: t(c.intake), received, ctype: t(c.ctype), area: t(c.area), place: t(c.place),
-      person: t(c.person), phone: t(c.phone), body, action: lines(c.action), due, status: t(c.status) || "접수",
+      person: t(c.person), phone: t(c.phone), body, action: lines(c.action), due, status: t(c.status) || "접수", done,
       road: t(c.place) && t(c.road ?? "") !== t(c.place) ? t(c.road ?? "") : "",
     };
   };
@@ -701,6 +704,10 @@ function fakeComplaints(cmd: string, a: Record<string, unknown>): unknown {
     case "set_complaint_status": {
       const c = find();
       c.status = (a.status as string).trim() || "접수";
+      if (typeof a.done === "string") {
+        if (a.done && !isDate(a.done.trim())) throw "invalid";
+        c.done = a.done.trim();
+      }
       return structuredClone(c);
     }
     case "set_complaint_memo": {
@@ -722,7 +729,7 @@ function fakeComplaints(cmd: string, a: Record<string, unknown>): unknown {
         const conv = L.kind === "exact" ? { area: areaFor(L.hit, t(r.area)), place: L.hit.place, road: L.original } : { area: t(r.area), place: t(r.place), road: "" };
         fake.complaints.push({
           id: fake.nextComplaintId++, no: ++no, intake: t(r.intake), received: t(r.received), ctype: t(r.ctype), area: conv.area,
-          place: conv.place, road: conv.road, person: t(r.person), phone: t(r.phone), body: lines(r.body), action: lines(r.action), due: t(r.due),
+          place: conv.place, road: conv.road, person: t(r.person), phone: t(r.phone), body: lines(r.body), action: lines(r.action), due: t(r.due), done: t(r.done ?? ""),
           status: t(r.status) || "접수", memo: t(r.memo),
         });
       }
@@ -1270,7 +1277,9 @@ export const api = {
   roadToJibun: (text: string): Promise<RoadLookup> => (inApp ? invoke<RoadLookup>("road_to_jibun", { text }) : Promise.resolve(fakeRoadToJibun(text))),
   addComplaint: (complaint: ComplaintInput) => call<Complaint>("add_complaint", { complaint }),
   updateComplaint: (id: number, complaint: ComplaintInput) => call<Complaint>("update_complaint", { id, complaint }),
-  setComplaintStatus: (id: number, status: string) => call<Complaint>("set_complaint_status", { id, status }),
+  /** done을 주면 조치완료일도 함께 바꿔요(민원대장 배지). 주지 않으면 그대로예요(캘린더·할 일 체크). */
+  setComplaintStatus: (id: number, status: string, done?: string) =>
+    call<Complaint>("set_complaint_status", done === undefined ? { id, status } : { id, status, done }),
   setComplaintMemo: (id: number, memo: string) => call<Complaint>("set_complaint_memo", { id, memo }),
   deleteComplaint: (id: number) => call<null>("delete_complaint", { id }),
   processData: () => call<ProcessData>("process_data"),

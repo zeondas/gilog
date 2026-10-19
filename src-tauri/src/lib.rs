@@ -433,8 +433,8 @@ async fn road_to_jibun(text: String) -> gilog_core::RoadLookup {
 }
 
 #[tauri::command]
-fn set_complaint_status(state: State<AppState>, id: i64, status: String) -> Result<Complaint, String> {
-    with_store(&state, |s| s.set_complaint_status(id, &status))
+fn set_complaint_status(state: State<AppState>, id: i64, status: String, done: Option<String>) -> Result<Complaint, String> {
+    with_store(&state, |s| s.set_complaint_status(id, &status, done.as_deref()))
 }
 
 #[tauri::command]

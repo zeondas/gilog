@@ -51,7 +51,7 @@ import { PhoneInput } from "./PhoneInput";
 import { ChoiceInput, PlaceInput } from "./PlaceInputs";
 import { finalizePhone } from "./phone";
 import { ListGroup } from "./SettingsScreen";
-import { DEFAULT_SETTINGS, DONE_STATUS, isAnswered, loadSettings, saveSettings, Settings, STATUS_RENAME, statusColor } from "./settingsStore";
+import { DEFAULT_SETTINGS, isAnswered, isClosed, loadSettings, saveSettings, Settings, STATUS_RENAME, statusColor } from "./settingsStore";
 
 const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
 
@@ -343,7 +343,9 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
               onMemo={() => setMemoId(c.id)}
               onStatus={async (status) => {
                 if (status === c.status) return;
-                const r = await run(api.setComplaintStatus(c.id, status));
+                // 완료·미수용이 되면 조치완료일에 오늘(이미 있으면 그대로), 다른 상태로 돌리면 비워요(2026-10-19 사용자).
+                const done = isClosed(status) ? c.done || todayStr() : isClosed(c.status) ? "" : undefined;
+                const r = await run(api.setComplaintStatus(c.id, status, done));
                 if (r) put(r);
               }}
             />
@@ -732,6 +734,7 @@ function Funnel() {
 // ---------- 입력 칸들 ----------
 
 type Draft = ComplaintInput;
+type DateKey = "received" | "due" | "done";
 
 const emptyDraft = (lists: Lists): Draft => ({
   intake: lists.intake[0] ?? "",
@@ -746,9 +749,10 @@ const emptyDraft = (lists: Lists): Draft => ({
   action: "",
   due: "",
   status: lists.status[0] ?? "",
+  done: "",
 });
 
-type Bad = { received?: boolean; due?: boolean; body?: boolean; intake?: boolean; status?: boolean };
+type Bad = { received?: boolean; due?: boolean; done?: boolean; body?: boolean; intake?: boolean; status?: boolean };
 
 /** 날짜 칸을 떠날 때 "1016" 같은 것을 2026-10-16으로 바꿔요. 읽을 수 없으면 빨간 테두리예요. */
 function normDates(d: Draft): { d: Draft; bad: Bad } {
@@ -757,8 +761,10 @@ function normDates(d: Draft): { d: Draft; bad: Bad } {
   if (!r) bad.received = true;
   const due = d.due.trim() ? parseDate(d.due) : "";
   if (due === null) bad.due = true;
+  const done = (d.done ?? "").trim() ? parseDate(d.done ?? "") : "";
+  if (done === null) bad.done = true;
   if (!plainOf(d.body).trim()) bad.body = true;
-  return { d: { ...d, received: r ?? d.received, due: due ?? d.due }, bad };
+  return { d: { ...d, received: r ?? d.received, due: due ?? d.due, done: done ?? d.done }, bad };
 }
 
 /**
@@ -866,7 +872,7 @@ function Cells({
   bad: Bad;
   lists: Lists;
   firstRef?: React.Ref<HTMLInputElement>;
-  onDateBlur: (k: "received" | "due") => void;
+  onDateBlur: (k: DateKey) => void;
   /** 고치는 줄이면 고치기 전 값. 지금 목록에서 빠진 접수유형·상태도 그대로 받아 줘요. */
   orig?: Draft;
 }) {
@@ -946,7 +952,23 @@ function Cells({
           allow={orig?.status}
           invalid={bad.status}
           stayOnTab
-          onChange={(status) => set({ status })}
+          onChange={(status) =>
+            // 완료·미수용을 고르면 비어 있는 조치완료일에 오늘, 다른 상태로 돌리면 비워요(배지와 같게).
+            set({ status, ...(isClosed(status) ? (d.done ? {} : { done: todayStr() }) : isClosed(d.status) ? { done: "" } : {}) })
+          }
+        />
+      </div>
+      <div role="cell" className="cm-c">
+        <input
+          name="done"
+          aria-label="조치완료일"
+          aria-invalid={bad.done || undefined}
+          className={"cell-input num" + (bad.done ? " invalid" : "")}
+          placeholder="연-월-일"
+          inputMode="numeric"
+          value={d.done ?? ""}
+          onChange={(e) => set({ done: e.target.value })}
+          onBlur={() => onDateBlur("done")}
         />
       </div>
     </>
@@ -970,9 +992,9 @@ function useDraft(init: () => Draft) {
       return n;
     });
   };
-  const onDateBlur = (k: "received" | "due") => {
-    const v = d[k].trim();
-    if (!v && k === "due") return;
+  const onDateBlur = (k: DateKey) => {
+    const v = (d[k] ?? "").trim();
+    if (!v && k !== "received") return;
     const p = parseDate(v);
     if (p) set({ [k]: p });
     else setBad((b) => ({ ...b, [k]: true }));
@@ -988,7 +1010,7 @@ function useDraft(init: () => Draft) {
     if (!ok(n.status, lists.status, orig?.status)) b.status = true;
     setD(n);
     setBad(b);
-    const first = (["intake", "received", "body", "due", "status"] as const).find((k) => b[k]);
+    const first = (["intake", "received", "body", "due", "status", "done"] as const).find((k) => b[k]);
     if (first) return { input: null, first };
     return { input: { ...n, phone: finalizePhone(n.phone), body: stringifyLines(parseLines(n.body)), action: stringifyLines(parseLines(n.action)) } };
   };
@@ -1075,6 +1097,7 @@ function EditRow({
     action: c.action,
     due: c.due,
     status: c.status,
+    done: c.done ?? "",
   }));
   const [asking, setAsking] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -1210,7 +1233,7 @@ function ViewRow({
       tabIndex={0}
       data-cid={c.id}
       aria-selected={selected}
-      className={"cm-row cm-view" + (alt ? " alt" : "") + (flash ? " flash" : "") + (selected ? " sel" : "") + (c.status === DONE_STATUS ? " done" : "")}
+      className={"cm-row cm-view" + (alt ? " alt" : "") + (flash ? " flash" : "") + (selected ? " sel" : "") + (isClosed(c.status) ? " done" : "")}
       title="두 번 눌러서 고치기 (상태 배지는 바로 바꾸기, 연락처·위치는 복사)"
       onClick={onSelect}
       onDoubleClick={(e) => {
@@ -1264,6 +1287,9 @@ function ViewRow({
       </div>
       <div role="cell" className="cm-c">
         <StatusPick status={c.status} statuses={statuses} bg={bg} fg={fg} render={t} onPick={onStatus} />
+      </div>
+      <div role="cell" className="cm-c cm-num">
+        {t(c.done ?? "")}
       </div>
       <div role="cell" className="cm-c cm-center">
         <span onDoubleClick={(e) => e.stopPropagation()}>

@@ -1,7 +1,7 @@
 import { FormEvent, Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ACCENTS, api, DEFAULT_PREFS, errorText, inApp, Prefs, Status } from "./api";
 import { splitJamo } from "./journal";
-import { DEFAULT_SETTINGS, DONE_STATUS, Kind, loadSettings, MEMO_KIND, ProcessSettings, saveSettings, Settings, FilesSettings, STATUS_COLORS } from "./settingsStore";
+import { DEFAULT_SETTINGS, Kind, loadSettings, MEMO_KIND, ProcessSettings, saveSettings, Settings, FilesSettings, STATUS_COLORS } from "./settingsStore";
 import { aiGuide, phoneGuide } from "./process";
 import { isOn, MODULE_DESC, ModuleId, Modules, onScreens, SCREENS, firstOn } from "./screens";
 import { NavIcon, NavIconName } from "./Icons";
@@ -42,9 +42,6 @@ type Props = {
 
 /** 설정이 있는 모듈만 "모듈별 설정"에 카드를 둬요(사이드바 순서). 없는 모듈(집행현황·할 일·업무연락처)은 빼요 — 2026-10-18 사용자. */
 const SET_SCREENS = SCREENS.filter((sc) => (["explorer", "complaints", "process", "calendar", "journal"] as string[]).includes(sc.id));
-
-/** 지울 수 없는 상태예요. 마감 계산과 할 일 연동이 이것을 기준으로 해요. */
-export const KEEP_STATUS = DONE_STATUS;
 
 export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onModules, onClose }: Props) {
   const [s, setS] = useState<Settings | null>(null);
@@ -394,14 +391,6 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
             <FilesRows value={s.files} onChange={(files) => update({ ...s, files })} />
           ) : sc.id === "complaints" ? (
             <>
-              <ListGroup
-                title="상태"
-                desc="색은 자동으로 붙어요. 완료는 지울 수 없어요."
-                items={s.status}
-                keep={KEEP_STATUS}
-                colored
-                onChange={(status) => update({ ...s, status })}
-              />
               <ListGroup title="접수유형" items={s.intake} onChange={(intake) => update({ ...s, intake })} />
               <ListGroup title="민원유형" items={s.ctype} onChange={(ctype) => update({ ...s, ctype })} last />
             </>
