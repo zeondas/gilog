@@ -74,13 +74,13 @@ ONE = {
     "설정":     {"L": [["@title"]], "R": [["기본값으로 되돌리기"], ["@search"], ["설정 닫기"]], "S": "설정 검색"},
 }
 SIX = {  # 00:10 사용자: 왼쪽 요소는 모두 그대로, 입력창 단추 → 검색 → 엑셀, 세부사업 추가 → 사업 추가 · 프로젝트 관리 → 사업 관리
-    "민원대장": {"L": [], "R": [["배치최적화", "분류 관리", "@search", "엑셀"]], "orig": True, "keepSel": [".pchip"]},
+    "민원대장": {"L": [], "R": [["배치최적화", "분류 관리", "@search", "엑셀"]], "orig": True, "keepSel": [".pchip"], "mrBatch": 78.05},
     "민원처리": {"L": [], "R": [["공사 관리", "@search"]], "orig": True, "padR": 82.48, "keep": ["신문고 열기", "민원 불러오기"], "keepSel": ["h1.title"]},
     "업무연락처": {"L": [], "R": [["프로젝트 관리", "@search", "엑셀"]], "orig": True, "keepSel": ["h1.title"], "rename": {"프로젝트 관리": "사업 관리"}},
     # 00:18 사용자: 토글(집행액/시공량·요약/자세히, 원/천원)은 연도 옆으로
-    "집행현황": {"L": [], "R": [["배치최적화", "세부사업 추가", "@search", "엑셀"]], "orig": True, "keepSel": ["h1.title", ".bd-year", ".bd-unit"], "rename": {"세부사업 추가": "사업 추가"}, "afterYear": ["@unit:0", "@unit:1"]},
+    "집행현황": {"L": [], "R": [["@unit:0", "@unit:1", "배치최적화", "세부사업 추가", "@search", "엑셀"]], "orig": True, "keepSel": ["h1.title", ".bd-year"], "rename": {"세부사업 추가": "사업 추가"}, "mrBatch": 78.05},
     # 00:13 사용자: 집행현황과 자리 맞춤 — 배치최적화·요약/자세히(↔ 집행액/시공량, 칸 52)·원/천원 같은 x, 사업 추가 자리(78) 비움, 엑셀 74
-    "예산현황": {"L": [], "R": [["배치최적화", "@gap:78.05", "@search", "엑셀"]], "orig": True, "keepSel": ["h1.title", ".bd-year", ".bd-unit"], "unitMin": 52, "uw": 114.84, "w": {"엑셀": 74.48}, "afterYear": ["@unit:0", "@unit:1"]},
+    "예산현황": {"L": [], "R": [["@unit:0", "@unit:1", "배치최적화", "@gap:78.05", "@search", "엑셀"]], "orig": True, "keepSel": ["h1.title", ".bd-year"], "unitMin": 52, "uw": 114.84, "w": {"엑셀": 74.48}, "mrBatch": 78.05},
 }
 if P.get("six"):
     SPEC = SIX
@@ -134,9 +134,10 @@ const get=(name)=>{
  if(name==='@calmgr'){const b=all.find(el=>el.matches('.cal-manage')); if(!b) return null; b.style.visibility='hidden';
    const n=document.createElement('button'); n.type='button'; n.className='btn btn-ctrl btn-text'; n.textContent='종류 관리'; return n;}
  if(name.startsWith('@gap:')){const g=document.createElement('span'); g.style.cssText='display:inline-block;flex:none;width:'+name.split(':')[1]+'px'; return g;}
- if(name.startsWith('@unit:')){const u=segs[+name.split(':')[1]]; if(u){keepH(u); u.style.margin='0'; if(spec.unitMin&&name==='@unit:0') for(const b of u.querySelectorAll('button')) b.style.minWidth=spec.unitMin+'px'; if(spec.uw&&name==='@unit:0'){u.style.width=spec.uw+'px'; u.style.boxSizing='border-box';}} return u||null;}
+ if(name.startsWith('@unit:')){const u=segs[+name.split(':')[1]]; if(u){keepH(u); u.style.margin='0'; if(spec.unitMin&&name==='@unit:0') for(const b of u.querySelectorAll('button')) b.style.minWidth=spec.unitMin+'px'; if(spec.uw&&name==='@unit:0'){u.style.width=spec.uw+'px'; u.style.boxSizing='border-box';} if(spec.uw&&name==='@unit:0'){u.style.width=spec.uw+'px'; u.style.boxSizing='border-box';}} return u||null;}
  const bb=byText(name); if(bb&&spec.rename&&spec.rename[name]){const tn=[...bb.childNodes].reverse().find(n=>n.nodeType===3&&n.textContent.trim()); if(tn) tn.textContent=spec.rename[name]; else bb.textContent=spec.rename[name];}
  if(bb&&spec.w&&spec.w[name]) bb.style.width=spec.w[name]+'px';
+ if(bb&&name==='배치최적화'&&spec.mrBatch) bb.style.marginRight=spec.mrBatch+'px';
  return bb||null;};
 const miss=[];
 const zone=(names,cls)=>{const z=document.createElement('div'); z.className='z '+(cls||'');
