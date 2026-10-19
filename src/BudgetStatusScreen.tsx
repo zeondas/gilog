@@ -16,7 +16,7 @@ const ICON = (d: string, s = 14, w = 2) => (
 );
 const CD = "M6 9l6 6 6-6", CR = "M9 6l6 6-6 6", GEAR = "M4 6h16 M4 12h16 M4 18h16 M9 4v4 M15 10v4 M7 16v4", X = "M6 6l12 12M18 6L6 18";
 const KEY = (name: string) => "bstatus." + name;
-const UNIT_KEY = "bstatus.unit", VIEW_KEY = "bstatus.view";
+const UNIT_KEY = "bstatus.unit", VIEW_KEY = "bstatus.view", YEAR_KEY = "bstatus.year";
 
 type Col = { id: string; label: string; sub?: string; w: number; num?: boolean };
 // sub = 묶음 아래 열 이름(머리 두 줄). 고정 폭(끌 수 없음): 구분은 남는 폭, 집행률·메모
@@ -69,6 +69,8 @@ export default function BudgetStatusScreen() {
   const [setups, setSetups] = useState<Record<string, Setup>>({});
   const [unit, setUnit] = useState<Unit>(1);
   const [detail, setDetail] = useState(false);
+  // 보는 해(집행현황처럼 ◀ 2026년 ▶): 단년도 사업은 이 해 것만 한 줄, 다년도 사업은 기간에 이 해가 들면 모든 해를 펼쳐요(2026-10-19 사용자)
+  const [year, setYear] = useState(Number(todayStr().slice(0, 4)));
   const [q, setQ] = useState("");
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [openY, setOpenY] = useState<Record<string, boolean>>({});
@@ -117,6 +119,7 @@ export default function BudgetStatusScreen() {
     void load();
     api.get(UNIT_KEY).then((v) => setUnit(v === "1000" ? 1000 : 1), () => {});
     api.get(VIEW_KEY).then((v) => setDetail(v === "detail"), () => {});
+    api.get(YEAR_KEY).then((v) => { if (v && /^\d{4}$/.test(v)) setYear(Number(v)); }, () => {});
     api.get(COLS_KEY).then((v) => {
       if (!v) return;
       const o = JSON.parse(v) as { w?: Record<string, Record<string, number>> };
@@ -145,7 +148,18 @@ export default function BudgetStatusScreen() {
 
   const names = useMemo(() => projectNames(byYear).filter((p) => !p.carry), [byYear]);
   const carryNames = useMemo(() => projectNames(byYear).filter((p) => p.carry), [byYear]);
-  const shown = names.filter((p) => !q || p.name.includes(q));
+  const shown = names.filter((p) => {
+    if (q && !p.name.includes(q)) return false;
+    const s = setups[p.name];
+    if (!s) return false;
+    return s.multi ? s.from <= year && year <= s.to : p.years.includes(year);
+  });
+  const changeYear = (y: number) => {
+    setForm(null);
+    setPop(null);
+    setYear(y);
+    api.set(YEAR_KEY, String(y)).catch(() => {});
+  };
 
   const saveSetup = (name: string, s: Setup) => {
     setSetups((o) => ({ ...o, [name]: s }));
@@ -492,16 +506,33 @@ export default function BudgetStatusScreen() {
   for (const p of shown) {
     const s = setups[p.name];
     if (!s) continue;
-    const book = compute(p.name, s, byYear, p.years);
-    const isOpen = !!open[p.name];
+    const single = !s.multi;
+    const book = compute(p.name, s, byYear, single ? [year] : p.years);
+    const one = s.sources.length === 1;
+    const oneSrc = s.sources[0];
+    const yb = single ? book.years[0] : null;
+    const isOpen = single ? !one && openY[p.name + ":" + year] !== false : !!open[p.name];
     const srcLabel = s.multi ? `${String(s.from).slice(2)}~${String(s.to).slice(2)}` : "단년도"; // 연도만(재원은 설정 상자에서 — 2026-10-19 사용자: 자리가 빠듯)
+    const pjEditing = single && one && form && form.name === p.name && form.year === year && form.src === oneSrc ? form : null;
     rows.push(
-      <div key={p.name} className={"bd-rw pj" + (sel === p.name ? " sel" : "")} role="row" onClick={() => setSel(p.name)}>
+      <div
+        key={p.name}
+        ref={pjEditing ? formRow : undefined}
+        className={"bd-rw pj" + (sel === p.name ? " sel" : "") + (pjEditing ? " edit" : "")}
+        role="row"
+        onClick={() => setSel(p.name)}
+        onDoubleClick={single && one ? () => !pjEditing && startEdit(p.name, year, oneSrc) : undefined}
+        onKeyDown={pjEditing ? formKeys : undefined}
+      >
         <div className="bd-c" role="cell">
           {isOpen && <span className="bd-tl v1 dn1" />}
-          <button type="button" className="bd-cr" aria-label={isOpen ? "접기" : "펼치기"} onClick={(e) => { e.stopPropagation(); setOpen((o) => ({ ...o, [p.name]: !isOpen })); }}>
-            {ICON(isOpen ? CD : CR, 14, 2.2)}
-          </button>
+          {single && one ? (
+            <span className="bd-cr bs-noexp" aria-hidden="true" />
+          ) : (
+            <button type="button" className="bd-cr" aria-label={isOpen ? "접기" : "펼치기"} onClick={(e) => { e.stopPropagation(); single ? setOpenY((o) => ({ ...o, [p.name + ":" + year]: !isOpen })) : setOpen((o) => ({ ...o, [p.name]: !isOpen })); }}>
+              {ICON(isOpen ? CD : CR, 14, 2.2)}
+            </button>
+          )}
           <span className="bd-nm" title={p.name}>{p.name}</span>
           <span className="bs-years" title={`${s.multi ? `다년도 ${s.from}~${s.to}` : "단년도"} · 재원 ${s.sources.join("·")}`}>{srcLabel}</span>
           <button
@@ -519,11 +550,39 @@ export default function BudgetStatusScreen() {
             {ICON(GEAR, 12)}
           </button>
         </div>
-        {numCells(book.total, "pj", null)}
+        {single && one && yb ? numCells(yb.bySrc[oneSrc], "pj", pjEditing, year, true, yb.hasMain ? ["cur", "en"] : []) : numCells(book.total, "pj", null)}
         {memoCell}
       </div>,
     );
     if (!isOpen) continue;
+    if (single && yb) {
+      // 단년도 + 재원 여럿: 연도 줄 없이 재원 줄만
+      s.sources.forEach((src, si) => {
+        const l = yb.bySrc[src];
+        const last = si === s.sources.length - 1;
+        const editing = form && form.name === p.name && form.year === year && form.src === src ? form : null;
+        rows.push(
+          <div
+            key={p.name + ":" + src}
+            ref={editing ? formRow : undefined}
+            className={"bd-rw gun" + (si % 2 ? " alt" : "") + (editing ? " edit" : "")}
+            role="row"
+            onDoubleClick={() => !editing && startEdit(p.name, year, src)}
+            onKeyDown={editing ? formKeys : undefined}
+          >
+            <div className="bd-c" role="cell">
+              <span className={"bd-tl v1" + (last ? " half" : "")} />
+              <span className="bd-tl h1" />
+              <span className="bd-cr ind1 bs-noexp" aria-hidden="true" />
+              <span className="bd-nm">{src}</span>
+            </div>
+            {numCells(l, "gun", editing, year, true)}
+            {memoCell}
+          </div>,
+        );
+      });
+      continue;
+    }
     book.years.forEach((b, yi) => {
       const lastY = yi === book.years.length - 1;
       const yk = p.name + ":" + b.year;
@@ -599,6 +658,15 @@ export default function BudgetStatusScreen() {
     <div ref={rootRef} className={"bd bs" + (packed ? " bd-packed" : "")}>
       <div className="bd-top" style={packed ? { width: colSum + 1 } : undefined}>
         <h1 className="title">예산현황</h1>
+        <span className="bd-year">
+          <button type="button" aria-label="이전 해" onClick={() => changeYear(year - 1)}>
+            {ICON("M15 6l-6 6 6 6", 16, 2.2)}
+          </button>
+          <b>{year}년</b>
+          <button type="button" aria-label="다음 해" onClick={() => changeYear(year + 1)}>
+            {ICON("M9 6l6 6-6 6", 16, 2.2)}
+          </button>
+        </span>
         <span className="bd-sp" />
         <button type="button" className="btn btn-ctrl bd-tool" title="열 간격을 보이는 내용 폭에 맞춰요 · 열 제목 우클릭으로 처음대로" onClick={fitAll}>
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -643,7 +711,7 @@ export default function BudgetStatusScreen() {
           </div>
           <div className="bd-body" role="rowgroup">
             {rows}
-            {!rows.length && <div className="bd-empty"><p className="bd-empty-bs">집행현황에 세부사업이 없어요</p></div>}
+            {!rows.length && <div className="bd-empty"><p className="bd-empty-bs">{year}년에 보여 줄 세부사업이 없어요</p></div>}
           </div>
         </div>
       </div>
