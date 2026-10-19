@@ -59,6 +59,16 @@ pub struct Project {
     pub alias: String,
     /// 직접 고른 색 번호. 없으면 자동이에요.
     pub color: Option<i64>,
+    /// 그룹 번호. 없으면 "그룹 없음"이에요(2026-10-19 사용자).
+    pub group: Option<i64>,
+}
+
+/// 프로젝트 그룹. 순서(ord)대로 보여요.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectGroup {
+    pub id: i64,
+    pub name: String,
 }
 
 /// 업무연락처 화면이 한 번에 받는 자료예요.
@@ -67,6 +77,7 @@ pub struct Project {
 pub struct ContactsData {
     pub contacts: Vec<Contact>,
     pub projects: Vec<Project>,
+    pub groups: Vec<ProjectGroup>,
 }
 
 /// 프로젝트 색은 0~7 여덟 가지예요.
@@ -77,7 +88,13 @@ pub(crate) const SCHEMA: &str = "
         id    INTEGER PRIMARY KEY,
         name  TEXT NOT NULL UNIQUE,
         color INTEGER,
-        alias TEXT NOT NULL DEFAULT ''
+        alias TEXT NOT NULL DEFAULT '',
+        group_id INTEGER
+    );
+    CREATE TABLE IF NOT EXISTS project_groups (
+        id   INTEGER PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        ord  INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS contacts (
         id      INTEGER PRIMARY KEY,
@@ -104,6 +121,12 @@ pub(crate) fn upgrade(conn: &rusqlite::Connection) -> Result<()> {
         .exists([])?;
     if !has {
         conn.execute_batch("ALTER TABLE projects ADD COLUMN alias TEXT NOT NULL DEFAULT '';")?;
+    }
+    let has_group: bool = conn
+        .prepare("SELECT 1 FROM pragma_table_info('projects') WHERE name = 'group_id'")?
+        .exists([])?;
+    if !has_group {
+        conn.execute_batch("ALTER TABLE projects ADD COLUMN group_id INTEGER;")?;
     }
     Ok(())
 }
@@ -207,12 +230,17 @@ impl Store {
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
-        let mut stmt = self.conn.prepare("SELECT id, name, alias, color FROM projects ORDER BY id")?;
+        let mut stmt = self.conn.prepare("SELECT id, name, alias, color, group_id FROM projects ORDER BY id")?;
         let projects = stmt
-            .query_map([], |r| Ok(Project { id: r.get(0)?, name: r.get(1)?, alias: r.get(2)?, color: r.get(3)? }))?
+            .query_map([], |r| Ok(Project { id: r.get(0)?, name: r.get(1)?, alias: r.get(2)?, color: r.get(3)?, group: r.get(4)? }))?
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
-        Ok(ContactsData { contacts, projects })
+        let mut stmt = self.conn.prepare("SELECT id, name FROM project_groups ORDER BY ord, id")?;
+        let groups = stmt
+            .query_map([], |r| Ok(ProjectGroup { id: r.get(0)?, name: r.get(1)? }))?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        Ok(ContactsData { contacts, projects, groups })
     }
 
     /// 연락처를 등록하고 번호를 돌려줘요. 이름이 비어 있으면 등록하지 않아요.
@@ -346,6 +374,84 @@ impl Store {
         }
         let n = self.conn.execute("UPDATE projects SET color = ?2 WHERE id = ?1", params![id, color])?;
         if n == 0 {
+            return Err(Error::NotFound);
+        }
+        Ok(())
+    }
+
+    /// 그룹을 만들고 번호를 돌려줘요. 같은 이름이 있으면 그 번호예요.
+    pub fn add_group(&self, name: &str) -> Result<i64> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(Error::Invalid("그룹 이름이 비어 있어요".into()));
+        }
+        if let Some(id) = self
+            .conn
+            .query_row("SELECT id FROM project_groups WHERE name = ?1", params![name], |r| r.get::<_, i64>(0))
+            .optional()?
+        {
+            return Ok(id);
+        }
+        self.conn.execute(
+            "INSERT INTO project_groups (name, ord) VALUES (?1, (SELECT COALESCE(MAX(ord), 0) + 1 FROM project_groups))",
+            params![name],
+        )?;
+        Ok(self.conn.last_insert_rowid())
+    }
+
+    pub fn rename_group(&self, id: i64, name: &str) -> Result<()> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(Error::Invalid("그룹 이름이 비어 있어요".into()));
+        }
+        let taken = self
+            .conn
+            .prepare("SELECT 1 FROM project_groups WHERE name = ?1 AND id <> ?2")?
+            .exists(params![name, id])?;
+        if taken {
+            return Err(Error::Invalid("같은 이름의 그룹이 있어요".into()));
+        }
+        if self.conn.execute("UPDATE project_groups SET name = ?2 WHERE id = ?1", params![id, name])? == 0 {
+            return Err(Error::NotFound);
+        }
+        Ok(())
+    }
+
+    /// 그룹을 지워요. 그 안의 프로젝트는 "그룹 없음"으로 가요.
+    pub fn delete_group(&mut self, id: i64) -> Result<()> {
+        let tx = self.conn.transaction()?;
+        tx.execute("UPDATE projects SET group_id = NULL WHERE group_id = ?1", params![id])?;
+        tx.execute("DELETE FROM project_groups WHERE id = ?1", params![id])?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// 그룹을 한 칸 위(-1)·아래(+1)로 옮겨요.
+    pub fn move_group(&mut self, id: i64, dir: i64) -> Result<()> {
+        let ids: Vec<i64> = self
+            .conn
+            .prepare("SELECT id FROM project_groups ORDER BY ord, id")?
+            .query_map([], |r| r.get(0))?
+            .collect::<std::result::Result<_, _>>()?;
+        let Some(i) = ids.iter().position(|x| *x == id) else { return Err(Error::NotFound) };
+        let j = i as i64 + dir.signum();
+        if j < 0 || j as usize >= ids.len() {
+            return Ok(());
+        }
+        let mut ids = ids;
+        ids.swap(i, j as usize);
+        let tx = self.conn.transaction()?;
+        for (n, gid) in ids.iter().enumerate() {
+            tx.execute("UPDATE project_groups SET ord = ?2 WHERE id = ?1", params![gid, n as i64 + 1])?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// 프로젝트의 그룹을 이름으로 정해요. 빈 이름 = 그룹 없음, 없는 이름이면 그룹을 만들어요.
+    pub fn set_project_group(&self, id: i64, group: &str) -> Result<()> {
+        let gid = if group.trim().is_empty() { None } else { Some(self.add_group(group)?) };
+        if self.conn.execute("UPDATE projects SET group_id = ?2 WHERE id = ?1", params![id, gid])? == 0 {
             return Err(Error::NotFound);
         }
         Ok(())
@@ -517,6 +623,28 @@ mod tests {
         s.set_project_names(pid, full, "동부권").unwrap();
         let other = s.contacts_data().unwrap().projects.into_iter().find(|p| p.name == "포장").unwrap().id;
         assert_eq!(s.rename_project(other, "동부권").err().unwrap().code(), "invalid");
+    }
+
+    #[test]
+    fn project_groups() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut s = Store::create(tmp.path(), "abcd1234").unwrap();
+        let a = s.add_project("배수로").unwrap();
+        let b = s.add_project("도로표지").unwrap();
+        s.set_project_group(a, "연간단가").unwrap();
+        s.set_project_group(b, "안전시설").unwrap();
+        let d = s.contacts_data().unwrap();
+        assert_eq!(d.groups.iter().map(|g| g.name.as_str()).collect::<Vec<_>>(), ["연간단가", "안전시설"]);
+        let g2 = d.groups[1].id;
+        s.move_group(g2, -1).unwrap();
+        let d = s.contacts_data().unwrap();
+        assert_eq!(d.groups[0].id, g2);
+        s.delete_group(g2).unwrap();
+        let d = s.contacts_data().unwrap();
+        assert_eq!(d.groups.len(), 1);
+        assert_eq!(d.projects.iter().find(|p| p.id == b).unwrap().group, None);
+        s.set_project_group(a, "").unwrap();
+        assert_eq!(s.contacts_data().unwrap().projects.iter().find(|p| p.id == a).unwrap().group, None);
     }
 
     #[test]

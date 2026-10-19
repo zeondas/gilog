@@ -351,6 +351,46 @@ fn rename_project(state: State<AppState>, id: i64, name: String) -> Result<Conta
 }
 
 #[tauri::command]
+fn add_project_group(state: State<AppState>, name: String) -> Result<ContactsData, String> {
+    with_store(&state, |s| {
+        s.add_group(&name)?;
+        s.contacts_data()
+    })
+}
+
+#[tauri::command]
+fn rename_project_group(state: State<AppState>, id: i64, name: String) -> Result<ContactsData, String> {
+    with_store(&state, |s| {
+        s.rename_group(id, &name)?;
+        s.contacts_data()
+    })
+}
+
+#[tauri::command]
+fn delete_project_group(state: State<AppState>, id: i64) -> Result<ContactsData, String> {
+    with_store(&state, |s| {
+        s.delete_group(id)?;
+        s.contacts_data()
+    })
+}
+
+#[tauri::command]
+fn move_project_group(state: State<AppState>, id: i64, dir: i64) -> Result<ContactsData, String> {
+    with_store(&state, |s| {
+        s.move_group(id, dir)?;
+        s.contacts_data()
+    })
+}
+
+#[tauri::command]
+fn set_project_group(state: State<AppState>, id: i64, group: String) -> Result<ContactsData, String> {
+    with_store(&state, |s| {
+        s.set_project_group(id, &group)?;
+        s.contacts_data()
+    })
+}
+
+#[tauri::command]
 fn set_project_color(state: State<AppState>, id: i64, color: Option<i64>) -> Result<ContactsData, String> {
     with_store(&state, |s| {
         s.set_project_color(id, color)?;
@@ -620,6 +660,11 @@ pub fn run() {
             rename_project,
             set_project_names,
             set_project_color,
+            add_project_group,
+            rename_project_group,
+            delete_project_group,
+            move_project_group,
+            set_project_group,
             delete_project,
             journal_data,
             add_journal_entry,

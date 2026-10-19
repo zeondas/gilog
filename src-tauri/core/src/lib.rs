@@ -28,7 +28,7 @@ pub use address::{road_to_jibun, RoadHit, RoadLookup};
 pub use budget::{BudgetImportItem, BudgetImportProject, BudgetImportRow, BudgetItem, BudgetLevel, BudgetProject, BudgetRow, BudgetRowInput, BUDGET_KINDS, BUDGET_STAGES};
 pub use calendar::{CalKind, CalendarData, Event, EventInput, Holiday, BUILTIN_HOLIDAYS, KIND_COLORS, REMIND_MAX, SYSTEM_KINDS};
 pub use complaints::{Complaint, ComplaintImport, ComplaintInput, DEFAULT_STATUS};
-pub use contacts::{Contact, ContactImport, ContactInput, ContactsData, Project, PROJECT_COLORS};
+pub use contacts::{Contact, ContactImport, ContactInput, ContactsData, Project, ProjectGroup, PROJECT_COLORS};
 pub use journal::{DayInfo, Entry, EntryInput, JournalData, JournalLine};
 pub use order::{fill_order, image_size, OrderFill, OrderKind, OrderReport};
 pub use standard::{fill_standard, korean_date, StdItem, STANDARD_TEMPLATE};

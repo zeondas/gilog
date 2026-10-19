@@ -100,7 +100,7 @@ export default function JournalScreen({
   onOpenTask?: (id: number) => void;
 }) {
   const [data, setData] = useState<JournalData | null>(null);
-  const [cdata, setCdata] = useState<ContactsData>({ contacts: [], projects: [] });
+  const [cdata, setCdata] = useState<ContactsData>({ contacts: [], projects: [], groups: [] });
   const [myName, setMyName] = useState(DEFAULT_SETTINGS.myName);
   const [kinds, setKinds] = useState<Kind[]>(DEFAULT_SETTINGS.kinds);
   const [today, setToday] = useState(todayStr());

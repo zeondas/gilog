@@ -107,9 +107,10 @@ export type Contact = Omit<ContactInput, "projects"> & {
 
 /** color가 null이면 자동 색이에요. */
 /** name = 정식 이름(문서용, 줄인 이름만 적었으면 줄인 이름), alias = 줄인 이름(관리용, 없으면 ""). */
-export type Project = { id: number; name: string; alias: string; color: number | null };
+export type Project = { id: number; name: string; alias: string; color: number | null; group: number | null };
+export type ProjectGroup = { id: number; name: string };
 
-export type ContactsData = { contacts: Contact[]; projects: Project[] };
+export type ContactsData = { contacts: Contact[]; projects: Project[]; groups: ProjectGroup[] };
 
 // ---------- 업무일지 ----------
 
@@ -351,6 +352,8 @@ const fake = {
   prefs: { ...DEFAULT_PREFS },
   contacts: [] as Contact[],
   projects: [] as Project[],
+  groups: [] as ProjectGroup[],
+  nextGroupId: 1,
   nextId: 1,
   nextProjectId: 1,
   days: [] as DayInfo[],
@@ -791,15 +794,26 @@ function fakeJournal(cmd: string, a: Record<string, unknown>): unknown {
 }
 
 // 브라우저 미리 보기용 연락처 흉내예요. 저장 쪽(core/contacts.rs)과 같은 규칙을 따라요.
+function fakeGroup(name: string): number {
+  const n = name.trim();
+  if (!n) throw "invalid";
+  const g = fake.groups.find((x) => x.name === n);
+  if (g) return g.id;
+  const id = fake.nextGroupId++;
+  fake.groups.push({ id, name: n });
+  return id;
+}
+
 function fakeContacts(cmd: string, a: Record<string, unknown>): ContactsData | null {
   const data = (): ContactsData => ({
     contacts: [...fake.contacts].sort((x, y) => y.id - x.id).map((c) => ({ ...c, projects: [...c.projects] })),
     projects: fake.projects.map((p) => ({ ...p })),
+    groups: fake.groups.map((g) => ({ ...g })),
   });
   const projectId = (name: string) => {
     const found = fake.projects.find((p) => p.name === name) ?? fake.projects.find((p) => p.alias === name);
     if (found) return found.id;
-    const p = { id: fake.nextProjectId++, name, alias: "", color: null };
+    const p = { id: fake.nextProjectId++, name, alias: "", color: null, group: null };
     fake.projects.push(p);
     return p.id;
   };
@@ -876,6 +890,34 @@ function fakeContacts(cmd: string, a: Record<string, unknown>): ContactsData | n
       if (taken(name) || taken(alias)) throw "invalid";
       p.name = name;
       p.alias = alias;
+      return data();
+    }
+    case "add_project_group":
+      fakeGroup(a.name as string);
+      return data();
+    case "rename_project_group": {
+      const g = fake.groups.find((x) => x.id === a.id);
+      const name = (a.name as string).trim();
+      if (!g) throw "not_found";
+      if (!name || fake.groups.some((x) => x.id !== a.id && x.name === name)) throw "invalid";
+      g.name = name;
+      return data();
+    }
+    case "delete_project_group":
+      fake.projects.forEach((p) => p.group === a.id && (p.group = null));
+      fake.groups = fake.groups.filter((g) => g.id !== a.id);
+      return data();
+    case "move_project_group": {
+      const i = fake.groups.findIndex((g) => g.id === a.id);
+      const j = i + Math.sign(a.dir as number);
+      if (i >= 0 && j >= 0 && j < fake.groups.length) [fake.groups[i], fake.groups[j]] = [fake.groups[j], fake.groups[i]];
+      return data();
+    }
+    case "set_project_group": {
+      const p = fake.projects.find((x) => x.id === a.id);
+      if (!p) throw "not_found";
+      const name = (a.group as string).trim();
+      p.group = name ? fakeGroup(name) : null;
       return data();
     }
     case "set_project_color": {
@@ -1261,6 +1303,11 @@ export const api = {
   renameProject: (id: number, name: string) => call<ContactsData>("rename_project", { id, name }),
   /** 정식 이름·줄인 이름을 함께 정해요. 둘 중 하나만 있어도 돼요. */
   setProjectNames: (id: number, name: string, alias: string) => call<ContactsData>("set_project_names", { id, name, alias }),
+  addProjectGroup: (name: string) => call<ContactsData>("add_project_group", { name }),
+  renameProjectGroup: (id: number, name: string) => call<ContactsData>("rename_project_group", { id, name }),
+  deleteProjectGroup: (id: number) => call<ContactsData>("delete_project_group", { id }),
+  moveProjectGroup: (id: number, dir: number) => call<ContactsData>("move_project_group", { id, dir }),
+  setProjectGroup: (id: number, group: string) => call<ContactsData>("set_project_group", { id, group }),
   setProjectColor: (id: number, color: number | null) => call<ContactsData>("set_project_color", { id, color }),
   deleteProject: (id: number) => call<ContactsData>("delete_project", { id }),
 

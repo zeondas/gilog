@@ -10334,7 +10334,7 @@ select.input.fx-set-date { width: 190px; }
 
 .pjm-add {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 220px auto;
+  grid-template-columns: 160px minmax(0, 1fr) 220px auto;
   gap: var(--space-2);
   padding: 0 20px var(--space-3);
 }
@@ -10510,4 +10510,133 @@ body.ew-dragging,
 body.ew-dragging * {
   cursor: ew-resize !important;
   user-select: none;
+}
+
+/* ---------- 프로젝트 그룹 (2026-10-19 사용자 1안, 시안 ProjectGroups) ---------- */
+.grp-arrow {
+  flex: none;
+  color: var(--muted);
+}
+
+.ct-grp-h {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 28px;
+  margin-top: 2px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.ct-grp-h:hover {
+  background: var(--surface-band);
+  color: var(--ink);
+}
+
+.ct-grp .ct-pj {
+  padding-left: 24px;
+}
+
+.ct-pj-z:not([aria-pressed="true"]) {
+  color: var(--muted);
+}
+
+.ct-pj-z:not([aria-pressed="true"]) .ct-pj-dot {
+  opacity: 0.5;
+}
+
+.pjm-grp-h {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 4px;
+  border-bottom: 1px solid var(--line-row);
+}
+
+.pjm-grp-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+}
+
+.pjm-grp-name {
+  font-weight: 700;
+}
+
+.pjm-grp-in {
+  width: 260px;
+  margin: 2px 0;
+}
+
+.pjm-grp .pjm-row {
+  padding-left: 20px;
+}
+
+.pjm-grp-empty {
+  margin: 0;
+  padding: 6px 4px 6px 20px;
+  border-bottom: 1px solid var(--line-row);
+}
+
+.pjm-edit-g .mgr-names {
+  grid-template-columns: 150px minmax(0, 1fr) 220px;
+}
+
+.grp-in .input {
+  width: 100%;
+}
+
+.grp-in .input.grp-new {
+  border-style: dashed;
+  border-color: var(--accent);
+}
+
+.pin-opt.grp-none {
+  color: var(--muted);
+}
+
+.pin-grp {
+  padding: 6px 6px 2px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* 연락처 고치는 카드 프로젝트 칸: 붙은 배지 줄 / 찾는 칸 나누기(1안) */
+.pin-stacked {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pchips-got {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.pchips-find {
+  flex-wrap: nowrap;
+  padding: 2px 6px;
+}
+
+.pchips-plus {
+  flex: none;
+  color: var(--accent);
+  font-weight: 700;
 }
