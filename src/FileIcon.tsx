@@ -4,14 +4,14 @@ import { useEffect, useState } from "react";
 import { extOf } from "./files";
 import { fsApi } from "./filesApi";
 
-/** .exe·.lnk·.ico는 파일마다 아이콘이 달라 경로로 받아요. */
-const PER_FILE = new Set(["exe", "lnk", "ico", "url"]);
-
 export const iconKey = (name: string, path: string, dir: boolean) => {
-  // 드라이브(C:\)는 윈도우가 그 드라이브 아이콘을 줘요(내 PC 목록·트리)
-  if (dir) return /^[A-Za-z]:\\$/.test(path) ? path : "<dir>";
+  // 파일·폴더 모두 실제 경로로 받아요 — 윈도우 탐색기처럼 그 파일에 붙은 아이콘(한컴·보안 자물쇠·특수 폴더·
+  // 바로가기 화살표)이 나와요. 같은 모양은 Rust가 한 번만 그려 나눠 써요(2026-10-19).
+  // 경로가 없을 때(브라우저 미리 보기)만 확장자·<dir>로 떨어져 자리 표시 아이콘을 받게 해요.
+  if (path) return path;
+  if (dir) return "<dir>";
   const e = extOf(name);
-  return PER_FILE.has(e) ? path : "." + (e || "_");
+  return "." + (e || "_");
 };
 
 const cache = new Map<string, string>();
