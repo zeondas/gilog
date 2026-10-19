@@ -2,7 +2,7 @@
 import type { CalEvent, CalKind, Complaint, Holiday, Repeat, Task } from "./api";
 import { normTime, todayStr } from "./journal";
 import { complaintTitle } from "./tasks";
-import { DONE_STATUS } from "./settingsStore";
+import { isAnswered } from "./settingsStore";
 
 // ---------- 색 ----------
 
@@ -213,7 +213,7 @@ export function expand(src: Source, from: string, to: string): Occ[] {
   if (ck) {
     for (const c of src.complaints) {
       if (!c.due || c.due < from || c.due > to) continue;
-      out.push(derived("c" + c.id, complaintTitle(c), c.due, ck, col(ck), c.status === DONE_STATUS, c.place, { complaint: c }));
+      out.push(derived("c" + c.id, complaintTitle(c), c.due, ck, col(ck), isAnswered(c.status), c.place, { complaint: c }));
     }
   }
   const tk = sys("task");
