@@ -1,4 +1,4 @@
-// "엑셀 ▾" 단추 하나(가져오기·내보내기) — 민원대장·업무연락처가 같이 써요(2026-10-17 사용자, 시안 ExcelImport.dc.html).
+// "엑셀 ▾" 단추 하나(가져오기·내보내기) — 민원대장·업무연락처·업무일지가 같이 써요(2026-10-17 사용자, 시안 ExcelImport.dc.html).
 // 경로는 윈도우 열기·다른 이름으로 저장 창에서 정해요. 창은 마지막에 쓴 폴더에서 열려요(처음엔 문서).
 // 가져오기는 판단하지 않아요: 파일을 고르면 "○○ N건을 가져올까요?" 한 번 묻고, 끝나면 "N건을 가져왔어요".
 import { useEffect, useRef, useState } from "react";
@@ -53,6 +53,9 @@ export function ExcelMenu<T>({
   build,
   parse,
   onImport,
+  importHint = "양식 파일의 모든 줄을 그대로 넣어요",
+  note,
+  count = (rows) => rows.length,
 }: {
   kind: SheetKind;
   /** 내보낼 건수(메뉴 설명 줄) */
@@ -63,9 +66,15 @@ export function ExcelMenu<T>({
   parse: (s: ExcelSheet) => T[];
   /** 넣고 넣은 수를 돌려줘요 */
   onImport: (rows: T[]) => Promise<number>;
+  /** 메뉴 "가져오기" 설명 줄(업무일지는 겹친 기록을 건너뛰어요) */
+  importHint?: string;
+  /** 묻는 창 제목 아래 한 줄(건너뛰는 줄 수 등). 읽은 시트를 받아요. */
+  note?: (s: ExcelSheet) => string;
+  /** 넣을 건수(업무일지는 묶음 하나에 기록 여러 건) */
+  count?: (rows: T[]) => number;
 }) {
   const [open, setOpen] = useState(false);
-  const [ask, setAsk] = useState<{ path: string; rows: T[] } | null>(null);
+  const [ask, setAsk] = useState<{ path: string; rows: T[]; note: string } | null>(null);
   const [toast, setToast] = useState("");
   const [busy, setBusy] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
@@ -129,7 +138,7 @@ export function ExcelMenu<T>({
     try {
       const sheet = await api.excelRead(path, kind);
       remember(path);
-      setAsk({ path, rows: parse(sheet) });
+      setAsk({ path, rows: parse(sheet), note: note ? note(sheet) : "" });
     } catch (e) {
       setToast(e === "invalid" ? `${title} 양식이 아니에요` : e === "io" ? "파일을 열지 못했어요." : errorText(e));
     }
@@ -162,7 +171,7 @@ export function ExcelMenu<T>({
         <div className="xl-menu" role="menu">
           <button type="button" role="menuitem" className="xl-item" onClick={startImport}>
             <span className="xl-item-t">가져오기</span>
-            <span className="xl-item-s">양식 파일의 모든 줄을 그대로 넣어요</span>
+            <span className="xl-item-s">{importHint}</span>
           </button>
           <button type="button" role="menuitem" className="xl-item" onClick={doExport}>
             <span className="xl-item-t">내보내기</span>
@@ -175,14 +184,15 @@ export function ExcelMenu<T>({
         <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && setAsk(null)}>
           <div className="dialog xl-ask" role="dialog" aria-modal="true" aria-label="엑셀 가져오기">
             <div className="xl-ask-body">
-              <h2 className="xl-ask-title">{ask.rows.length ? `${title} ${ask.rows.length}건을 가져올까요?` : "가져올 줄이 없어요"}</h2>
+              <h2 className="xl-ask-title">{count(ask.rows) ? `${title} ${count(ask.rows)}건을 가져올까요?` : "가져올 줄이 없어요"}</h2>
+              {ask.note && <div className="xl-ask-note">{ask.note}</div>}
               <div className="xl-ask-path">{ask.path}</div>
             </div>
             <div className="xl-ask-foot">
               <button type="button" className="btn btn-ctrl btn-text" onClick={() => setAsk(null)}>
                 취소
               </button>
-              {ask.rows.length > 0 && (
+              {count(ask.rows) > 0 && (
                 <button type="button" className="btn-primary btn-ctrl" autoFocus disabled={busy} onClick={doImport}>
                   가져오기
                 </button>
