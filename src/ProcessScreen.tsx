@@ -1053,8 +1053,8 @@ function Floating({ rect, align, onClose, children }: { rect: DOMRect; align: "l
 
 // ---------- 공사 관리 창 ----------
 
-type Draft = { name: string; full: string; co: string; contact: number | null; agent: string; phone: string; scope: string; nextSeq: string };
-const EMPTY_DRAFT: Draft = { name: "", full: "", co: "", contact: null, agent: "", phone: "", scope: "", nextSeq: "1" };
+type Draft = { name: string; full: string; project: number | null; co: string; contact: number | null; agent: string; phone: string; scope: string; nextSeq: string };
+const EMPTY_DRAFT: Draft = { name: "", full: "", project: null, co: "", contact: null, agent: "", phone: "", scope: "", nextSeq: "1" };
 
 function WorksDialog({
   works,
@@ -1094,7 +1094,7 @@ function WorksDialog({
   /** 연락처를 잇고(없으면 새로 등록), 공사명 프로젝트를 붙여요. 돌려주는 것: [연락처 번호, 프로젝트 번호, 새 자료] */
   async function link(d: Draft, oldProject: number | null): Promise<[number | null, number | null, ContactsData]> {
     let data = cd;
-    let projectId = oldProject;
+    let projectId = d.project ?? oldProject;
     const name = d.name.trim();
     const full = d.full.trim();
     // 공사명 = 업무연락처 프로젝트: 정식 공사명이 프로젝트 정식 이름, 축약 공사명이 줄인 이름(바꾸면 따라가요)
@@ -1139,13 +1139,14 @@ function WorksDialog({
 
   async function add() {
     setErr("");
-    if (!draft.name.trim()) {
-      setErr("축약 공사명을 적어요");
+    const d = draft.name.trim() ? draft : { ...draft, name: draft.full.trim() };
+    if (!d.name.trim()) {
+      setErr("공사명을 적거나 업무연락처에서 골라요");
       return;
     }
     try {
-      const [contact, project] = await link(draft, null);
-      await onSave(null, { name: draft.name.trim(), full: draft.full.trim(), co: draft.co.trim(), contact, project, scope: draft.scope.trim(), nextSeq: Math.max(1, Number(draft.nextSeq) || 1), tpl: "" });
+      const [contact, project] = await link(d, null);
+      await onSave(null, { name: d.name.trim(), full: d.full.trim(), co: d.co.trim(), contact, project, scope: d.scope.trim(), nextSeq: Math.max(1, Number(d.nextSeq) || 1), tpl: "" });
       setDraft(EMPTY_DRAFT);
     } catch (e) {
       setErr(errorText(e));
@@ -1154,7 +1155,7 @@ function WorksDialog({
 
   function startEdit(w: Work) {
     const c = contactOf(w.contact);
-    setEdit({ name: w.name, full: w.full, co: w.co, contact: w.contact, agent: c?.name ?? "", phone: phoneOf(c), scope: w.scope, nextSeq: String(w.nextSeq) });
+    setEdit({ name: w.name, full: w.full, project: w.project, co: w.co, contact: w.contact, agent: c?.name ?? "", phone: phoneOf(c), scope: w.scope, nextSeq: String(w.nextSeq) });
     setEditing(w.id);
     setSelW(w.id);
   }
@@ -1193,8 +1194,8 @@ function WorksDialog({
           <span className="pr-sub">계약된 공사와 시공사예요. 민원을 어느 공사로 보낼지 여기 처리 범위를 보고 판단해요.</span>
         </div>
         <div className="pr-wgrid pr-whead">
+          <span>공사명 (지시부 · 업무연락처에서 고르기)</span>
           <span>축약 공사명 (표·파일)</span>
-          <span>정식 공사명 (지시부)</span>
           <span>시공사</span>
           <span>현장대리인 (업무연락처)</span>
           <span>처리 범위 (판단 기준)</span>
@@ -1208,8 +1209,8 @@ function WorksDialog({
             if (editing === w.id) {
               return (
                 <div key={w.id} ref={editRef} className="pr-wgrid pr-wrow pr-wedit" onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing && (e.target as HTMLElement).tagName === "INPUT" && !document.querySelector(".pr-cmenu")) saveEdit(); }}>
+                  <ProjectPick d={edit} cd={cd} onChange={setEdit} />
                   <input className="cell-input" aria-label="축약 공사명" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} />
-                  <input className="cell-input" aria-label="정식 공사명" value={edit.full} onChange={(e) => setEdit({ ...edit, full: e.target.value })} />
                   <input className="cell-input" aria-label="시공사" value={edit.co} onChange={(e) => setEdit({ ...edit, co: e.target.value })} />
                   <AgentInputs d={edit} contacts={cd.contacts} onChange={setEdit} />
                   <input className="cell-input" aria-label="처리 범위" value={edit.scope} onChange={(e) => setEdit({ ...edit, scope: e.target.value })} />
@@ -1229,13 +1230,11 @@ function WorksDialog({
                 onClick={() => setSelW(w.id)}
                 onDoubleClick={() => startEdit(w)}
               >
-                <span className="pr-wname">
+                <span className="pr-wname" title={w.full || w.name}>
                   <span className="pr-dot" style={{ background: `var(--pj-${k}-line)` }} />
-                  <span>{w.name}</span>
+                  <span className="pr-ell">{w.full || w.name}</span>
                 </span>
-                <span className="pr-ell" title={w.full || undefined}>
-                  {w.full || <span className="pr-sub">축약 공사명과 같음</span>}
-                </span>
+                <span className="pr-ell">{w.full && w.full !== w.name ? w.name : <span className="pr-sub">—</span>}</span>
                 <span className="pr-ell">{w.co}</span>
                 <span className="pr-agent" title="업무연락처와 같은 연락처예요. 어느 쪽에서 고쳐도 함께 바뀌어요">
                   {c ? (
@@ -1264,8 +1263,8 @@ function WorksDialog({
             );
           })}
           <div className="pr-wgrid pr-wrow pr-wnew">
+            <ProjectPick d={draft} cd={cd} onChange={setDraft} placeholder="업무연락처 프로젝트 찾기" />
             <input className="cell-input" placeholder="예: 동부권 도로시설물 1지구" aria-label="새 축약 공사명" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
-            <input className="cell-input" placeholder="계약서의 공사명" aria-label="새 정식 공사명" value={draft.full} onChange={(e) => setDraft({ ...draft, full: e.target.value })} />
             <input className="cell-input" placeholder="시공사" aria-label="새 시공사" value={draft.co} onChange={(e) => setDraft({ ...draft, co: e.target.value })} />
             <AgentInputs d={draft} contacts={cd.contacts} onChange={setDraft} />
             <input className="cell-input" placeholder="예: 반사경, 시선유도봉, 작은 포트홀" aria-label="새 처리 범위" value={draft.scope} onChange={(e) => setDraft({ ...draft, scope: e.target.value })} />
@@ -1279,7 +1278,7 @@ function WorksDialog({
         </div>
         <div className="pr-hints">
           {err && <span className="pr-err">{err}</span>}
-          <span>현장대리인은 업무연락처에서 골라요(어느 쪽에서 고쳐도 함께 바뀌어요). 공사명은 업무연락처 프로젝트로도 등록되고 현장대리인에게 붙어요. 줄을 두 번 누르면 고치고 [저장]·Enter로 저장해요(Esc 취소).</span>
+          <span>공사명 칸에 치면 업무연락처 프로젝트가 떠요. 고르면 축약 공사명·시공사·현장대리인을 업무연락처에서 채워요(목록에 없으면 새 프로젝트로 등록돼요). 현장대리인은 업무연락처와 같은 연락처예요(어느 쪽에서 고쳐도 함께 바뀌어요). 줄을 두 번 누르면 고치고 [저장]·Enter로 저장해요(Esc 취소).</span>
           <span>지시부는 모든 공사가 표준 양식 하나를 써요(설정 “민원처리”). 정식 공사명은 지시부 맨 위, 축약 공사명은 표의 공사 배지·지시부 번호·파일 이름에 들어가요.</span>
         </div>
         <div className="dialog-foot">
@@ -1316,6 +1315,80 @@ function WorksDialog({
         </Floating>
       )}
     </div>
+  );
+}
+
+/** 이 프로젝트의 현장대리인: 업무연락처에서 그 프로젝트가 붙은 사람 중 직위가 "현장대리인"인 사람, 없으면 한 사람뿐일 때 그 사람 */
+function agentOf(projectId: number, contacts: Contact[]): Contact | undefined {
+  const on = contacts.filter((c) => c.projects.includes(projectId));
+  return on.find((c) => c.role.includes("현장대리인")) ?? (on.length === 1 ? on[0] : undefined);
+}
+
+/** 공사명: 업무연락처 프로젝트를 전체·축약 공사명(초성도)으로 찾아 골라요. 고르면 축약 공사명·시공사·현장대리인을 채워요(2026-10-19 사용자). */
+function ProjectPick({ d, cd, onChange, placeholder }: { d: Draft; cd: ContactsData; onChange: (d: Draft) => void; placeholder?: string }) {
+  const [openList, setOpenList] = useState<DOMRect | null>(null);
+  const [hi, setHi] = useState(0);
+  const q = d.full.trim();
+  const cands = (q ? cd.projects.filter((p) => koIndex(p.name, q) >= 0 || koIndex(p.alias, q) >= 0) : cd.projects).slice(0, 8);
+  const exact = cd.projects.some((p) => p.name === q || p.alias === q);
+  const n = cands.length + (q && !exact ? 1 : 0);
+  const choose = (p: (typeof cd.projects)[number] | null) => {
+    setOpenList(null);
+    if (!p) return onChange({ ...d, project: null });
+    const a = agentOf(p.id, cd.contacts);
+    onChange({
+      ...d,
+      project: p.id,
+      full: p.name,
+      name: p.alias || p.name,
+      ...(a ? { contact: a.id, agent: a.name, phone: phoneOf(a), co: a.org || d.co } : {}),
+    });
+  };
+  return (
+    <span className="pr-agent-in">
+      <input
+        className="cell-input"
+        aria-label="공사명"
+        placeholder={placeholder}
+        value={d.full}
+        onFocus={(e) => setOpenList(e.currentTarget.getBoundingClientRect())}
+        onChange={(e) => {
+          onChange({ ...d, full: e.target.value, project: null });
+          setHi(0);
+          setOpenList(e.currentTarget.getBoundingClientRect());
+        }}
+        onKeyDown={(e) => {
+          if (!openList || e.nativeEvent.isComposing || n === 0) return;
+          if (e.key === "ArrowDown") (e.preventDefault(), setHi((hi + 1) % n));
+          if (e.key === "ArrowUp") (e.preventDefault(), setHi((hi - 1 + n) % n));
+          if (e.key === "Enter" || e.key === "Tab") choose(hi < cands.length ? cands[hi] : null);
+          if (e.key === "Escape") (e.stopPropagation(), setOpenList(null));
+        }}
+      />
+      {openList && n > 0 && (
+        <Floating rect={openList} align="left" onClose={() => setOpenList(null)}>
+          <div className="pr-menu pr-cmenu pr-pmenu" role="listbox" aria-label="업무연락처 프로젝트">
+            {cands.map((p, i) => {
+              const a = agentOf(p.id, cd.contacts);
+              return (
+                <button key={p.id} type="button" role="option" aria-selected={i === hi} className="pr-copt pr-popt" onMouseDown={(e) => e.preventDefault()} onClick={() => choose(p)}>
+                  <span className="pr-dot" style={{ background: `var(--pj-${projectColor(p)}-line)` }} />
+                  <span className="pr-popt-t">
+                    <span className="pr-ell">{p.name}</span>
+                    <span className="pr-sub pr-ell">{[p.alias, a && `${a.name}${a.org ? ` · ${a.org}` : ""}`].filter(Boolean).join(" · ") || "현장대리인 없음"}</span>
+                  </span>
+                </button>
+              );
+            })}
+            {q && !exact && (
+              <button type="button" role="option" aria-selected={hi === cands.length} className="pr-copt pr-new" onMouseDown={(e) => e.preventDefault()} onClick={() => choose(null)}>
+                ＋ "{q}" 새 프로젝트로 추가
+              </button>
+            )}
+          </div>
+        </Floating>
+      )}
+    </span>
   );
 }
 

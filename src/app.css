@@ -7337,7 +7337,7 @@ body.col-dragging * {
 
 .pr-wgrid {
   display: grid;
-  grid-template-columns: 170px minmax(0, 1.2fr) 130px 170px minmax(0, 1fr) 76px 52px;
+  grid-template-columns: minmax(0, 1.3fr) 170px 130px 170px minmax(0, 1fr) 76px 52px;
   gap: var(--space-2);
   align-items: center;
   padding: 0 20px;
@@ -7501,6 +7501,25 @@ body.col-dragging * {
 
 .pr-cmenu {
   width: 320px;
+}
+
+.pr-cmenu.pr-pmenu {
+  width: 420px;
+}
+
+.pr-popt {
+  height: auto;
+  min-height: 44px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.pr-popt-t {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  text-align: left;
 }
 
 .pr-copt-name {
