@@ -10006,3 +10006,10 @@ select.input.fx-set-date { width: 190px; }
   min-width: 0;
   margin-right: var(--space-2);
 }
+
+/* 민원대장: 답변 끝난 민원(답변·완료·보류·장기)의 법정 답변기한 — 날짜는 남기고 가운데 줄 (2026-10-19 사용자 1안) */
+.cm-due-done {
+  color: var(--muted);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}

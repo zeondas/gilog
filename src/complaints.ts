@@ -3,7 +3,7 @@ import type { Complaint } from "./api";
 import { plainOf } from "./bullets";
 import { parseMemo } from "./ContactsScreen";
 import { initials, isChosung, koIndex, splitJamo } from "./journal";
-import { DONE_STATUS } from "./settingsStore";
+import { isAnswered } from "./settingsStore";
 
 /** 2026-10-15 두 날짜 사이의 날 수 (to - from) */
 export function daysBetween(from: string, to: string): number {
@@ -16,7 +16,7 @@ export function daysBetween(from: string, to: string): number {
 
 /** 남은 날. 마감이 없거나 완료면 null이에요. */
 export function daysLeft(c: Pick<Complaint, "due" | "status">, today: string): number | null {
-  if (!c.due || c.status === DONE_STATUS) return null;
+  if (!c.due || isAnswered(c.status)) return null;
   return daysBetween(today, c.due);
 }
 
@@ -28,7 +28,7 @@ export function ddayText(n: number): string {
 /** 임박(설정의 기준 안이거나 지났음)인지 */
 export const isUrgent = (n: number, urgentDays: number) => n <= urgentDays;
 
-/** 업무일지 "챙길 일": 마감이 within일 안이거나 지난, 완료가 아닌 민원. 마감이 빠른 것이 위예요. */
+/** 업무일지 "챙길 일": 마감이 within일 안이거나 지난, 아직 답변하지 않은(접수·진행 등) 민원. 마감이 빠른 것이 위예요. */
 export function dueSoon(list: Complaint[], today: string, within = 7): Complaint[] {
   return list
     .filter((c) => {
