@@ -19,17 +19,19 @@ use windows::Win32::Graphics::Gdi::{
 };
 use windows::Win32::Storage::FileSystem::{
     GetDiskFreeSpaceExW, GetDriveTypeW, GetLogicalDrives, GetVolumeInformationW, FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_NORMAL,
+    FILE_FLAGS_AND_ATTRIBUTES,
 };
 use windows::Win32::System::Com::{CoInitializeEx, COINIT_APARTMENTTHREADED};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetKeyState, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, VK_APPS, VK_SHIFT,
 };
+use windows::Win32::UI::Controls::{IImageList, ILD_TRANSPARENT};
 use windows::Win32::UI::Shell::Common::ITEMIDLIST;
 use windows::Win32::UI::Shell::{
     DefSubclassProc, ILFree, IContextMenu, IContextMenu2, IContextMenu3, IShellFolder, RemoveWindowSubclass, SHBindToObject,
-    SHGetFileInfoW, SHOpenFolderAndSelectItems, SHParseDisplayName, SetWindowSubclass, ShellExecuteW, CMF_EXPLORE, CMF_EXTENDEDVERBS, CMF_NORMAL, CMIC_MASK_PTINVOKE,
-    CMINVOKECOMMANDINFO, CMINVOKECOMMANDINFOEX, GCS_VERBW, SHFILEINFOW, SHGFI_ICON, SHGFI_LARGEICON, SHGFI_SMALLICON,
-    SHGFI_TYPENAME, SHGFI_USEFILEATTRIBUTES,
+    SHGetFileInfoW, SHGetImageList, SHOpenFolderAndSelectItems, SHParseDisplayName, SetWindowSubclass, ShellExecuteW, CMF_EXPLORE, CMF_EXTENDEDVERBS, CMF_NORMAL, CMIC_MASK_PTINVOKE,
+    CMINVOKECOMMANDINFO, CMINVOKECOMMANDINFOEX, GCS_VERBW, SHFILEINFOW, SHGFI_ICON, SHGFI_LARGEICON, SHGFI_OVERLAYINDEX, SHGFI_SMALLICON,
+    SHGFI_SYSICONINDEX, SHGFI_TYPENAME, SHGFI_USEFILEATTRIBUTES, SHIL_LARGE, SHIL_SMALL,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CreatePopupMenu, DestroyIcon, DestroyMenu, GetClassNameW, GetCursorPos, GetForegroundWindow, GetIconInfo, TrackPopupMenuEx,
@@ -92,26 +94,94 @@ pub fn shell_open(path: &str) -> Result<(), String> {
 
 // ---------- 아이콘 ----------
 
-/// 키: "<dir>" 폴더, ".pptx" 확장자(파일이 없어도 돼요), 그 밖에는 실제 경로(.exe·.lnk·.ico — 파일마다 아이콘이 달라요)
+/// 키마다 그 파일·폴더의 윈도우 아이콘을 PNG(data:) 주소로 돌려줘요.
+/// 키: "<dir>" 폴더 일반(브라우저 미리 보기용 뒤받침), ".pptx" 확장자(실제 파일이 없을 때), 그 밖에는 실제 경로.
+///
+/// 실제 경로는 윈도우 탐색기처럼 **그 파일에 붙은 아이콘**을 받아요(한컴·보안 프로그램이 파일에 심은 아이콘,
+/// 특수 폴더·바로가기 화살표·보안 자물쇠 오버레이까지). 받아 두는 열쇠는 "확장자"가 아니라
+/// **시스템 아이콘 번호 + 오버레이 번호**예요 — 윈도우도 이렇게 같은 그림을 나눠 써서, 파일 2,000개여도
+/// 번호 조회만 파일마다, PNG 변환은 번호 조합마다 한 번이에요(2026-10-19 탐색기 아이콘 세션).
 pub fn icons(keys: &[String], size: u32) -> HashMap<String, String> {
+    use base64::Engine;
+    let b64 = base64::engine::general_purpose::STANDARD;
+    // 셸 COM(이미지 리스트·오버레이)을 쓰니 이 블로킹 스레드에서 COM을 켜요.
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+    }
+    // 배율에 맞는 시스템 이미지 리스트(없으면 각 파일 아이콘을 바로 받는 길로 떨어져요).
+    let iml: Option<IImageList> =
+        unsafe { SHGetImageList((if size <= 16 { SHIL_SMALL } else { SHIL_LARGE }) as i32).ok() };
     let mut out = HashMap::new();
+    // (아이콘 번호, 오버레이 번호) → PNG data: 주소. 같은 조합은 한 번만 만들어요.
+    let mut combo: HashMap<(i32, u32), String> = HashMap::new();
     for k in keys {
-        if let Some(png) = icon_png(k, size) {
-            use base64::Engine;
-            out.insert(k.clone(), format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(png)));
+        let data = if let Some((idx, ov)) = sys_icon_index(k) {
+            if let Some(d) = combo.get(&(idx, ov)) {
+                Some(d.clone())
+            } else if let Some(png) = iml.as_ref().and_then(|l| unsafe { imagelist_png(l, idx, ov) }) {
+                let d = format!("data:image/png;base64,{}", b64.encode(png));
+                combo.insert((idx, ov), d.clone());
+                Some(d)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        // 번호 조회가 안 되면(이미지 리스트 실패 등) 예전 방식으로 그 하나만 받아요.
+        let data = data.or_else(|| icon_png_direct(k, size).map(|png| format!("data:image/png;base64,{}", b64.encode(png))));
+        if let Some(d) = data {
+            out.insert(k.clone(), d);
         }
     }
     out
 }
 
-fn icon_png(key: &str, size: u32) -> Option<Vec<u8>> {
-    let (path, attrs, use_attrs) = if key == "<dir>" {
+/// 키의 시스템 아이콘 번호와 오버레이 번호(1~15, 없으면 0)를 받아요. 실제 경로만 오버레이가 나와요.
+fn sys_icon_index(key: &str) -> Option<(i32, u32)> {
+    let (path, attrs, use_attrs) = key_to_path(key);
+    let w = wide(&path);
+    let mut info = SHFILEINFOW::default();
+    let mut flags = SHGFI_SYSICONINDEX | SHGFI_OVERLAYINDEX;
+    if use_attrs {
+        flags |= SHGFI_USEFILEATTRIBUTES;
+    }
+    let ok = unsafe { SHGetFileInfoW(PCWSTR(w.as_ptr()), attrs, Some(&mut info), std::mem::size_of::<SHFILEINFOW>() as u32, flags) };
+    if ok == 0 {
+        return None;
+    }
+    // 오버레이 번호는 iIcon의 위 8비트((iIcon >> 24) & 0xFF)에 들어와요(1~15, 없으면 0).
+    let idx = info.iIcon & 0x00FF_FFFF;
+    let ov = ((info.iIcon >> 24) & 0xFF) as u32;
+    Some((idx, ov))
+}
+
+/// 시스템 이미지 리스트에서 번호 idx의 아이콘(오버레이 ov 합성 포함)을 받아 PNG로 바꿔요.
+unsafe fn imagelist_png(iml: &IImageList, idx: i32, ov: u32) -> Option<Vec<u8>> {
+    unsafe {
+        // ILD_TRANSPARENT + 오버레이 번호를 위 자리에 담으면(INDEXTOOVERLAYMASK = ov << 8) 오버레이까지 그려 줘요.
+        let flags = ILD_TRANSPARENT.0 | if ov != 0 { ov << 8 } else { 0 };
+        let icon = iml.GetIcon(idx, flags).ok()?;
+        let png = hicon_to_png(icon);
+        let _ = DestroyIcon(icon);
+        png
+    }
+}
+
+/// 키 → (아이콘을 물을 경로, 파일 속성, USEFILEATTRIBUTES 여부)
+fn key_to_path(key: &str) -> (String, FILE_FLAGS_AND_ATTRIBUTES, bool) {
+    if key == "<dir>" {
         ("folder".to_string(), FILE_ATTRIBUTE_DIRECTORY, true)
     } else if key.starts_with('.') {
         (format!("a{key}"), FILE_ATTRIBUTE_NORMAL, true)
     } else {
         (key.to_string(), FILE_ATTRIBUTE_NORMAL, false)
-    };
+    }
+}
+
+/// 뒤받침: 이미지 리스트를 못 쓸 때 그 하나의 아이콘 핸들을 바로 받아요(오버레이 없음).
+fn icon_png_direct(key: &str, size: u32) -> Option<Vec<u8>> {
+    let (path, attrs, use_attrs) = key_to_path(key);
     let w = wide(&path);
     let mut info = SHFILEINFOW::default();
     let mut flags = SHGFI_ICON | if size <= 16 { SHGFI_SMALLICON } else { SHGFI_LARGEICON };
