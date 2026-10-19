@@ -34,25 +34,25 @@ const SUM_COLS: Col[] = [
 ];
 const DET_COLS: Col[] = [
   { id: "name", label: "구분", w: 260 },
-  { id: "curSum", label: "당해예산", sub: "소계", w: 104, num: true },
-  { id: "cur", label: "", sub: "본예산", w: 104, num: true },
-  { id: "a1", label: "", sub: "1추", w: 96, num: true },
-  { id: "a2", label: "", sub: "2추", w: 96, num: true },
-  { id: "a3", label: "", sub: "3추", w: 96, num: true },
-  { id: "a4", label: "", sub: "4추", w: 96, num: true },
-  { id: "prev", label: "전년도 이월", sub: "소계", w: 104, num: true },
-  { id: "pm", label: "", sub: "명시이월", w: 104, num: true },
-  { id: "ps", label: "", sub: "사고이월", w: 96, num: true },
-  { id: "act", label: "예산현액", sub: "①+②", w: 104, num: true },
-  { id: "ex", label: "집행액", sub: "소계", w: 104, num: true },
-  { id: "en", label: "", sub: "당해", w: 104, num: true },
-  { id: "em", label: "", sub: "명시", w: 104, num: true },
-  { id: "es", label: "", sub: "사고", w: 96, num: true },
+  { id: "curSum", label: "당해예산", sub: "소계", w: 118, num: true },
+  { id: "cur", label: "", sub: "본예산", w: 118, num: true },
+  { id: "a1", label: "", sub: "1추", w: 118, num: true },
+  { id: "a2", label: "", sub: "2추", w: 118, num: true },
+  { id: "a3", label: "", sub: "3추", w: 118, num: true },
+  { id: "a4", label: "", sub: "4추", w: 118, num: true },
+  { id: "prev", label: "전년도 이월", sub: "소계", w: 118, num: true },
+  { id: "pm", label: "", sub: "명시이월", w: 118, num: true },
+  { id: "ps", label: "", sub: "사고이월", w: 118, num: true },
+  { id: "act", label: "예산현액", sub: "①+②", w: 118, num: true },
+  { id: "ex", label: "집행액", sub: "소계", w: 118, num: true },
+  { id: "en", label: "", sub: "당해", w: 118, num: true },
+  { id: "em", label: "", sub: "명시", w: 118, num: true },
+  { id: "es", label: "", sub: "사고", w: 118, num: true },
   { id: "rate", label: "집행률", sub: "%", w: 84, num: true },
-  { id: "left", label: "다음연도 이월", sub: "소계", w: 104, num: true },
-  { id: "nm", label: "", sub: "명시이월", w: 104, num: true },
-  { id: "ns", label: "", sub: "사고이월", w: 96, num: true },
-  { id: "un", label: "불용액", w: 104, num: true },
+  { id: "left", label: "다음연도 이월", sub: "소계", w: 118, num: true },
+  { id: "nm", label: "", sub: "명시이월", w: 118, num: true },
+  { id: "ns", label: "", sub: "사고이월", w: 118, num: true },
+  { id: "un", label: "불용액", w: 118, num: true },
   { id: "memo", label: "", w: 36 },
 ];
 /** 직접 적을 수 있는 칸(재원 줄) */
@@ -388,7 +388,7 @@ export default function BudgetStatusScreen() {
     if (!s) continue;
     const book = compute(p.name, s, byYear);
     const isOpen = !!open[p.name];
-    const srcLabel = `${String(s.from).slice(2)}~${String(s.to).slice(2)} · ${s.sources.join("·")}`;
+    const srcLabel = `${String(s.from).slice(2)}~${String(s.to).slice(2)}`; // 연도만(재원은 설정 상자에서 — 2026-10-19 사용자: 자리가 빠듯)
     rows.push(
       <div key={p.name} className={"bd-rw pj" + (sel === p.name ? " sel" : "")} role="row" onClick={() => setSel(p.name)}>
         <div className="bd-c" role="cell">
@@ -397,7 +397,7 @@ export default function BudgetStatusScreen() {
             {ICON(isOpen ? CD : CR, 14, 2.2)}
           </button>
           <span className="bd-nm" title={p.name}>{p.name}</span>
-          <span className="bs-years" title="기간 · 재원">{srcLabel}</span>
+          <span className="bs-years" title={`기간 ${s.from}~${s.to} · 재원 ${s.sources.join("·")}`}>{srcLabel}</span>
           <button
             type="button"
             className={"bs-gear" + (pop?.t === "setup" && pop.name === p.name ? " on" : "")}

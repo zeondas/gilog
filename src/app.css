@@ -10749,7 +10749,7 @@ body.ew-dragging * {
 .cm-tool svg { flex: none; color: var(--muted); }
 
 /* ---------- 예산현황(13단계, wip/budgetstatus) — 집행현황 표 부품 위에 덧붙임 ---------- */
-.bs .bd-rw > .bd-c.n { justify-content: flex-end; padding: 0 6px; } /* 집행현황의 2·9·11·12열 가운데 규칙을 덮어요 — 숫자는 모두 오른쪽 */
+.bs .bd-rw > .bd-c.n { justify-content: flex-end; padding: 0 12px; } /* 10억 단위 13자가 양옆 12px 여유로 들어가는 폭(자세히 118·요약 140) */ /* 집행현황의 2·9·11·12열 가운데 규칙을 덮어요 — 숫자는 모두 오른쪽 */
 .bs .bd-h.bs-hn { justify-content: flex-end; }
 .bs .bd-rw.pj > .bd-c:first-child { overflow: visible; }
 .bs .bd-rw.pj .bd-nm { flex: 0 1 auto; min-width: 0; }
@@ -10764,6 +10764,7 @@ body.ew-dragging * {
 .bs .bd-rw.edit > .bd-c.n { padding: 0 4px; }
 .bs .bd-rw.edit .bd-in { height: 28px; }
 /* 자세히 머리 줄 두 줄(28+28): 위 줄 묶음 이름은 가운데, 아래 줄 열 이름은 숫자처럼 오른쪽 */
+.bs .bd-h.bs-hn { padding-right: 12px; }
 .bs .bd-hd.bs-hd2 { height: 56px; grid-template-rows: 28px 28px; }
 .bs .bd-hd.bs-hd2 .bd-h.bs-grp { justify-content: center; border-bottom: 1px solid var(--line-soft); }
 .bs .bd-hd .bd-h { white-space: nowrap; }
