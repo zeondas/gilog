@@ -351,7 +351,7 @@ export default function BudgetStatusScreen() {
         if (id === "ex") { out.push(edit("en", "집행액(당해)")); continue; }
       }
       if (id === "rate") {
-        out.push(<div className="bd-c n" role="cell" key={id}>{bar(l.rate, kind !== "pj", kind === "gun")}</div>);
+        out.push(<div className="bd-c n bs-rate" role="cell" key={id}>{bar(l.rate, kind !== "pj", kind === "gun")}</div>);
         continue;
       }
       if (first && ["prev", "pm", "ps"].includes(id) && !(l as unknown as Record<string, number>)[id]) {

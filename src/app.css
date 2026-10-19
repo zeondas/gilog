@@ -10768,7 +10768,11 @@ body.ew-dragging * {
 .bs .bd-rw.edit > .bd-c.n { padding: 0 4px; }
 .bs .bd-rw.edit .bd-in { height: 28px; }
 /* 자세히 머리 줄 두 줄(28+28): 위 줄 묶음 이름은 가운데, 아래 줄 열 이름은 숫자처럼 오른쪽 */
+.bs .bd-hd { font-size: 13px; } /* 머리 글자 12 → 13(2026-10-19 사용자: 잘 안 보임) */
 .bs .bd-h { justify-content: flex-start; padding: 0 12px; } /* 머리 글자는 모두 왼쪽(2026-10-19 사용자) */
+.bs .bd-hd.bs-hd2 .bd-h.bs-span { align-items: flex-start; line-height: 28px; } /* 두 줄 걸친 머리(구분·예산현액…)는 윗줄 높이에 */
+.bs .bd-rw > .bd-c.n.bs-rate { justify-content: center; } /* 집행률 막대·숫자는 가운데 */
+.bs .bd-bar { width: 44px; }
 .bs .bd-h.bs-hn { justify-content: flex-start; }
 .bs .bd-hd.bs-hd2 { height: 56px; grid-template-rows: 28px 28px; }
 .bs .bd-hd.bs-hd2 .bd-h.bs-grp { border-bottom: 1px solid var(--line-soft); }
