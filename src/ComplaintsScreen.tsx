@@ -24,6 +24,7 @@ import { api, Complaint, ComplaintInput, errorText } from "./api";
 import {
   COL_MIN,
   COLUMNS,
+  ColKey,
   ColFilters,
   daysLeft,
   daysTaken,
@@ -171,6 +172,45 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
   }
 
   const all = list ?? [];
+
+  /**
+   * 배치최적화(2026-10-19 사용자): 내용·조치내용과 폭 고정 열을 뺀 열(연번·접수유형·민원유형·지역·위치·민원인)을
+   * 민원 전체에서 가장 긴 글이 한 줄에 들어가는 폭 + 여유로 맞추고, 남는 폭은 내용·조치내용이 반씩 가져요.
+   * 가장 좁아도 열 제목(+ 거르기 아이콘) 폭. 열 제목 줄 우클릭 "열 너비 초기화"로 처음대로.
+   */
+  function fitColumns() {
+    const table = tableRef.current;
+    if (!table) return;
+    const ctx = document.createElement("canvas").getContext("2d");
+    if (!ctx) return;
+    const family = getComputedStyle(table).fontFamily;
+    const textW = (s: string, weight: number, size: number) => {
+      ctx.font = `${weight} ${size}px ${family}`;
+      return ctx.measureText(s).width;
+    };
+    const PAD = 20; // 칸 좌우 10px
+    const SLACK = 12; // 너무 꼭 맞지 않게 좌우 6px씩(사용자)
+    const FILTER_EXTRA = 40; // 거르기 단추 여백·테두리·아이콘
+    const field: Partial<Record<ColKey, (c: Complaint) => string>> = {
+      no: (c) => String(c.no),
+      intake: (c) => c.intake,
+      ctype: (c) => c.ctype,
+      area: (c) => c.area,
+      place: (c) => c.place,
+      person: (c) => c.person,
+    };
+    const next = COLUMNS.map((col, i) => {
+      if (col.w === null) return null; // 내용·조치내용은 남는 폭 반씩
+      const get = field[col.key];
+      if (col.fixed || !get) return widths[i];
+      const weight = col.key === "intake" ? 500 : 400;
+      const body = Math.max(0, ...all.map((c) => textW(get(c), weight, 13)));
+      const filt = (FILTER_KEYS as string[]).includes(col.key);
+      const head = textW(col.label, 600, 12) + (filt ? FILTER_EXTRA : PAD);
+      return Math.max(COL_MIN, Math.ceil(Math.max(body + PAD, head) + SLACK));
+    });
+    saveWidths(next);
+  }
   const query = q.trim().toLowerCase();
   const found = all.filter((c) => matches(c, query));
   const shown = found.filter((c) => passes(c, filters));
@@ -265,6 +305,12 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
             onCompositionEnd={qGuard.onCompositionEnd}
           />
         </label>
+        <button type="button" className="btn btn-ctrl cm-tool" title="열 폭을 글 길이에 맞추고 남는 폭은 내용·조치내용에 반씩 · 열 제목 우클릭으로 처음대로" onClick={fitColumns}>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 5v14M21 5v14M3 12h6M21 12h-6M6 9l3 3-3 3M18 9l-3 3 3 3" />
+          </svg>
+          배치최적화
+        </button>
         <button type="button" className="btn btn-ctrl btn-text" onClick={() => setCatsOpen(true)}>
           분류 관리
         </button>

@@ -10740,3 +10740,7 @@ body.ew-dragging * {
   font-weight: 600;
   color: var(--muted);
 }
+
+/* 민원대장 배치최적화 단추 — 집행현황 .bd-tool과 같은 모양 */
+.cm-tool { gap: 6px; flex: none; white-space: nowrap; }
+.cm-tool svg { flex: none; color: var(--muted); }
