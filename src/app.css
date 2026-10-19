@@ -1566,7 +1566,7 @@ mark {
 
 .jn-left {
   flex: none;
-  width: 320px;
+  width: 260px;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
@@ -1676,7 +1676,7 @@ mark {
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  height: 40px;
+  height: 36px;
   padding: 5px 0 0;
   border: 1.5px solid transparent;
   border-radius: var(--radius-md);
@@ -3399,11 +3399,11 @@ body.col-dragging * {
 .jn-due-item {
   display: grid;
   /* 글 칸이 긴 글만큼 넓어지지 않게 0까지 줄 수 있게 해요 → 넘치는 글은 "…"(사용자 2026-10-18) */
-  grid-template-columns: 52px minmax(0, 1fr);
+  grid-template-columns: 40px minmax(0, 1fr);
   min-width: 0;
   gap: 2px 10px;
   align-items: baseline;
-  padding: 9px 14px;
+  padding: 9px 12px;
   border: 0;
   border-bottom: 1px solid var(--line-row);
   background: transparent;
