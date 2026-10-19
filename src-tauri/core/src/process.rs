@@ -4,7 +4,10 @@
 //!   이름·번호는 늘 업무연락처에서 읽어요(쌍방향 — 같은 사실은 한 곳에만).
 //! - 민원 건은 접수번호로 하나예요. 불러오기에서 이미 있는 접수번호는 건너뛰어요.
 //!   ×로 지우면 줄이 없어지니 다음 불러오기 때 다시 와요(사용자 2안).
-//! - 진행(`stage`): new 지시부 전 · made 지시부 만듦 · queued 보낼편지함에 넣음(Claude가 올리기 전) · sent 전송 완료. 완료 여부는 민원대장 상태를 읽어요.
+//! - 지시부(`orders`, 2026-10-19 표준 지시부): 같은 공사 민원 여러 건을 한 지시부(연번 하나)에 묶어요. 항목 번호(`item`)는 접수일 순.
+//!   진행(`stage`): made 지시부 만듦 · queued 보낼 폴더에 넣음(Claude가 올리기 전) · sent 전송 완료. 민원 건의 `stage`는 그 지시부와 같게 맞춰 둬요(지시부 전은 new).
+//!   지시부에 든 건의 공사를 바꾸거나 지우면 지시부에서 빠지고, 주소·공사내용·고려사항을 고치면 지시부가 `dirty`(다시 만들어야 함)가 돼요.
+//!   완료 여부는 민원대장 상태를 읽어요.
 //! - 사진·지시부 파일은 자료 파일에 넣지 않고 경로만 둬요.
 
 use rusqlite::{params, OptionalExtension, Row};
@@ -16,7 +19,10 @@ use crate::{Error, Result, Store};
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct WorkInput {
+    /// 축약 공사명(표의 공사 배지, 지시부 {축약 공사명})
     pub name: String,
+    /// 정식 공사명(지시부 {공사명}). 비어 있으면 축약 공사명을 써요.
+    pub full: String,
     pub co: String,
     pub contact: Option<i64>,
     pub project: Option<i64>,
@@ -30,6 +36,7 @@ pub struct WorkInput {
 pub struct Work {
     pub id: i64,
     pub name: String,
+    pub full: String,
     pub co: String,
     pub contact: Option<i64>,
     pub project: Option<i64>,
@@ -88,6 +95,42 @@ pub struct Case {
     pub sent_at: String,
     /// 신문고 위치가 도로명주소라 지번으로 바꿨으면 바꾸기 전 글(판단 근거 옆 작은 글)
     pub road: String,
+    /// 든 지시부 번호와 그 안의 항목 번호(1부터)
+    pub order: Option<i64>,
+    pub item: i64,
+}
+
+/// 지시부 하나(같은 공사 민원 여러 건)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Order {
+    pub id: i64,
+    pub work: i64,
+    pub seq: i64,
+    /// 지시일 YYYY-MM-DD
+    pub date: String,
+    /// 지시부 파일(hwpx)
+    pub file: String,
+    /// 쪽마다 JPG
+    pub jpgs: Vec<String>,
+    /// made · queued · sent
+    pub stage: String,
+    /// 보낼 폴더에 넣은 JPG들
+    pub outbox: Vec<String>,
+    pub sent_at: String,
+    /// 든 민원을 고쳐 다시 만들어야 해요
+    pub dirty: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct OrderPatch {
+    pub file: Option<String>,
+    pub jpgs: Option<Vec<String>>,
+    pub stage: Option<String>,
+    pub outbox: Option<Vec<String>>,
+    pub sent_at: Option<String>,
+    pub dirty: Option<bool>,
 }
 
 /// 줄에서 고치는 칸이에요. None은 그대로 둬요.
@@ -98,6 +141,8 @@ pub struct CasePatch {
     /// 주소(지역·위치)를 고치면 지시부 전으로 돌아가요(지시부를 다시 만들어요). 연번은 그대로예요.
     pub area: Option<String>,
     pub place: Option<String>,
+    /// 공사내용(지시부 제목 줄, 간결하게)
+    pub short: Option<String>,
     /// 바꾸기 전 도로명주소. 위치를 고치면서 이 값을 보내지 않으면 비워요.
     pub road: Option<String>,
     pub note: Option<String>,
@@ -116,6 +161,7 @@ pub struct CasePatch {
 pub struct ProcessData {
     pub works: Vec<Work>,
     pub cases: Vec<Case>,
+    pub orders: Vec<Order>,
 }
 
 pub(crate) const SCHEMA: &str = "
@@ -127,7 +173,20 @@ pub(crate) const SCHEMA: &str = "
         project  INTEGER,
         scope    TEXT NOT NULL DEFAULT '',
         next_seq INTEGER NOT NULL DEFAULT 1,
-        tpl      TEXT NOT NULL DEFAULT ''
+        tpl      TEXT NOT NULL DEFAULT '',
+        full     TEXT NOT NULL DEFAULT ''
+    );
+    CREATE TABLE IF NOT EXISTS orders (
+        id       INTEGER PRIMARY KEY,
+        work     INTEGER NOT NULL,
+        seq      INTEGER NOT NULL,
+        date     TEXT NOT NULL DEFAULT '',
+        file     TEXT NOT NULL DEFAULT '',
+        jpgs     TEXT NOT NULL DEFAULT '[]',
+        stage    TEXT NOT NULL DEFAULT 'made',
+        outbox   TEXT NOT NULL DEFAULT '[]',
+        sent_at  TEXT NOT NULL DEFAULT '',
+        dirty    INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS cases (
         no         TEXT PRIMARY KEY,
@@ -151,15 +210,39 @@ pub(crate) const SCHEMA: &str = "
         outbox_file TEXT NOT NULL DEFAULT '',
         sent_at    TEXT NOT NULL DEFAULT '',
         added      INTEGER NOT NULL DEFAULT 0,
-        road       TEXT NOT NULL DEFAULT ''
+        road       TEXT NOT NULL DEFAULT '',
+        order_id   INTEGER,
+        item       INTEGER NOT NULL DEFAULT 0
     );
 ";
 
-/// 예전 자료 파일에 도로명주소 칸(road)을 더해요(2026-10-18 주소 변환).
+fn has_col(conn: &rusqlite::Connection, table: &str, col: &str) -> Result<bool> {
+    Ok(conn.prepare(&format!("SELECT 1 FROM pragma_table_info('{table}') WHERE name = ?1"))?.exists(params![col])?)
+}
+
+/// 예전 자료 파일에 칸을 더해요: 도로명주소(road, 2026-10-18), 정식 공사명·지시부 묶음(2026-10-19).
+/// 예전에 한 건씩 만든 지시부는 한 건짜리 지시부로 옮겨요.
 pub(crate) fn upgrade(conn: &rusqlite::Connection) -> Result<()> {
-    let has: bool = conn.prepare("SELECT 1 FROM pragma_table_info('cases') WHERE name = 'road'")?.exists([])?;
-    if !has {
+    if !has_col(conn, "cases", "road")? {
         conn.execute_batch("ALTER TABLE cases ADD COLUMN road TEXT NOT NULL DEFAULT '';")?;
+    }
+    if !has_col(conn, "works", "full")? {
+        conn.execute_batch("ALTER TABLE works ADD COLUMN full TEXT NOT NULL DEFAULT '';")?;
+    }
+    if !has_col(conn, "cases", "order_id")? {
+        conn.execute_batch("ALTER TABLE cases ADD COLUMN order_id INTEGER; ALTER TABLE cases ADD COLUMN item INTEGER NOT NULL DEFAULT 0;")?;
+        let old: Vec<(String, i64, String, String, String, String, String, String)> = conn
+            .prepare("SELECT no, work, seq, stage, order_file, order_jpg, outbox_file, sent_at FROM cases WHERE stage != 'new' AND work IS NOT NULL")?
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?, r.get(7)?)))?
+            .collect::<std::result::Result<_, _>>()?;
+        for (no, work, seq, stage, file, jpg, outbox, sent) in old {
+            let list = |v: &str| serde_json::to_string(&if v.is_empty() { vec![] } else { vec![v.to_string()] }).unwrap_or_else(|_| "[]".into());
+            conn.execute(
+                "INSERT INTO orders (work, seq, file, jpgs, stage, outbox, sent_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                params![work, seq.parse::<i64>().unwrap_or(0), file, list(&jpg), stage, list(&outbox), sent],
+            )?;
+            conn.execute("UPDATE cases SET order_id = ?2, item = 1 WHERE no = ?1", params![no, conn.last_insert_rowid()])?;
+        }
     }
     Ok(())
 }
@@ -167,8 +250,9 @@ pub(crate) fn upgrade(conn: &rusqlite::Connection) -> Result<()> {
 /// 주소가 분명하지 않으면 적는 말(사용자 2026-10-17)
 pub const UNKNOWN_PLACE: &str = "주소불명";
 
-const WORK_COLS: &str = "id, name, co, contact, project, scope, next_seq, tpl";
-const CASE_COLS: &str = "no, received, due, area, place, summary, short, reason, work, note, seq, stage, complaint, photos, map, folder, order_file, order_jpg, outbox_file, sent_at, road";
+const WORK_COLS: &str = "id, name, co, contact, project, scope, next_seq, tpl, full";
+const ORDER_COLS: &str = "id, work, seq, date, file, jpgs, stage, outbox, sent_at, dirty";
+const CASE_COLS: &str = "no, received, due, area, place, summary, short, reason, work, note, seq, stage, complaint, photos, map, folder, order_file, order_jpg, outbox_file, sent_at, road, order_id, item";
 
 fn bad(msg: &str) -> Error {
     Error::Invalid(msg.into())
@@ -188,6 +272,23 @@ fn work_row(r: &Row) -> rusqlite::Result<Work> {
         scope: r.get(5)?,
         next_seq: r.get(6)?,
         tpl: r.get(7)?,
+        full: r.get(8)?,
+    })
+}
+
+fn order_row(r: &Row) -> rusqlite::Result<Order> {
+    let list = |s: String| serde_json::from_str::<Vec<String>>(&s).unwrap_or_default();
+    Ok(Order {
+        id: r.get(0)?,
+        work: r.get(1)?,
+        seq: r.get(2)?,
+        date: r.get(3)?,
+        file: r.get(4)?,
+        jpgs: list(r.get(5)?),
+        stage: r.get(6)?,
+        outbox: list(r.get(7)?),
+        sent_at: r.get(8)?,
+        dirty: r.get(9)?,
     })
 }
 
@@ -215,6 +316,8 @@ fn case_row(r: &Row) -> rusqlite::Result<Case> {
         outbox_file: r.get(18)?,
         sent_at: r.get(19)?,
         road: r.get(20)?,
+        order: r.get(21)?,
+        item: r.get(22)?,
     })
 }
 
@@ -225,6 +328,7 @@ fn clean_work(w: &WorkInput) -> Result<WorkInput> {
     }
     Ok(WorkInput {
         name,
+        full: one_line(&w.full),
         co: one_line(&w.co),
         contact: w.contact,
         project: w.project,
@@ -259,7 +363,9 @@ impl Store {
         let works = s.query_map([], work_row)?.collect::<std::result::Result<Vec<_>, _>>()?;
         let mut s = self.conn.prepare(&format!("SELECT {CASE_COLS} FROM cases ORDER BY added, received DESC, no"))?;
         let cases = s.query_map([], case_row)?.collect::<std::result::Result<Vec<_>, _>>()?;
-        Ok(ProcessData { works, cases })
+        let mut s = self.conn.prepare(&format!("SELECT {ORDER_COLS} FROM orders ORDER BY id"))?;
+        let orders = s.query_map([], order_row)?.collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(ProcessData { works, cases, orders })
     }
 
     fn works(&self) -> Result<Vec<Work>> {
@@ -272,14 +378,14 @@ impl Store {
         match id {
             None => {
                 self.conn.execute(
-                    "INSERT INTO works (name, co, contact, project, scope, next_seq, tpl) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                    params![w.name, w.co, w.contact, w.project, w.scope, w.next_seq, w.tpl],
+                    "INSERT INTO works (name, co, contact, project, scope, next_seq, tpl, full) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                    params![w.name, w.co, w.contact, w.project, w.scope, w.next_seq, w.tpl, w.full],
                 )?;
             }
             Some(id) => {
                 let n = self.conn.execute(
-                    "UPDATE works SET name = ?2, co = ?3, contact = ?4, project = ?5, scope = ?6, next_seq = ?7, tpl = ?8 WHERE id = ?1",
-                    params![id, w.name, w.co, w.contact, w.project, w.scope, w.next_seq, w.tpl],
+                    "UPDATE works SET name = ?2, co = ?3, contact = ?4, project = ?5, scope = ?6, next_seq = ?7, tpl = ?8, full = ?9 WHERE id = ?1",
+                    params![id, w.name, w.co, w.contact, w.project, w.scope, w.next_seq, w.tpl, w.full],
                 )?;
                 if n == 0 {
                     return Err(Error::NotFound);
@@ -376,14 +482,19 @@ impl Store {
             .ok_or(Error::NotFound)
     }
 
-    /// 줄의 칸을 고쳐요. 공사를 바꾸면 지시부 전으로 돌아가요(지시부를 다시 만들어요).
-    pub fn update_case(&self, no: &str, p: &CasePatch) -> Result<Case> {
+    /// 줄의 칸을 고쳐요.
+    /// - 공사를 바꾸면 지시부 전으로 돌아가고, 든 지시부에서 빠져요(남은 항목 번호를 다시 매기고 그 지시부는 다시 만들어야 함).
+    /// - 지시부에 든 건의 주소·공사내용·고려사항을 고치면 그 지시부를 다시 만들어야 함(`dirty`)으로 둬요.
+    ///   지시부에 들지 않은 건의 주소를 고치면 지시부 전으로(예전 한 건 지시부 규칙).
+    pub fn update_case(&mut self, no: &str, p: &CasePatch) -> Result<Case> {
         let mut c = self.case(no)?;
+        let mut leave = false;
         if let Some(w) = p.work {
             if w != c.work {
                 c.work = w;
                 c.stage = "new".into();
                 c.seq = String::new();
+                leave = c.order.is_some();
             }
         }
         let (area, place) = (p.area.as_ref().map(|v| one_line(v)), p.place.as_ref().map(|v| one_line(v)));
@@ -398,11 +509,19 @@ impl Store {
             }
             c.place = v;
         }
-        if moved && p.stage.is_none() {
+        let mut changed = moved;
+        if moved && p.stage.is_none() && c.order.is_none() {
             c.stage = "new".into();
         }
         if let Some(v) = &p.note {
-            c.note = one_line(v);
+            let v = one_line(v);
+            changed |= v != c.note;
+            c.note = v;
+        }
+        if let Some(v) = &p.short {
+            let v = one_line(v);
+            changed |= v != c.short;
+            c.short = v;
         }
         if let Some(v) = &p.seq {
             c.seq = v.chars().filter(|ch| ch.is_ascii_digit()).collect();
@@ -431,18 +550,139 @@ impl Store {
         if let Some(v) = &p.sent_at {
             c.sent_at = v.clone();
         }
-        self.conn.execute(
-            "UPDATE cases SET work = ?2, note = ?3, seq = ?4, stage = ?5, complaint = ?6, folder = ?7, order_file = ?8, order_jpg = ?9, outbox_file = ?10, sent_at = ?11, area = ?12, place = ?13, road = ?14 WHERE no = ?1",
-            params![no, c.work, c.note, c.seq, c.stage, c.complaint, c.folder, c.order_file, c.order_jpg, c.outbox_file, c.sent_at, c.area, c.place, c.road],
+        let tx = self.conn.transaction()?;
+        tx.execute(
+            "UPDATE cases SET work = ?2, note = ?3, seq = ?4, stage = ?5, complaint = ?6, folder = ?7, order_file = ?8, order_jpg = ?9, outbox_file = ?10, sent_at = ?11, area = ?12, place = ?13, road = ?14, short = ?15 WHERE no = ?1",
+            params![no, c.work, c.note, c.seq, c.stage, c.complaint, c.folder, c.order_file, c.order_jpg, c.outbox_file, c.sent_at, c.area, c.place, c.road, c.short],
         )?;
+        if let Some(o) = c.order {
+            if leave {
+                leave_order(&tx, no, o)?;
+            } else if changed {
+                tx.execute("UPDATE orders SET dirty = 1 WHERE id = ?1", params![o])?;
+            }
+        }
+        tx.commit()?;
         self.case(no)
     }
 
-    /// 지시부를 만들 건이 아니면 지워요(파일은 그대로 둬요).
-    pub fn delete_case(&self, no: &str) -> Result<()> {
-        self.conn.execute("DELETE FROM cases WHERE no = ?1", params![no])?;
+    /// 지시부를 만들 건이 아니면 지워요(파일은 그대로 둬요). 지시부에 들어 있었으면 거기서 빠져요.
+    pub fn delete_case(&mut self, no: &str) -> Result<()> {
+        let tx = self.conn.transaction()?;
+        let order: Option<i64> = tx.query_row("SELECT order_id FROM cases WHERE no = ?1", params![no], |r| r.get(0)).optional()?.flatten();
+        if let Some(o) = order {
+            leave_order(&tx, no, o)?;
+        }
+        tx.execute("DELETE FROM cases WHERE no = ?1", params![no])?;
+        tx.commit()?;
         Ok(())
     }
+
+    pub fn order(&self, id: i64) -> Result<Order> {
+        self.conn
+            .query_row(&format!("SELECT {ORDER_COLS} FROM orders WHERE id = ?1"), params![id], order_row)
+            .optional()?
+            .ok_or(Error::NotFound)
+    }
+
+    /// 지시부에 든 건들(항목 순서대로)
+    pub fn order_cases(&self, id: i64) -> Result<Vec<Case>> {
+        let mut s = self.conn.prepare(&format!("SELECT {CASE_COLS} FROM cases WHERE order_id = ?1 ORDER BY item"))?;
+        let v = s.query_map(params![id], case_row)?.collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(v)
+    }
+
+    /// 새 지시부로 묶을 건들을 살펴 항목 순서(접수일 → 접수번호)로 돌려줘요. 같은 공사, 아직 지시부에 들지 않은 건만 돼요.
+    pub fn plan_order(&self, nos: &[String]) -> Result<(Work, Vec<Case>)> {
+        let mut list = nos.iter().map(|n| self.case(n.trim())).collect::<Result<Vec<_>>>()?;
+        list.dedup_by(|a, b| a.no == b.no);
+        let first = list.first().ok_or_else(|| bad("고른 민원이 없어요"))?;
+        let work = first.work.ok_or_else(|| bad("공사를 먼저 골라 주세요"))?;
+        if list.iter().any(|c| c.work != Some(work)) {
+            return Err(bad("같은 공사 민원만 함께 묶을 수 있어요"));
+        }
+        if list.iter().any(|c| c.order.is_some()) {
+            return Err(bad("이미 지시부에 든 민원이 있어요"));
+        }
+        list.sort_by(|a, b| a.received.cmp(&b.received).then(a.no.cmp(&b.no)));
+        Ok((self.work(work)?, list))
+    }
+
+    /// 지시부를 적어요: 파일을 쓴 뒤 불러요. 연번은 공사의 다음 연번으로 올라가요.
+    pub fn create_order(&mut self, work: i64, seq: i64, date: &str, file: &str, nos: &[String]) -> Result<Order> {
+        let tx = self.conn.transaction()?;
+        tx.execute("INSERT INTO orders (work, seq, date, file) VALUES (?1, ?2, ?3, ?4)", params![work, seq, date_or_empty(date), file])?;
+        let id = tx.last_insert_rowid();
+        for (i, no) in nos.iter().enumerate() {
+            tx.execute(
+                "UPDATE cases SET order_id = ?2, item = ?3, stage = 'made', seq = ?4, order_file = ?5, order_jpg = '', outbox_file = '', sent_at = '' WHERE no = ?1",
+                params![no, id, i as i64 + 1, seq.to_string(), file],
+            )?;
+        }
+        tx.execute("UPDATE works SET next_seq = MAX(next_seq, ?2) WHERE id = ?1", params![work, seq + 1])?;
+        tx.commit()?;
+        self.order(id)
+    }
+
+    /// 지시부 칸을 고쳐요. 진행을 바꾸면 든 건들도 같게 맞춰요.
+    pub fn update_order(&self, id: i64, p: &OrderPatch) -> Result<Order> {
+        let mut o = self.order(id)?;
+        if let Some(v) = &p.file {
+            o.file = v.clone();
+        }
+        if let Some(v) = &p.jpgs {
+            o.jpgs = v.clone();
+        }
+        if let Some(v) = &p.stage {
+            if !["made", "queued", "sent"].contains(&v.as_str()) {
+                return Err(bad("진행 단계가 맞지 않아요"));
+            }
+            o.stage = v.clone();
+        }
+        if let Some(v) = &p.outbox {
+            o.outbox = v.clone();
+        }
+        if let Some(v) = &p.sent_at {
+            o.sent_at = v.clone();
+        }
+        if let Some(v) = p.dirty {
+            o.dirty = v;
+        }
+        let js = |v: &Vec<String>| serde_json::to_string(v).unwrap_or_else(|_| "[]".into());
+        self.conn.execute(
+            "UPDATE orders SET file = ?2, jpgs = ?3, stage = ?4, outbox = ?5, sent_at = ?6, dirty = ?7 WHERE id = ?1",
+            params![id, o.file, js(&o.jpgs), o.stage, js(&o.outbox), o.sent_at, o.dirty],
+        )?;
+        self.conn.execute(
+            "UPDATE cases SET stage = ?2, order_file = ?3, order_jpg = ?4, sent_at = ?5 WHERE order_id = ?1",
+            params![id, o.stage, o.file, o.jpgs.first().cloned().unwrap_or_default(), o.sent_at],
+        )?;
+        Ok(o)
+    }
+
+    /// 든 건이 하나도 없는 지시부 기록을 지워요(파일은 그대로).
+    pub fn drop_empty_orders(&self) -> Result<()> {
+        self.conn.execute("DELETE FROM orders WHERE id NOT IN (SELECT order_id FROM cases WHERE order_id IS NOT NULL)", [])?;
+        Ok(())
+    }
+}
+
+/// 건 하나를 지시부에서 빼요: 남은 항목 번호를 다시 매기고 다시 만들어야 함으로. 남은 게 없으면 지시부 기록을 지워요.
+fn leave_order(tx: &rusqlite::Transaction, no: &str, order: i64) -> Result<()> {
+    tx.execute("UPDATE cases SET order_id = NULL, item = 0, stage = 'new', seq = '', order_file = '', order_jpg = '', outbox_file = '', sent_at = '' WHERE no = ?1", params![no])?;
+    let rest: Vec<String> = tx
+        .prepare("SELECT no FROM cases WHERE order_id = ?1 ORDER BY item")?
+        .query_map(params![order], |r| r.get(0))?
+        .collect::<std::result::Result<_, _>>()?;
+    if rest.is_empty() {
+        tx.execute("DELETE FROM orders WHERE id = ?1", params![order])?;
+    } else {
+        for (i, n) in rest.iter().enumerate() {
+            tx.execute("UPDATE cases SET item = ?2 WHERE no = ?1", params![n, i as i64 + 1])?;
+        }
+        tx.execute("UPDATE orders SET dirty = 1 WHERE id = ?1", params![order])?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -523,5 +763,69 @@ mod tests {
         let c = s.update_case("1AA-1", &CasePatch { place: Some("".into()), ..Default::default() }).unwrap();
         assert_eq!(c.place, UNKNOWN_PLACE);
         assert_eq!(s.case("1AA-1").unwrap().area, "조리읍");
+    }
+
+    #[test]
+    fn orders_group_same_work_by_received() {
+        let (_d, mut s) = store();
+        let w = s.save_work(None, &WorkInput { name: "동부권 1지구".into(), full: "2026년 정비 공사(1지구)".into(), next_seq: 3, ..Default::default() }).unwrap();
+        let w2 = s.save_work(None, &WorkInput { name: "2지구".into(), ..Default::default() }).unwrap();
+        let (a, b) = (w[0].id, w2[1].id);
+        s.add_cases(&[
+            CaseInput { work: Some(a), received: "2026-10-17".into(), ..input("1AA-3") },
+            CaseInput { work: Some(a), received: "2026-10-15".into(), ..input("1AA-9") },
+            CaseInput { work: Some(b), ..input("1AA-5") },
+            CaseInput { work: Some(a), received: "2026-10-17".into(), ..input("1AA-1") },
+        ])
+        .unwrap();
+        assert_eq!(s.work(a).unwrap().full, "2026년 정비 공사(1지구)");
+        assert!(s.plan_order(&["1AA-3".into(), "1AA-5".into()]).is_err());
+        let (work, list) = s.plan_order(&["1AA-3".into(), "1AA-9".into(), "1AA-1".into()]).unwrap();
+        let nos: Vec<String> = list.iter().map(|c| c.no.clone()).collect();
+        assert_eq!(nos, ["1AA-9", "1AA-1", "1AA-3"]);
+        let o = s.create_order(work.id, work.next_seq, "2026-10-19", "D:/a.hwpx", &nos).unwrap();
+        assert_eq!((o.seq, o.stage.as_str(), s.work(a).unwrap().next_seq), (3, "made", 4));
+        let c = s.case("1AA-1").unwrap();
+        assert_eq!((c.order, c.item, c.stage.as_str()), (Some(o.id), 2, "made"));
+        assert!(s.plan_order(&["1AA-1".into()]).is_err());
+        // 보내는 중 → 든 건도 함께
+        s.update_order(o.id, &OrderPatch { stage: Some("queued".into()), jpgs: Some(vec!["a_1.jpg".into(), "a_2.jpg".into()]), ..Default::default() }).unwrap();
+        assert_eq!(s.case("1AA-3").unwrap().stage, "queued");
+        // 고려사항을 고치면 다시 만들어야 함
+        s.update_case("1AA-3", &CasePatch { note: Some("야간".into()), ..Default::default() }).unwrap();
+        assert!(s.order(o.id).unwrap().dirty);
+        s.update_order(o.id, &OrderPatch { dirty: Some(false), ..Default::default() }).unwrap();
+        // 같은 값이면 그대로
+        s.update_case("1AA-3", &CasePatch { note: Some("야간".into()), ..Default::default() }).unwrap();
+        assert!(!s.order(o.id).unwrap().dirty);
+        // 공사를 바꾸면 빠지고 번호를 다시 매겨요
+        let c = s.update_case("1AA-1", &CasePatch { work: Some(Some(b)), ..Default::default() }).unwrap();
+        assert_eq!((c.order, c.item, c.stage.as_str()), (None, 0, "new"));
+        assert_eq!(s.case("1AA-3").unwrap().item, 2);
+        assert!(s.order(o.id).unwrap().dirty);
+        // 다 빠지면 지시부 기록도 없어져요
+        s.delete_case("1AA-3").unwrap();
+        s.delete_case("1AA-9").unwrap();
+        assert!(s.order(o.id).is_err());
+        assert!(s.process_data().unwrap().orders.is_empty());
+    }
+
+    #[test]
+    fn old_single_orders_move_into_orders() {
+        let (_d, mut s) = store();
+        let w = s.save_work(None, &WorkInput { name: "가".into(), ..Default::default() }).unwrap();
+        s.add_cases(&[CaseInput { work: Some(w[0].id), ..input("1AA-1") }, input("1AA-2")]).unwrap();
+        s.update_case("1AA-1", &CasePatch { stage: Some("sent".into()), seq: Some("6".into()), order_jpg: Some("D:/a.jpg".into()), sent_at: Some("10-18 09:00".into()), ..Default::default() }).unwrap();
+        // 예전 자료 파일(지시부 묶음 칸 없음)
+        s.conn.execute_batch("DROP TABLE orders; ALTER TABLE cases DROP COLUMN order_id; ALTER TABLE cases DROP COLUMN item;").unwrap();
+        s.conn.execute_batch(SCHEMA).unwrap();
+        upgrade(&s.conn).unwrap();
+        let d = s.process_data().unwrap();
+        assert_eq!(d.orders.len(), 1);
+        let o = &d.orders[0];
+        assert_eq!((o.seq, o.stage.as_str(), o.jpgs.clone(), o.sent_at.as_str()), (6, "sent", vec!["D:/a.jpg".to_string()], "10-18 09:00"));
+        let c = s.case("1AA-1").unwrap();
+        assert_eq!((c.order, c.item), (Some(o.id), 1));
+        assert_eq!(s.case("1AA-2").unwrap().order, None);
     }
 }

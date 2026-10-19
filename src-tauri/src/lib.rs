@@ -1,3 +1,4 @@
+mod autostart;
 mod budget;
 mod calendar;
 mod ime;
@@ -59,6 +60,8 @@ pub(crate) struct Prefs {
     pub(crate) pin_unlock: bool,
     /// 창 닫기(X) 단추: minimize(작업표시줄로) / tray(트레이로, 처음 값) / quit(묻고 끝내기). 2026-10-18 앱 창 세션
     close_action: String,
+    /// 윈도우 시작할 때 자동 실행(2026-10-19). 실제 등록 상태는 autostart.rs가 레지스트리에서 읽어 맞춰요.
+    auto_start: bool,
 }
 
 impl Default for Prefs {
@@ -76,6 +79,7 @@ impl Default for Prefs {
             side_collapsed: false,
             pin_unlock: false,
             close_action: "tray".into(),
+            auto_start: false,
         }
     }
 }
@@ -110,7 +114,15 @@ pub(crate) fn data_dir(app: &AppHandle) -> Result<PathBuf, String> {
 
 #[tauri::command]
 fn get_prefs(app: AppHandle) -> Result<Prefs, String> {
-    read_prefs(&app)
+    let mut prefs = read_prefs(&app)?;
+    // 윈도우 설정 → 시작 프로그램에서 껐거나 켰으면 스위치도 따라가요(못 읽으면 prefs 값 그대로).
+    if let Some(on) = autostart::is_on(&app) {
+        if on != prefs.auto_start {
+            prefs.auto_start = on;
+            let _ = write_prefs(&app, &prefs);
+        }
+    }
+    Ok(prefs)
 }
 
 /// 테마 설정(system / light / dark). 창 바탕색을 맞출 때 써요.
@@ -151,6 +163,9 @@ fn set_prefs(app: AppHandle, state: State<AppState>, prefs: Prefs) -> Result<(),
             let store = guard.as_ref().ok_or_else(|| "locked".to_string())?;
             keyring_save(&store.key_hex())?;
         }
+    }
+    if prefs.auto_start != old.auto_start {
+        autostart::set(&app, prefs.auto_start)?;
     }
     write_prefs(&app, &prefs)?;
     window::apply_theme(&app, &prefs.theme);
@@ -336,6 +351,46 @@ fn rename_project(state: State<AppState>, id: i64, name: String) -> Result<Conta
 }
 
 #[tauri::command]
+fn add_project_group(state: State<AppState>, name: String) -> Result<ContactsData, String> {
+    with_store(&state, |s| {
+        s.add_group(&name)?;
+        s.contacts_data()
+    })
+}
+
+#[tauri::command]
+fn rename_project_group(state: State<AppState>, id: i64, name: String) -> Result<ContactsData, String> {
+    with_store(&state, |s| {
+        s.rename_group(id, &name)?;
+        s.contacts_data()
+    })
+}
+
+#[tauri::command]
+fn delete_project_group(state: State<AppState>, id: i64) -> Result<ContactsData, String> {
+    with_store(&state, |s| {
+        s.delete_group(id)?;
+        s.contacts_data()
+    })
+}
+
+#[tauri::command]
+fn move_project_group(state: State<AppState>, id: i64, dir: i64) -> Result<ContactsData, String> {
+    with_store(&state, |s| {
+        s.move_group(id, dir)?;
+        s.contacts_data()
+    })
+}
+
+#[tauri::command]
+fn set_project_group(state: State<AppState>, id: i64, group: String) -> Result<ContactsData, String> {
+    with_store(&state, |s| {
+        s.set_project_group(id, &group)?;
+        s.contacts_data()
+    })
+}
+
+#[tauri::command]
 fn set_project_color(state: State<AppState>, id: i64, color: Option<i64>) -> Result<ContactsData, String> {
     with_store(&state, |s| {
         s.set_project_color(id, color)?;
@@ -418,8 +473,8 @@ async fn road_to_jibun(text: String) -> gilog_core::RoadLookup {
 }
 
 #[tauri::command]
-fn set_complaint_status(state: State<AppState>, id: i64, status: String) -> Result<Complaint, String> {
-    with_store(&state, |s| s.set_complaint_status(id, &status))
+fn set_complaint_status(state: State<AppState>, id: i64, status: String, done: Option<String>) -> Result<Complaint, String> {
+    with_store(&state, |s| s.set_complaint_status(id, &status, done.as_deref()))
 }
 
 #[tauri::command]
@@ -555,6 +610,7 @@ pub fn run() {
         // 이미 떠 있으면(트레이에 있어도) 새로 열지 않고 그 창을 보여 줘요. 맨 먼저 붙여야 해요.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| calendar::show_main(app)))
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_autostart::Builder::new().app_name(autostart::NAME).args([autostart::ARG]).build())
         .manage(AppState { store: Mutex::new(None) })
         .manage(calendar::Reminders::default())
         .manage(files::Watch::default())
@@ -562,7 +618,8 @@ pub fn run() {
         .setup(|app| {
             // 창은 숨긴 채 만들고, 화면이 처음 그려지면(window_ready) 보여요.
             let theme = theme_pref(app.handle());
-            window::create(app, &theme)?;
+            // 자동 실행(--autostart)으로 켜지면 창을 보이지 않고 트레이에만 둬요(2026-10-19 사용자 2안).
+            window::create(app, &theme, autostart::launched())?;
             calendar::setup_tray(app)?;
             // 도로명주소 표를 미리 풀어 둬요(처음 바꿀 때 기다리지 않게).
             std::thread::spawn(|| {
@@ -603,6 +660,11 @@ pub fn run() {
             rename_project,
             set_project_names,
             set_project_color,
+            add_project_group,
+            rename_project_group,
+            delete_project_group,
+            move_project_group,
+            set_project_group,
             delete_project,
             journal_data,
             add_journal_entry,

@@ -29,6 +29,18 @@
   --st-done-fg: #1F5E3A;
   --st-hold-bg: #EEEDF2;
   --st-hold-fg: #4E4C5A;
+  --st-reply-bg: #DDEFF7;
+  --st-reply-fg: #0B5A78;
+  --st-long-bg: #EFE9DE;
+  --st-long-fg: #5E4B2A;
+  /* 민원 상태 배지(2026-10-19 사용자): 신경 쓸 것(접수·진행·답변)은 따뜻한 색 진한 채움, 덜한 것(보류·장기)은 차가운 색 바탕, 끝난 것(완료)은 흐리게 */
+  --cs-new-bg: #FACC15; --cs-new-fg: #3D2A00;
+  --cs-work-bg: #BE185D; --cs-work-fg: #FFFFFF;
+  --cs-reply-bg: #EA580C; --cs-reply-fg: #FFFFFF;
+  --cs-hold-bg: #E2E5EA; --cs-hold-fg: #3F4652;
+  --cs-long-bg: #BAE3F5; --cs-long-fg: #0B4A6B;
+  --cs-done-bg: #F5F5F7; --cs-done-fg: #A3A1AE;
+  --cs-reject-bg: #F7F2F3; --cs-reject-fg: #B29A9F;
   --st-new-bg: #EEEAFF;
   --st-new-fg: #4B37C4;
   /* 가운데 뜨는 창 뒤를 덮는 막과 창 바탕 (2026-10-17 사용자 1안: 뒤 흐리게 + 더 어둡게 + 창 테두리) */
@@ -37,6 +49,8 @@
   /* 뜨는 창 안의 줄 구분선 */
   --line-raised: #EFEEF3;
   --danger: #8A1F2B;
+  /* 잠긴 파일(DRM) 금색 자물쇠 — 몸통·고리·열쇠구멍 */
+  --lock: #C88A00; --lock-shackle: #9A6A00; --lock-hole: #FFF6DF;
   --urgent: #B3261E;
   /* 할 일 마감 배지(임박) 바탕. 글자는 urgent. */
   --urgent-bg: #FBE9E7;
@@ -120,7 +134,6 @@
   /* 뜨는 메뉴·작은 묻기 창 그림자 하나 */
   --shadow-pop: 0 8px 24px rgba(var(--shadow-rgb), 0.16);
   /* 탐색기 "위 폴더" 배지 */
-  --up-bg: #FFF3D6; --up-fg: #8A6400;
   /* 파일 아이콘 색(윈도우 아이콘 흉내 — 예외, 결정 ⑦ 1안: 값은 FileIcon.tsx 그림 안에 그대로, 여기는 모아 적기만) */
   --fi-folder: #E3A33A; --fi-folder-front: #F7C95C;
   --fi-ppt: #D24726; --fi-xls: #1F7A45; --fi-doc: #2B5797; --fi-hwp: #2B6CC4;
@@ -175,9 +188,22 @@
     --st-done-fg: #8FD0A6;
     --st-hold-bg: #2C2B34;
     --st-hold-fg: #BAB7C6;
+    --st-reply-bg: #10313D;
+    --st-reply-fg: #8CCDE6;
+    --st-long-bg: #2F2A20;
+    --st-long-fg: #D6C6A4;
+    /* 민원 상태 배지(2026-10-19 사용자): 신경 쓸 것(접수·진행·답변)은 따뜻한 색 진한 채움, 덜한 것(보류·장기)은 차가운 색 바탕, 끝난 것(완료)은 흐리게 */
+    --cs-new-bg: #FACC15; --cs-new-fg: #2A1F00;
+    --cs-work-bg: #EC4899; --cs-work-fg: #2A0016;
+    --cs-reply-bg: #F97316; --cs-reply-fg: #1C0A00;
+    --cs-hold-bg: #3A3F49; --cs-hold-fg: #CDD2DA;
+    --cs-long-bg: #0E4A63; --cs-long-fg: #A9E0F5;
+    --cs-done-bg: #1F1E25; --cs-done-fg: #6F6D7A;
+    --cs-reject-bg: #241E21; --cs-reject-fg: #7E6C72;
     --st-new-bg: #2B2552;
     --st-new-fg: #C9C0FF;
   --danger: #F08A95;
+  --lock: #E7C66A; --lock-shackle: #C9A23E; --lock-hole: #2A2410;
     --urgent: #F28B82;
     --urgent-bg: #3D2220;
     --danger-wash: #3A1D24;
@@ -203,7 +229,6 @@
     --bd-tree: #4A4758; --bd-col-hl: rgba(182, 170, 255, 0.08);
     --bd-pj-bg: #25203F; --bd-pj-line: #3E3670; --bd-sel-bg: #2E2856;
     --bd-faint: #86839A; --bd-ghost: #6E6B7E; --bd-alt: #1B1A21;
-    --up-bg: #3A3012; --up-fg: #F0CF6A;
   }
 }
 
@@ -232,7 +257,20 @@
   --st-done-fg: #8FD0A6;
   --st-hold-bg: #2C2B34;
   --st-hold-fg: #BAB7C6;
+  --st-reply-bg: #10313D;
+  --st-reply-fg: #8CCDE6;
+  --st-long-bg: #2F2A20;
+  --st-long-fg: #D6C6A4;
+  /* 민원 상태 배지(2026-10-19 사용자): 신경 쓸 것(접수·진행·답변)은 따뜻한 색 진한 채움, 덜한 것(보류·장기)은 차가운 색 바탕, 끝난 것(완료)은 흐리게 */
+  --cs-new-bg: #FACC15; --cs-new-fg: #2A1F00;
+  --cs-work-bg: #EC4899; --cs-work-fg: #2A0016;
+  --cs-reply-bg: #F97316; --cs-reply-fg: #1C0A00;
+  --cs-hold-bg: #3A3F49; --cs-hold-fg: #CDD2DA;
+  --cs-long-bg: #0E4A63; --cs-long-fg: #A9E0F5;
+  --cs-done-bg: #1F1E25; --cs-done-fg: #6F6D7A;
+  --cs-reject-bg: #241E21; --cs-reject-fg: #7E6C72;
   --danger: #F08A95;
+  --lock: #E7C66A; --lock-shackle: #C9A23E; --lock-hole: #2A2410;
   --urgent: #F28B82;
   --urgent-bg: #3D2220;
   --saturday: #8AB4F8;
@@ -260,7 +298,6 @@
   --bd-tree: #4A4758; --bd-col-hl: rgba(182, 170, 255, 0.08);
   --bd-pj-bg: #25203F; --bd-pj-line: #3E3670; --bd-sel-bg: #2E2856;
   --bd-faint: #86839A; --bd-ghost: #6E6B7E; --bd-alt: #1B1A21;
-  --up-bg: #3A3012; --up-fg: #F0CF6A;
 }
 
 /* 강조색 테마 (2026-10-18 색 테마 세션, 사용자 1안 확정 — 시안 캔버스 Theme.dc.html의 T 표).

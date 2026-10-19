@@ -561,32 +561,86 @@ impl Store {
     }
 
     /// 엑셀에서 읽은 세부사업을 그 해 맨 아래(이월은 이월 묶음 아래)에 넣어요. 넣은 공사 수를 함께 돌려줘요.
-    pub fn import_budget(&mut self, year: i64, list: &[BudgetImportProject]) -> Result<(Vec<BudgetProject>, usize)> {
+    /// 엑셀 가져오기(2026-10-19 사용자 1안 — 같은 이름은 덮어쓰기).
+    /// 그 해 안에서 세부사업 → 부기사업 → 공사를 차례로 이름으로 맞춰요(같은 이름이 여럿이면 앞에서부터 하나씩).
+    /// 맞으면 파일 값으로 바꾸고(예산은 파일 칸이 비면 그대로, 메모는 파일 메모가 비면 그대로), 없으면 맨 아래에 더해요.
+    /// 파일에 없는 것은 그대로 둬요. 돌려주는 값: (그 해 전체, 공사 덮어쓰기 수, 공사 새로 더하기 수).
+    pub fn import_budget(&mut self, year: i64, list: &[BudgetImportProject]) -> Result<(Vec<BudgetProject>, usize, usize)> {
+        let have = read_year(&self.conn, year)?;
         let tx = self.conn.transaction()?;
         let mut ord: i64 = tx.query_row("SELECT COALESCE(MAX(ord), -1) + 1 FROM budget_projects WHERE year = ?1", params![year], |r| r.get(0))?;
-        let mut n = 0;
+        let (mut upd, mut add) = (0usize, 0usize);
+        let mut used_p: Vec<i64> = Vec::new();
         for p in list {
             let pname = name_of(&p.name)?;
-            tx.execute(
-                "INSERT INTO budget_projects (year, ord, name, budget, carry, open, memo) VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6)",
-                params![year, ord, pname, won_opt(p.budget)?, p.carry as i64, p.memo.trim()],
-            )?;
-            ord += 1;
-            let pid = tx.last_insert_rowid();
-            for (j, it) in p.items.iter().enumerate() {
-                tx.execute(
-                    "INSERT INTO budget_items (project, ord, name, budget, open, memo) VALUES (?1, ?2, ?3, ?4, 0, ?5)",
-                    params![pid, j as i64, name_of(&it.name)?, won_opt(it.budget)?, it.memo.trim()],
-                )?;
-                let iid = tx.last_insert_rowid();
-                for (k, r) in it.rows.iter().enumerate() {
-                    insert_row(&tx, iid, k as i64, &clean_row(&r.input)?, r.memo.trim())?;
-                    n += 1;
+            let old_p = have.iter().find(|x| x.name == pname && !used_p.contains(&x.id));
+            let pid = match old_p {
+                Some(op) => {
+                    used_p.push(op.id);
+                    tx.execute(
+                        "UPDATE budget_projects SET budget = COALESCE(?2, budget), carry = ?3, memo = CASE WHEN ?4 = '' THEN memo ELSE ?4 END WHERE id = ?1",
+                        params![op.id, won_opt(p.budget)?, (p.carry || op.carry) as i64, p.memo.trim()],
+                    )?;
+                    op.id
+                }
+                None => {
+                    tx.execute(
+                        "INSERT INTO budget_projects (year, ord, name, budget, carry, open, memo) VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6)",
+                        params![year, ord, pname, won_opt(p.budget)?, p.carry as i64, p.memo.trim()],
+                    )?;
+                    ord += 1;
+                    tx.last_insert_rowid()
+                }
+            };
+            let old_items: &[BudgetItem] = old_p.map(|x| x.items.as_slice()).unwrap_or(&[]);
+            let mut iord: i64 = tx.query_row("SELECT COALESCE(MAX(ord), -1) + 1 FROM budget_items WHERE project = ?1", params![pid], |r| r.get(0))?;
+            let mut used_i: Vec<i64> = Vec::new();
+            for it in &p.items {
+                let iname = name_of(&it.name)?;
+                let old_i = old_items.iter().find(|x| x.name == iname && !used_i.contains(&x.id));
+                let iid = match old_i {
+                    Some(oi) => {
+                        used_i.push(oi.id);
+                        tx.execute(
+                            "UPDATE budget_items SET budget = COALESCE(?2, budget), memo = CASE WHEN ?3 = '' THEN memo ELSE ?3 END WHERE id = ?1",
+                            params![oi.id, won_opt(it.budget)?, it.memo.trim()],
+                        )?;
+                        oi.id
+                    }
+                    None => {
+                        tx.execute(
+                            "INSERT INTO budget_items (project, ord, name, budget, open, memo) VALUES (?1, ?2, ?3, ?4, 0, ?5)",
+                            params![pid, iord, iname, won_opt(it.budget)?, it.memo.trim()],
+                        )?;
+                        iord += 1;
+                        tx.last_insert_rowid()
+                    }
+                };
+                let old_rows: &[BudgetRow] = old_i.map(|x| x.rows.as_slice()).unwrap_or(&[]);
+                let mut rord: i64 = tx.query_row("SELECT COALESCE(MAX(ord), -1) + 1 FROM budget_rows WHERE item = ?1", params![iid], |r| r.get(0))?;
+                let mut used_r: Vec<i64> = Vec::new();
+                for r in &it.rows {
+                    let c = clean_row(&r.input)?;
+                    match old_rows.iter().find(|x| x.name == c.name && !used_r.contains(&x.id)) {
+                        Some(or) => {
+                            used_r.push(or.id);
+                            tx.execute(
+                                "UPDATE budget_rows SET kind = ?2, co = ?3, cmt = ?4, exp = ?5, act = ?6, stage = ?7, memo = CASE WHEN ?8 = '' THEN memo ELSE ?8 END WHERE id = ?1",
+                                params![or.id, c.kind, c.co, c.cmt, c.exp, c.act, c.stage, r.memo.trim()],
+                            )?;
+                            upd += 1;
+                        }
+                        None => {
+                            insert_row(&tx, iid, rord, &c, r.memo.trim())?;
+                            rord += 1;
+                            add += 1;
+                        }
+                    }
                 }
             }
         }
         tx.commit()?;
-        Ok((self.budget_data(year)?, n))
+        Ok((self.budget_data(year)?, upd, add))
     }
 }
 
@@ -667,7 +721,7 @@ mod tests {
         assert_eq!((y[0].name.as_str(), y[0].items[0].budget, y[0].items[0].rows.len()), ("가", Some(50_000_000), 0));
         assert!(s.copy_budget_year(2025, 2026).is_err(), "이미 있는 해에는 안 해요");
         // 가져오기: 맨 아래에 넣고 공사 수를 돌려줘요. 이월은 표 아래 묶음.
-        let (y, n) = s
+        let (y, _, n) = s
             .import_budget(
                 2026,
                 &[BudgetImportProject {
@@ -686,5 +740,43 @@ mod tests {
         assert_eq!(n, 1);
         assert_eq!(y.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(), ["가", "마", "(사고이월) 라"]);
         assert!(s.budget_data(2027).unwrap().is_empty());
+    }
+    /// 2026-10-19 사용자 1안: 다시 가져오면 같은 이름은 덮어쓰고, 새 것만 더하고, 파일에 없는 것은 그대로.
+    #[test]
+    fn import_twice_overwrites() {
+        let (_d, mut s) = store();
+        let r = |n: &str, kind: &str, co: &str, cmt: i64, memo: &str| BudgetImportRow {
+            input: BudgetRowInput { name: n.into(), kind: kind.into(), co: co.into(), cmt, stage: "추진".into(), ..Default::default() },
+            memo: memo.into(),
+        };
+        let file = |rows: Vec<BudgetImportRow>, budget: Option<i64>| {
+            vec![BudgetImportProject {
+                name: "도로포장".into(),
+                budget,
+                items: vec![BudgetImportItem { name: "시도".into(), budget: Some(600_000_000), rows, ..Default::default() }],
+                ..Default::default()
+            }]
+        };
+        let (_, u, a) = s.import_budget(2026, &file(vec![r("가", "관급", "대원", 100, ""), r("나", "공사", "영진", 200, "")], Some(1_000_000_000))).unwrap();
+        assert_eq!((u, a), (0, 2));
+        // 앱에서 더한 공사·메모
+        let y = s.budget_data(2026).unwrap();
+        let it = y[0].items[0].id;
+        s.save_budget_row(it, None, &row("앱에서 더함", 50)).unwrap();
+        let ga = y[0].items[0].rows[0].id;
+        s.set_budget_memo(BudgetLevel::Row, ga, "<p>앱 메모</p>").unwrap();
+        // 다시 가져오기: 가는 값이 바뀌고(메모 그대로), 다는 새로, 나·앱에서 더함은 그대로, 예산 칸이 비면 그대로
+        let (y, u, a) = s.import_budget(2026, &file(vec![r("가", "공사", "한양", 300, ""), r("다", "용역", "", 400, "")], None)).unwrap();
+        assert_eq!((u, a), (1, 1));
+        assert_eq!(y.len(), 1);
+        assert_eq!(y[0].budget, Some(1_000_000_000));
+        assert_eq!(y[0].items.len(), 1);
+        let rows: Vec<_> = y[0].items[0].rows.iter().map(|x| (x.name.as_str(), x.kind.as_str(), x.co.as_str(), x.cmt)).collect();
+        assert_eq!(rows, [("가", "공사", "한양", 300), ("나", "공사", "영진", 200), ("앱에서 더함", "공사", "", 50), ("다", "용역", "", 400)]);
+        assert_eq!(y[0].items[0].rows[0].memo, "<p>앱 메모</p>");
+        // 같은 이름이 둘이면 앞에서부터 하나씩 맞춰요
+        let (y, u, a) = s.import_budget(2026, &file(vec![r("나", "공사", "", 10, ""), r("나", "공사", "", 20, "")], None)).unwrap();
+        assert_eq!((u, a), (1, 1));
+        assert_eq!(y[0].items[0].rows.iter().filter(|x| x.name == "나").map(|x| x.cmt).collect::<Vec<_>>(), [10, 20]);
     }
 }

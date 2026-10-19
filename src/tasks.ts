@@ -2,9 +2,9 @@
 import type { Complaint, Task } from "./api";
 import { BLine, parseLines, plainOf } from "./bullets";
 import { daysBetween } from "./complaints";
-import { DONE_STATUS } from "./settingsStore";
+import { isAnswered } from "./settingsStore";
 
-/** 완료한 민원을 "완료됨"에 남겨 두는 기간이에요(마감일 기준). 그보다 오래된 완료 민원은 카드에서 빠져요. */
+/** 답변이 끝난 민원을 "완료됨"에 남겨 두는 기간이에요(마감일 기준). 그보다 오래된 것은 카드에서 빠져요. */
 export const DONE_COMPLAINT_DAYS = 30;
 
 /** 카드에 한 줄로 보이는 항목. 할 일이거나, 민원대장에서 온 민원이에요. */
@@ -28,10 +28,13 @@ export function complaintTitle(c: Complaint): string {
   return where ? `${head}(${where})` : head;
 }
 
-/** 민원 카드에 보일 민원: 마감일이 있는 것. 완료한 것은 마감이 30일 안쪽이거나 이번에 체크한 것만 남겨요. */
+/**
+ * 민원 카드에 보일 민원: 마감일(법정 답변기한)이 있는 것.
+ * 답변이 끝난 것(답변·완료·보류·장기 — `isAnswered`)은 체크된 채 "완료됨"에, 마감이 30일 안쪽이거나 이번에 체크한 것만 남겨요.
+ */
 export function complaintItems(list: Complaint[], today: string, keep: Set<number>): Item[] {
   return list
-    .filter((c) => c.due && (c.status !== DONE_STATUS || keep.has(c.id) || daysBetween(c.due, today) <= DONE_COMPLAINT_DAYS))
+    .filter((c) => c.due && (!isAnswered(c.status) || keep.has(c.id) || daysBetween(c.due, today) <= DONE_COMPLAINT_DAYS))
     .map((c) => ({
       key: "c" + c.id,
       task: null,
@@ -39,7 +42,7 @@ export function complaintItems(list: Complaint[], today: string, keep: Set<numbe
       title: complaintTitle(c),
       detail: parseLines(c.body),
       due: c.due,
-      done: c.status === DONE_STATUS,
+      done: isAnswered(c.status),
       children: [],
     }));
 }
@@ -69,9 +72,18 @@ export function byDue(a: Item, b: Item): number {
 /** 한 목록의 할 일을 위 항목 + 하위 항목으로 묶어요. */
 export function treeOf(tasks: Task[], listId: number): Item[] {
   const mine = tasks.filter((t) => t.list === listId);
+  // 위 항목 번호로 한 번 묶어 둬요(부하 시험 2026-10-18: 할 일마다 전체를 다시 훑으면 3년치 330ms).
+  const ids = new Set(mine.map((t) => t.id));
+  const kids = new Map<number, Task[]>();
+  for (const t of mine) {
+    if (t.parent === null || !ids.has(t.parent)) continue;
+    const a = kids.get(t.parent);
+    if (a) a.push(t);
+    else kids.set(t.parent, [t]);
+  }
   return mine
-    .filter((t) => t.parent === null || !mine.some((p) => p.id === t.parent))
-    .map((t) => taskItem(t, mine.filter((c) => c.parent === t.id).map((c) => taskItem(c)).sort(byDue)));
+    .filter((t) => t.parent === null || !ids.has(t.parent))
+    .map((t) => taskItem(t, (kids.get(t.id) ?? []).map((c) => taskItem(c)).sort(byDue)));
 }
 
 /** 검색에 맞는지 (제목, 세부정보, 민원은 연번·내용까지) */

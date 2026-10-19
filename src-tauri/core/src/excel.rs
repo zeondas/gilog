@@ -20,6 +20,10 @@ use crate::{Error, Result};
 pub enum SheetKind {
     Complaints,
     Contacts,
+    /// 업무일지 — 기록 한 건 = 한 줄(2026-10-19 사용자 1안). 같은 파일 둘째 시트가 `JournalDays`예요.
+    Journal,
+    /// 업무일지 둘째 시트 "날짜별" — 하루 한 줄(출근·교통·날씨·비고)
+    JournalDays,
 }
 
 impl SheetKind {
@@ -27,6 +31,8 @@ impl SheetKind {
         match self {
             SheetKind::Complaints => "민원대장",
             SheetKind::Contacts => "업무연락처",
+            SheetKind::Journal => "업무일지",
+            SheetKind::JournalDays => "날짜별",
         }
     }
 
@@ -46,6 +52,7 @@ impl SheetKind {
                 ("조치내용", 34.0, true),
                 ("마감일", 11.0, false),
                 ("상태", 11.1, false),
+                ("조치완료일", 11.0, false),
                 ("메모", 34.0, true),
             ],
             SheetKind::Contacts => &[
@@ -59,6 +66,23 @@ impl SheetKind {
                 ("프로젝트", 33.5, false),
                 ("메모", 34.0, true),
             ],
+            SheetKind::Journal => &[
+                ("연번", 6.0, false),
+                ("날짜", 11.0, false),
+                ("시각", 7.5, false),
+                ("구분", 10.0, false),
+                ("상대", 22.0, false),
+                ("연락처", 14.0, false),
+                ("프로젝트", 20.0, false),
+                ("내용", 64.0, true),
+            ],
+            SheetKind::JournalDays => &[
+                ("날짜", 11.0, false),
+                ("출근", 8.0, false),
+                ("교통", 12.0, false),
+                ("날씨", 12.0, false),
+                ("비고", 50.0, true),
+            ],
         }
     }
 
@@ -67,6 +91,8 @@ impl SheetKind {
         match self {
             SheetKind::Complaints => &["접수일", "내용"],
             SheetKind::Contacts => &["이름", "소속"],
+            SheetKind::Journal => &["날짜", "내용"],
+            SheetKind::JournalDays => &["날짜", "출근"],
         }
     }
 }
@@ -81,6 +107,8 @@ pub struct ExcelExport {
     pub intake: Vec<String>,
     /// 민원대장 상태 목록(L열 목록 칸)
     pub status: Vec<String>,
+    /// 업무일지 둘째 시트 "날짜별" 줄(업무일지일 때만)
+    pub days: Vec<Vec<String>>,
 }
 
 /// 가져온 시트: 3행 열 제목과 그 아래 줄(모든 칸이 빈 줄은 빼요)
@@ -89,6 +117,9 @@ pub struct ExcelExport {
 pub struct ExcelSheet {
     pub headers: Vec<String>,
     pub rows: Vec<Vec<String>>,
+    /// 업무일지: 둘째 시트 "날짜별"(없으면 비어요)
+    #[serde(default)]
+    pub extra: Vec<ExcelSheet>,
 }
 
 const GRAY: u32 = 0x808080;
@@ -105,9 +136,19 @@ fn xerr(e: XlsxError) -> Error {
 
 /// 내보내기: 양식(README) 그대로 써요.
 pub fn write_xlsx(path: &Path, kind: SheetKind, data: &ExcelExport) -> Result<()> {
+    let mut wb = Workbook::new();
+    write_sheet(&mut wb, kind, &data.rows, data)?;
+    // 업무일지는 같은 파일에 둘째 시트 "날짜별"을 더해요.
+    if kind == SheetKind::Journal {
+        write_sheet(&mut wb, SheetKind::JournalDays, &data.days, data)?;
+    }
+    wb.save(path).map_err(xerr)?;
+    Ok(())
+}
+
+fn write_sheet(wb: &mut Workbook, kind: SheetKind, rows: &[Vec<String>], data: &ExcelExport) -> Result<()> {
     let cols = kind.columns();
     let last_col = (cols.len() - 1) as u16;
-    let mut wb = Workbook::new();
     let ws: &mut Worksheet = wb.add_worksheet();
     ws.set_name(kind.title()).map_err(xerr)?;
     ws.set_default_row_height(30);
@@ -162,12 +203,12 @@ pub fn write_xlsx(path: &Path, kind: SheetKind, data: &ExcelExport) -> Result<()
     }
 
     // 4행부터 자료
-    for (r, row) in data.rows.iter().enumerate() {
+    for (r, row) in rows.iter().enumerate() {
         let rr = (r + 3) as u32;
         for (c, (name, _, is_left)) in cols.iter().enumerate() {
             let v = row.get(c).map(String::as_str).unwrap_or("");
             let cc = c as u16;
-            if kind == SheetKind::Contacts && *name == "연번" {
+            if matches!(kind, SheetKind::Contacts | SheetKind::Journal) && *name == "연번" {
                 match v.parse::<f64>() {
                     Ok(n) => ws.write_number_with_format(rr, cc, n, &number).map_err(xerr)?,
                     Err(_) => ws.write_string_with_format(rr, cc, v, &center).map_err(xerr)?,
@@ -178,13 +219,15 @@ pub fn write_xlsx(path: &Path, kind: SheetKind, data: &ExcelExport) -> Result<()
                 ws.write_string_with_format(rr, cc, v, if *is_left { &left } else { &center }).map_err(xerr)?;
             }
         }
-        // 1행 제목만 50, 나머지 모든 행은 30 고정(2026-10-17 사용자 — 여러 줄이어도 늘리지 않아요)
-        ws.set_row_height(rr, 30).map_err(xerr)?;
+        // 1행 제목만 50, 나머지 모든 행은 30 고정(2026-10-17 사용자 — 여러 줄이어도 늘리지 않아요).
+        // 업무일지만 내용 줄 수만큼 늘려요(2026-10-19 사용자 2안 — 말 줄이 여러 줄이라 잘려 보여요).
+        let h = if kind == SheetKind::Journal { journal_row_height(row, cols) } else { 30.0 };
+        ws.set_row_height(rr, h).map_err(xerr)?;
     }
-    let last_row = (data.rows.len() + 2) as u32;
+    let last_row = (rows.len() + 2) as u32;
 
     // 목록 칸(민원대장 접수유형·상태) — 자료 행까지만, 안내 메시지 끔, 틀린 값도 막지 않음
-    if kind == SheetKind::Complaints && !data.rows.is_empty() {
+    if kind == SheetKind::Complaints && !rows.is_empty() {
         for (col, list) in [(1u16, &data.intake), (11u16, &data.status)] {
             let list: Vec<&str> = list.iter().map(String::as_str).filter(|s| !s.is_empty()).collect();
             if list.is_empty() {
@@ -209,9 +252,30 @@ pub fn write_xlsx(path: &Path, kind: SheetKind, data: &ExcelExport) -> Result<()
     ws.set_print_fit_to_pages(1, 0);
     ws.set_repeat_rows(0, 2).map_err(xerr)?;
     ws.set_print_area(0, 0, last_row, last_col).map_err(xerr)?;
-
-    wb.save(path).map_err(xerr)?;
     Ok(())
+}
+
+/// 칸 폭(엑셀 글자 폭 단위)에 글자가 몇 줄로 보일지 어림해요. 한글·전각은 2칸, 나머지 1칸.
+fn wrapped_lines(text: &str, width: f64) -> usize {
+    let per = (width - 1.0).max(4.0);
+    text.split('\n')
+        .map(|line| {
+            let w: f64 = line.chars().map(|c| if (c as u32) >= 0x1100 { 1.9 } else { 1.0 }).sum();
+            ((w / per).ceil() as usize).max(1)
+        })
+        .sum::<usize>()
+        .max(1)
+}
+
+/// 업무일지 자료 행 높이: 가장 많이 보이는 칸의 줄 수 × 13.5pt(맑은 고딕 10) + 위아래 여백, 최소 30·최대 409(엑셀 한도).
+fn journal_row_height(row: &[String], cols: &[(&str, f64, bool)]) -> f64 {
+    let n = cols
+        .iter()
+        .enumerate()
+        .map(|(i, (_, w, _))| row.get(i).map(|v| wrapped_lines(v, *w)).unwrap_or(1))
+        .max()
+        .unwrap_or(1);
+    (n as f64 * 13.5 + 8.0).clamp(30.0, 409.0)
 }
 
 fn two(n: u8) -> String {
@@ -255,6 +319,17 @@ pub fn norm_header(s: &str) -> String {
 /// 양식이 아니면(열 제목 줄을 못 찾으면) Invalid예요.
 pub fn read_xlsx(path: &Path, kind: SheetKind) -> Result<ExcelSheet> {
     let mut wb = open_workbook_auto(path).map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
+    let mut sheet = read_kind(&mut wb, kind)?;
+    // 업무일지는 둘째 시트 "날짜별"도 함께 읽어요(없으면 그냥 비워요).
+    if kind == SheetKind::Journal {
+        if let Ok(days) = read_kind(&mut wb, SheetKind::JournalDays) {
+            sheet.extra.push(days);
+        }
+    }
+    Ok(sheet)
+}
+
+fn read_kind<RS: std::io::Read + std::io::Seek>(wb: &mut calamine::Sheets<RS>, kind: SheetKind) -> Result<ExcelSheet> {
     let mut names = wb.sheet_names();
     // 같은 이름 시트를 먼저 봐요.
     names.sort_by_key(|n| if norm_header(n) == kind.title() { 0 } else { 1 });
@@ -274,7 +349,7 @@ pub fn read_xlsx(path: &Path, kind: SheetKind) -> Result<ExcelSheet> {
             .skip(hi + 1)
             .filter(|r| r.iter().any(|x| !x.trim().is_empty()))
             .collect();
-        return Ok(ExcelSheet { headers, rows: body });
+        return Ok(ExcelSheet { headers, rows: body, extra: vec![] });
     }
     Err(Error::Invalid(format!("{} 양식이 아니에요", kind.title())))
 }
@@ -284,7 +359,7 @@ mod tests {
     use super::*;
 
     fn complaint_row(no: &str, body: &str) -> Vec<String> {
-        [no, "전화", "2026-10-15", "포트홀", "조리읍", "봉일천리 113 일원", "홍길동", "010-1234-5678", body, "□ 현장 확인\n  ○ 보수 완료", "2026-10-20", "처리중", ""]
+        [no, "전화", "2026-10-15", "포트홀", "조리읍", "봉일천리 113 일원", "홍길동", "010-1234-5678", body, "□ 현장 확인\n  ○ 보수 완료", "2026-10-20", "처리중", "2026-10-21", ""]
             .iter()
             .map(|s| s.to_string())
             .collect()
@@ -295,14 +370,15 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("민원대장_2026-10-17.xlsx");
         let rows = vec![complaint_row("1", "○ 도로 파손\n  - 깊이 5cm\n\n○ 야간 위험"), complaint_row("2", "○ 한 줄")];
-        let data = ExcelExport { rows: rows.clone(), intake: vec!["전화".into(), "방문".into()], status: vec!["접수".into(), "완료".into()] };
+        let data = ExcelExport { rows: rows.clone(), intake: vec!["전화".into(), "방문".into()], status: vec!["접수".into(), "완료".into()], ..Default::default() };
         write_xlsx(&path, SheetKind::Complaints, &data).unwrap();
         let back = read_xlsx(&path, SheetKind::Complaints).unwrap();
         assert_eq!(back.headers[0], "연번");
-        assert_eq!(back.headers[12], "메모");
+        assert_eq!(back.headers[12], "조치완료일");
+        assert_eq!(back.headers[13], "메모");
         assert_eq!(back.rows.len(), 2);
-        // 빈 칸은 calamine이 줄 끝에서 자를 수 있어 앞 12칸만 비교해요.
-        assert_eq!(back.rows[0][..12], rows[0][..12]);
+        // 빈 칸은 calamine이 줄 끝에서 자를 수 있어 앞 13칸만 비교해요.
+        assert_eq!(back.rows[0][..13], rows[0][..13]);
         assert_eq!(back.rows[1][8], "○ 한 줄");
     }
 
@@ -327,6 +403,41 @@ mod tests {
     }
 
     #[test]
+    fn journal_roundtrip_with_days_sheet() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("업무일지_2026-10-19.xlsx");
+        let row = |n: &str, t: &str| -> Vec<String> {
+            [n, "2026-10-19", t, "유선수신", "이○○", "010-0000-0102", "국도32호선 정비", "이○○: 교통통제 일정 문의\n나: 10/20 회신하겠다고 답함"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        };
+        let day: Vec<String> = ["2026-10-19", "08:40", "자가용", "맑음", "오후 현장"].iter().map(|s| s.to_string()).collect();
+        let data = ExcelExport { rows: vec![row("1", "09:10"), row("2", "14:00")], days: vec![day.clone()], ..Default::default() };
+        write_xlsx(&path, SheetKind::Journal, &data).unwrap();
+        let back = read_xlsx(&path, SheetKind::Journal).unwrap();
+        assert_eq!(back.headers[7], "내용");
+        assert_eq!(back.rows.len(), 2);
+        assert_eq!(back.rows[0], row("1", "09:10"));
+        assert_eq!(back.extra.len(), 1);
+        assert_eq!(back.extra[0].rows, vec![day]);
+        // 업무일지 행 높이는 줄 수만큼(한 줄이면 30, 두 줄 말이어도 30, 다섯 줄이면 늘어나요).
+        let cols = SheetKind::Journal.columns();
+        assert_eq!(journal_row_height(&row("1", "09:10"), cols), 35.0);
+        let five: Vec<String> = ["1", "2026-10-19", "09:10", "회의", "팀장", "", "", "팀장: 가\n나: 나\n팀장: 다\n나: 라\n팀장: 마"].iter().map(|s| s.to_string()).collect();
+        assert_eq!(journal_row_height(&five, cols), 75.5);
+        assert_eq!(journal_row_height(&["1".to_string()], cols), 30.0);
+        // 둘째 시트 "날짜별"이 없어도 첫 시트는 읽혀요.
+        let p2 = dir.path().join("one.xlsx");
+        let mut wb = Workbook::new();
+        write_sheet(&mut wb, SheetKind::Journal, &data.rows, &data).unwrap();
+        wb.save(&p2).unwrap();
+        let b2 = read_xlsx(&p2, SheetKind::Journal).unwrap();
+        assert_eq!(b2.rows.len(), 2);
+        assert!(b2.extra.is_empty());
+    }
+
+    #[test]
     fn empty_export_still_has_headers() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("e.xlsx");
@@ -341,12 +452,24 @@ mod tests {
         let Ok(out) = std::env::var("GILOG_XLSX_OUT") else { return };
         let out = Path::new(&out);
         let rows: Vec<Vec<String>> = (1..=40).map(|i| complaint_row(&i.to_string(), "○ 도로 파손\n  - 깊이 5cm\n\n○ 야간 위험")).collect();
-        let data = ExcelExport { rows, intake: vec!["전화".into(), "방문".into(), "국민신문고".into()], status: vec!["접수".into(), "처리중".into(), "완료".into(), "보류".into()] };
+        let data = ExcelExport { rows, intake: vec!["전화".into(), "방문".into(), "국민신문고".into()], status: vec!["접수".into(), "처리중".into(), "완료".into(), "보류".into()], ..Default::default() };
         write_xlsx(&out.join("민원대장_2026-10-17.xlsx"), SheetKind::Complaints, &data).unwrap();
         let c: Vec<Vec<String>> = (1..=5)
             .map(|i| [i.to_string().as_str(), "홍길동", "A시공사", "현장대리인", "010-0000-0034", "031-940-0000", "hong@example.com", "시도15호선, 실정보고", "□ 하루 전 연락\n  ○ 정문 방문증"].iter().map(|s| s.to_string()).collect())
             .collect();
         write_xlsx(&out.join("업무연락처_2026-10-17.xlsx"), SheetKind::Contacts, &ExcelExport { rows: c, ..Default::default() }).unwrap();
+        let j: Vec<Vec<String>> = [
+            ["2026-10-19", "09:10", "유선수신", "이○○ 현장대리인 · ○○건설(주)", "010-0000-0102", "국도32호선 정비", "이○○: 국도32호선 교통통제 일정을 문의\n나: 10/20 경찰서 협의 후 회신하겠다고 답함\n이○○: 10/21 오전까지는 알려 달라고 함"],
+            ["2026-10-19", "10:30", "출장", "조리읍 봉일천리 113 일원", "", "", "나: 포트홀 4개소 현장 확인\n나: 긴급보수(상온 아스콘) 지시"],
+            ["2026-10-19", "11:00", "메모", "", "", "", "현장 확인 결과\n○ 봉일천리 113 일원 포트홀 4개소\n○ 배수구 막힘 2개소 — 긴급보수 요청"],
+            ["2026-10-19", "14:00", "회의", "팀장, 서무", "", "", "팀장: 하반기 차선도색 물량을 이번 주 안에 취합하라고 지시\n나: 10/21까지 제출하겠다고 답함"],
+        ]
+        .iter()
+        .enumerate()
+        .map(|(i, r)| std::iter::once((i + 1).to_string()).chain(r.iter().map(|s| s.to_string())).collect())
+        .collect();
+        let days = vec![["2026-10-19", "08:40", "자가용", "맑음", ""].iter().map(|s| s.to_string()).collect()];
+        write_xlsx(&out.join("업무일지_2026-10-19.xlsx"), SheetKind::Journal, &ExcelExport { rows: j, days, ..Default::default() }).unwrap();
         // 다른 프로그램(openpyxl)으로 만든 양식 모양 파일을 읽어 건수를 봐요(GILOG_XLSX_IN=파일:종류).
         if let Ok(inp) = std::env::var("GILOG_XLSX_IN") {
             for one in inp.split(';') {

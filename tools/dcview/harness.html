@@ -1,0 +1,35 @@
+<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0}</style></head><body><div id="root"></div>
+<script>
+class DCLogic{constructor(p){this.props=p;this.state=null}setState(v){this.state={...(this.state||{}),...v};window.__rr()}}
+const EV={onclick:'click',onmousedown:'mousedown',oninput:'input',onkeydown:'keydown',onfocus:'focus',onblur:'blur',onchange:'change'};
+function get(path,sc){path=path.trim();if(path==='true')return true;if(path==='false')return false;return path.split('.').reduce((o,k)=>o==null?o:o[k],sc)}
+function interp(s,sc){return s.replace(/\{\{([^}]+)\}\}/g,(_,p)=>{const v=get(p,sc);return v==null?'':v})}
+function render(node,sc,out){
+ for(const n of node.childNodes){
+  if(n.nodeType===3){out.appendChild(document.createTextNode(interp(n.textContent,sc)));continue}
+  if(n.nodeType!==1)continue;
+  const t=n.tagName.toLowerCase();
+  if(t==='sc-for'){const m=n.getAttribute('list').match(/\{\{(.+)\}\}/);const as=n.getAttribute('as');for(const it of (get(m[1],sc)||[]))render(n,{...sc,[as]:it},out);continue}
+  if(t==='sc-if'){const m=n.getAttribute('value').match(/\{\{(.+)\}\}/);if(get(m[1],sc))render(n,sc,out);continue}
+  if(t==='helmet'){continue}
+  const el=document.createElement(t);
+  for(const a of n.attributes){const nm=a.name.toLowerCase();if(nm.startsWith('hint-'))continue;
+   const m=a.value.match(/^\{\{(.+)\}\}$/);
+   if(EV[nm]&&m){const f=get(m[1],sc);if(f)el.addEventListener(EV[nm],f);continue}
+   if(nm==='value'){el.value=interp(a.value,sc);el.setAttribute('value',el.value);continue}
+   el.setAttribute(a.name,interp(a.value,sc))}
+  render(n,sc,el);out.appendChild(el)}
+}
+async function boot(file,props){
+ const txt=await (await fetch(file)).text();
+ const doc=new DOMParser().parseFromString(txt,'text/html');
+ const tpl=doc.querySelector('x-dc');
+ const h=tpl.querySelector('helmet');if(h)for(const s of h.querySelectorAll('style'))document.head.appendChild(s.cloneNode(true));
+ const code=doc.querySelector('script[data-dc-script]').textContent;
+ const C=new Function('DCLogic',code+';return Component')(DCLogic);
+ const comp=new C(props);
+ window.__rr=()=>{const r=document.getElementById('root');r.innerHTML='';render(tpl,comp.renderVals(),r)};
+ window.__rr();window.__comp=comp;
+}
+const q=new URLSearchParams(location.search);boot(q.get('f'),{theme:q.get('t')||'어둡게'});
+</script></body></html>

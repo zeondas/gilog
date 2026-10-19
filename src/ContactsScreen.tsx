@@ -10,7 +10,7 @@ import { koIndex } from "./journal";
 import { useJamoGuard } from "./koInput";
 import { PhoneInput } from "./PhoneInput";
 import { finalizePhone } from "./phone";
-import { api, Contact, ContactInput, ContactsData, errorText, Project } from "./api";
+import { api, Contact, ContactInput, ContactsData, errorText, Project, ProjectGroup } from "./api";
 
 // ---------- 메모 ----------
 // 메모 한 줄은 머릿기호 규칙(bullets.ts)의 줄 모양이에요. b 굵게, s 취소선, k 머릿기호 종류.
@@ -187,29 +187,18 @@ export default function ContactsScreen() {
         />
       </div>
 
-      <div className="ct-chips" role="group" aria-label="프로젝트로 거르기">
-        <span className="ct-chips-label">프로젝트</span>
-        <button type="button" className="pchip" aria-pressed={sel === null} onClick={() => setSel(null)}>
-          <span>전체</span>
-          <span className="pchip-n">{all.length}</span>
-        </button>
-        {projects.map((p) => (
-          <button key={p.id} type="button" className="pchip" aria-pressed={sel === p.id} onClick={() => setSel(p.id)}>
-            <span className="pchip-dot" aria-hidden="true" style={{ background: sel === p.id ? undefined : `var(--pj-${projectColor(p)}-line)` }} />
-            <span className="pchip-t" title={pjOther(p) || undefined}>{pjLabel(p)}</span>
-            <span className="pchip-n">{all.filter((c) => c.projects.includes(p.id)).length}</span>
-          </button>
-        ))}
-      </div>
-
+      <div className="ct-body">
+      <ProjectList projects={projects} groups={data.groups ?? []} contacts={all} sel={sel} onSel={setSel} />
+      <div className="ct-main">
       {note && <p className="note" role="status">{note}</p>}
 
-      <NewRow projects={projects} onAdd={(c) => run(api.addContact(c))} />
+      <NewRow projects={projects} groups={data.groups ?? []} onAdd={(c) => run(api.addContact(c))} />
 
       <div className="ct-grid">
         {shown.map((c) =>
           editId === c.id ? (
             <EditCard
+              groups={data.groups ?? []}
               key={c.id}
               contact={c}
               byId={byId}
@@ -258,9 +247,140 @@ export default function ContactsScreen() {
       ) : shown.length === 0 ? (
         <p className="muted small">맞는 연락처가 없어요.</p>
       ) : null}
+      </div>
+      </div>
 
       {projOpen && <ProjectDialog data={data} run={run} onClose={() => setProjOpen(false)} />}
     </>
+  );
+}
+
+// ---------- 왼쪽 프로젝트 목록 (2026-10-19 사용자 1안, 시안 ProjectFilter) ----------
+
+const SORT_KEY = "contacts.projectSort";
+const koSort = (a: Project, b: Project) => pjLabel(a).localeCompare(pjLabel(b), "ko", { numeric: true });
+
+/** 프로젝트가 많아도 한 칸에 세로로 쌓여요. 가나다/많은 순, 찾기, 0명은 맨 아래 "연락처 없음". */
+/** 그룹 묶음(그룹 순서대로, "그룹 없음"은 맨 뒤). 그룹이 하나도 없으면 묶음 하나(key "none")예요. */
+export type PjSection = { key: string; name: string; id: number | null; projects: Project[] };
+export function pjSections(projects: Project[], groups: ProjectGroup[]): PjSection[] {
+  const known = new Set(groups.map((g) => g.id));
+  const out: PjSection[] = groups.map((g) => ({ key: String(g.id), name: g.name, id: g.id, projects: projects.filter((p) => p.group === g.id) }));
+  out.push({ key: "none", name: "그룹 없음", id: null, projects: projects.filter((p) => p.group == null || !known.has(p.group)) });
+  return out;
+}
+
+const FOLD_KEY = "contacts.foldedGroups";
+/** 접은 그룹(왼쪽 목록·관리 창이 같이 써요). */
+function useFolded(): [Set<string>, (key: string) => void] {
+  const [folded, setFolded] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    api.get(FOLD_KEY).then((v) => {
+      try {
+        if (v) setFolded(new Set(JSON.parse(v) as string[]));
+      } catch {
+        /* 예전 값은 무시해요 */
+      }
+    }, () => {});
+  }, []);
+  const toggle = (key: string) =>
+    setFolded((old) => {
+      const next = new Set(old);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      api.set(FOLD_KEY, JSON.stringify([...next])).catch(() => {});
+      return next;
+    });
+  return [folded, toggle];
+}
+
+const FoldArrow = ({ open }: { open: boolean }) => (
+  <svg className="grp-arrow" aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+    <path d={open ? "M6 9l6 6 6-6" : "M9 6l6 6-6 6"} />
+  </svg>
+);
+
+/** 프로젝트가 많아도 한 칸에 세로로 쌓여요. 가나다/많은 순, 찾기, 그룹별로 접고 펴기(2026-10-19 사용자). */
+function ProjectList({ projects, groups, contacts, sel, onSel }: { projects: Project[]; groups: ProjectGroup[]; contacts: Contact[]; sel: number | null; onSel: (id: number | null) => void }) {
+  const [sort, setSort] = useState<"name" | "count">("name");
+  const [pq, setPq] = useState("");
+  const [folded, toggle] = useFolded();
+  useEffect(() => {
+    api.get(SORT_KEY).then((v) => v === "count" && setSort("count"), () => {});
+  }, []);
+  const pick = (v: "name" | "count") => {
+    setSort(v);
+    api.set(SORT_KEY, v).catch(() => {});
+  };
+  const count = useMemo(() => {
+    const m = new Map<number, number>();
+    for (const c of contacts) for (const id of c.projects) m.set(id, (m.get(id) ?? 0) + 1);
+    return m;
+  }, [contacts]);
+  const ql = pq.trim().toLowerCase();
+  const order = (list: Project[]) =>
+    list
+      .filter((p) => !ql || p.name.toLowerCase().includes(ql) || p.alias.toLowerCase().includes(ql) || (/[ㄱ-ㅎ]/.test(ql) && koIndex(pjLabel(p), ql) >= 0))
+      .sort((a, b) => (sort === "count" ? (count.get(b.id) ?? 0) - (count.get(a.id) ?? 0) : 0) || koSort(a, b));
+  const row = (p: Project, zero: boolean) => (
+    <button key={p.id} type="button" className={"ct-pj" + (zero ? " ct-pj-z" : "")} aria-pressed={sel === p.id} title={pjFull(p)} onClick={() => onSel(p.id)}>
+      <span className="ct-pj-dot" aria-hidden="true" style={{ background: `var(--pj-${projectColor(p)}-line)` }} />
+      <span className="ct-pj-t">{pjLabel(p)}</span>
+      <span className="ct-pj-n">{count.get(p.id) ?? 0}</span>
+    </button>
+  );
+  const flat = groups.length === 0;
+  const sections = pjSections(projects, groups);
+  let shown = 0;
+  return (
+    <aside className="ct-side" aria-label="프로젝트로 거르기">
+      <div className="ct-side-head">
+        <div className="ct-side-top">
+          <span className="ct-side-label">프로젝트 {projects.length}</span>
+          <span className="ct-sort" role="group" aria-label="정렬">
+            <button type="button" aria-pressed={sort === "name"} onClick={() => pick("name")}>가나다</button>
+            <button type="button" aria-pressed={sort === "count"} onClick={() => pick("count")}>많은 순</button>
+          </span>
+        </div>
+        <input className="input" aria-label="프로젝트 찾기" placeholder="프로젝트 찾기" value={pq} onChange={(e) => setPq(e.target.value)} onKeyDown={(e) => e.key === "Escape" && pq && (e.preventDefault(), setPq(""))} />
+      </div>
+      <div className="ct-side-list">
+        <button type="button" className="ct-pj ct-pj-all" aria-pressed={sel === null} onClick={() => onSel(null)}>
+          <span className="ct-pj-t">전체</span>
+          <span className="ct-pj-n">{contacts.length}</span>
+        </button>
+        <div className="ct-side-div" />
+        {sections.map((sec) => {
+          const list = order(sec.projects);
+          if (!list.length) return null;
+          shown += list.length;
+          const used = list.filter((p) => count.get(p.id));
+          const empty = list.filter((p) => !count.get(p.id));
+          if (flat)
+            return (
+              <div key={sec.key}>
+                {used.map((p) => row(p, false))}
+                {empty.length > 0 && <div className="ct-side-sub">연락처 없음</div>}
+                {empty.map((p) => row(p, true))}
+              </div>
+            );
+          // 찾는 중에는 접힌 그룹도 펴서 보여요.
+          const open = !!ql || !folded.has(sec.key);
+          const people = contacts.filter((c) => c.projects.some((id) => list.some((p) => p.id === id))).length;
+          return (
+            <div key={sec.key} className="ct-grp">
+              <button type="button" className="ct-grp-h" aria-expanded={open} onClick={() => toggle(sec.key)}>
+                <FoldArrow open={open} />
+                <span className="ct-pj-t">{sec.name}</span>
+                <span className="ct-pj-n">{people}</span>
+              </button>
+              {open && [...used.map((p) => row(p, false)), ...empty.map((p) => row(p, true))]}
+            </div>
+          );
+        })}
+        {shown === 0 && <p className="ct-side-none">맞는 프로젝트가 없어요</p>}
+      </div>
+    </aside>
   );
 }
 
@@ -275,7 +395,7 @@ const FIELDS: { key: Exclude<keyof ContactInput, "projects">; label: string; ph:
   { key: "email", label: "이메일", ph: "이메일" },
 ];
 
-function NewRow({ projects, onAdd }: { projects: Project[]; onAdd: (c: ContactInput) => Promise<boolean> }) {
+function NewRow({ projects, groups, onAdd }: { projects: Project[]; groups: ProjectGroup[]; onAdd: (c: ContactInput) => Promise<boolean> }) {
   const [v, setV] = useState({ ...EMPTY, proj: [] as string[] });
   const [warn, setWarn] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -349,7 +469,7 @@ function NewRow({ projects, onAdd }: { projects: Project[]; onAdd: (c: ContactIn
             </div>
           ))}
           <div role="cell">
-            <ProjectChips projects={projects} value={v.proj} onChange={(proj) => setV((old) => ({ ...old, proj }))} pending={pending} />
+            <ProjectChips projects={projects} groups={groups} value={v.proj} onChange={(proj) => setV((old) => ({ ...old, proj }))} pending={pending} />
           </div>
           <div role="cell" className="ct-new-add">
             <button type="button" className="btn-icon btn-add" aria-label="연락처 등록" tabIndex={-1} onClick={submit}>
@@ -381,11 +501,16 @@ function projectsToSave(projects: Project[], chips: string[], pending: string): 
  */
 function ProjectChips({
   projects,
+  groups = [],
+  stacked,
   value,
   onChange,
   pending,
 }: {
   projects: Project[];
+  groups?: ProjectGroup[];
+  /** 고치는 카드: 붙은 배지 줄과 찾는 칸을 나눠요(2026-10-19 사용자 1안). */
+  stacked?: boolean;
   /** 붙은 프로젝트 이름(화면 이름) */
   value: string[];
   onChange: (v: string[]) => void;
@@ -402,10 +527,13 @@ function ProjectChips({
   const query = q.trim();
   const ql = query.toLowerCase();
   const exact = findProject(projects, query);
+  const gOrder = new Map(groups.map((g, i) => [g.id, i]));
+  const gRank = (p: Project) => (p.group != null && gOrder.has(p.group) ? (gOrder.get(p.group) as number) : groups.length);
   const found = projects
-    .filter((p) => !taken.has(p.id) && (!ql || p.name.toLowerCase().includes(ql) || p.alias.toLowerCase().includes(ql)))
-    .sort((a, b) => Number(b === exact) - Number(a === exact))
-    .slice(0, 8);
+    .filter((p) => !taken.has(p.id) && (!ql || p.name.toLowerCase().includes(ql) || p.alias.toLowerCase().includes(ql) || (/[ㄱ-ㅎ]/.test(ql) && koIndex(pjLabel(p), ql) >= 0)))
+    .sort((a, b) => Number(b === exact) - Number(a === exact) || gRank(a) - gRank(b) || koSort(a, b))
+    .slice(0, 10);
+  const groupTitle = (p: Project) => (groups.length ? groups.find((g) => g.id === p.group)?.name ?? "그룹 없음" : "");
   type Opt = { p: Project } | { label: string };
   const options: Opt[] = found.map((p) => ({ p }));
   if (query && !exact && !value.includes(query)) options.push({ label: query });
@@ -421,81 +549,101 @@ function ProjectChips({
     inputRef.current?.focus();
   }
 
+  const badges = value.map((label) => {
+    const p = findProject(projects, label);
+    return (
+      <span key={label} className={"pbadge pchip-b" + (p ? "" : " pchip-new")} style={p ? pjStyle(p) : undefined} title={p ? pjFull(p) : `${label} · 저장할 때 새 프로젝트로 만들어요`}>
+        <span className="pbadge-t">{label}</span>
+        <button
+          type="button"
+          tabIndex={-1}
+          className="pchip-x"
+          aria-label={`${label} 빼기`}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            onChange(value.filter((x) => x !== label));
+          }}
+        >
+          <svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      </span>
+    );
+  });
+  const input = (
+    <input
+      ref={inputRef}
+      name="proj"
+      aria-label="프로젝트"
+      placeholder={stacked ? "프로젝트 찾아 붙이기" : value.length ? "더하기" : "프로젝트"}
+      autoComplete="off"
+      className="pchips-in"
+      value={q}
+      role="combobox"
+      aria-expanded={show}
+      aria-autocomplete="list"
+      onChange={(e) => {
+        setQ(e.target.value);
+        setOpen(true);
+        setHi(-1);
+      }}
+      onFocus={() => setOpen(true)}
+      onBlur={() => {
+        setOpen(false);
+        setHi(-1);
+      }}
+      onKeyDown={(e) => {
+        if (isComposing(e)) return;
+        if (e.key === "ArrowDown" && options.length) {
+          e.preventDefault();
+          setOpen(true);
+          setHi((cur + 1) % options.length);
+        } else if (e.key === "ArrowUp" && options.length) {
+          e.preventDefault();
+          setHi(cur <= 0 ? options.length - 1 : cur - 1);
+        } else if ((e.key === "Enter" || e.key === "Tab") && !e.shiftKey && show && cur >= 0 && options[cur]) {
+          // 후보 목록이 열려 있으면 Enter·Tab은 먼저 후보 확정(공통 규칙)
+          e.preventDefault();
+          pick(options[cur]);
+        } else if (e.key === "Backspace" && !q && value.length) {
+          e.preventDefault();
+          onChange(value.slice(0, -1));
+        } else if (e.key === "Escape" && q) {
+          // 치던 글자만 지우고, 고치는 카드는 닫지 않아요.
+          e.preventDefault();
+          e.stopPropagation();
+          setQ("");
+          setHi(-1);
+        }
+      }}
+    />
+  );
+
   return (
-    <div className="pin">
-      <div className="pchips" onMouseDown={(e) => e.target === e.currentTarget && (e.preventDefault(), inputRef.current?.focus())}>
-        {value.map((label) => {
-          const p = findProject(projects, label);
-          return (
-            <span key={label} className={"pbadge pchip-b" + (p ? "" : " pchip-new")} style={p ? pjStyle(p) : undefined} title={p ? pjFull(p) : `${label} · 저장할 때 새 프로젝트로 만들어요`}>
-              <span className="pbadge-t">{label}</span>
-              <button
-                type="button"
-                tabIndex={-1}
-                className="pchip-x"
-                aria-label={`${label} 빼기`}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  onChange(value.filter((x) => x !== label));
-                }}
-              >
-                <svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
-                  <path d="M6 6l12 12M18 6L6 18" />
-                </svg>
-              </button>
-            </span>
-          );
-        })}
-        <input
-          ref={inputRef}
-          name="proj"
-          aria-label="프로젝트"
-          placeholder={value.length ? "더하기" : "프로젝트"}
-          autoComplete="off"
-          className="pchips-in"
-          value={q}
-          role="combobox"
-          aria-expanded={show}
-          aria-autocomplete="list"
-          onChange={(e) => {
-            setQ(e.target.value);
-            setOpen(true);
-            setHi(-1);
-          }}
-          onFocus={() => setOpen(true)}
-          onBlur={() => {
-            setOpen(false);
-            setHi(-1);
-          }}
-          onKeyDown={(e) => {
-            if (isComposing(e)) return;
-            if (e.key === "ArrowDown" && options.length) {
-              e.preventDefault();
-              setOpen(true);
-              setHi((cur + 1) % options.length);
-            } else if (e.key === "ArrowUp" && options.length) {
-              e.preventDefault();
-              setHi(cur <= 0 ? options.length - 1 : cur - 1);
-            } else if ((e.key === "Enter" || e.key === "Tab") && !e.shiftKey && show && cur >= 0 && options[cur]) {
-              // 후보 목록이 열려 있으면 Enter·Tab은 먼저 후보 확정(공통 규칙)
-              e.preventDefault();
-              pick(options[cur]);
-            } else if (e.key === "Backspace" && !q && value.length) {
-              e.preventDefault();
-              onChange(value.slice(0, -1));
-            } else if (e.key === "Escape" && q) {
-              // 치던 글자만 지우고, 고치는 카드는 닫지 않아요.
-              e.preventDefault();
-              e.stopPropagation();
-              setQ("");
-              setHi(-1);
-            }
-          }}
-        />
-      </div>
+    <div className={"pin" + (stacked ? " pin-stacked" : "")}>
+      {stacked ? (
+        <>
+          {value.length > 0 && <div className="pchips-got">{badges}</div>}
+          <div className="pchips pchips-find" onMouseDown={(e) => e.target === e.currentTarget && (e.preventDefault(), inputRef.current?.focus())}>
+            <span className="pchips-plus" aria-hidden="true">＋</span>
+            {input}
+          </div>
+        </>
+      ) : (
+        <div className="pchips" onMouseDown={(e) => e.target === e.currentTarget && (e.preventDefault(), inputRef.current?.focus())}>
+          {badges}
+          {input}
+        </div>
+      )}
       {show && (
         <div className="pin-list" role="listbox">
-          {options.map((o, i) => (
+          {options.map((o, i) => [
+            "p" in o && groups.length > 0 && (i === 0 || !("p" in options[i - 1]) || groupTitle((options[i - 1] as { p: Project }).p) !== groupTitle(o.p)) && (
+              <div key={"h" + i} className="pin-grp" aria-hidden="true">
+                {groupTitle(o.p)}
+              </div>
+            ),
             <div
               key={"p" in o ? o.p.id : "new"}
               role="option"
@@ -515,8 +663,8 @@ function ProjectChips({
                   <b>＋ 새 프로젝트로 추가</b> <span className="pin-new-t">“{o.label}”</span>
                 </span>
               )}
-            </div>
-          ))}
+            </div>,
+          ])}
         </div>
       )}
     </div>
@@ -697,12 +845,14 @@ function EditCard({
   contact: c,
   byId,
   projects,
+  groups,
   onCancel,
   onSave,
 }: {
   contact: Contact;
   byId: Map<number, Project>;
   projects: Project[];
+  groups: ProjectGroup[];
   onCancel: () => void;
   onSave: (input: ContactInput) => Promise<void>;
 }) {
@@ -792,7 +942,7 @@ function EditCard({
         <span>메일</span>
         {field("email", "이메일", "이메일")}
         <span>프로젝트</span>
-        <ProjectChips projects={projects} value={v.proj} onChange={(proj) => setV((old) => ({ ...old, proj }))} pending={pending} />
+        <ProjectChips projects={projects} groups={groups} stacked value={v.proj} onChange={(proj) => setV((old) => ({ ...old, proj }))} pending={pending} />
       </div>
       <div className="edit-foot">
         <span className="hint">Tab·Enter 다음 칸 · 마지막 칸이면 저장 · Esc 취소</span>
@@ -1022,6 +1172,45 @@ export function MemoEditor({
 
 // ---------- 프로젝트 관리 창 ----------
 
+const PJM_W = 960;
+const PJM_W_KEY = "contacts.projectDialogWidth";
+const clampW = (w: number) => Math.max(640, Math.min(Number.isFinite(w) ? w : PJM_W, window.innerWidth - 32));
+
+/** 창 왼쪽·오른쪽 가장자리 손잡이. 창은 가운데에 있으니 끈 만큼 양쪽이 같이 늘어요(손잡이가 마우스를 따라와요). */
+function EdgeGrip({ side, width, onWidth, onDone }: { side: "l" | "r"; width: number; onWidth: (w: number) => void; onDone: (w: number) => void }) {
+  return (
+    <div
+      className={"pjm-grip pjm-grip-" + side}
+      aria-hidden="true"
+      onMouseDown={(e) => {
+        e.preventDefault();
+        const x0 = e.clientX;
+        const w0 = width;
+        let w = w0;
+        const move = (ev: MouseEvent) => {
+          const dx = (ev.clientX - x0) * (side === "r" ? 1 : -1);
+          w = clampW(w0 + dx * 2);
+          onWidth(w);
+        };
+        const up = () => {
+          window.removeEventListener("mousemove", move);
+          window.removeEventListener("mouseup", up);
+          document.body.classList.remove("ew-dragging");
+          onDone(w);
+        };
+        document.body.classList.add("ew-dragging");
+        window.addEventListener("mousemove", move);
+        window.addEventListener("mouseup", up);
+      }}
+      onDoubleClick={() => {
+        onWidth(PJM_W);
+        onDone(PJM_W);
+      }}
+      title="끌어서 폭 바꾸기 · 두 번 누르면 처음 폭"
+    />
+  );
+}
+
 function ProjectDialog({
   data,
   run,
@@ -1032,9 +1221,25 @@ function ProjectDialog({
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState("");
+  const [draftShort, setDraftShort] = useState("");
   const [ask, setAsk] = useState<number | null>(null);
   /** 이름을 고치고 있는 프로젝트 */
   const [editId, setEditId] = useState<number | null>(null);
+  const [pq, setPq] = useState("");
+  const [sort, setSort] = useState<"name" | "count">("name");
+  const [draftGroup, setDraftGroup] = useState("");
+  const [folded, toggle] = useFolded();
+  const [groupMenu, setGroupMenu] = useState<{ id: number; x: number; y: number } | null>(null);
+  const [renaming, setRenaming] = useState<number | null>(null);
+  const [askGroup, setAskGroup] = useState<number | null>(null);
+  // 창 폭: 양옆 가장자리를 끌어 넓혀요(2026-10-19 사용자), 고른 폭은 기억해요.
+  const [pjmW, setPjmW] = useState(PJM_W);
+  useEffect(() => {
+    api.get(PJM_W_KEY).then((v) => v && setPjmW(clampW(Number(v))), () => {});
+  }, []);
+  const savePjmW = (w: number) => api.set(PJM_W_KEY, String(Math.round(w))).catch(() => {});
+  /** 방금 더한 프로젝트 이름(그 줄로 내려가요) */
+  const [added, setAdded] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => inputRef.current?.focus(), []);
@@ -1042,117 +1247,226 @@ function ProjectDialog({
   // Esc는 묻는 띠를 먼저 닫고, 없으면 창을 닫아요. 커서가 창 밖에 있어도 들어요.
   const askRef = useRef(ask);
   askRef.current = ask;
+  const askGroupRef = useRef<number | null>(null);
+  askGroupRef.current = askGroup;
   useEffect(() => {
     const key = (e: globalThis.KeyboardEvent) => {
       if (e.key !== "Escape" || e.isComposing) return;
       e.preventDefault();
       if (askRef.current !== null) setAsk(null);
+      else if (askGroupRef.current !== null) setAskGroup(null);
       else onClose();
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
   }, [onClose]);
 
+  const isTaken = (n: string) => data.projects.some((x) => x.name === n || x.alias === n);
+  const dFull = draft.trim();
+  const dShort = draftShort.trim();
+  const badFull = !!dFull && isTaken(dFull);
+  const badShort = !!dShort && dShort !== dFull && isTaken(dShort);
+
+  /** 공사명·축약 공사명 중 하나만 적어도 돼요(2026-10-19 사용자). 그룹만 적고 추가하면 빈 그룹을 만들어요. */
   async function add() {
-    const name = draft.trim();
-    if (!name) return;
-    if (await run(api.addProject(name))) setDraft("");
+    const name = dFull || dShort;
+    const grp = draftGroup.trim();
+    if (!name) {
+      if (grp && !(data.groups ?? []).some((g) => g.name === grp)) await run(api.addProjectGroup(grp));
+      inputRef.current?.focus();
+      return;
+    }
+    if (badFull || badShort) return;
+    const ok = await run(
+      (async () => {
+        let d = await api.addProject(name);
+        const p = d.projects.find((x) => x.name === name);
+        if (p && dFull && dShort && dShort !== dFull) d = await api.setProjectNames(p.id, dFull, dShort);
+        if (p && grp) d = await api.setProjectGroup(p.id, grp);
+        return d;
+      })(),
+    );
+    if (ok) {
+      // 그룹은 남겨 둬요 — 같은 그룹에 이어서 넣기 쉽게.
+      setDraft("");
+      setDraftShort("");
+      setPq("");
+      setAdded(name);
+    }
     inputRef.current?.focus();
   }
+
+  const ql = pq.trim().toLowerCase();
+  const count = (id: number) => data.contacts.filter((c) => c.projects.includes(id)).length;
+  const groups = data.groups ?? [];
+  const flat = groups.length === 0;
+  const sections = pjSections(data.projects, groups).map((sec) => ({
+    ...sec,
+    rows: sec.projects
+      .filter((p) => !ql || p.name.toLowerCase().includes(ql) || p.alias.toLowerCase().includes(ql) || (/[ㄱ-ㅎ]/.test(ql) && koIndex(pjLabel(p), ql) >= 0))
+      .map((p) => ({ p, users: count(p.id) }))
+      .sort((x, y) => (sort === "count" ? y.users - x.users : 0) || pjFull(x.p).localeCompare(pjFull(y.p), "ko", { numeric: true })),
+  }));
+  const nothing = sections.every((s) => s.rows.length === 0);
+
+  // 방금 더한 프로젝트가 보이게 내려가요.
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!added) return;
+    bodyRef.current?.querySelector(`[data-pj="${CSS.escape(added)}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [added, data]);
+
+  const groupName = (id: number | null) => groups.find((g) => g.id === id)?.name ?? "";
 
   return (
     <div
       className="overlay"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="dialog mgr" role="dialog" aria-modal="true" aria-label="프로젝트 관리">
-        <div className="dialog-head">
+      <div className="dialog mgr pjm" role="dialog" aria-modal="true" aria-label="프로젝트 관리" style={{ width: pjmW }}>
+        <EdgeGrip side="l" width={pjmW} onWidth={setPjmW} onDone={savePjmW} />
+        <EdgeGrip side="r" width={pjmW} onWidth={setPjmW} onDone={savePjmW} />
+        <div className="dialog-head pjm-head">
           <span className="dialog-title">프로젝트 관리</span>
+          <span className="mgr-info">{data.projects.length}개</span>
+          <input
+            className="input pjm-find"
+            aria-label="프로젝트 찾기"
+            placeholder="찾기"
+            value={pq}
+            onChange={(e) => setPq(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape" && pq) {
+                e.preventDefault();
+                e.nativeEvent.stopImmediatePropagation();
+                setPq("");
+              }
+            }}
+          />
         </div>
-        <div className="dialog-body">
-          {data.projects.length === 0 && <p className="muted small">아직 프로젝트가 없어요.</p>}
-          {data.projects.map((p) => {
-            const k = projectColor(p);
-            const users = data.contacts.filter((c) => c.projects.includes(p.id)).length;
+        <div className="pjm-add">
+          <GroupInput groups={groups} value={draftGroup} onChange={setDraftGroup} onEnter={add} />
+          <input
+            ref={inputRef}
+            className={"input" + (badFull ? " invalid" : "")}
+            aria-label="공사명"
+            placeholder="공사명"
+            title={badFull ? "같은 이름의 프로젝트가 있어요" : undefined}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !isComposing(e)) {
+                e.preventDefault();
+                add();
+              }
+            }}
+          />
+          <input
+            className={"input" + (badShort ? " invalid" : "")}
+            aria-label="축약 공사명"
+            placeholder="축약 공사명"
+            title={badShort ? "같은 이름의 프로젝트가 있어요" : "비우면 공사명으로 보여요"}
+            value={draftShort}
+            onChange={(e) => setDraftShort(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !isComposing(e)) {
+                e.preventDefault();
+                add();
+              }
+            }}
+          />
+          <button type="button" className="btn-primary pjm-add-btn" onClick={add}>
+            <Plus size={14} /> 추가
+          </button>
+        </div>
+        <div className="pjm-row pjm-th" role="row">
+          <span>색</span>
+          <button type="button" className="pjm-sort" aria-pressed={sort === "name"} onClick={() => setSort("name")}>
+            공사명{sort === "name" ? " ↓" : ""}
+          </button>
+          <span>축약 공사명</span>
+          <button type="button" className="pjm-sort pjm-n" aria-pressed={sort === "count"} onClick={() => setSort("count")}>
+            {sort === "count" ? "↓ " : ""}연락처
+          </button>
+          <span />
+          <span />
+        </div>
+        <div className="dialog-body pjm-body" ref={bodyRef}>
+          {data.projects.length === 0 && groups.length === 0 && <p className="muted small pjm-empty">아직 프로젝트가 없어요.</p>}
+          {data.projects.length > 0 && nothing && !!ql && <p className="muted small pjm-empty">맞는 프로젝트가 없어요.</p>}
+          {sections.map((sec) => {
+            // 그룹이 없으면 묶음 머리 없이 예전처럼, 찾는 중에는 맞는 것이 없는 묶음을 숨겨요.
+            if (flat || (ql && sec.rows.length === 0) || (sec.id === null && sec.projects.length === 0)) {
+              if (flat) return <div key={sec.key}>{sec.rows.map(rowOf)}</div>;
+              return null;
+            }
+            const open = !!ql || !folded.has(sec.key);
+            const gi = groups.findIndex((g) => g.id === sec.id);
             return (
-              <div key={p.id} className="prow">
-                <div className="prow-name mgr-name pj-mname">
-                  {editId === p.id ? (
-                    <NamesEdit
-                      full={fullDraft(p)}
-                      short={p.alias}
-                      taken={(n) => data.projects.some((x) => x.id !== p.id && (x.name === n || x.alias === n))}
-                      onDone={async (v) => {
-                        setEditId(null);
-                        if (v && (v.full !== fullDraft(p) || v.short !== p.alias)) await run(api.setProjectNames(p.id, v.full, v.short));
+              <div key={sec.key} className="pjm-grp">
+                <div
+                  className="pjm-grp-h"
+                  onContextMenu={(e) => {
+                    if (sec.id === null) return;
+                    e.preventDefault();
+                    setGroupMenu({ id: sec.id, x: e.clientX, y: e.clientY });
+                  }}
+                >
+                  {renaming !== null && renaming === sec.id ? (
+                    <GroupRename
+                      name={sec.name}
+                      taken={(n) => groups.some((g) => g.id !== sec.id && g.name === n)}
+                      onDone={async (name) => {
+                        setRenaming(null);
+                        if (name && name !== sec.name && sec.id !== null) await run(api.renameProjectGroup(sec.id, name));
                       }}
                     />
                   ) : (
-                    <>
-                      <span className="mgr-badge-line">
-                        <button type="button" className="pbadge mgr-badge-btn" style={pjStyle(p)} title="눌러서 이름 고치기" onClick={() => setEditId(p.id)}>
-                          <span className="pbadge-t">{pjLabel(p)}</span>
-                        </button>
-                        <span className="mgr-info">{users ? `연락처 ${users}명` : "연락처 없음"}</span>
-                      </span>
-                      {pjOther(p) && (
-                        <span className="mgr-full" title={pjOther(p)}>
-                          {pjOther(p)}
-                        </span>
-                      )}
-                    </>
+                    <button type="button" className="pjm-grp-btn" aria-expanded={open} onClick={() => toggle(sec.key)} title={sec.id === null ? undefined : "우클릭: 이름 바꾸기 · 위/아래로 · 지우기"}>
+                      <FoldArrow open={open} />
+                      <span className="pjm-grp-name">{sec.name}</span>
+                      <span className="mgr-info">{sec.projects.length}개</span>
+                    </button>
+                  )}
+                  {askGroup === sec.id && sec.id !== null && (
+                    <div className="ask-band ask-wide pjm-ask" role="alertdialog" aria-label="그룹 지우기 확인">
+                      <span>{sec.projects.length ? `그룹만 지워요. 프로젝트 ${sec.projects.length}개는 "그룹 없음"으로 가요.` : "빈 그룹이에요. 지울까요?"}</span>
+                      <button type="button" className="btn btn-xs" autoFocus onClick={() => setAskGroup(null)}>
+                        취소
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-xs btn-danger"
+                        onClick={async () => {
+                          const id = sec.id as number;
+                          setAskGroup(null);
+                          if (groupName(id) === draftGroup) setDraftGroup("");
+                          await run(api.deleteProjectGroup(id));
+                        }}
+                      >
+                        그룹 지우기
+                      </button>
+                    </div>
                   )}
                 </div>
-                <ColorPick
-                  name={p.name}
-                  current={k}
-                  auto={p.color === null}
-                  onPick={(c) => run(api.setProjectColor(p.id, c))}
-                />
-                <button type="button" className="tool-box" aria-label={`${p.name} 지우기`} title="이 프로젝트 지우기" onClick={() => setAsk(p.id)}>
-                  <DelIcon />
-                </button>
-                {ask === p.id && (
-                  <div className="ask-band ask-wide" role="alertdialog" aria-label="프로젝트 지우기 확인">
-                    <span>{users ? `${users}명에게 붙어 있어요. 지워도 사람은 남고 배지만 빠져요.` : "아무에게도 붙어 있지 않아요. 지울까요?"}</span>
-                    <button type="button" className="btn btn-xs" autoFocus onClick={() => setAsk(null)}>
-                      취소
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-xs btn-danger"
-                      onClick={async () => {
-                        setAsk(null);
-                        await run(api.deleteProject(p.id));
-                        inputRef.current?.focus();
-                      }}
-                    >
-                      지우기
-                    </button>
-                  </div>
+                {open && sec.rows.map(rowOf)}
+                {open && sec.rows.length === 0 && <p className="muted small pjm-grp-empty">이 그룹에 프로젝트가 없어요.</p>}
+                {groupMenu?.id === sec.id && (
+                  <CtxMenu
+                    x={groupMenu.x}
+                    y={groupMenu.y}
+                    onClose={() => setGroupMenu(null)}
+                    items={[
+                      { label: "이름 바꾸기", run: () => setRenaming(sec.id) },
+                      { label: "위로 옮기기", disabled: gi <= 0, run: () => run(api.moveProjectGroup(sec.id as number, -1)) },
+                      { label: "아래로 옮기기", disabled: gi >= groups.length - 1, run: () => run(api.moveProjectGroup(sec.id as number, 1)) },
+                      { label: "그룹 지우기", danger: true, run: () => setAskGroup(sec.id) },
+                    ]}
+                  />
                 )}
               </div>
             );
           })}
-          <div className="padd">
-            <input
-              ref={inputRef}
-              className="input"
-              aria-label="새 프로젝트 이름"
-              placeholder="새 프로젝트 이름"
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !isComposing(e)) {
-                  e.preventDefault();
-                  add();
-                }
-              }}
-            />
-            <button type="button" className="btn-primary btn-ctrl mgr-add" onClick={add}>
-              <Plus size={16} /> 추가
-            </button>
-          </div>
         </div>
         <div className="dialog-foot">
           <button type="button" className="btn btn-ctrl btn-text" onClick={onClose}>
@@ -1160,6 +1474,232 @@ function ProjectDialog({
           </button>
         </div>
       </div>
+    </div>
+  );
+
+  function rowOf({ p, users }: { p: Project; users: number }) {
+    return (
+      <div key={p.id} className={"pjm-row" + (editId === p.id ? " pjm-editing" : "")} data-pj={p.name} onDoubleClick={(e) => !(e.target as HTMLElement).closest("button, input, .ask-band") && setEditId(p.id)}>
+        <ColorPick name={p.name} current={projectColor(p)} auto={p.color === null} onPick={(c) => run(api.setProjectColor(p.id, c))} />
+        {editId === p.id ? (
+          <div className={"pjm-edit" + (flat ? "" : " pjm-edit-g")}>
+            <NamesEdit
+              full={fullDraft(p)}
+              short={p.alias}
+              group={flat ? undefined : groupName(p.group)}
+              groups={groups}
+              taken={(n) => data.projects.some((x) => x.id !== p.id && (x.name === n || x.alias === n))}
+              onDone={async (v) => {
+                setEditId(null);
+                if (!v) return;
+                await run(
+                  (async () => {
+                    let d: ContactsData | null = null;
+                    if (v.full !== fullDraft(p) || v.short !== p.alias) d = await api.setProjectNames(p.id, v.full, v.short);
+                    if (v.group !== undefined && v.group !== groupName(p.group)) d = await api.setProjectGroup(p.id, v.group);
+                    return d ?? (await api.contactsData());
+                  })(),
+                );
+              }}
+            />
+          </div>
+        ) : (
+          <>
+            <span className="pjm-full" title={pjFull(p)}>
+              {pjFull(p)}
+            </span>
+            <span className={"pjm-short" + (p.alias ? "" : " pjm-same")} title={pjLabel(p)}>{p.alias || "—"}</span>
+          </>
+        )}
+        <span className={"pjm-n" + (users ? "" : " pjm-zero")}>{users}명</span>
+        <button type="button" className="tool-box pjm-tool" aria-label={`${p.name} 고치기`} title="고치기(줄을 두 번 눌러도 돼요)" onClick={() => setEditId(p.id)}>
+          <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 20h4L19 9l-4-4L4 16z" />
+          </svg>
+        </button>
+        <button type="button" className="tool-box pjm-tool" aria-label={`${p.name} 지우기`} title="이 프로젝트 지우기" onClick={() => setAsk(p.id)}>
+          <DelIcon />
+        </button>
+        {ask === p.id && (
+          <div className="ask-band ask-wide pjm-ask" role="alertdialog" aria-label="프로젝트 지우기 확인">
+            <span>{users ? `${users}명에게 붙어 있어요. 지워도 사람은 남고 배지만 빠져요.` : "아무에게도 붙어 있지 않아요. 지울까요?"}</span>
+            <button type="button" className="btn btn-xs" autoFocus onClick={() => setAsk(null)}>
+              취소
+            </button>
+            <button
+              type="button"
+              className="btn btn-xs btn-danger"
+              onClick={async () => {
+                setAsk(null);
+                await run(api.deleteProject(p.id));
+                inputRef.current?.focus();
+              }}
+            >
+              지우기
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+}
+
+// ---------- 그룹 칸 · 그룹 이름 바꾸기 · 우클릭 메뉴 ----------
+
+/** 그룹 고르기 칸: 있는 그룹을 고르거나 새 이름을 쳐요(없는 이름이면 추가할 때 그룹이 생겨요). */
+function GroupInput({ groups, value, onChange, onEnter, autoFocus }: { groups: ProjectGroup[]; value: string; onChange: (v: string) => void; onEnter?: () => void; autoFocus?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [hi, setHi] = useState(-1);
+  const q = value.trim();
+  const exact = groups.some((g) => g.name === q);
+  const opts: { label: string; isNew?: boolean; none?: boolean }[] = [
+    { label: "그룹 없음", none: true },
+    ...groups.filter((g) => !q || exact || g.name.includes(q)).map((g) => ({ label: g.name })),
+  ];
+  if (q && !exact) opts.push({ label: q, isNew: true });
+  const cur = q && !exact ? (hi < 0 ? opts.findIndex((o) => !o.none) : hi) : hi;
+  const choose = (o: (typeof opts)[number]) => {
+    onChange(o.none ? "" : o.label);
+    setOpen(false);
+    setHi(-1);
+  };
+  return (
+    <div className="pin grp-in">
+      <input
+        className={"input" + (q && !exact ? " grp-new" : "")}
+        aria-label="그룹"
+        placeholder="그룹"
+        autoFocus={autoFocus}
+        value={value}
+        title={q && !exact ? "새 그룹으로 만들어요" : undefined}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setOpen(true);
+          setHi(-1);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onKeyDown={(e) => {
+          if (isComposing(e)) return;
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setOpen(true);
+            setHi((cur + 1) % opts.length);
+          } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setHi(cur <= 0 ? opts.length - 1 : cur - 1);
+          } else if ((e.key === "Enter" || e.key === "Tab") && open && cur >= 0 && opts[cur]) {
+            // 목록이 열려 있으면 Enter·Tab은 먼저 고르기(공통 규칙), Tab은 다음 칸으로도 가요.
+            if (e.key === "Enter") e.preventDefault();
+            choose(opts[cur]);
+          } else if (e.key === "Enter" && onEnter) {
+            e.preventDefault();
+            onEnter();
+          } else if (e.key === "Escape" && open) {
+            e.preventDefault();
+            e.nativeEvent.stopImmediatePropagation();
+            setOpen(false);
+          }
+        }}
+      />
+      {open && (
+        <div className="pin-list" role="listbox">
+          {opts.map((o, i) => (
+            <div
+              key={(o.isNew ? "+" : "") + o.label}
+              role="option"
+              aria-selected={i === cur}
+              className={"pin-opt" + (o.none ? " grp-none" : "")}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                choose(o);
+              }}
+            >
+              {o.isNew ? (
+                <span className="pin-new">
+                  <b>＋ 새 그룹</b> <span className="pin-new-t">“{o.label}”</span>
+                </span>
+              ) : (
+                o.label
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GroupRename({ name, taken, onDone }: { name: string; taken: (n: string) => boolean; onDone: (name: string | null) => void }) {
+  const [v, setV] = useState(name);
+  const done = useRef(false);
+  const t = v.trim();
+  const bad = !t || taken(t);
+  const finish = (save: boolean) => {
+    if (done.current) return;
+    done.current = true;
+    onDone(save && !bad ? t : null);
+  };
+  return (
+    <input
+      className={"input pjm-grp-in" + (bad ? " invalid" : "")}
+      aria-label="그룹 이름"
+      autoFocus
+      value={v}
+      onFocus={(e) => e.currentTarget.select()}
+      onChange={(e) => setV(e.target.value)}
+      onBlur={() => finish(true)}
+      onKeyDown={(e) => {
+        if (isComposing(e)) return;
+        if (e.key === "Enter") {
+          e.preventDefault();
+          finish(true);
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          e.nativeEvent.stopImmediatePropagation();
+          finish(false);
+        }
+      }}
+    />
+  );
+}
+
+/** 작은 우클릭 메뉴(화면 기준 자리). 바깥을 누르거나 Esc면 닫혀요. */
+function CtxMenu({ x, y, items, onClose }: { x: number; y: number; items: { label: string; run: () => void; disabled?: boolean; danger?: boolean }[]; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const down = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && onClose();
+    const key = (e: globalThis.KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    document.addEventListener("mousedown", down);
+    window.addEventListener("keydown", key, true);
+    return () => {
+      document.removeEventListener("mousedown", down);
+      window.removeEventListener("keydown", key, true);
+    };
+  }, [onClose]);
+  return (
+    <div ref={ref} className="dmenu" role="menu" style={{ position: "fixed", left: x, top: y }}>
+      {items.map((it) => (
+        <button
+          key={it.label}
+          type="button"
+          role="menuitem"
+          className={"dmenu-item" + (it.danger ? " danger" : "")}
+          disabled={it.disabled}
+          onClick={() => {
+            onClose();
+            it.run();
+          }}
+        >
+          {it.label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -1178,16 +1718,22 @@ function ProjectDialog({
 function NamesEdit({
   full: full0,
   short: short0,
+  group: group0,
+  groups = [],
   taken,
   onDone,
 }: {
   full: string;
   short: string;
+  /** 그룹 칸을 보일 때만(그룹이 하나라도 있을 때) */
+  group?: string;
+  groups?: ProjectGroup[];
   taken: (name: string) => boolean;
-  onDone: (v: { full: string; short: string } | null) => void;
+  onDone: (v: { full: string; short: string; group?: string } | null) => void;
 }) {
   const [full, setFull] = useState(full0);
   const [short, setShort] = useState(short0);
+  const [group, setGroup] = useState(group0 ?? "");
   const done = useRef(false);
   const box = useRef<HTMLDivElement>(null);
   const f = full.trim();
@@ -1199,7 +1745,7 @@ function NamesEdit({
   const finish = (save: boolean) => {
     if (done.current) return;
     done.current = true;
-    onDone(save && !bad ? { full: f, short: sh } : null);
+    onDone(save && !bad ? { full: f, short: sh, group: group0 === undefined ? undefined : group.trim() } : null);
   };
   const key = (e: KeyboardEvent<HTMLInputElement>) => {
     if (isComposing(e)) return;
@@ -1222,8 +1768,9 @@ function NamesEdit({
         if (!box.current?.contains(e.relatedTarget as Node | null)) finish(true);
       }}
     >
+      {group0 !== undefined && <GroupInput groups={groups} value={group} onChange={setGroup} onEnter={() => !bad && finish(true)} />}
       <label className="mgr-names-l" htmlFor="pj-full">
-        정식 이름(문서용)
+        공사명
       </label>
       <input
         id="pj-full"
@@ -1231,20 +1778,21 @@ function NamesEdit({
         aria-invalid={empty || badFull || undefined}
         title={tip(empty || badFull, badFull)}
         autoFocus
+        placeholder="공사명"
         value={full}
         onFocus={(e) => e.currentTarget.select()}
         onChange={(e) => setFull(e.target.value)}
         onKeyDown={key}
       />
       <label className="mgr-names-l" htmlFor="pj-short">
-        줄인 이름(관리용)
+        축약 공사명
       </label>
       <input
         id="pj-short"
         className={"input mgr-name-in" + (empty || badShort ? " invalid" : "")}
         aria-invalid={empty || badShort || undefined}
         title={tip(empty || badShort, badShort)}
-        placeholder="비우면 정식 이름으로 보여요"
+        placeholder="비우면 공사명으로 보여요"
         value={short}
         onFocus={(e) => e.currentTarget.select()}
         onChange={(e) => setShort(e.target.value)}

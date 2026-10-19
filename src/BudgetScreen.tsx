@@ -11,6 +11,7 @@ import { api, errorText, inApp } from "./api";
 import {
   allRows,
   balance,
+  Basis,
   BudgetLevel,
   BudgetProject,
   BudgetRow,
@@ -28,7 +29,7 @@ import {
   typing,
   Unit,
 } from "./budget";
-import { BudgetImport, parseBudgetBook } from "./budgetExcel";
+import { BudgetImport, parseBudgetBook, planImport } from "./budgetExcel";
 import { dirOf, DIR_KEY, joinPath, lastDir } from "./ExcelMenu";
 import { todayStr } from "./journal";
 import { keyAction, rowKeys } from "./keys";
@@ -53,6 +54,7 @@ const FIXED = new Set<ColId>(["kind", "rate", "stage", "memo"]);
 const START_W = Object.fromEntries(COLS.map(([c, , w]) => [c, w])) as Record<ColId, number>;
 const COLS_KEY = "budget.cols";
 const UNIT_KEY = "budget.unit";
+const BASIS_KEY = "budget.basis";
 
 /** 고른 줄: p12(세부사업)·i3(부기사업)·g7(공사) */
 type Sel = string | null;
@@ -104,6 +106,7 @@ export default function BudgetScreen() {
   const [data, setData] = useState<BudgetProject[] | null>(null);
   const [note, setNote] = useState("");
   const [unit, setUnitState] = useState<Unit>(1);
+  const [basis, setBasisState] = useState<Basis>("exp");
   const [q, setQ] = useState("");
   const [sel, setSel] = useState<Sel>(null);
   const [cs, setCs] = useState<Cells>(NO_CELLS);
@@ -119,6 +122,10 @@ export default function BudgetScreen() {
   const [ask, setAsk] = useState<(BudgetImport & { path: string }) | null>(null);
   const formRow = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  /** 화면(표가 놓일 자리) 폭과 세로 스크롤 막대 폭 — 배치최적화 뒤 왼쪽으로 모을지 정해요 */
+  const [boxW, setBoxW] = useState(0);
+  const [sbw, setSbw] = useState(0);
   const qInput = useRef<HTMLInputElement>(null);
   const memoHtml = useRef("");
   const formRef = useRef(form);
@@ -138,6 +145,7 @@ export default function BudgetScreen() {
   }, [year, load]);
   useEffect(() => {
     api.get(UNIT_KEY).then((v) => setUnitState(v === "1000" ? 1000 : 1), () => {});
+    api.get(BASIS_KEY).then((v) => setBasisState(v === "act" ? "act" : "exp"), () => {});
     api.get(COLS_KEY).then(
       (v) => {
         if (!v) return;
@@ -172,10 +180,15 @@ export default function BudgetScreen() {
   useLayoutEffect(() => {
     const el = scroller.current;
     if (!el) return;
-    const measure = () => setAvail(el.clientWidth);
+    const measure = () => {
+      setAvail(el.clientWidth);
+      setSbw(el.offsetWidth - el.clientWidth);
+      if (rootRef.current) setBoxW(rootRef.current.clientWidth);
+    };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
+    if (rootRef.current) ro.observe(rootRef.current);
     return () => ro.disconnect();
   }, [data === null]);
 
@@ -409,6 +422,12 @@ export default function BudgetScreen() {
     await run(() => api.setBudgetOpen(level, id, !open));
   };
 
+  const setBasis = async (b: Basis) => {
+    if (!(await commit())) return;
+    setBasisState(b);
+    api.set(BASIS_KEY, b).catch(() => {});
+  };
+
   const setUnit = async (u: Unit) => {
     if (!(await commit())) return;
     setUnitState(u);
@@ -427,6 +446,9 @@ export default function BudgetScreen() {
   const rest = COLS.reduce((a, [c]) => a + (c === "name" ? 0 : W[c]), 0);
   const nameW = nameFixed ? W.name : Math.max(160, Math.floor(avail - 6 - rest));
   const cols = COLS.map(([c]) => (c === "name" ? nameW : W[c]) + "px").join(" ");
+  // 배치최적화(또는 세부사업 열을 직접 맞춘) 뒤 남는 폭이 있으면 왼쪽으로 모아요: 머리 줄 끝(엑셀) = 메모 끝, 세로 스크롤은 메모 끝 바로 옆(2026-10-19 사용자)
+  const colSum = COLS.reduce((a, [c]) => a + W[c], 0);
+  const packed = nameFixed && boxW > 0 && colSum + 2 + sbw <= boxW;
 
   const startDrag = (e: RMouseEvent, col: ColId) => {
     e.preventDefault();
@@ -452,23 +474,41 @@ export default function BudgetScreen() {
     addEventListener("mouseup", up);
   };
 
-  /** 끝선 두 번 누르기: 그 열에 보이는 내용 가운데 가장 긴 폭(엑셀처럼). 칸을 복사해 폭 제한 없이 놓고 재요. */
+  /** 칸을 복사해 폭 제한 없이 놓고 잰 내용 폭 */
+  const need = (el: HTMLElement) => {
+    const c = el.cloneNode(true) as HTMLElement;
+    c.style.cssText += ";position:absolute;left:0;top:0;visibility:hidden;width:max-content;min-width:0;max-width:none";
+    c.querySelectorAll(".bd-grip").forEach((g) => g.remove());
+    el.before(c);
+    const w = c.getBoundingClientRect().width;
+    c.remove();
+    return Math.ceil(w);
+  };
+  /** 그 열에 보이는 내용(열 제목 포함) 가운데 가장 긴 폭 */
+  const fitOf = (col: ColId, head: HTMLElement) => {
+    const ci = COLS.findIndex(([c]) => c === col);
+    const cells = [head, ...document.querySelectorAll<HTMLElement>(`.bd-body .bd-rw > .bd-c:nth-child(${ci + 1})`)];
+    return Math.max(col === "name" ? 160 : 36, Math.max(...cells.map(need)) + 1);
+  };
+  /** 배치최적화(2026-10-19 사용자): 고정 폭 열(구분·집행률·단계·메모) 빼고 모든 열을 보이는 내용 폭에 맞춰요 — 끝선 두 번 누르기를 한 번에 */
+  const fitAll = async () => {
+    if (!(await commit())) return;
+    const heads = [...document.querySelectorAll<HTMLElement>(".bd-hd > *")];
+    const w = { ...W };
+    COLS.forEach(([c], i) => {
+      if (!FIXED.has(c) && heads[i]) w[c] = fitOf(c, heads[i]);
+    });
+    setW(w);
+    setNameFixed(true);
+    saveCols(w, true);
+    setToast("열 간격을 내용에 맞췄어요 · 열 제목 우클릭으로 처음대로");
+  };
+
+  /** 끝선 두 번 누르기: 그 열에 보이는 내용 가운데 가장 긴 폭(엑셀처럼). */
   const autoFit = (e: RMouseEvent, col: ColId) => {
     e.preventDefault();
     e.stopPropagation();
-    const ci = COLS.findIndex(([c]) => c === col);
-    const head = (e.currentTarget as HTMLElement).parentElement as HTMLElement;
-    const cells = [head, ...document.querySelectorAll<HTMLElement>(`.bd-body .bd-rw > .bd-c:nth-child(${ci + 1})`)];
-    const need = (el: HTMLElement) => {
-      const c = el.cloneNode(true) as HTMLElement;
-      c.style.cssText += ";position:absolute;left:0;top:0;visibility:hidden;width:max-content;min-width:0;max-width:none";
-      c.querySelectorAll(".bd-grip").forEach((g) => g.remove());
-      el.before(c);
-      const w = c.getBoundingClientRect().width;
-      c.remove();
-      return Math.ceil(w);
-    };
-    const fit = Math.max(col === "name" ? 160 : 36, Math.max(...cells.map(need)) + 1);
+    const fit = fitOf(col, (e.currentTarget as HTMLElement).parentElement as HTMLElement);
     const w = { ...W, [col]: fit };
     const fixed = nameFixed || col === "name";
     setW(w);
@@ -502,7 +542,7 @@ export default function BudgetScreen() {
         memo: memoToText(p.memo),
         items: p.items.map((i) => ({ ...i, memo: memoToText(i.memo), rows: i.rows.map((r) => ({ ...r, memo: memoToText(r.memo) })) })),
       }));
-      await api.budgetExcelWrite(path, { year, unit, date: todayStr(), projects });
+      await api.budgetExcelWrite(path, { year, unit, basis, date: todayStr(), projects });
       const d = dirOf(path);
       if (d) api.set(DIR_KEY, d).catch(() => {});
       setToast(`${year}년 집행현황을 저장했어요 · ${path}`);
@@ -537,12 +577,13 @@ export default function BudgetScreen() {
     }
   };
 
+  const askPlan = ask ? planImport(list, ask.projects) : { upd: 0, add: 0 };
   const doImport = async () => {
     if (!ask) return;
     try {
-      const [y, n] = await api.importBudget(year, ask.projects);
+      const [y, u, n] = await api.importBudget(year, ask.projects);
       setData(y);
-      setToast(`세부사업 ${ask.projects.length}개 · 공사 ${n}건을 가져왔어요`);
+      setToast(u ? `공사 ${u}건을 덮어쓰고 ${n}건을 더했어요` : `세부사업 ${ask.projects.length}개 · 공사 ${n}건을 가져왔어요`);
     } catch (e) {
       setToast(e === "invalid" ? "가져올 수 없는 줄이 있어요(금액·이름 확인)" : errorText(e));
     }
@@ -577,12 +618,12 @@ export default function BudgetScreen() {
           " n",
         );
   const rowRateCell = (r: BudgetRow) => {
-    const sp = rowRate(r);
+    const sp = rowRate(r, basis);
     return sp == null
       ? cell("", " n")
       : cell(
           <>
-            <span className="bd-bar rowbar" title="원인행위 대비">
+            <span className="bd-bar rowbar" title={(basis === "act" ? "시공량" : "집행액") + " ÷ 원인행위"}>
               <span style={{ width: Math.min(100, Math.max(0, sp)) + "%" }} />
             </span>
             <span className="bd-pct rowp">{Math.round(sp)}%</span>
@@ -615,7 +656,7 @@ export default function BudgetScreen() {
   };
   /** 합계 칸들(구분·업체 빈칸부터 메모까지) */
   const sumCells = (budget: number | null, rows: BudgetRow[], sm: boolean, memo: ReactNode, budgetCell?: ReactNode) => {
-    const s = sums(budget, rows);
+    const s = sums(budget, rows, basis);
     return (
       <>
         {cell("")}
@@ -718,7 +759,7 @@ export default function BudgetScreen() {
       const x = findRow(id);
       if (!x) return null;
       const r = x.r;
-      const v: Partial<Record<ColId, number>> = { cmt: r.cmt, exp: r.exp, act: r.act, bal: balance(r) };
+      const v: Partial<Record<ColId, number>> = { cmt: r.cmt, exp: r.exp, act: r.act, bal: balance(r, basis) };
       return v[col] ?? null;
     }
     let budget: number | null;
@@ -734,7 +775,7 @@ export default function BudgetScreen() {
       budget = budgetOf("item", x.it);
       rows = rowsOf(x.it);
     }
-    const t = sums(budget, rows);
+    const t = sums(budget, rows, basis);
     const v: Partial<Record<ColId, number | null>> = { bud: budget, cmt: t.cmt, exp: t.exp, act: t.act, bal: t.bal, avail: t.avail };
     return v[col] ?? null;
   };
@@ -859,7 +900,7 @@ export default function BudgetScreen() {
         {cell(moneyInput("cmt", "원인행위", f.cmt))}
         {cell(moneyInput("exp", "집행액", f.exp))}
         {cell(moneyInput("act", "시공량(사용량)", f.act))}
-        {draftRow && cell(fmt(balance(draftRow), unit), " n" + (balance(draftRow) < 0 ? " red" : ""))}
+        {draftRow && cell(fmt(balance(draftRow, basis), unit), " n" + (balance(draftRow, basis) < 0 ? " red" : ""))}
         {draftRow && rowRateCell(draftRow)}
         {cell("")}
         {cell(stageChip(f.stage, (r, from) => setPop({ t: "stage", x: r.left, y: r.bottom + 4, id: "form", from }), "form-stage"))}
@@ -1011,7 +1052,7 @@ export default function BudgetScreen() {
             {cell(fmt(r.cmt, unit), " n")}
             {cell(fmt(r.exp, unit), " n")}
             {cell(fmt(r.act, unit), " n")}
-            {cell(fmt(balance(r), unit), " n" + (balance(r) < 0 ? " red" : ""))}
+            {cell(fmt(balance(r, basis), unit), " n" + (balance(r, basis) < 0 ? " red" : ""))}
             {rowRateCell(r)}
             {cell("")}
             {cell(
@@ -1375,8 +1416,8 @@ export default function BudgetScreen() {
   );
 
   return (
-    <div className="bd" style={{ ["--bd-cols" as string]: cols }}>
-      <div className="bd-top">
+    <div ref={rootRef} className={"bd" + (packed ? " bd-packed" : "")} style={{ ["--bd-cols" as string]: cols }}>
+      <div className="bd-top" style={packed ? { width: colSum + 1 } : undefined}>
         <h1 className="title">집행현황</h1>
         <span className="bd-year">
           <button type="button" aria-label="이전 해" onClick={() => void changeYear(year - 1)}>
@@ -1388,6 +1429,19 @@ export default function BudgetScreen() {
           </button>
         </span>
         <span className="bd-sp" />
+        <button type="button" className="btn btn-ctrl bd-tool" title="열 간격을 보이는 내용 폭에 맞춰요 · 열 제목 우클릭으로 처음대로" onClick={() => void fitAll()}>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 5v14M21 5v14M3 12h6M21 12h-6M6 9l3 3-3 3M18 9l-3 3 3 3" />
+          </svg>
+          배치최적화
+        </button>
+        <span className="bd-unit" role="group" aria-label="잔액·집행률 기준" title="잔액·집행률 기준">
+          {(["exp", "act"] as Basis[]).map((b) => (
+            <button key={b} type="button" className={basis === b ? "on" : ""} aria-pressed={basis === b} onClick={() => void setBasis(b)}>
+              {b === "exp" ? "집행액" : "시공량"}
+            </button>
+          ))}
+        </span>
         <span className="bd-unit" role="group" aria-label="금액 단위">
           {([1, 1000] as Unit[]).map((u) => (
             <button key={u} type="button" className={unit === u ? "on" : ""} aria-pressed={unit === u} onClick={() => void setUnit(u)}>
@@ -1460,7 +1514,7 @@ export default function BudgetScreen() {
         </button>
       </div>
 
-      <div className="bd-tbl">
+      <div className="bd-tbl" style={packed ? { width: colSum + 2 + sbw } : undefined}>
         <style>{colHl == null ? "" : `.bd-body .bd-rw>.bd-c:nth-child(${colHl + 1}){background-image:linear-gradient(var(--bd-col-hl),var(--bd-col-hl))}`}</style>
         <style>{csStyle}</style>
         <div className="bd-scroll" ref={scroller}>
@@ -1528,11 +1582,15 @@ export default function BudgetScreen() {
           <div className="dialog xl-ask" role="dialog" aria-modal="true" aria-label="엑셀 가져오기">
             <div className="xl-ask-body">
               <h2 className="xl-ask-title">
-                {ask.projects.length ? `세부사업 ${ask.projects.length}개 · 공사 ${ask.rows}건을 ${year}년에 가져올까요?` : "가져올 줄이 없어요"}
+                {!ask.projects.length
+                  ? "가져올 줄이 없어요"
+                  : askPlan.upd
+                    ? `${year}년에 덮어쓰기 ${askPlan.upd}건 · 새로 더하기 ${askPlan.add}건`
+                    : `세부사업 ${ask.projects.length}개 · 공사 ${ask.rows}건을 ${year}년에 가져올까요?`}
               </h2>
               <div className="xl-ask-path">
                 {ask.path} · 시트 "{ask.sheet}" · 단위 {ask.unit === 1 ? "원" : "천원"}
-                {list.length > 0 && " · 지금 있는 세부사업 아래에 붙여요"}
+                {askPlan.upd > 0 && " · 같은 이름 공사는 파일 값으로 바꾸고, 파일에 없는 공사·메모는 그대로 둬요"}
               </div>
               {ask.checks.length > 0 && (
                 <ul className="bd-checks">

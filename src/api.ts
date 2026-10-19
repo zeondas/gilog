@@ -40,6 +40,8 @@ export type Prefs = {
   sideCollapsed: boolean;
   /** 창 닫기(X) 단추 — 작업표시줄로 / 트레이로(처음 값) / 묻고 끝내기 */
   closeAction: CloseAction;
+  /** 윈도우 시작할 때 자동 실행(2026-10-19). 앱이 켤 때 레지스트리 실제 상태로 맞춰 돌려줘요. 미리 보기는 흉내만 */
+  autoStart: boolean;
 };
 
 export type CloseAction = "minimize" | "tray" | "quit";
@@ -56,6 +58,7 @@ export const DEFAULT_PREFS: Prefs = {
   autoLockMin: 10,
   sideCollapsed: false,
   closeAction: "tray",
+  autoStart: false,
 };
 
 /** 저장 쪽이 돌려주는 실패 이름이에요. */
@@ -66,6 +69,7 @@ export type ErrorCode =
   | "password_too_short"
   | "locked"
   | "keyring"
+  | "autostart"
   | "io"
   | "db"
   | "meta"
@@ -103,9 +107,10 @@ export type Contact = Omit<ContactInput, "projects"> & {
 
 /** color가 null이면 자동 색이에요. */
 /** name = 정식 이름(문서용, 줄인 이름만 적었으면 줄인 이름), alias = 줄인 이름(관리용, 없으면 ""). */
-export type Project = { id: number; name: string; alias: string; color: number | null };
+export type Project = { id: number; name: string; alias: string; color: number | null; group: number | null };
+export type ProjectGroup = { id: number; name: string };
 
-export type ContactsData = { contacts: Contact[]; projects: Project[] };
+export type ContactsData = { contacts: Contact[]; projects: Project[]; groups: ProjectGroup[] };
 
 // ---------- 업무일지 ----------
 
@@ -160,6 +165,8 @@ export type ComplaintInput = {
   /** 마감일. 비어 있으면 마감이 없어요. */
   due: string;
   status: string;
+  /** 조치완료일 2026-10-19. 비어 있으면 아직이에요(완료·불가가 되면 오늘 날짜가 들어가고 고칠 수 있어요). */
+  done?: string;
   /** 위치를 도로명주소에서 바꿨으면 바꾸기 전 글(마우스를 올리면 보여요). 직접 친 위치면 비어요. */
   road?: string;
 };
@@ -259,7 +266,10 @@ export type Reminder = { at: number; title: string; body: string; event: number;
 // ---------- 민원처리(10단계) — core/process.rs와 같은 모양 ----------
 
 export type WorkInput = {
+  /** 축약 공사명(표의 공사 배지, 지시부 {축약 공사명}) */
   name: string;
+  /** 정식 공사명(지시부 {공사명}) — 비우면 축약 공사명 */
+  full: string;
   /** 시공사 */
   co: string;
   /** 현장대리인 = 업무연락처 번호 */
@@ -269,7 +279,7 @@ export type WorkInput = {
   /** 처리 범위(AI의 판단 기준) */
   scope: string;
   nextSeq: number;
-  /** 지시부 양식(pptx·hwpx) 경로 */
+  /** 예전 공사별 양식(2026-10-19부터 쓰지 않아요 — 표준 양식 하나) */
   tpl: string;
 };
 export type Work = WorkInput & { id: number };
@@ -304,13 +314,33 @@ export type Case = {
   sentAt: string;
   /** 신문고 위치가 도로명주소라 바꿨으면 바꾸기 전 글 */
   road: string;
+  /** 든 지시부와 그 안의 항목 번호(1부터) */
+  order: number | null;
+  item: number;
 };
 
-export type CasePatch = Partial<Pick<Case, "work" | "area" | "place" | "road" | "note" | "seq" | "stage" | "complaint" | "folder" | "orderFile" | "orderJpg" | "outboxFile" | "sentAt">>;
-export type ProcessData = { works: Work[]; cases: Case[] };
+/** 지시부 하나(같은 공사 민원 여러 건, 표준 양식) */
+export type Order = {
+  id: number;
+  work: number;
+  seq: number;
+  /** 지시일 YYYY-MM-DD */
+  date: string;
+  file: string;
+  /** 쪽마다 JPG */
+  jpgs: string[];
+  stage: "made" | "queued" | "sent";
+  outbox: string[];
+  sentAt: string;
+  /** 든 민원을 고쳐 다시 만들어야 해요 */
+  dirty: boolean;
+};
+
+export type CasePatch = Partial<Pick<Case, "work" | "area" | "place" | "road" | "note" | "short" | "seq" | "stage" | "complaint" | "folder" | "orderFile" | "orderJpg" | "outboxFile" | "sentAt">>;
+export type ProcessData = { works: Work[]; cases: Case[]; orders: Order[] };
 export type InboxResult = { added: Case[]; skipped: number; failed: string[]; missingFiles: string[] };
-export type RunStatus = { state: "idle" | "running" | "done" | "login" | "stopped" | "error"; total: number | null; done: number | null; message: string };
-export type OrderResult = { case: Case; seq: number; workName: string; missing: string[] };
+export type RunStatus = { state: "idle" | "running" | "done" | "login" | "stopped" | "error"; total: number | null; done: number | null; message: string; log: string };
+export type OrderResult = { order: Order; cases: Case[]; works: Work[]; missing: string[] };
 
 export const inApp = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -322,6 +352,8 @@ const fake = {
   prefs: { ...DEFAULT_PREFS },
   contacts: [] as Contact[],
   projects: [] as Project[],
+  groups: [] as ProjectGroup[],
+  nextGroupId: 1,
   nextId: 1,
   nextProjectId: 1,
   days: [] as DayInfo[],
@@ -332,11 +364,13 @@ const fake = {
   works: [] as Work[],
   nextWorkId: 1,
   cases: [] as Case[],
+  orders: [] as Order[],
+  nextOrderId: 1,
   /** 미리 보기의 가져올 폴더: 다음 "민원 불러오기"가 읽어 갈 건들 */
   inbox: [] as Partial<Case>[],
   /** 미리 보기: Claude가 차례로 놓을 보기 민원과 진행 */
   runQueue: [] as Partial<Case>[],
-  run: { state: "idle", total: null, done: null, message: "" } as RunStatus,
+  run: { state: "idle", total: null, done: null, message: "", log: "" } as RunStatus,
   taskLists: [
     { id: 1, name: "민원", visible: true, builtin: true, ord: 0 },
     { id: 2, name: "행정업무", visible: true, builtin: false, ord: 1 },
@@ -642,11 +676,12 @@ function fakeComplaints(cmd: string, a: Record<string, unknown>): unknown {
     const body = lines(c.body);
     const received = c.received.trim();
     const due = c.due.trim();
-    if (!body || !isDate(received) || (due && !isDate(due))) throw "invalid";
+    const done = (c.done ?? "").trim();
+    if (!body || !isDate(received) || (due && !isDate(due)) || (done && !isDate(done))) throw "invalid";
     const t = (s: string) => s.trim();
     return {
       intake: t(c.intake), received, ctype: t(c.ctype), area: t(c.area), place: t(c.place),
-      person: t(c.person), phone: t(c.phone), body, action: lines(c.action), due, status: t(c.status) || "접수",
+      person: t(c.person), phone: t(c.phone), body, action: lines(c.action), due, status: t(c.status) || "접수", done,
       road: t(c.place) && t(c.road ?? "") !== t(c.place) ? t(c.road ?? "") : "",
     };
   };
@@ -672,6 +707,10 @@ function fakeComplaints(cmd: string, a: Record<string, unknown>): unknown {
     case "set_complaint_status": {
       const c = find();
       c.status = (a.status as string).trim() || "접수";
+      if (typeof a.done === "string") {
+        if (a.done && !isDate(a.done.trim())) throw "invalid";
+        c.done = a.done.trim();
+      }
       return structuredClone(c);
     }
     case "set_complaint_memo": {
@@ -693,7 +732,7 @@ function fakeComplaints(cmd: string, a: Record<string, unknown>): unknown {
         const conv = L.kind === "exact" ? { area: areaFor(L.hit, t(r.area)), place: L.hit.place, road: L.original } : { area: t(r.area), place: t(r.place), road: "" };
         fake.complaints.push({
           id: fake.nextComplaintId++, no: ++no, intake: t(r.intake), received: t(r.received), ctype: t(r.ctype), area: conv.area,
-          place: conv.place, road: conv.road, person: t(r.person), phone: t(r.phone), body: lines(r.body), action: lines(r.action), due: t(r.due),
+          place: conv.place, road: conv.road, person: t(r.person), phone: t(r.phone), body: lines(r.body), action: lines(r.action), due: t(r.due), done: t(r.done ?? ""),
           status: t(r.status) || "접수", memo: t(r.memo),
         });
       }
@@ -755,15 +794,26 @@ function fakeJournal(cmd: string, a: Record<string, unknown>): unknown {
 }
 
 // 브라우저 미리 보기용 연락처 흉내예요. 저장 쪽(core/contacts.rs)과 같은 규칙을 따라요.
+function fakeGroup(name: string): number {
+  const n = name.trim();
+  if (!n) throw "invalid";
+  const g = fake.groups.find((x) => x.name === n);
+  if (g) return g.id;
+  const id = fake.nextGroupId++;
+  fake.groups.push({ id, name: n });
+  return id;
+}
+
 function fakeContacts(cmd: string, a: Record<string, unknown>): ContactsData | null {
   const data = (): ContactsData => ({
     contacts: [...fake.contacts].sort((x, y) => y.id - x.id).map((c) => ({ ...c, projects: [...c.projects] })),
     projects: fake.projects.map((p) => ({ ...p })),
+    groups: fake.groups.map((g) => ({ ...g })),
   });
   const projectId = (name: string) => {
     const found = fake.projects.find((p) => p.name === name) ?? fake.projects.find((p) => p.alias === name);
     if (found) return found.id;
-    const p = { id: fake.nextProjectId++, name, alias: "", color: null };
+    const p = { id: fake.nextProjectId++, name, alias: "", color: null, group: null };
     fake.projects.push(p);
     return p.id;
   };
@@ -842,6 +892,34 @@ function fakeContacts(cmd: string, a: Record<string, unknown>): ContactsData | n
       p.alias = alias;
       return data();
     }
+    case "add_project_group":
+      fakeGroup(a.name as string);
+      return data();
+    case "rename_project_group": {
+      const g = fake.groups.find((x) => x.id === a.id);
+      const name = (a.name as string).trim();
+      if (!g) throw "not_found";
+      if (!name || fake.groups.some((x) => x.id !== a.id && x.name === name)) throw "invalid";
+      g.name = name;
+      return data();
+    }
+    case "delete_project_group":
+      fake.projects.forEach((p) => p.group === a.id && (p.group = null));
+      fake.groups = fake.groups.filter((g) => g.id !== a.id);
+      return data();
+    case "move_project_group": {
+      const i = fake.groups.findIndex((g) => g.id === a.id);
+      const j = i + Math.sign(a.dir as number);
+      if (i >= 0 && j >= 0 && j < fake.groups.length) [fake.groups[i], fake.groups[j]] = [fake.groups[j], fake.groups[i]];
+      return data();
+    }
+    case "set_project_group": {
+      const p = fake.projects.find((x) => x.id === a.id);
+      if (!p) throw "not_found";
+      const name = (a.group as string).trim();
+      p.group = name ? fakeGroup(name) : null;
+      return data();
+    }
     case "set_project_color": {
       const p = fake.projects.find((x) => x.id === a.id);
       if (!p) throw "not_found";
@@ -877,11 +955,11 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
   const cleanWork = (w: WorkInput): WorkInput => {
     const name = one(w.name);
     if (!name) throw "invalid";
-    return { name, co: one(w.co), contact: w.contact, project: w.project, scope: w.scope.trim(), nextSeq: Math.max(1, Math.floor(w.nextSeq) || 1), tpl: w.tpl.trim() };
+    return { name, full: one(w.full ?? ""), co: one(w.co), contact: w.contact, project: w.project, scope: w.scope.trim(), nextSeq: Math.max(1, Math.floor(w.nextSeq) || 1), tpl: w.tpl.trim() };
   };
   switch (cmd) {
     case "process_data":
-      return structuredClone({ works: fake.works, cases: fake.cases });
+      return structuredClone({ works: fake.works, cases: fake.cases, orders: fake.orders });
     case "save_work": {
       const w = cleanWork(a.work as WorkInput);
       if (a.id == null) fake.works.push({ id: fake.nextWorkId++, ...w });
@@ -899,20 +977,33 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
     case "update_case": {
       const c = findCase(a.no);
       const p = a.patch as CasePatch;
-      if (p.work !== undefined && p.work !== c.work) Object.assign(c, { work: p.work, stage: "new", seq: "" });
+      let leave = false;
+      if (p.work !== undefined && p.work !== c.work) {
+        leave = c.order != null;
+        Object.assign(c, { work: p.work, stage: "new", seq: "" });
+      }
       const area = p.area !== undefined ? one(p.area) : c.area;
       const place = p.place !== undefined ? one(p.place) || "주소불명" : c.place;
-      if ((area !== c.area || place !== c.place) && p.stage === undefined) c.stage = "new";
+      let changed = area !== c.area || place !== c.place;
+      if (changed && p.stage === undefined && c.order == null) c.stage = "new";
       if (p.place !== undefined && (place !== c.place || p.road !== undefined)) c.road = p.road && one(p.road) !== place ? one(p.road) : "";
       Object.assign(c, { area, place });
-      if (p.note !== undefined) c.note = one(p.note);
+      if (p.note !== undefined) (changed ||= one(p.note) !== c.note), (c.note = one(p.note));
+      if (p.short !== undefined) (changed ||= one(p.short) !== c.short), (c.short = one(p.short));
+      if (c.order != null) {
+        if (leave) fakeLeave(c);
+        else if (changed) fake.orders.forEach((o) => o.id === c.order && (o.dirty = true));
+      }
       if (p.seq !== undefined) c.seq = p.seq.replace(/\D/g, "");
       for (const k of ["stage", "complaint", "folder", "orderFile", "orderJpg", "outboxFile", "sentAt"] as const) if (p[k] !== undefined) (c as Record<string, unknown>)[k] = p[k];
       return structuredClone(c);
     }
-    case "delete_case":
-      fake.cases = fake.cases.filter((c) => c.no !== a.no);
+    case "delete_case": {
+      const c = fake.cases.find((x) => x.no === a.no);
+      if (c?.order != null) fakeLeave(c);
+      fake.cases = fake.cases.filter((x) => x.no !== a.no);
       return null;
+    }
     case "read_inbox": {
       const added: Case[] = [];
       let skipped = 0;
@@ -925,7 +1016,7 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
           no: i.no, received: i.received ?? "", due: i.due ?? "", area: one(i.area ?? ""), place: one(i.place ?? "") || "주소불명",
           summary: (i.summary ?? "").trim(), short: one(i.short ?? ""), reason: (i.reason ?? "").trim(),
           work: i.work != null && fake.works.some((w) => w.id === i.work) ? i.work : null,
-          note: "", seq: "", stage: "new", complaint: null, photos: [], map: "", folder: String(a.root ?? ""), orderFile: "", orderJpg: "", outboxFile: "", sentAt: "", road: "",
+          note: "", seq: "", stage: "new", complaint: null, photos: [], map: "", folder: String(a.root ?? ""), orderFile: "", orderJpg: "", outboxFile: "", sentAt: "", road: "", order: null, item: 0,
         };
         const L = fakeRoadToJibun(c.place);
         if (L.kind === "exact") Object.assign(c, { area: areaFor(L.hit, c.area), place: L.hit.place, road: L.original });
@@ -939,29 +1030,37 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
       return { added, skipped, failed: [], missingFiles: [] };
     }
     case "make_order": {
-      const r = a.req as unknown as { no: string; root: string };
-      const c = findCase(r.no);
-      const w = fake.works.find((x) => x.id === c.work);
-      if (!w) throw "invalid";
-      if (!w.tpl) throw "template";
-      const seq = Number(c.seq) > 0 ? Number(c.seq) : w.nextSeq;
-      w.nextSeq = Math.max(w.nextSeq, seq + 1);
-      const ext = w.tpl.toLowerCase().endsWith(".hwpx") ? "hwpx" : "pptx";
-      const folder = c.folder || r.root;
-      Object.assign(c, { seq: String(seq), stage: "made", folder, orderFile: `${folder}\\${stem(c)}.${ext}`, orderJpg: "" });
-      return { case: structuredClone(c), seq, workName: w.name, missing: [] };
+      const r = a.req as unknown as { nos: string[]; order: number | null; root: string; date: string };
+      let o = r.order != null ? fake.orders.find((x) => x.id === r.order) : undefined;
+      const list = o ? fake.cases.filter((c) => c.order === o!.id) : r.nos.map((n) => findCase(n));
+      const w = fake.works.find((x) => x.id === (o ? o.work : list[0]?.work));
+      if (!w || !list.length || list.some((c) => c.work !== w.id || (!o && c.order != null))) throw "invalid";
+      list.sort((x, y) => (x.received + x.no < y.received + y.no ? -1 : 1));
+      if (!o) {
+        const seq = w.nextSeq;
+        w.nextSeq = seq + 1;
+        const d = r.date.replace(/\D/g, "").slice(2);
+        o = { id: fake.nextOrderId++, work: w.id, seq, date: r.date, file: `${r.root}\\${d}_${w.name}-${String(seq).padStart(2, "0")}.hwpx`, jpgs: [], stage: "made", outbox: [], sentAt: "", dirty: false };
+        fake.orders.push(o);
+      } else Object.assign(o, { jpgs: [], stage: "made", outbox: [], sentAt: "", dirty: false });
+      list.forEach((c, i) => Object.assign(c, { order: o!.id, item: i + 1, stage: "made", seq: String(o!.seq), orderFile: o!.file, orderJpg: "" }));
+      return structuredClone({ order: o, cases: list, works: fake.works, missing: [] });
     }
     case "order_jpg": {
-      const c = findCase(a.no);
-      if (!c.orderFile) throw "nofile";
-      c.orderJpg = c.orderFile.replace(/\.(pptx|hwpx)$/i, ".jpg");
-      return structuredClone(c);
+      const o = fake.orders.find((x) => x.id === a.id);
+      if (!o?.file) throw "nofile";
+      const n = fake.cases.filter((c) => c.order === o.id).length > 1 ? 2 : 1;
+      const stem = o.file.replace(/\.hwpx$/i, "");
+      o.jpgs = n === 1 ? [`${stem}.jpg`] : [`${stem}_1.jpg`, `${stem}_2.jpg`];
+      fakeMirror(o);
+      return structuredClone(o);
     }
     case "send_order": {
-      const c = findCase(a.no);
-      if (!c.orderJpg) throw "nojpg";
-      Object.assign(c, { stage: "queued", outboxFile: `${a.outbox}\\${c.orderJpg.split("\\").pop()}` });
-      return structuredClone(c);
+      const o = fake.orders.find((x) => x.id === a.id);
+      if (!o?.jpgs.length) throw "nojpg";
+      Object.assign(o, { stage: "queued", outbox: o.jpgs.map((j) => `${a.outbox}\\${j.split("\\").pop()}`) });
+      fakeMirror(o);
+      return structuredClone(o);
     }
     case "check_sent":
       // 미리 보기에는 Claude가 없어요 — 보내는 중으로 남아요.
@@ -972,7 +1071,7 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
       return null;
     case "run_claude":
       // 미리 보기: 보기 민원을 몇 번에 나눠 가져올 폴더에 넣는 것처럼 보여요.
-      fake.run = { state: "running", total: fake.runQueue.length, done: 0, message: "" };
+      fake.run = { state: "running", total: fake.runQueue.length, done: 0, message: "", log: "D:\\민원처리\\받은편지함\\_claude.log" };
       return null;
     case "stop_claude":
       if (fake.run.state === "running") fake.run.state = "stopped";
@@ -993,6 +1092,21 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
   return undefined;
 }
 
+/** 미리 보기: 지시부 진행을 든 건에도 맞춰요 */
+function fakeMirror(o: Order) {
+  fake.cases.forEach((c) => c.order === o.id && Object.assign(c, { stage: o.stage, orderFile: o.file, orderJpg: o.jpgs[0] ?? "", sentAt: o.sentAt }));
+}
+
+/** 미리 보기: 건 하나를 지시부에서 빼요(남은 번호 다시, 비면 지시부 기록 지움) */
+function fakeLeave(c: Case) {
+  const id = c.order;
+  Object.assign(c, { order: null, item: 0, stage: "new", seq: "", orderFile: "", orderJpg: "", outboxFile: "", sentAt: "" });
+  const rest = fake.cases.filter((x) => x.order === id && x.no !== c.no).sort((x, y) => x.item - y.item);
+  rest.forEach((x, i) => (x.item = i + 1));
+  if (!rest.length) fake.orders = fake.orders.filter((o) => o.id !== id);
+  else fake.orders.forEach((o) => o.id === id && (o.dirty = true));
+}
+
 /** 미리 보기 전용: 가져올 폴더에 보기 민원을 넣어요(앱에서는 아무것도 안 해요). */
 export function previewInbox(list: Partial<Case>[]) {
   if (!inApp) fake.runQueue = structuredClone(list);
@@ -1004,8 +1118,12 @@ function fakeCall(cmd: string, args: Record<string, unknown>): unknown {
   if (cmd === "excel_write") {
     const heads = a.kind === "complaints"
       ? ["연번", "접수유형", "접수일", "민원유형", "지역", "위치", "민원인", "연락처", "내용", "조치내용", "마감일", "상태", "메모"]
-      : ["연번", "이름", "소속", "직위", "무선", "유선", "이메일", "프로젝트", "메모"];
-    fakeExcel.set(a.path, { headers: heads, rows: (args.data as { rows: string[][] }).rows });
+      : a.kind === "journal"
+        ? ["연번", "날짜", "시각", "구분", "상대", "연락처", "프로젝트", "내용"]
+        : ["연번", "이름", "소속", "직위", "무선", "유선", "이메일", "프로젝트", "메모"];
+    const d = args.data as { rows: string[][]; days?: string[][] };
+    const extra = a.kind === "journal" ? [{ headers: ["날짜", "출근", "교통", "날씨", "비고"], rows: d.days ?? [], extra: [] }] : [];
+    fakeExcel.set(a.path, { headers: heads, rows: d.rows, extra });
     return null;
   }
   if (cmd === "excel_read") {
@@ -1185,6 +1303,11 @@ export const api = {
   renameProject: (id: number, name: string) => call<ContactsData>("rename_project", { id, name }),
   /** 정식 이름·줄인 이름을 함께 정해요. 둘 중 하나만 있어도 돼요. */
   setProjectNames: (id: number, name: string, alias: string) => call<ContactsData>("set_project_names", { id, name, alias }),
+  addProjectGroup: (name: string) => call<ContactsData>("add_project_group", { name }),
+  renameProjectGroup: (id: number, name: string) => call<ContactsData>("rename_project_group", { id, name }),
+  deleteProjectGroup: (id: number) => call<ContactsData>("delete_project_group", { id }),
+  moveProjectGroup: (id: number, dir: number) => call<ContactsData>("move_project_group", { id, dir }),
+  setProjectGroup: (id: number, group: string) => call<ContactsData>("set_project_group", { id, group }),
   setProjectColor: (id: number, color: number | null) => call<ContactsData>("set_project_color", { id, color }),
   deleteProject: (id: number) => call<ContactsData>("delete_project", { id }),
 
@@ -1201,7 +1324,9 @@ export const api = {
   roadToJibun: (text: string): Promise<RoadLookup> => (inApp ? invoke<RoadLookup>("road_to_jibun", { text }) : Promise.resolve(fakeRoadToJibun(text))),
   addComplaint: (complaint: ComplaintInput) => call<Complaint>("add_complaint", { complaint }),
   updateComplaint: (id: number, complaint: ComplaintInput) => call<Complaint>("update_complaint", { id, complaint }),
-  setComplaintStatus: (id: number, status: string) => call<Complaint>("set_complaint_status", { id, status }),
+  /** done을 주면 조치완료일도 함께 바꿔요(민원대장 배지). 주지 않으면 그대로예요(캘린더·할 일 체크). */
+  setComplaintStatus: (id: number, status: string, done?: string) =>
+    call<Complaint>("set_complaint_status", done === undefined ? { id, status } : { id, status, done }),
   setComplaintMemo: (id: number, memo: string) => call<Complaint>("set_complaint_memo", { id, memo }),
   deleteComplaint: (id: number) => call<null>("delete_complaint", { id }),
   processData: () => call<ProcessData>("process_data"),
@@ -1222,18 +1347,19 @@ export const api = {
   deleteBudget: (level: BudgetLevel, id: number) => call<BudgetProject[]>("delete_budget", { level, id }),
   copyBudgetYear: (from: number, to: number) => call<BudgetProject[]>("copy_budget_year", { from, to }),
   /** 바뀐 해와 넣은 공사 수 */
-  importBudget: (year: number, projects: ImportProject[]) => call<[BudgetProject[], number]>("import_budget", { year, projects }),
-  budgetExcelWrite: (path: string, data: { year: number; unit: number; date: string; projects: BudgetProject[] }) => call<null>("budget_excel_write", { path, data }),
+  /** 같은 이름은 덮어쓰고 새 것만 더해요. [그 해 전체, 공사 덮어쓰기 수, 공사 새로 더하기 수] */
+  importBudget: (year: number, projects: ImportProject[]) => call<[BudgetProject[], number, number]>("import_budget", { year, projects }),
+  budgetExcelWrite: (path: string, data: { year: number; unit: number; basis?: string; date: string; projects: BudgetProject[] }) => call<null>("budget_excel_write", { path, data }),
   budgetExcelRead: (path: string) => call<GridSheet[]>("budget_excel_read", { path }),
   saveWork: (id: number | null, work: WorkInput) => call<Work[]>("save_work", { id, work }),
   deleteWork: (id: number) => call<Work[]>("delete_work", { id }),
   updateCase: (no: string, patch: CasePatch) => call<Case>("update_case", { no, patch }),
   deleteCase: (no: string) => call<null>("delete_case", { no }),
   readInbox: (inbox: string, downloads: string, root: string) => call<InboxResult>("read_inbox", { inbox, downloads, root }),
-  makeOrder: (req: { no: string; root: string; signer: string; date: string }) => call<OrderResult>("make_order", { req }),
-  orderJpg: (no: string) => call<Case>("order_jpg", { no }),
-  sendOrder: (no: string, outbox: string) => call<Case>("send_order", { no, outbox }),
-  checkSent: (now: string) => call<Case[]>("check_sent", { now }),
+  makeOrder: (req: { nos: string[]; order: number | null; root: string; date: string; tpl: string }) => call<OrderResult>("make_order", { req }),
+  orderJpg: (id: number) => call<Order>("order_jpg", { id }),
+  sendOrder: (id: number, outbox: string) => call<Order>("send_order", { id, outbox }),
+  checkSent: (now: string) => call<Order[]>("check_sent", { now }),
   openPath: (path: string) => call<null>("open_path", { path }),
   showInFolder: (path: string) => call<null>("show_in_folder", { path }),
   openPortal: (url: string) => call<null>("open_portal", { url }),
@@ -1244,8 +1370,8 @@ export const api = {
   importComplaints: (rows: (ComplaintInput & { memo: string })[]) => call<number>("import_complaints", { rows }),
   importContacts: (rows: (ContactInput & { memo: string })[]) => call<number>("import_contacts", { rows }),
   /** 엑셀 파일 쓰기·읽기(kind: "complaints" | "contacts") */
-  excelWrite: (path: string, kind: string, data: { rows: string[][]; intake: string[]; status: string[] }) => call<null>("excel_write", { path, kind, data }),
-  excelRead: (path: string, kind: string) => call<{ headers: string[]; rows: string[][] }>("excel_read", { path, kind }),
+  excelWrite: (path: string, kind: string, data: { rows: string[][]; intake: string[]; status: string[]; days?: string[][] }) => call<null>("excel_write", { path, kind, data }),
+  excelRead: (path: string, kind: string) => call<{ headers: string[]; rows: string[][]; extra?: { headers: string[]; rows: string[][] }[] }>("excel_read", { path, kind }),
 
   tasksData: () => call<TasksData>("tasks_data"),
   addTaskList: (name: string) => call<TaskList>("add_task_list", { name }),
@@ -1314,6 +1440,8 @@ export function errorText(e: unknown): string {
       return "자료 파일을 찾지 못했어요.";
     case "locked":
       return "잠겨 있어요. 다시 열어 주세요.";
+    case "autostart":
+      return "윈도우 시작 프로그램에 등록하지 못했어요.";
     case "keyring":
       return "윈도우 자격 증명 관리자에 열쇠를 맡기지 못했어요.";
     case "meta":

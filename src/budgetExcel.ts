@@ -183,3 +183,31 @@ export function parseBudgetBook(sheets: GridSheet[], year: number): BudgetImport
   }
   return null;
 }
+
+/**
+ * 가져오기 전에 세어 보기(2026-10-19 사용자 1안 — 같은 이름은 덮어쓰기). 저장 쪽(core budget.rs import_budget)과 같은 맞추기:
+ * 그 해 안에서 세부사업 → 부기사업 → 공사를 이름으로(같은 이름이 여럿이면 앞에서부터 하나씩) 맞춰요.
+ */
+export function planImport(have: { id: number; name: string; items: { id: number; name: string; rows: { id: number; name: string }[] }[] }[], list: ImportProject[]) {
+  let upd = 0;
+  let add = 0;
+  const usedP = new Set<number>();
+  for (const p of list) {
+    const op = have.find((x) => x.name === line(p.name) && !usedP.has(x.id));
+    if (op) usedP.add(op.id);
+    const usedI = new Set<number>();
+    for (const it of p.items) {
+      const oi = op?.items.find((x) => x.name === line(it.name) && !usedI.has(x.id));
+      if (oi) usedI.add(oi.id);
+      const usedR = new Set<number>();
+      for (const r of it.rows) {
+        const or = oi?.rows.find((x) => x.name === line(r.name) && !usedR.has(x.id));
+        if (or) {
+          usedR.add(or.id);
+          upd++;
+        } else add++;
+      }
+    }
+  }
+  return { upd, add };
+}

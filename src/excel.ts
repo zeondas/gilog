@@ -4,21 +4,21 @@
 //   가져올 때는 거꾸로 기호를 알아보고, 빈 줄(묶음 나누기)은 남겨요.
 // - 가져오기는 판단하지 않아요: 중복 검사·값 고치기 없이 모든 줄(모든 칸이 빈 줄만 빼고)을 넣어요.
 //   다만 날짜 칸은 앱이 읽을 수 있으면 2026-10-15 모양으로 맞춰요(마감 계산이 되게). 읽을 수 없으면 그대로예요.
-import type { Complaint, ComplaintInput, Contact, ContactInput, Project } from "./api";
+import type { Complaint, ComplaintInput, Contact, ContactInput, DayInfo, Entry, EntryInput, JournalLine, Project } from "./api";
 import { splitProjects } from "./projectNames";
 import { BKind, BLine, layout, linePrefix, parseLines, stringifyLines } from "./bullets";
-import { parseDate } from "./journal";
+import { isMemo, normTime, parseDate, whoNames } from "./journal";
 
-export type SheetKind = "complaints" | "contacts";
+export type SheetKind = "complaints" | "contacts" | "journal";
 
-export const SHEET_TITLE: Record<SheetKind, string> = { complaints: "민원대장", contacts: "업무연락처" };
+export const SHEET_TITLE: Record<SheetKind, string> = { complaints: "민원대장", contacts: "업무연락처", journal: "업무일지" };
 
 /** 양식의 열 순서(3행 제목) */
-export const COMPLAINT_HEADERS = ["연번", "접수유형", "접수일", "민원유형", "지역", "위치", "민원인", "연락처", "내용", "조치내용", "마감일", "상태", "메모"];
+export const COMPLAINT_HEADERS = ["연번", "접수유형", "접수일", "민원유형", "지역", "위치", "민원인", "연락처", "내용", "조치내용", "마감일", "상태", "조치완료일", "메모"];
 export const CONTACT_HEADERS = ["연번", "이름", "소속", "직위", "무선", "유선", "이메일", "프로젝트", "메모"];
 
-export type ExcelExport = { rows: string[][]; intake: string[]; status: string[] };
-export type ExcelSheet = { headers: string[]; rows: string[][] };
+export type ExcelExport = { rows: string[][]; intake: string[]; status: string[]; days?: string[][] };
+export type ExcelSheet = { headers: string[]; rows: string[][]; extra?: ExcelSheet[] };
 export type ComplaintImport = ComplaintInput & { memo: string };
 export type ContactImport = ContactInput & { memo: string };
 
@@ -66,7 +66,7 @@ export function complaintRows(list: Complaint[]): string[][] {
     .sort((a, b) => a.no - b.no || a.id - b.id)
     .map((c) => [
       String(c.no), c.intake, c.received, c.ctype, c.area, c.place, c.person, c.phone,
-      cellOfLines(c.body), cellOfLines(c.action), c.due, c.status, cellOfLines(c.memo),
+      cellOfLines(c.body), cellOfLines(c.action), c.due, c.status, c.done ?? "", cellOfLines(c.memo),
     ]);
 }
 
@@ -108,6 +108,7 @@ export function complaintImports(sheet: ExcelSheet): ComplaintImport[] {
     action: linesOfCell(get(r, "조치내용")),
     due: dateOf(get(r, "마감일")),
     status: get(r, "상태"),
+    done: dateOf(get(r, "조치완료일")),
     memo: linesOfCell(get(r, "메모")),
   }));
 }
@@ -139,6 +140,154 @@ export function contactImports(sheet: ExcelSheet): ContactImport[] {
     projects: splitProjects(get(r, "프로젝트")),
     memo: linesOfCell(get(r, "메모")),
   }));
+}
+
+// ---------- 업무일지 (2026-10-19 사용자 1안·1안) ----------
+// 기록 한 건 = 한 줄(연번·날짜·시각·구분·상대·연락처·프로젝트·내용), 둘째 시트 "날짜별"에 출근·교통·날씨·비고.
+// 내용 칸: 말 줄은 "나: …" / "이○○: …" 한 줄씩(한 말 안 줄 바꿈은 그 아래 줄에 이어서), 메모는 본문 글자(서식·표 모양은 빠져요).
+// 가져오기: 날짜·시각·구분·상대·내용이 모두 같은 기록이 이미 있으면 건너뛰어요(같은 파일 안에서 겹친 줄도 한 번만).
+
+export const JOURNAL_HEADERS = ["연번", "날짜", "시각", "구분", "상대", "연락처", "프로젝트", "내용"];
+export const JOURNAL_DAY_HEADERS = ["날짜", "출근", "교통", "날씨", "비고"];
+
+/** 메모 본문(편집기 HTML) → 글자. 문단·제목·인용은 한 줄씩, 글머리 목록은 □ ○ - 기호와 위계 띄어쓰기, 표는 칸을 " | "로 이어요. */
+export function memoText(html: string): string {
+  if (!html) return "";
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const out: string[] = [];
+  const txt = (el: Element) => {
+    const c = el.cloneNode(true) as Element;
+    c.querySelectorAll("br").forEach((b) => b.replaceWith("\n"));
+    return (c.textContent ?? "").replace(/[ \t\u00a0]+/g, " ").trim();
+  };
+  const walk = (parent: Element) => {
+    for (const el of Array.from(parent.children)) {
+      const tag = el.tagName.toLowerCase();
+      if (tag === "ul" || tag === "ol") {
+        Array.from(el.children).forEach((li, i) => {
+          const cl = li.classList;
+          const lv = cl.contains("lv2") ? 2 : cl.contains("lv1") ? 1 : 0;
+          const mark = tag === "ol" ? `${i + 1}. ` : cl.contains("nb") ? "" : cl.contains("k-sq") ? "□ " : cl.contains("k-da") ? "- " : "○ ";
+          out.push("  ".repeat(lv) + mark + txt(li));
+        });
+      } else if (tag === "table") {
+        el.querySelectorAll("tr").forEach((tr) => out.push(Array.from(tr.children).map((td) => txt(td)).join(" | ")));
+      } else if (tag === "div" && el.querySelector("p,ul,ol,table,h3,blockquote")) {
+        walk(el);
+      } else {
+        const t = txt(el);
+        if (t) out.push(t);
+      }
+    }
+  };
+  walk(doc.body);
+  return out.join("\n").trim();
+}
+
+/** 기록 → 내용 칸 글자 */
+export function entryContent(e: Pick<EntryInput, "kind" | "lines" | "body">): string {
+  if (isMemo(e.kind) || (!e.lines.length && e.body)) return memoText(e.body);
+  return e.lines.map((l) => `${l.me ? "나" : l.who || "상대"}: ${l.text}`).join("\n");
+}
+
+const keyOf = (date: string, time: string, kind: string, who: string, content: string) =>
+  [date, time, kind.trim(), who.trim(), content.replace(/\r\n?/g, "\n").split("\n").map((x) => x.trim()).join("\n").trim()].join("\u0001");
+
+export function journalRows(entries: Entry[], projects: Project[]): string[][] {
+  const byId = new Map(projects.map((p) => [p.id, p.name]));
+  return [...entries]
+    .sort((a, b) => (a.date !== b.date ? (a.date < b.date ? -1 : 1) : a.time !== b.time ? (a.time < b.time ? -1 : 1) : a.id - b.id))
+    .map((e, i) => [String(i + 1), e.date, e.time, e.kind, e.who, e.contact, e.project !== null ? byId.get(e.project) ?? "" : "", entryContent(e)]);
+}
+
+export function journalDayRows(days: DayInfo[]): string[][] {
+  return [...days]
+    .filter((d) => d.arrive || d.transport || d.weather || d.note)
+    .sort((a, b) => (a.date < b.date ? -1 : 1))
+    .map((d) => [d.date, d.arrive, d.transport, d.weather, d.note]);
+}
+
+const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/** 내용 칸 → 말 줄. 줄 앞 "이름: "의 이름이 나·상대 칸의 이름·앞에 나온 말한 사람이면 새 말, 아니면 앞 말에 이어 붙여요(한 말 안 줄 바꿈). */
+export function linesOfContent(text: string, who: string, myName: string): JournalLine[] {
+  const known = new Set(["나", "상대", ...whoNames(who), ...(myName ? [myName] : [])]);
+  const out: JournalLine[] = [];
+  for (const raw of text.replace(/\r\n?/g, "\n").split("\n")) {
+    const line = raw.trim();
+    if (!line) continue;
+    const m = /^([^:：]{1,20})[:：]\s*(.*)$/.exec(line);
+    const sp = m?.[1].trim();
+    if (m && sp && (known.has(sp) || !out.length)) {
+      known.add(sp);
+      const me = sp === "나" || (!!myName && sp === myName);
+      out.push({ who: me ? "" : sp, me, text: m[2] });
+    } else if (out.length) {
+      out[out.length - 1].text += "\n" + line;
+    } else {
+      out.push({ who: whoNames(who)[0] ?? "", me: false, text: line });
+    }
+  }
+  return out.filter((l) => l.text.trim());
+}
+
+export type JournalImport = { entries: EntryInput[]; days: DayInfo[]; dup: number; bad: number };
+
+/**
+ * 읽은 시트 → 넣을 기록. 날짜·시각을 읽지 못한 줄(bad)과 이미 있는 기록·파일 안에서 겹친 줄(dup)은 빼요.
+ * 프로젝트는 정식 이름·줄인 이름으로 찾고, 없으면 비워요.
+ */
+export function journalImports(sheet: ExcelSheet, existing: Entry[], projects: Project[], myName: string): JournalImport {
+  const get = picker(sheet.headers);
+  const seen = new Set(existing.map((e) => keyOf(e.date, e.time, e.kind, e.who, entryContent(e))));
+  const entries: EntryInput[] = [];
+  let dup = 0;
+  let bad = 0;
+  for (const r of dataRows(sheet)) {
+    const date = parseDate(get(r, "날짜"));
+    const time = normTime(get(r, "시각"));
+    const content = (() => {
+      const i = sheet.headers.findIndex((h) => h.replace(/\s+/g, "") === "내용");
+      return i < 0 ? "" : (r[i] ?? "").replace(/\r\n?/g, "\n").trim();
+    })();
+    if (!date || !time || !content) {
+      bad++;
+      continue;
+    }
+    const kind = get(r, "구분") || "메모";
+    const who = get(r, "상대");
+    const key = keyOf(date, time, kind, who, content);
+    if (seen.has(key)) {
+      dup++;
+      continue;
+    }
+    seen.add(key);
+    const pn = get(r, "프로젝트");
+    const p = pn ? projects.find((x) => x.name === pn || (x.alias ?? "") === pn) : undefined;
+    const memo = isMemo(kind);
+    entries.push({
+      date,
+      time,
+      kind,
+      who: memo ? "" : who,
+      contact: memo ? "" : get(r, "연락처"),
+      project: memo ? null : p?.id ?? null,
+      lines: memo ? [] : linesOfContent(content, who, myName),
+      body: memo ? content.split("\n").filter((x) => x.trim()).map((x) => `<p>${esc(x.trim())}</p>`).join("") : "",
+    });
+  }
+  const days: DayInfo[] = [];
+  const ds = sheet.extra?.[0];
+  if (ds) {
+    const g = picker(ds.headers);
+    for (const r of ds.rows) {
+      const date = parseDate(g(r, "날짜"));
+      if (!date) continue;
+      const d = { date, arrive: normTime(g(r, "출근")) ?? g(r, "출근"), transport: g(r, "교통"), weather: g(r, "날씨"), note: g(r, "비고") };
+      if (d.arrive || d.transport || d.weather || d.note) days.push(d);
+    }
+  }
+  return { entries, days, dup, bad };
 }
 
 /** 기본 파일 이름: 민원대장_2026-10-17.xlsx */

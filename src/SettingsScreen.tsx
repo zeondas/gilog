@@ -1,8 +1,7 @@
 import { FormEvent, Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ACCENTS, api, DEFAULT_PREFS, errorText, inApp, Prefs, Status } from "./api";
 import { splitJamo } from "./journal";
-import { DEFAULT_SETTINGS, DONE_STATUS, Kind, loadSettings, MEMO_KIND, ProcessSettings, saveSettings, Settings, FilesSettings, STATUS_COLORS } from "./settingsStore";
-import { PhoneInput } from "./PhoneInput";
+import { DEFAULT_SETTINGS, Kind, loadSettings, MEMO_KIND, ProcessSettings, saveSettings, Settings, FilesSettings, STATUS_COLORS } from "./settingsStore";
 import { aiGuide, phoneGuide } from "./process";
 import { isOn, MODULE_DESC, ModuleId, Modules, onScreens, SCREENS, firstOn } from "./screens";
 import { NavIcon, NavIconName } from "./Icons";
@@ -43,9 +42,6 @@ type Props = {
 
 /** 설정이 있는 모듈만 "모듈별 설정"에 카드를 둬요(사이드바 순서). 없는 모듈(집행현황·할 일·업무연락처)은 빼요 — 2026-10-18 사용자. */
 const SET_SCREENS = SCREENS.filter((sc) => (["explorer", "complaints", "process", "calendar", "journal"] as string[]).includes(sc.id));
-
-/** 지울 수 없는 상태예요. 마감 계산과 할 일 연동이 이것을 기준으로 해요. */
-export const KEEP_STATUS = DONE_STATUS;
 
 export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onModules, onClose }: Props) {
   const [s, setS] = useState<Settings | null>(null);
@@ -301,6 +297,13 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
             <option value={5}>5일 전부터</option>
           </select>
         </Row>
+        <Toggle
+          k="부팅 시작 프로그램 자동 켜기 트레이"
+          label="윈도우 시작할 때 자동 실행"
+          desc="컴퓨터를 켜면 트레이에서 조용히 켜져요"
+          on={!!prefs.autoStart}
+          onChange={(v) => setPref("autoStart", v)}
+        />
         <Row
           k="닫기 X 종료 끝내기 트레이 최소화 작업표시줄 창"
           label="닫기(X) 단추"
@@ -388,14 +391,6 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
             <FilesRows value={s.files} onChange={(files) => update({ ...s, files })} />
           ) : sc.id === "complaints" ? (
             <>
-              <ListGroup
-                title="상태"
-                desc="색은 자동으로 붙어요. 완료는 지울 수 없어요."
-                items={s.status}
-                keep={KEEP_STATUS}
-                colored
-                onChange={(status) => update({ ...s, status })}
-              />
               <ListGroup title="접수유형" items={s.intake} onChange={(intake) => update({ ...s, intake })} />
               <ListGroup title="민원유형" items={s.ctype} onChange={(ctype) => update({ ...s, ctype })} last />
             </>
@@ -1534,12 +1529,11 @@ function Plus({ size = 14 }: { size?: number }) {
 const PROCESS_DIRS: { key: "root" | "inbox" | "downloads" | "outbox"; label: string; desc: string }[] = [
   { key: "root", label: "민원 폴더", desc: "사진·지시부를 이 폴더에 접수일_위치_보수내용 이름으로 둬요." },
   { key: "inbox", label: "가져올 폴더", desc: "Claude가 신문고에서 읽은 민원을 한 건씩 놓는 곳이에요." },
-  { key: "downloads", label: "다운로드 폴더", desc: "엣지가 신문고 첨부 사진을 받는 곳이에요." },
+  { key: "downloads", label: "다운로드 폴더", desc: "크롬이 신문고 첨부 사진을 받는 곳이에요." },
   { key: "outbox", label: "보낼 폴더", desc: "[폰 전송]이 지시부 JPG를 두는 곳이에요. Claude 앱 \"민원처리\" 대화가 폰으로 올려요." },
 ];
 
 function ProcessRows({ p, onChange }: { p: ProcessSettings; onChange: (p: ProcessSettings) => void }) {
-  const [phone, setPhone] = useState(p.signerPhone);
   const [copied, setCopied] = useState<"ai" | "phone" | null>(null);
   async function copyGuide(which: "ai" | "phone") {
     const text = which === "ai" ? aiGuide(p, (await api.processData()).works) : phoneGuide(p);
@@ -1557,12 +1551,28 @@ function ProcessRows({ p, onChange }: { p: ProcessSettings; onChange: (p: Proces
     const r = await open({ directory: true, title, defaultPath: p[k] || undefined });
     if (typeof r === "string") onChange({ ...p, [k]: r });
   }
+  async function pickTpl() {
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const r = await open({ multiple: false, title: "지시부 양식", filters: [{ name: "한글 hwpx", extensions: ["hwpx"] }] });
+    if (typeof r === "string") onChange({ ...p, tpl: r });
+  }
   return (
     <>
-      <Row label="지시자" desc="지시부의 지시자 칸에 들어가요. 연락처는 이름 아래 줄에 붙어요.">
-        <span className="proc-signer">
-          <input className="input" aria-label="지시자 이름" style={{ width: 150 }} defaultValue={p.signer} onBlur={(e) => text("signer", e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
-          <PhoneInput className="input" aria-label="지시자 연락처" style={{ width: 130 }} value={phone} onChange={setPhone} onBlur={() => text("signerPhone", phone)} />
+      <Row label="지시부 양식" desc="모든 공사가 표준 양식 하나를 써요(hwpx). 비워 두면 앱에 들어 있는 표준 양식이에요.">
+        <span className="proc-dir">
+          <span className="proc-tpl" title={p.tpl || undefined}>
+            {p.tpl ? p.tpl.split(/[\\/]/).pop() : "표준 양식(앱에 들어 있음)"}
+          </span>
+          {inApp && (
+            <button type="button" className="btn btn-xs" onClick={pickTpl}>
+              고르기
+            </button>
+          )}
+          {p.tpl && (
+            <button type="button" className="btn btn-xs" onClick={() => onChange({ ...p, tpl: "" })}>
+              기본으로
+            </button>
+          )}
         </span>
       </Row>
       {PROCESS_DIRS.map((d) => (

@@ -13,7 +13,7 @@ import { BLine, parseLines, stringifyLines } from "./bullets";
 import { BulletEditor, BulletView } from "./BulletParts";
 import { Hl } from "./ContactsScreen";
 import { parseDate, todayStr } from "./journal";
-import { DEFAULT_SETTINGS, DONE_STATUS, loadSettings } from "./settingsStore";
+import { ANSWER_STATUS, DEFAULT_SETTINGS, isAnswered, loadSettings } from "./settingsStore";
 import { complaintItems, dueBadge, Item, openCount, split, treeOf } from "./tasks";
 
 const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
@@ -161,14 +161,17 @@ export default function TasksScreen({ urgentDays, focusId, onFocused, onOpenComp
     setSel(null);
   }
 
-  /** 민원 체크: 완료로 바꾸고 그 전 상태를 기억해요. 체크를 풀면 그 전 상태(모르면 완료가 아닌 첫 상태)로 돌려요. */
+  /**
+   * 민원 체크: 마감일은 법정 답변기한이라 체크 = 상태 "답변"(그 전 상태를 기억해요).
+   * 답변이 끝난 민원(답변·완료·보류·장기)은 체크된 것으로 보이고, 풀면 그 전 상태(모르면 답변 전 첫 상태)로 돌려요.
+   */
   async function toggleComplaint(c: Complaint) {
     let next: string;
-    if (c.status === DONE_STATUS) {
-      next = prevStatus.current.get(c.id) ?? statuses.find((s) => s !== DONE_STATUS) ?? "접수";
+    if (isAnswered(c.status)) {
+      next = prevStatus.current.get(c.id) ?? statuses.find((s) => !isAnswered(s)) ?? "접수";
     } else {
       prevStatus.current.set(c.id, c.status);
-      next = DONE_STATUS;
+      next = ANSWER_STATUS;
     }
     const r = await run(api.setComplaintStatus(c.id, next));
     if (r) setComplaints((list) => list.map((x) => (x.id === r.id ? r : x)));
@@ -982,8 +985,8 @@ function ItemRow({
         type="button"
         className={"td-check" + (it.done ? " on" : "") + (c ? " linked" : "")}
         aria-pressed={it.done}
-        aria-label={c ? (it.done ? "완료 취소 (민원대장 상태를 되돌려요)" : "완료로 표시 (민원대장 상태가 완료로 바뀌어요)") : it.done ? "완료 취소" : "완료로 표시"}
-        title={c ? (it.done ? "체크를 풀면 민원대장의 상태를 그 전으로 되돌려요" : "체크하면 민원대장의 상태가 완료로 바뀌어요") : undefined}
+        aria-label={c ? (it.done ? "답변 취소 (민원대장 상태를 되돌려요)" : "답변으로 표시 (민원대장 상태가 답변으로 바뀌어요)") : it.done ? "완료 취소" : "완료로 표시"}
+        title={c ? (it.done ? "체크를 풀면 민원대장의 상태를 그 전으로 되돌려요" : "체크하면 민원대장의 상태가 답변으로 바뀌어요") : undefined}
         onClick={onCheck}
       >
         {it.done && <Tick />}

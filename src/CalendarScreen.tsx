@@ -17,7 +17,7 @@ import {
 } from "./calendar";
 import { Hl } from "./ContactsScreen";
 import { parseDate, todayStr } from "./journal";
-import { DEFAULT_SETTINGS, DONE_STATUS, loadSettings } from "./settingsStore";
+import { ANSWER_STATUS, DEFAULT_SETTINGS, isAnswered, loadSettings } from "./settingsStore";
 import { exportNow, GStatus, onGoogleStatus, REMOTE_CHANGE, whenText } from "./google";
 import { loadNotifyMode, refreshHolidaysDaily, saveNotifyMode, stamp, syncReminders, updateHolidays } from "./reminders";
 
@@ -228,10 +228,10 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
     syncReminders();
   }
 
-  /** 민원 마감의 동그라미: 완료로 바꾸고, 풀면 그 전 상태로(이번에 체크한 것만 기억, 모르면 완료가 아닌 첫 상태). 할 일 목록과 같은 규칙이에요. */
+  /** 민원 마감(= 법정 답변기한)의 동그라미: "답변"으로 바꾸고, 풀면 그 전 상태로(이번에 체크한 것만 기억, 모르면 답변 끝남이 아닌 첫 상태). */
   async function toggleComplaint(c: Complaint) {
-    const done = c.status === DONE_STATUS;
-    const next = done ? prevStatus.current.get(c.id) ?? statuses.find((x) => x !== DONE_STATUS) ?? "접수" : DONE_STATUS;
+    const done = isAnswered(c.status);
+    const next = done ? prevStatus.current.get(c.id) ?? statuses.find((x) => !isAnswered(x)) ?? "접수" : ANSWER_STATUS;
     const r = await run(api.setComplaintStatus(c.id, next));
     if (!r) return;
     if (done) prevStatus.current.delete(c.id);
@@ -253,9 +253,11 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
   const weeks = view === "week" ? 1 : month.weeks;
   const gridEnd = addDays(start, weeks * 7 - 1);
 
+  // 답변 끝난 민원(답변·완료·보류·장기)은 캘린더에서 빼요(2026-10-19 사용자). 이 화면에서 방금 체크한 것만 되돌릴 수 있게 흐리게 남겨요.
+  const shownComplaints = useMemo(() => complaints.filter((c) => !isAnswered(c.status) || prevStatus.current.has(c.id)), [complaints]);
   const src: Source | null = useMemo(
-    () => (data ? { kinds: data.kinds, events: data.events, holidays: data.holidays, complaints, tasks } : null),
-    [data, complaints, tasks],
+    () => (data ? { kinds: data.kinds, events: data.events, holidays: data.holidays, complaints: shownComplaints, tasks } : null),
+    [data, shownComplaints, tasks],
   );
   const hidden = useMemo(() => new Set(data?.kinds.filter((k) => !k.visible).map((k) => k.id) ?? []), [data]);
   const occs = useMemo(

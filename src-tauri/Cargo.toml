@@ -1,6 +1,6 @@
 [package]
 name = "gilog"
-version = "0.18.0"
+version = "0.20.0"
 description = "giLog"
 edition = "2021"
 
@@ -20,6 +20,8 @@ tauri-plugin-dialog = "2"
 keyring = { version = "3", features = ["windows-native"] }
 # 창을 닫아도 트레이에 남으니, 앱을 한 번 더 켜면 새로 열지 않고 떠 있는 창을 보여 줘요(자료 파일을 두 곳에서 열지 않게).
 tauri-plugin-single-instance = "2"
+# 윈도우 시작할 때 자동 실행(설정 → 일반, 2026-10-19). HKCU\…\Run에 "giLog" = 실행 파일 + --autostart
+tauri-plugin-autostart = "2"
 # 공휴일을 인터넷에서 받아요. 윈도우의 인증서와 프록시 설정을 그대로 써요(사무실 망).
 reqwest = { version = "0.13", default-features = false, features = ["native-tls", "charset", "http2", "system-proxy"] }
 # 탐색기(11단계): 휴지통으로 지우기, 폴더 바뀜 알기, 찾기의 "안의 글자"(오피스·hwpx 압축, 한글 hwp, PDF, 한국어 글자 파일)
@@ -37,7 +39,7 @@ windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_UI_Inpu
 # 일정 알림을 윈도우 알림으로 띄우고, 누르면 그 일정을 열어요.
 tauri-winrt-notification = "0.7"
 # 탐색기: 윈도우 우클릭 메뉴(셸 메뉴)·윈도우 아이콘·드라이브 목록 / 잠금: 윈도우 PIN(Hello) 확인·DPAPI 보관
-windows = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_Shell", "Win32_UI_Shell_Common", "Win32_System_Com", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Gdi", "Win32_Storage_FileSystem", "Win32_UI_Input_KeyboardAndMouse", "Foundation", "Security_Credentials_UI", "Win32_System_WinRT", "Win32_Security_Cryptography"] }
+windows = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_Shell", "Win32_UI_Shell_Common", "Win32_UI_Controls", "Win32_System_Com", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Gdi", "Win32_Storage_FileSystem", "Win32_UI_Input_KeyboardAndMouse", "Foundation", "Security_Credentials_UI", "Win32_System_WinRT", "Win32_Security_Cryptography"] }
 # 잠금: Hello 확인 창의 결과를 기다리는 데 써요(windows 0.61이 쓰는 것과 같은 판).
 windows-future = "0.2"
 png = "0.17"

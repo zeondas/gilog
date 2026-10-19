@@ -71,7 +71,7 @@ pub fn copy_budget_year(state: State<AppState>, from: i64, to: i64) -> Result<Ye
 
 /// 바뀐 해와 넣은 공사 수
 #[tauri::command]
-pub fn import_budget(state: State<AppState>, year: i64, projects: Vec<BudgetImportProject>) -> Result<(Year, usize), String> {
+pub fn import_budget(state: State<AppState>, year: i64, projects: Vec<BudgetImportProject>) -> Result<(Year, usize, usize), String> {
     with_store(&state, |s| s.import_budget(year, &projects))
 }
 

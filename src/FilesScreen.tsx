@@ -1396,12 +1396,20 @@ export default function FilesScreen() {
         >
           {!t.find && parentOf(t.path) && (p.view === "detail" || p.view === "brief") && (
             <div className={p.view === "brief" ? "fx-brow" : "fx-frow"} style={p.view === "detail" ? colStyle : undefined} onDoubleClick={() => up(pane)} title="두 번 누르면 위 폴더 (Backspace)">
-              <span className="fx-up">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 19V5M5 12l7-7 7 7" />
-                </svg>
-              </span>
-              <span className="fx-dim fx-strong">..</span>
+              {/* FC처럼 보통 폴더 아이콘 + ".." (칩·화살표 없이, 아래 폴더와 같은 크기) */}
+              {p.view === "brief" ? (
+                <>
+                  <FileIcon name=".." path="" dir size={16} />
+                  <span className="fx-bn fx-dim fx-strong">..</span>
+                </>
+              ) : (
+                <>
+                  <span className="fx-icell">
+                    <FileIcon name=".." path="" dir size={16} />
+                  </span>
+                  <span className="fx-ncell fx-dim fx-strong">..</span>
+                </>
+              )}
               {p.view === "detail" && (
                 <>
                   {shown.map((k) => (
@@ -1413,10 +1421,9 @@ export default function FilesScreen() {
           )}
           {!t.find && parentOf(t.path) && (p.view === "icons" || p.view === "thumb") && (
             <div className="fx-gcell" onDoubleClick={() => up(pane)}>
-              <span className="fx-up fx-up-big" style={{ width: p.view === "thumb" ? 88 : 48, height: p.view === "thumb" ? 66 : 48 }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 19V5M5 12l7-7 7 7" />
-                </svg>
+              {/* FC처럼 보통 폴더 아이콘 + ".." (칩·화살표 없이) */}
+              <span className="fx-gicon" style={{ width: p.view === "thumb" ? 88 : 48, height: p.view === "thumb" ? 66 : 48 }}>
+                <FileIcon name=".." path="" dir size={p.view === "thumb" ? 64 : 44} />
               </span>
               <span className="fx-dim fx-strong">..</span>
             </div>
@@ -1460,7 +1467,7 @@ export default function FilesScreen() {
               return (
                 <div key={r.path} className="fx-gcell" {...common} title={r.name}>
                   <span className="fx-gicon" style={{ width: p.view === "thumb" ? 88 : 48, height: p.view === "thumb" ? 66 : 48 }}>
-                    {thumb ? <Thumb path={r.path} /> : <FileIcon name={r.name} path={r.path} dir={r.dir} size={big} />}
+                    {thumb ? <Thumb path={r.path} /> : <FileIcon name={r.name} path={r.path} dir={r.dir} size={big} rev={r.modified} />}
                     {r.locked && <LockBadge small />}
                   </span>
                   <span className="fx-gname" style={{ fontWeight: r.dir ? 600 : 400 }}>
@@ -1472,7 +1479,7 @@ export default function FilesScreen() {
             if (p.view === "brief" && !t.find) {
               return (
                 <div key={r.path} className="fx-brow" {...common} title={r.name}>
-                  <FileIcon name={r.name} path={r.path} dir={r.dir} size={16} />
+                  <FileIcon name={r.name} path={r.path} dir={r.dir} size={16} rev={r.modified} />
                   <span className="fx-bn" style={{ fontWeight: r.dir ? 600 : 400 }}>
                     {inline && inline.path === r.path ? nameCell(r) : r.name}
                   </span>
@@ -1486,7 +1493,7 @@ export default function FilesScreen() {
               {groupHead && <div className="fx-ghead">{groupHead}</div>}
               <div className="fx-frow" style={colStyle} {...common}>
                 <span className="fx-icell">
-                  <FileIcon name={r.name} path={r.path} dir={r.dir} size={16} />
+                  <FileIcon name={r.name} path={r.path} dir={r.dir} size={16} rev={r.modified} />
                 </span>
                 <span className="fx-ncell" style={{ fontWeight: r.dir ? 600 : 400 }}>
                   {nameCell(r)}
@@ -1953,11 +1960,15 @@ export default function FilesScreen() {
 }
 
 function LockBadge({ small }: { small?: boolean }) {
+  // 배지 없이 금색 솔리드 자물쇠만(2026-10-19 사용자: 3안 좁은 폭). 색은 tokens.css --lock*.
+  const px = small ? 15 : 13;
   return (
     <span className={small ? "fx-lock fx-lock-s" : "fx-lock"} title="회사 보안(DRM)이 걸린 것 같아요">
-      <svg aria-hidden="true" width={small ? 9 : 10} height={small ? 9 : 10} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
-        <rect x="4" y="11" width="16" height="10" rx="2" />
-        <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+      <svg aria-hidden="true" width={px} height={px} viewBox="0 0 24 24">
+        <path d="M8.6 10V8a3.4 3.4 0 0 1 6.8 0v2" fill="none" stroke="var(--lock-shackle)" strokeWidth="3.4" strokeLinecap="round" />
+        <rect x="4.5" y="9.5" width="15" height="12" rx="3" fill="var(--lock)" />
+        <circle cx="12" cy="14.6" r="1.6" fill="var(--lock-hole)" />
+        <rect x="11.2" y="15.4" width="1.6" height="3" rx="0.8" fill="var(--lock-hole)" />
       </svg>
     </span>
   );
@@ -2043,7 +2054,7 @@ function Preview({ row, fmt, typeOf }: { row: Row | undefined; fmt: string; type
   const img = !row.dir && IMAGE_EXT.has(extOf(row.name));
   return (
     <div className="fx-pv">
-      <div className="fx-pv-pic">{img ? <PreviewImage path={row.path} /> : <FileIcon name={row.name} path={row.path} dir={row.dir} size={64} />}</div>
+      <div className="fx-pv-pic">{img ? <PreviewImage path={row.path} /> : <FileIcon name={row.name} path={row.path} dir={row.dir} size={64} rev={row.modified} />}</div>
       <div className="fx-pv-name">{row.name}</div>
       <dl className="fx-pv-info">
         <dt>파일 형식</dt>
