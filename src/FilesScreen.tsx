@@ -1960,11 +1960,15 @@ export default function FilesScreen() {
 }
 
 function LockBadge({ small }: { small?: boolean }) {
+  // 배지 없이 금색 솔리드 자물쇠만(2026-10-19 사용자: 3안 좁은 폭). 색은 tokens.css --lock*.
+  const px = small ? 15 : 13;
   return (
     <span className={small ? "fx-lock fx-lock-s" : "fx-lock"} title="회사 보안(DRM)이 걸린 것 같아요">
-      <svg aria-hidden="true" width={small ? 9 : 10} height={small ? 9 : 10} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
-        <rect x="4" y="11" width="16" height="10" rx="2" />
-        <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+      <svg aria-hidden="true" width={px} height={px} viewBox="0 0 24 24">
+        <path d="M8.6 10V8a3.4 3.4 0 0 1 6.8 0v2" fill="none" stroke="var(--lock-shackle)" strokeWidth="3.4" strokeLinecap="round" />
+        <rect x="4.5" y="9.5" width="15" height="12" rx="3" fill="var(--lock)" />
+        <circle cx="12" cy="14.6" r="1.6" fill="var(--lock-hole)" />
+        <rect x="11.2" y="15.4" width="1.6" height="3" rx="0.8" fill="var(--lock-hole)" />
       </svg>
     </span>
   );

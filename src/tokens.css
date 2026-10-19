@@ -37,6 +37,8 @@
   /* 뜨는 창 안의 줄 구분선 */
   --line-raised: #EFEEF3;
   --danger: #8A1F2B;
+  /* 잠긴 파일(DRM) 금색 자물쇠 — 몸통·고리·열쇠구멍 */
+  --lock: #C88A00; --lock-shackle: #9A6A00; --lock-hole: #FFF6DF;
   --urgent: #B3261E;
   /* 할 일 마감 배지(임박) 바탕. 글자는 urgent. */
   --urgent-bg: #FBE9E7;
@@ -177,6 +179,7 @@
     --st-new-bg: #2B2552;
     --st-new-fg: #C9C0FF;
   --danger: #F08A95;
+  --lock: #E7C66A; --lock-shackle: #C9A23E; --lock-hole: #2A2410;
     --urgent: #F28B82;
     --urgent-bg: #3D2220;
     --danger-wash: #3A1D24;
@@ -231,6 +234,7 @@
   --st-hold-bg: #2C2B34;
   --st-hold-fg: #BAB7C6;
   --danger: #F08A95;
+  --lock: #E7C66A; --lock-shackle: #C9A23E; --lock-hole: #2A2410;
   --urgent: #F28B82;
   --urgent-bg: #3D2220;
   --saturday: #8AB4F8;
