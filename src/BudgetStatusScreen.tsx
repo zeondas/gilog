@@ -1,6 +1,6 @@
 // 예산현황(13단계) 화면 — 집행현황과 같은 표 부품(bd-*)으로, 세부사업 › 연도 › 재원 세 겹.
 // 시안: 캔버스 BudgetStatus(요약)·BudgetStatusDetail(자세히), 2026-10-19 사용자 결정(설정 단추는 작은 네모 하나, 숫자는 모두 오른쪽, 추경 열은 빼지 않음, 엑셀 열 비율 참고).
-// - 세부사업은 집행현황에서 자동으로 와요(이월 세부사업은 이어 붙이는 쪽). 사업명 옆 ⚙ 단추 → 기간·재원·이월 사업·결산한 해.
+// - 세부사업은 집행현황에서 자동으로 와요(이월 세부사업은 이어 붙이는 쪽). 사업명 옆 ⚙ 단추 → 단년도/다년도(기간)·재원·이월 사업.
 // - 재원 줄 두 번 누르기 = 고치는 줄(직접 적는 칸만 열려요), 바깥 누르기 = 저장, Esc = 취소. 규칙은 budgetStatus.ts.
 import { KeyboardEvent as RKeyboardEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Fragment } from "react";
 import { api } from "./api";
@@ -23,36 +23,36 @@ type Col = { id: string; label: string; sub?: string; w: number; num?: boolean }
 /** 엑셀 "집행·이월 현황" 열 비율 참고: 숫자 열은 같은 폭, 구분 열은 1.3배쯤 + 설정 단추 자리 */
 const SUM_COLS: Col[] = [
   { id: "name", label: "구분", w: 300 },
-  { id: "curSum", label: "당해예산", w: 140, num: true },
-  { id: "prev", label: "전년도 이월", w: 140, num: true },
-  { id: "act", label: "예산현액", w: 140, num: true },
-  { id: "ex", label: "집행액", w: 140, num: true },
+  { id: "curSum", label: "당해예산", w: 152, num: true },
+  { id: "prev", label: "전년도 이월", w: 152, num: true },
+  { id: "act", label: "예산현액", w: 152, num: true },
+  { id: "ex", label: "집행액", w: 152, num: true },
   { id: "rate", label: "집행률", w: 92, num: true },
-  { id: "left", label: "다음연도 이월", w: 140, num: true },
-  { id: "un", label: "불용액", w: 140, num: true },
+  { id: "left", label: "다음연도 이월", w: 152, num: true },
+  { id: "un", label: "불용액", w: 152, num: true },
   { id: "memo", label: "", w: 36 },
 ];
 const DET_COLS: Col[] = [
   { id: "name", label: "구분", w: 260 },
-  { id: "curSum", label: "당해예산", sub: "소계", w: 118, num: true },
-  { id: "cur", label: "", sub: "본예산", w: 118, num: true },
-  { id: "a1", label: "", sub: "1추", w: 118, num: true },
-  { id: "a2", label: "", sub: "2추", w: 118, num: true },
-  { id: "a3", label: "", sub: "3추", w: 118, num: true },
-  { id: "a4", label: "", sub: "4추", w: 118, num: true },
-  { id: "prev", label: "전년도 이월", sub: "소계", w: 118, num: true },
-  { id: "pm", label: "", sub: "명시이월", w: 118, num: true },
-  { id: "ps", label: "", sub: "사고이월", w: 118, num: true },
-  { id: "act", label: "예산현액", sub: "①+②", w: 118, num: true },
-  { id: "ex", label: "집행액", sub: "소계", w: 118, num: true },
-  { id: "en", label: "", sub: "당해", w: 118, num: true },
-  { id: "em", label: "", sub: "명시", w: 118, num: true },
-  { id: "es", label: "", sub: "사고", w: 118, num: true },
+  { id: "curSum", label: "당해예산", sub: "소계", w: 132, num: true },
+  { id: "cur", label: "", sub: "본예산", w: 132, num: true },
+  { id: "a1", label: "", sub: "1추", w: 132, num: true },
+  { id: "a2", label: "", sub: "2추", w: 132, num: true },
+  { id: "a3", label: "", sub: "3추", w: 132, num: true },
+  { id: "a4", label: "", sub: "4추", w: 132, num: true },
+  { id: "prev", label: "전년도 이월", sub: "소계", w: 132, num: true },
+  { id: "pm", label: "", sub: "명시이월", w: 132, num: true },
+  { id: "ps", label: "", sub: "사고이월", w: 132, num: true },
+  { id: "act", label: "예산현액", sub: "①+②", w: 132, num: true },
+  { id: "ex", label: "집행액", sub: "소계", w: 132, num: true },
+  { id: "en", label: "", sub: "당해", w: 132, num: true },
+  { id: "em", label: "", sub: "명시", w: 132, num: true },
+  { id: "es", label: "", sub: "사고", w: 132, num: true },
   { id: "rate", label: "집행률", sub: "%", w: 84, num: true },
-  { id: "left", label: "다음연도 이월", sub: "소계", w: 118, num: true },
-  { id: "nm", label: "", sub: "명시이월", w: 118, num: true },
-  { id: "ns", label: "", sub: "사고이월", w: 118, num: true },
-  { id: "un", label: "불용액", w: 118, num: true },
+  { id: "left", label: "다음연도 이월", sub: "소계", w: 132, num: true },
+  { id: "nm", label: "", sub: "명시이월", w: 132, num: true },
+  { id: "ns", label: "", sub: "사고이월", w: 132, num: true },
+  { id: "un", label: "불용액", w: 132, num: true },
   { id: "memo", label: "", w: 36 },
 ];
 /** 직접 적을 수 있는 칸(재원 줄) */
@@ -233,10 +233,6 @@ export default function BudgetStatusScreen() {
         out.push(<div className="bd-c n" role="cell" key={id}>{bar(l.rate, kind !== "pj", kind === "gun")}</div>);
         continue;
       }
-      if (kind === "pj" && ["prev", "pm", "ps", "left", "nm", "ns"].includes(id)) {
-        out.push(cell("", " n"));
-        continue;
-      }
       if (first && ["prev", "pm", "ps"].includes(id) && !(l as unknown as Record<string, number>)[id]) {
         out.push(cell("", " n"));
         continue;
@@ -244,13 +240,13 @@ export default function BudgetStatusScreen() {
       if (id === "left") {
         out.push(
           <div className="bd-c n" role="cell" key={id}>
-            {l.open ? <span className="bs-open" title="아직 결산 전이라 남은 돈이에요 · ⚙에서 결산한 해로 표시하면 이월액으로 확정">{fmt(l.left, unit)}</span> : fmt(l.left, unit)}
+            {fmt(l.left, unit)}
           </div>,
         );
         continue;
       }
       if (id === "nm" || id === "ns") {
-        out.push(num(l.open ? null : id === "nm" ? l.nm : l.ns));
+        out.push(num(id === "nm" ? l.nm : l.ns));
         continue;
       }
       if (id === "prev" || id === "pm") {
@@ -277,8 +273,6 @@ export default function BudgetStatusScreen() {
   const setupBody = (name: string) => {
     const s = setups[name];
     if (!s) return null;
-    const yrs: number[] = [];
-    for (let y = s.from; y <= s.to; y++) yrs.push(y);
     const yr = (k: "from" | "to") => (
       <input
         className="fld bd-in n bs-yr"
@@ -293,10 +287,19 @@ export default function BudgetStatusScreen() {
     return (
       <div className="bs-setup" onMouseDown={(e) => e.stopPropagation()}>
         <div className="bs-row">
-          <span className="bs-lab">기간</span>
-          {yr("from")}
-          <span className="muted">~</span>
-          {yr("to")}
+          <span className="bs-lab">사업</span>
+          <span className="bd-unit bs-kind" role="group" aria-label="단년도 · 다년도">
+            <button type="button" className={"btn" + (!s.multi ? " on" : "")} aria-pressed={!s.multi} onClick={() => saveSetup(name, { ...s, multi: false })}>단년도</button>
+            <button type="button" className={"btn" + (s.multi ? " on" : "")} aria-pressed={s.multi} onClick={() => saveSetup(name, { ...s, multi: true })}>다년도</button>
+          </span>
+          {s.multi && (
+            <>
+              <span className="bs-lab bs-lab2">기간</span>
+              {yr("from")}
+              <span className="muted">~</span>
+              {yr("to")}
+            </>
+          )}
         </div>
         <div className="bs-row">
           <span className="bs-lab">재원</span>
@@ -351,20 +354,7 @@ export default function BudgetStatusScreen() {
             </select>
           )}
         </div>
-        <div className="bs-row">
-          <span className="bs-lab">결산한 해</span>
-          <span className="chips">
-            {yrs.map((y) => {
-              const on = s.closed.includes(y);
-              return (
-                <button key={y} type="button" className={"btn bs-yrbtn" + (on ? " on" : "")} aria-pressed={on} onClick={() => saveSetup(name, { ...s, closed: on ? s.closed.filter((z) => z !== y) : [...s.closed, y].sort() })}>
-                  {y}
-                </button>
-              );
-            })}
-          </span>
-        </div>
-        <div className="bs-hint">집행현황의 이월 세부사업을 이 사업에 이어요 · 예산은 전년도 이월, 집행액은 집행(명시)로. 결산한 해는 남은 돈이 다음연도 이월로 확정돼요.</div>
+        <div className="bs-hint">단년도는 집행현황에 있는 해마다 따로, 다년도는 남은 돈이 다음 해 전년도 이월로 이어져요. 이월 세부사업을 이으면 예산은 전년도 이월, 집행액은 집행(명시)로.</div>
       </div>
     );
   };
@@ -386,9 +376,9 @@ export default function BudgetStatusScreen() {
   for (const p of shown) {
     const s = setups[p.name];
     if (!s) continue;
-    const book = compute(p.name, s, byYear);
+    const book = compute(p.name, s, byYear, p.years);
     const isOpen = !!open[p.name];
-    const srcLabel = `${String(s.from).slice(2)}~${String(s.to).slice(2)}`; // 연도만(재원은 설정 상자에서 — 2026-10-19 사용자: 자리가 빠듯)
+    const srcLabel = s.multi ? `${String(s.from).slice(2)}~${String(s.to).slice(2)}` : "단년도"; // 연도만(재원은 설정 상자에서 — 2026-10-19 사용자: 자리가 빠듯)
     rows.push(
       <div key={p.name} className={"bd-rw pj" + (sel === p.name ? " sel" : "")} role="row" onClick={() => setSel(p.name)}>
         <div className="bd-c" role="cell">
@@ -397,12 +387,12 @@ export default function BudgetStatusScreen() {
             {ICON(isOpen ? CD : CR, 14, 2.2)}
           </button>
           <span className="bd-nm" title={p.name}>{p.name}</span>
-          <span className="bs-years" title={`기간 ${s.from}~${s.to} · 재원 ${s.sources.join("·")}`}>{srcLabel}</span>
+          <span className="bs-years" title={`${s.multi ? `다년도 ${s.from}~${s.to}` : "단년도"} · 재원 ${s.sources.join("·")}`}>{srcLabel}</span>
           <button
             type="button"
             className={"bs-gear" + (pop?.t === "setup" && pop.name === p.name ? " on" : "")}
-            aria-label="기간·재원·이월 사업 설정"
-            title="기간 · 재원 · 이월 사업 · 결산한 해"
+            aria-label="사업 기간·재원·이월 사업 설정"
+            title="단년도/다년도 · 재원 · 이월 사업"
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
@@ -433,7 +423,7 @@ export default function BudgetStatusScreen() {
               {ICON(yOpen ? CD : CR, 14, 2.2)}
             </button>
             <span className="bd-nm">{b.year}년</span>
-            <span className="bs-note">{b.linked ? "집행현황" : "직접 입력"}{s.closed.includes(b.year) ? " · 결산" : ""}</span>
+            <span className="bs-note">{b.linked ? "집행현황" : "직접 입력"}</span>
           </div>
           {numCells(b.total, "it", null, b.year, first)}
           {memoCell}
