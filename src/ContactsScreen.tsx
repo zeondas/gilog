@@ -1,7 +1,7 @@
 // 업무연락처 화면이에요. 시안 Contacts.dc.html과 사양서의 "업무연락처" 절을 따라요.
 import { KeyboardEvent, RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ExcelMenu } from "./ExcelMenu";
-import { ProjectImport, contactImports, contactRows } from "./excel";
+import { ProjectImport, contactImports, contactRows, samePerson } from "./excel";
 import { DelIcon } from "./Icons";
 import { BLine, CYCLE, isBlank, kindOf, layout, newLineFor, NewLineMode, parseLines, stringifyLines, TRIGGERS, withKind } from "./bullets";
 import { isKey, keyAction, rowKeys } from "./keys";
@@ -181,15 +181,20 @@ export default function ContactsScreen() {
           parse={(sheet) => [contactImports(sheet)]}
           count={(rows) => rows[0]?.contacts.length ?? 0}
           note={(sheet) => {
-            const n = contactImports(sheet).projects.length;
-            return n ? `프로젝트 ${n}개의 축약 공사명·그룹·색도 맞춰요` : "";
+            const r = contactImports(sheet);
+            const same = r.contacts.filter((c) => all.some((x) => samePerson(x, c))).length;
+            const n = r.projects.length;
+            return [same ? `이미 있는 사람 ${same}명은 새로 만들지 않고 프로젝트만 붙여요` : "", n ? `프로젝트 ${n}개의 축약 공사명·그룹·색도 맞춰요` : ""]
+              .filter(Boolean)
+              .join(" · ");
           }}
           onImport={async ([r]) => {
             // 프로젝트(숨긴 열의 그룹·축약 공사명·색)를 먼저 넣어야 연락처의 프로젝트 칸이 그 프로젝트로 이어져요.
             await importProjects(r.projects);
-            const n = await api.importContacts(r.contacts);
+            await api.importContacts(r.contacts);
             setData(await api.contactsData());
-            return n;
+            // "N건을 가져왔어요" — 묻는 창의 N건과 같게(이미 있는 사람에게 프로젝트만 붙인 것도 셈)
+            return r.contacts.length;
           }}
         />
       </div>

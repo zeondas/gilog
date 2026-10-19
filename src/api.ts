@@ -839,6 +839,15 @@ function fakeContacts(cmd: string, a: Record<string, unknown>): ContactsData | n
       for (const r of rows) {
         const t = (s: string) => (s ?? "").trim();
         const names = [...new Set(r.projects.map((p) => p.trim()).filter(Boolean))];
+        const dg = (x: string) => (x ?? "").replace(/\D/g, "");
+        const same = t(r.name) ? fake.contacts.find((c) => c.name === t(r.name) && c.org === t(r.org) && dg(c.mobile) === dg(r.mobile)) : undefined;
+        if (same) {
+          for (const n of names) {
+            const id = projectId(n);
+            if (!same.projects.includes(id)) same.projects.push(id);
+          }
+          continue;
+        }
         fake.contacts.push({
           id: fake.nextId++, name: t(r.name), org: t(r.org), role: t(r.role), mobile: t(r.mobile), tel: t(r.tel), email: t(r.email),
           memo: t(r.memo), projects: names.map(projectId),

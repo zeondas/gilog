@@ -127,6 +127,16 @@ function projectCells(p: Project | undefined, gname: Map<number, string>): strin
   return [p.group !== null ? gname.get(p.group) ?? "" : "", p.alias && p.alias !== p.name ? p.alias : "", p.color !== null ? String(p.color + 1) : ""];
 }
 
+/**
+ * 가져올 때 같은 사람(2026-10-19 사용자 1안): 이름이 있고 이름·소속이 같고 무선 번호 숫자가 같은 사람 —
+ * 새로 만들지 않고 없는 프로젝트만 붙여요(core `same_person`과 같은 규칙).
+ */
+export function samePerson(a: { name: string; org: string; mobile: string }, b: { name: string; org: string; mobile: string }): boolean {
+  const d = (s: string) => (s ?? "").replace(/\D/g, "");
+  const name = (a.name ?? "").trim();
+  return !!name && name === (b.name ?? "").trim() && (a.org ?? "").trim() === (b.org ?? "").trim() && d(a.mobile) === d(b.mobile);
+}
+
 /** 프로젝트 여러 개를 한 칸에: "가,\n나,\n다"(쉼표 + 줄바꿈) */
 export const joinLines = (xs: string[]) => xs.join(",\n");
 
