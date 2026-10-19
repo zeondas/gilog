@@ -1468,6 +1468,12 @@ mark {
   overflow-y: auto;
 }
 
+/* 창 몸통이 스크롤되니 안의 줄은 줄어들지 않아요 — 줄이 많으면 줄이 최소 높이로 눌려
+   지울까요 띠가 줄 위에 겹쳤어요(2026-10-19 사용자 신고, 프로젝트 관리) */
+.dialog-body > * {
+  flex-shrink: 0;
+}
+
 .dialog-body > p {
   margin: 0 0 var(--space-2);
 }
