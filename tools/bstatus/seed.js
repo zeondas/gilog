@@ -21,13 +21,7 @@
     f.password = "1234"; f.unlocked = true;
     f.prefs = { ...f.prefs, askPassword: false, theme: "light", startScreen: "bstatus" };
     f.values.set("bstatus:시도57호선 배수개선", JSON.stringify(setup57));
-    f.values.set("bstatus:파주여고 앞 방호벽 정비", JSON.stringify({ multi: true, from: 2025, to: 2026, sources: ["시비"], carry: "(사고이월) 파주여고 앞 방호벽 정비", carrySrc: "", rows: { "2025:시비": { cur: 49050000 } } }));
-    // 단년도 사업: 예산(본예산)은 예산현황이 주인이라 해마다 시비 줄에 적어 둬요(집행현황 예산 칸은 여기서 채워져요)
-    for (const [y, list] of [[2025, y2025], [2026, y2026]]) for (const p of list) {
-      if (p.carry || p.name.startsWith("시도57호선") || p.name.startsWith("파주여고")) continue;
-      const k = "bstatus:" + p.name; const cur = JSON.parse(f.values.get(k) ?? "null") ?? { multi: false, from: y, to: y, sources: ["시비"], carry: "", carrySrc: "", rows: {} };
-      cur.rows[y + ":시비"] = { cur: p.budget }; f.values.set(k, JSON.stringify(cur));
-    }
+    f.values.set("bstatus:파주여고 앞 방호벽 정비", JSON.stringify({ multi: true, from: 2025, to: 2026, sources: ["시비"], carry: "(사고이월) 파주여고 앞 방호벽 정비", carrySrc: "", rows: {} }));
     setTimeout(() => { const b = window.__budgetFake; if (b) { b.import(2025, y2025); b.import(2026, y2026); } }, 0);
   };
   let v;

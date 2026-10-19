@@ -191,28 +191,9 @@ export default function BudgetStatusScreen() {
     api.set(YEAR_KEY, String(y)).catch(() => {});
   };
 
-  /** 예산현황의 예산현액을 집행현황 세부사업 예산 칸에 써 줘요(2026-10-19 사용자: 자동 입력 + 집행현황에서 손으로 고칠 수 있음) */
-  const pushAct = async (name: string, s: Setup, present: number[]) => {
-    const book = compute(name, s, byYear, s.multi ? present : present);
-    const changed: Record<number, BudgetProject[]> = {};
-    for (const b of book.years) {
-      const p = (byYear[b.year] ?? []).find((x) => x.name === name);
-      if (!p) continue;
-      const act = Math.round(b.total.act);
-      if ((p.budget ?? 0) === act) continue;
-      try {
-        changed[b.year] = await api.saveBudgetProject(b.year, p.id, null, name, act);
-      } catch {
-        /* 집행현황 쪽 오류는 넘어가요 */
-      }
-    }
-    if (Object.keys(changed).length) setByYear((o) => ({ ...o, ...changed }));
-  };
   const saveSetup = (name: string, s: Setup) => {
     setSetups((o) => ({ ...o, [name]: s }));
     api.bstatusSet(name, JSON.stringify(s)).catch(() => {});
-    const p = names.find((x) => x.name === name);
-    void pushAct(name, s, p?.years ?? []);
   };
 
   // ---------- 고치는 줄 ----------
@@ -376,7 +357,7 @@ export default function BudgetStatusScreen() {
     );
 
   /** 숫자 칸들(구분·메모 사이) */
-  // lock: 집행현황에서 오는 칸(재원 하나 + 그 해 집행현황 있음 → 집행 당해)은 고치는 줄에서도 값만 보여요
+  // lock: 집행현황에서 오는 칸(재원 하나 + 그 해 집행현황 있음 → 본예산·집행 당해)은 고치는 줄에서도 값만 보여요
   const numCells = (l: Line, kind: "pj" | "it" | "gun", editing: Form | null, year?: number, first = false, lock: string[] = []) => {
     const out: ReactNode[] = [];
     const edit = (k: keyof Manual, label: string) => (
@@ -581,14 +562,14 @@ export default function BudgetStatusScreen() {
       if (!s) continue;
       const m: Manual = { ...c.m };
       // 집행현황에서 오는 칸(재원 하나 + 그 해 집행현황 있음)은 파일 값을 받지 않아요
-      if (s.sources.length === 1 && linkedOf(byYear[c.year] ?? [], c.name)) delete m.en;
+      if (s.sources.length === 1 && linkedOf(byYear[c.year] ?? [], c.name)) {
+        delete m.cur;
+        delete m.en;
+      }
       next[c.name] = { ...s, rows: { ...s.rows, [`${c.year}:${c.src}`]: { ...(s.rows[`${c.year}:${c.src}`] ?? {}), ...m } } };
     }
     setSetups(next);
-    for (const c of new Set(ask.cells.map((c) => c.name))) {
-      api.bstatusSet(c, JSON.stringify(next[c])).catch(() => {});
-      void pushAct(c, next[c], names.find((x) => x.name === c)?.years ?? []);
-    }
+    for (const c of new Set(ask.cells.map((c) => c.name))) api.bstatusSet(c, JSON.stringify(next[c])).catch(() => {});
     setToast(`${ask.cells.length}줄을 가져왔어요`);
     setAsk(null);
   };
@@ -774,7 +755,7 @@ export default function BudgetStatusScreen() {
           )}
           <span className="bd-nm" title={p.name}>{p.name}</span>
         </div>
-        {single && one && yb ? numCells(yb.bySrc[oneSrc], "pj", pjEditing, year, true, yb.hasMain ? ["en"] : []) : numCells(book.total, "pj", null)}
+        {single && one && yb ? numCells(yb.bySrc[oneSrc], "pj", pjEditing, year, true, yb.hasMain ? ["cur", "en"] : []) : numCells(book.total, "pj", null)}
         {memoBtn(p.name)}
       </div>,
     );
@@ -841,7 +822,7 @@ export default function BudgetStatusScreen() {
             <span className="bd-nm">{b.year}년</span>
             <span className="bs-note">{b.linked ? "집행현황" : "직접 입력"}</span>
           </div>
-          {one ? numCells(b.bySrc[oneSrc], "it", yEditing, b.year, first, b.hasMain ? ["en"] : []) : numCells(b.total, "it", null, b.year, first)}
+          {one ? numCells(b.bySrc[oneSrc], "it", yEditing, b.year, first, b.hasMain ? ["cur", "en"] : []) : numCells(b.total, "it", null, b.year, first)}
           {memoCell}
         </div>,
       );
@@ -960,7 +941,7 @@ export default function BudgetStatusScreen() {
               <div className="xl-ask-path">
                 {ask.path}
                 {ask.skipped > 0 && ` · 앱에 없는 세부사업·재원·기간 밖의 해 ${ask.skipped}줄은 건너뛰어요`}
-                {" · 집행현황에서 오는 집행액은 파일 값을 받지 않아요"}
+                {" · 집행현황에서 오는 당해예산·집행액은 파일 값을 받지 않아요"}
               </div>
             </div>
             <div className="xl-ask-foot">
