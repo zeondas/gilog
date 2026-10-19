@@ -1,8 +1,10 @@
 // 예산현황(13단계) 규칙 함수 — 집행현황의 모든 세부사업에 대한 연도×재원 장부(엑셀 "집행·이월 현황" 시트 규칙 그대로).
 // 정한 것(2026-10-19 사용자):
 //   - 세부사업은 집행현황에서 자동으로 와요(여러 해에 같은 이름이면 하나). 기간·재원·이월 사업은 사업명 옆 설정 단추로 적어요.
-//   - 집행현황에 그 해 자료가 있으면 당해예산(본예산)·집행액(당해)은 거기서 와요. 이월 사업을 이으면 그 예산은 전년도 이월(명시), 집행액은 집행(명시).
-//   - 없는 해는 직접 적어요. 불용액은 늘 직접 적어요. 재원이 둘 이상이면 재원 줄은 직접 적고 합계 줄은 집행현황 값 — 다르면 붉게.
+//   - 예산(본예산·추경·전년도 이월)은 늘 여기서 적어요 — 예산현액의 주인은 예산현황(2026-10-19 21:47 사용자): 집행현황의 세부사업 예산 칸에는
+//     예산현황의 그 해 예산현액이 저절로 들어가고(화면이 저장할 때 써 줘요), 집행현황에서 손으로 고칠 수도 있어요(다음에 예산현황이 바뀌면 다시 덮어써요).
+//   - 집행액(당해)은 집행현황에서 와요(재원 하나면 그대로, 둘 이상이면 재원 줄을 직접 적고 합계가 집행현황과 다르면 붉게). 이월 사업을 이으면
+//     그 예산은 전년도 이월(명시), 집행액은 집행(명시). 불용액은 늘 직접 적어요.
 //   - 단년도 사업(처음 값)은 집행현황에 있는 해마다 따로(해 사이 이월 없음). 다년도 사업은 기간(시작~끝 해)을 적고, 남은 돈이 다음 해 전년도 이월로 이어져요(결산 표시는 없어요 — 2026-10-19 사용자).
 //   - 예산현액 = 당해예산 + 전년도 이월 · 집행률 = 집행액 ÷ 예산현액 · 다음연도 이월 = 현액 − 집행 − 불용
 //   - 다음 해 전년도 이월 ≠ 이 해 다음연도 이월이면 붉게(십원 단위까지 맞춰 보는 장부라서).
@@ -77,8 +79,8 @@ export function compute(name: string, setup: Setup, byYear: Record<number, Budge
     const bySrc: Record<string, Line> = {};
     for (const s of setup.sources) {
       const m = setup.rows[`${y}:${s}`] ?? {};
-      // 재원이 하나면 집행현황 값이 곧 그 줄, 둘 이상이면 직접 적은 값
-      const cur = one && main ? main.budget : z(m.cur);
+      // 예산은 늘 직접 적은 값. 집행액은 재원이 하나면 집행현황 값, 둘 이상이면 직접 적은 값
+      const cur = z(m.cur);
       const en = one && main ? main.exp : z(m.en);
       const pl = prevLeft[s];
       const mine = carry != null && (one || s === (setup.carrySrc || setup.sources[0]));
@@ -99,8 +101,8 @@ export function compute(name: string, setup: Setup, byYear: Record<number, Budge
       prevLeft[s] = setup.multi ? { nm: left, ns: 0 } : null;
     }
     const total = sumLines(Object.values(bySrc));
-    if (!one && main && (total.curSum !== main.budget || total.en !== main.exp)) {
-      // 재원 줄 합이 집행현황과 다르면 합계 줄은 집행현황 값으로 보여 주고 붉게
+    if (!one && main && total.en !== main.exp) {
+      // 재원 줄 집행액 합이 집행현황과 다르면 붉게
       total.diffSum = true;
     }
     blocks.push({ year: y, linked, hasMain: main != null, total, bySrc });
