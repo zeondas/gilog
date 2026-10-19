@@ -77,9 +77,10 @@ SIX = {  # 00:10 사용자: 왼쪽 요소는 모두 그대로, 입력창 단추 
     "민원대장": {"L": [], "R": [["배치최적화", "분류 관리", "@search", "엑셀"]], "orig": True, "keepSel": [".pchip"]},
     "민원처리": {"L": [], "R": [["공사 관리", "@search"]], "orig": True, "padR": 82, "keep": ["신문고 열기", "민원 불러오기"], "keepSel": ["h1.title"]},
     "업무연락처": {"L": [], "R": [["프로젝트 관리", "@search", "엑셀"]], "orig": True, "keepSel": ["h1.title"], "rename": {"프로젝트 관리": "사업 관리"}},
-    "집행현황": {"L": [], "R": [["배치최적화", "@unit:0", "@unit:1", "세부사업 추가", "@search", "엑셀"]], "orig": True, "keepSel": ["h1.title", ".bd-year"], "rename": {"세부사업 추가": "사업 추가"}},
+    # 00:18 사용자: 토글(집행액/시공량·요약/자세히, 원/천원)은 연도 옆으로
+    "집행현황": {"L": [], "R": [["배치최적화", "세부사업 추가", "@search", "엑셀"]], "orig": True, "keepSel": ["h1.title", ".bd-year", ".bd-unit"], "rename": {"세부사업 추가": "사업 추가"}, "afterYear": ["@unit:0", "@unit:1"]},
     # 00:13 사용자: 집행현황과 자리 맞춤 — 배치최적화·요약/자세히(↔ 집행액/시공량, 칸 52)·원/천원 같은 x, 사업 추가 자리(78) 비움, 엑셀 74
-    "예산현황": {"L": [], "R": [["배치최적화", "@unit:0", "@unit:1", "@gap:78.05", "@search", "엑셀"]], "orig": True, "keepSel": ["h1.title", ".bd-year"], "unitMin": 52, "uw": 114.84, "w": {"엑셀": 74.48}},
+    "예산현황": {"L": [], "R": [["배치최적화", "@gap:78.05", "@search", "엑셀"]], "orig": True, "keepSel": ["h1.title", ".bd-year", ".bd-unit"], "unitMin": 52, "uw": 114.84, "w": {"엑셀": 74.48}, "afterYear": ["@unit:0", "@unit:1"]},
 }
 if P.get("six"):
     SPEC = SIX
@@ -163,6 +164,7 @@ if(P.groups){
   tb.style.display='flex'; tb.style.justifyContent='space-between'; tb.style.columnGap=P.ggap+'px';
   tb.append(gz(spec.L),gz(spec.R));
   for(const [a,b] of Object.entries(spec.rename||{})) for(const btn of tb.querySelectorAll('button')) if((btn.innerText||'').trim()===a){btn.textContent=b; btn.style.width='auto'; btn.style.minWidth='0';}
+  if(spec.afterYear){const yr=all.find(el=>el.matches('.bd-year')); let at=yr; for(const n of spec.afterYear){const u=segs[+n.split(':')[1]]; if(!u||!at) continue; u.style.margin='0'; if(n==='@unit:0'&&spec.unitMin){for(const b of u.querySelectorAll('button')) b.style.minWidth=spec.unitMin+'px'; if(spec.uw){u.style.width=spec.uw+'px'; u.style.boxSizing='border-box';}} at.after(u); at=u;}}
   if(spec.padR) tb.lastChild.style.marginRight=spec.padR+'px';
   document.body.appendChild(tb);
   const kept=(e)=>(spec.keepSel||[]).some(q=>e.matches(q)||e.closest(q)||e.querySelector(q));
