@@ -10747,3 +10747,33 @@ body.ew-dragging * {
 /* 민원대장 배치최적화 단추 — 집행현황 .bd-tool과 같은 모양 */
 .cm-tool { gap: 6px; flex: none; white-space: nowrap; }
 .cm-tool svg { flex: none; color: var(--muted); }
+
+/* ---------- 예산현황(13단계, wip/budgetstatus) — 집행현황 표 부품 위에 덧붙임 ---------- */
+.bs .bd-rw > .bd-c.n { justify-content: flex-end; padding: 0 6px; } /* 집행현황의 2·9·11·12열 가운데 규칙을 덮어요 — 숫자는 모두 오른쪽 */
+.bs .bd-h.bs-hn { justify-content: flex-end; }
+.bs .bd-rw.pj > .bd-c:first-child { overflow: visible; }
+.bs .bd-rw.pj .bd-nm { flex: 0 1 auto; min-width: 0; }
+.bs-years { flex: none; margin-left: 8px; font-size: 11.5px; font-weight: 500; color: var(--muted); white-space: nowrap; }
+.bs-gear { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-left: 6px; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--muted); }
+.bs-gear:hover, .bs-gear.on { color: var(--accent); border-color: var(--accent-line); background: var(--accent-wash); }
+.bs-note { margin-left: 8px; font-size: 11.5px; font-weight: 500; color: var(--muted); white-space: nowrap; }
+.bs .bd-rw.it .bd-nm { flex: none; }
+.bs .bd-rw.gun > .bd-c:first-child .bd-nm { font-weight: 500; color: var(--ink-2); }
+.bs .bd-tl.v1.half2 { bottom: auto; height: 0; }
+.bs-open { color: var(--muted); }
+.bs .bd-rw.edit > .bd-c.n { padding: 0 4px; }
+.bs .bd-rw.edit .bd-in { height: 28px; }
+.bs-h2 { display: flex; flex-direction: column; align-items: inherit; line-height: 14px; }
+.bs-h2 small { font-size: 10.5px; font-weight: 500; color: var(--muted); }
+.bs .bd-hd .bd-h { white-space: nowrap; }
+.bs-setup { display: flex; flex-direction: column; gap: 10px; width: 460px; padding: 10px 12px 8px; }
+.bs-row { display: flex; align-items: center; gap: 8px; }
+.bs-lab { flex: none; width: 60px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.bs-yr { width: 64px; height: 28px; text-align: center; }
+.bs-chip { height: 28px; padding-left: 10px; font-weight: 600; }
+.bs-addsrc { color: var(--accent); font-weight: 600; }
+.bs-other { width: 110px; height: 28px; }
+.bs-sel { flex: 1; height: 28px; }
+.bs-yrbtn.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.bs-hint { padding-top: 8px; border-top: 1px solid var(--line-soft); font-size: 11.5px; color: var(--muted); }
+.bs-sel2 { flex: none; width: 88px; height: 28px; }
