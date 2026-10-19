@@ -28,7 +28,7 @@ import {
   typing,
   Unit,
 } from "./budget";
-import { BudgetImport, parseBudgetBook } from "./budgetExcel";
+import { BudgetImport, parseBudgetBook, planImport } from "./budgetExcel";
 import { dirOf, DIR_KEY, joinPath, lastDir } from "./ExcelMenu";
 import { todayStr } from "./journal";
 import { keyAction, rowKeys } from "./keys";
@@ -537,12 +537,13 @@ export default function BudgetScreen() {
     }
   };
 
+  const askPlan = ask ? planImport(list, ask.projects) : { upd: 0, add: 0 };
   const doImport = async () => {
     if (!ask) return;
     try {
-      const [y, n] = await api.importBudget(year, ask.projects);
+      const [y, u, n] = await api.importBudget(year, ask.projects);
       setData(y);
-      setToast(`세부사업 ${ask.projects.length}개 · 공사 ${n}건을 가져왔어요`);
+      setToast(u ? `공사 ${u}건을 덮어쓰고 ${n}건을 더했어요` : `세부사업 ${ask.projects.length}개 · 공사 ${n}건을 가져왔어요`);
     } catch (e) {
       setToast(e === "invalid" ? "가져올 수 없는 줄이 있어요(금액·이름 확인)" : errorText(e));
     }
@@ -1528,11 +1529,15 @@ export default function BudgetScreen() {
           <div className="dialog xl-ask" role="dialog" aria-modal="true" aria-label="엑셀 가져오기">
             <div className="xl-ask-body">
               <h2 className="xl-ask-title">
-                {ask.projects.length ? `세부사업 ${ask.projects.length}개 · 공사 ${ask.rows}건을 ${year}년에 가져올까요?` : "가져올 줄이 없어요"}
+                {!ask.projects.length
+                  ? "가져올 줄이 없어요"
+                  : askPlan.upd
+                    ? `${year}년에 덮어쓰기 ${askPlan.upd}건 · 새로 더하기 ${askPlan.add}건`
+                    : `세부사업 ${ask.projects.length}개 · 공사 ${ask.rows}건을 ${year}년에 가져올까요?`}
               </h2>
               <div className="xl-ask-path">
                 {ask.path} · 시트 "{ask.sheet}" · 단위 {ask.unit === 1 ? "원" : "천원"}
-                {list.length > 0 && " · 지금 있는 세부사업 아래에 붙여요"}
+                {askPlan.upd > 0 && " · 같은 이름 공사는 파일 값으로 바꾸고, 파일에 없는 공사·메모는 그대로 둬요"}
               </div>
               {ask.checks.length > 0 && (
                 <ul className="bd-checks">

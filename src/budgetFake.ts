@@ -52,22 +52,60 @@ function yearOf(level: BudgetLevel, id: number): number {
 }
 const renumber = <T extends { ord: number }>(list: T[]) => list.forEach((x, i) => (x.ord = i));
 
-function importYear(y: number, list: ImportProject[]): number {
+/** 저장 쪽 import_budget과 같아요 — 같은 이름은 덮어쓰고 없는 것만 더해요. [덮어쓰기, 새로 더하기] */
+function importYear(y: number, list: ImportProject[]): [number, number] {
   let ord = Math.max(-1, ...db.p.filter((p) => p.year === y).map((p) => p.ord)) + 1;
-  let n = 0;
+  let upd = 0;
+  let add = 0;
+  const usedP = new Set<number>();
   for (const p of list) {
-    const pid = db.id++;
-    db.p.push({ id: pid, year: y, ord: ord++, name: nameOf(p.name), budget: won(p.budget), carry: p.carry, open: true, memo: p.memo.trim() });
-    p.items.forEach((it, j) => {
-      const iid = db.id++;
-      db.i.push({ id: iid, project: pid, ord: j, name: nameOf(it.name), budget: won(it.budget), open: false, memo: it.memo.trim() });
-      it.rows.forEach((r, k) => {
-        db.r.push({ id: db.id++, item: iid, ord: k, ...cleanRow(r), memo: r.memo.trim() });
-        n++;
-      });
-    });
+    const name = nameOf(p.name);
+    const op = db.p.find((x) => x.year === y && x.name === name && !usedP.has(x.id));
+    let pid: number;
+    if (op) {
+      usedP.add(op.id);
+      if (p.budget != null) op.budget = won(p.budget);
+      op.carry = op.carry || p.carry;
+      if (p.memo.trim()) op.memo = p.memo.trim();
+      pid = op.id;
+    } else {
+      pid = db.id++;
+      usedP.add(pid); // 이번 파일에서 새로 넣은 것은 다시 맞추지 않아요(저장 쪽은 가져오기 전 자료만 봐요)
+      db.p.push({ id: pid, year: y, ord: ord++, name, budget: won(p.budget), carry: p.carry, open: true, memo: p.memo.trim() });
+    }
+    const usedI = new Set<number>();
+    for (const it of p.items) {
+      const iname = nameOf(it.name);
+      const oi = byOrd(db.i.filter((x) => x.project === pid)).find((x) => x.name === iname && !usedI.has(x.id));
+      let iid: number;
+      if (oi) {
+        usedI.add(oi.id);
+        if (it.budget != null) oi.budget = won(it.budget);
+        if (it.memo.trim()) oi.memo = it.memo.trim();
+        iid = oi.id;
+      } else {
+        iid = db.id++;
+        usedI.add(iid);
+        db.i.push({ id: iid, project: pid, ord: Math.max(-1, ...db.i.filter((x) => x.project === pid).map((x) => x.ord)) + 1, name: iname, budget: won(it.budget), open: false, memo: it.memo.trim() });
+      }
+      const usedR = new Set<number>();
+      for (const r of it.rows) {
+        const c = cleanRow(r);
+        const or = byOrd(db.r.filter((x) => x.item === iid)).find((x) => x.name === c.name && !usedR.has(x.id));
+        if (or) {
+          usedR.add(or.id);
+          Object.assign(or, c);
+          if (r.memo.trim()) or.memo = r.memo.trim();
+          upd++;
+        } else {
+          usedR.add(db.id);
+          db.r.push({ id: db.id++, item: iid, ord: Math.max(-1, ...db.r.filter((x) => x.item === iid).map((x) => x.ord)) + 1, ...c, memo: r.memo.trim() });
+          add++;
+        }
+      }
+    }
   }
-  return n;
+  return [upd, add];
 }
 
 if (typeof window !== "undefined" && !("__TAURI_INTERNALS__" in window)) {
@@ -190,8 +228,8 @@ export function fakeBudget(cmd: string, a: Record<string, unknown>): unknown {
       return year(n("to"));
     }
     case "import_budget": {
-      const c = importYear(n("year"), a.projects as ImportProject[]);
-      return [year(n("year")), c];
+      const [u, c] = importYear(n("year"), a.projects as ImportProject[]);
+      return [year(n("year")), u, c];
     }
   }
   return undefined;
