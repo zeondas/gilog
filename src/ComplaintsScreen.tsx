@@ -190,7 +190,7 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
     };
     const maxW = (xs: string[], weight: number, size: number) => Math.max(0, ...xs.filter(Boolean).map((x) => textW(x, weight, size)));
     const PAD = 20; // 칸 좌우 10px
-    const SLACK = 24; // 글 앞뒤 여유 — 너무 조이지 않게 좌우 12px씩(2026-10-19 사용자)
+    const SLACK = 12; // 글 앞뒤 여유 좌우 6px씩(2026-10-19 사용자 1안)
     const SLACK_UI = 8; // 배지·단추만 있는 칸
     const FILTER_EXTRA = 40; // 거르기 단추 여백·테두리·아이콘
     const GAP = 8; // 날짜와 D-day·걸린 날 사이
