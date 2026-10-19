@@ -10328,13 +10328,19 @@ select.input.fx-set-date { width: 190px; }
 }
 
 .pjm-find {
-  width: 200px;
+  /* 찾기 칸 = 아래 줄 축약 공사명 칸 + 사이 + 추가 단추 폭(좌우 끝을 맞춰요) */
+  width: calc(var(--pjm-short) + var(--space-2) + var(--pjm-btn));
   margin-left: auto;
+}
+
+.mgr.pjm {
+  --pjm-short: 220px;
+  --pjm-btn: 64px;
 }
 
 .pjm-add {
   display: grid;
-  grid-template-columns: 160px minmax(0, 1fr) 220px auto;
+  grid-template-columns: 160px minmax(0, 1fr) var(--pjm-short) var(--pjm-btn);
   gap: var(--space-2);
   padding: 0 20px var(--space-3);
 }
@@ -10342,6 +10348,7 @@ select.input.fx-set-date { width: 190px; }
 .pjm-add-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-1);
   height: 28px;
   padding: 0 12px;
