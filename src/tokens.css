@@ -35,8 +35,8 @@
   --st-long-fg: #5E4B2A;
   /* 민원 상태 배지(2026-10-19 사용자): 신경 쓸 것(접수·진행·답변)은 따뜻한 색 진한 채움, 덜한 것(보류·장기)은 차가운 색 바탕, 끝난 것(완료)은 흐리게 */
   --cs-new-bg: #FACC15; --cs-new-fg: #3D2A00;
-  --cs-work-bg: #EA580C; --cs-work-fg: #FFFFFF;
-  --cs-reply-bg: #BE185D; --cs-reply-fg: #FFFFFF;
+  --cs-work-bg: #BE185D; --cs-work-fg: #FFFFFF;
+  --cs-reply-bg: #EA580C; --cs-reply-fg: #FFFFFF;
   --cs-hold-bg: #E2E5EA; --cs-hold-fg: #3F4652;
   --cs-long-bg: #BAE3F5; --cs-long-fg: #0B4A6B;
   --cs-done-bg: #F5F5F7; --cs-done-fg: #A3A1AE;
@@ -192,8 +192,8 @@
     --st-long-fg: #D6C6A4;
     /* 민원 상태 배지(2026-10-19 사용자): 신경 쓸 것(접수·진행·답변)은 따뜻한 색 진한 채움, 덜한 것(보류·장기)은 차가운 색 바탕, 끝난 것(완료)은 흐리게 */
     --cs-new-bg: #FACC15; --cs-new-fg: #2A1F00;
-    --cs-work-bg: #F97316; --cs-work-fg: #1C0A00;
-    --cs-reply-bg: #EC4899; --cs-reply-fg: #2A0016;
+    --cs-work-bg: #EC4899; --cs-work-fg: #2A0016;
+    --cs-reply-bg: #F97316; --cs-reply-fg: #1C0A00;
     --cs-hold-bg: #3A3F49; --cs-hold-fg: #CDD2DA;
     --cs-long-bg: #0E4A63; --cs-long-fg: #A9E0F5;
     --cs-done-bg: #1F1E25; --cs-done-fg: #6F6D7A;
@@ -260,8 +260,8 @@
   --st-long-fg: #D6C6A4;
   /* 민원 상태 배지(2026-10-19 사용자): 신경 쓸 것(접수·진행·답변)은 따뜻한 색 진한 채움, 덜한 것(보류·장기)은 차가운 색 바탕, 끝난 것(완료)은 흐리게 */
   --cs-new-bg: #FACC15; --cs-new-fg: #2A1F00;
-  --cs-work-bg: #F97316; --cs-work-fg: #1C0A00;
-  --cs-reply-bg: #EC4899; --cs-reply-fg: #2A0016;
+  --cs-work-bg: #EC4899; --cs-work-fg: #2A0016;
+  --cs-reply-bg: #F97316; --cs-reply-fg: #1C0A00;
   --cs-hold-bg: #3A3F49; --cs-hold-fg: #CDD2DA;
   --cs-long-bg: #0E4A63; --cs-long-fg: #A9E0F5;
   --cs-done-bg: #1F1E25; --cs-done-fg: #6F6D7A;
