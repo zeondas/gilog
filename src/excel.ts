@@ -126,7 +126,7 @@ function projectCells(p: Project | undefined, gname: Map<number, string>): strin
   return [p.group !== null ? gname.get(p.group) ?? "" : "", p.alias && p.alias !== p.name ? p.alias : "", p.color !== null ? String(p.color + 1) : ""];
 }
 
-/** 등록한 순서대로, 연번은 사람마다 1부터(앱에는 연번이 없어요). 프로젝트 순서는 화면처럼 그룹 순서 → 공사명 가나다순. */
+/** 등록한 순서대로, 연번은 사람마다 1부터(앱에는 연번이 없어요). 맨 아래 프로젝트만 있는 줄은 그룹 순서 → 공사명 가나다순. */
 export function contactRows(list: Contact[], projects: Project[], groups: ProjectGroup[] = []): string[][] {
   const byId = new Map(projects.map((p) => [p.id, p]));
   const gname = new Map(groups.map((g) => [g.id, g.name]));
@@ -140,7 +140,8 @@ export function contactRows(list: Contact[], projects: Project[], groups: Projec
     .forEach((c, i) => {
       const base = [String(i + 1), c.name, c.org, c.role, c.mobile, c.tel, c.email];
       const memo = cellOfLines(c.memo);
-      const ps = c.projects.map((id) => byId.get(id)).filter((p): p is Project => !!p).sort(cmp);
+      // 사람의 프로젝트는 붙인 순서 그대로(첫 프로젝트가 업무일지에 저절로 붙는 프로젝트라 가져와도 같아야 해요).
+      const ps = c.projects.map((id) => byId.get(id)).filter((p): p is Project => !!p);
       if (!ps.length) rows.push([...base, "", memo, "", "", ""]);
       for (const p of ps) {
         used.add(p.id);
@@ -154,14 +155,16 @@ export function contactRows(list: Contact[], projects: Project[], groups: Projec
 }
 
 /**
- * 연번은 읽지 않아요(같은 사람 줄을 묶을 때만 봐요). 이어진 줄에서 이름~메모가 모두 같으면 한 사람의 프로젝트 줄로 묶어요.
- * 이름~메모가 모두 비고 프로젝트만 있는 줄은 프로젝트만 만들어요. 프로젝트 칸은 예전 파일처럼 쉼표로 여러 개여도 돼요.
+ * 연번은 같은 사람 줄을 묶을 때만 봐요(앱에는 연번이 없어요). 같은 사람 = 연번과 이름이 같은 줄(떨어져 있어도 —
+ * 엑셀에서 프로젝트로 정렬해도 돼요), 연번이 비었으면 이름~메모가 모두 같은 줄. 묶인 사람의 소속·번호·메모 등은
+ * 처음 나온 줄 것을 쓰고, 그 칸이 비어 있으면 다음 줄 것으로 채워요.
+ * 이름~메모가 모두 빈 줄은 프로젝트만 만들어요. 프로젝트 칸은 예전 파일처럼 쉼표로 여러 개여도 돼요.
  */
 export function contactImports(sheet: ExcelSheet): ContactsImport {
   const get = picker(sheet.headers);
   const contacts: ContactImport[] = [];
+  const byKey = new Map<string, ContactImport>();
   const metas = new Map<string, ProjectImport>();
-  let last: { key: string; no: string; c: ContactImport } | null = null;
   for (const r of dataRows(sheet)) {
     const c: ContactImport = {
       name: get(r, "이름"),
@@ -174,9 +177,8 @@ export function contactImports(sheet: ExcelSheet): ContactsImport {
       memo: linesOfCell(get(r, "메모")),
     };
     const no = get(r, "연번");
-    const key = JSON.stringify([c.name, c.org, c.role, c.mobile, c.tel, c.email, c.memo]);
     const blank = !c.name && !c.org && !c.role && !c.mobile && !c.tel && !c.email && !c.memo;
-    // 숨긴 열은 프로젝트가 한 개인 줄에서만 읽어요(쉼표로 여러 개면 어느 것의 정보인지 몰라요).
+    // 숨긴 열은 프로젝트가 한 개인 줄에서 읽어요(쉼표로 여러 개면 어느 것의 정보인지 몰라요). 같은 프로젝트는 처음 줄 것.
     if (c.projects.length === 1 && !metas.has(c.projects[0])) {
       const n = Number(get(r, "색"));
       const alias = get(r, "축약공사명");
@@ -188,16 +190,16 @@ export function contactImports(sheet: ExcelSheet): ContactsImport {
       });
     }
     for (const p of c.projects) if (!metas.has(p)) metas.set(p, { group: "", name: p, alias: "", color: null });
-    if (blank) {
-      last = null;
+    if (blank) continue;
+    const key = no ? JSON.stringify(["no", no, c.name]) : JSON.stringify([c.name, c.org, c.role, c.mobile, c.tel, c.email, c.memo]);
+    const had = byKey.get(key);
+    if (!had) {
+      byKey.set(key, c);
+      contacts.push(c);
       continue;
     }
-    if (last && last.key === key && (!no || !last.no || no === last.no)) {
-      for (const p of c.projects) if (!last.c.projects.includes(p)) last.c.projects.push(p);
-      continue;
-    }
-    contacts.push(c);
-    last = { key, no, c };
+    for (const p of c.projects) if (!had.projects.includes(p)) had.projects.push(p);
+    for (const k of ["org", "role", "mobile", "tel", "email", "memo"] as const) if (!had[k] && c[k]) had[k] = c[k];
   }
   return { contacts, projects: [...metas.values()] };
 }
