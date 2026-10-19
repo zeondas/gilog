@@ -10655,3 +10655,18 @@ body.ew-dragging * {
 .bd-packed .bd-top,
 .bd-packed .bd-tbl { max-width: 100%; }
 .bd-packed .bd-scroll { padding-right: 0; }
+/* 마감일·조치완료일 칸(2026-10-19 사용자): 폭 고정 130, 날짜는 왼쪽·남은 날/걸린 날은 칸 오른쪽 끝에 맞춰 줄마다 세로로 가지런히 */
+.cm-view > .cm-due {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 6px;
+}
+.cm-view > .cm-due .cm-dday {
+  justify-self: end;
+  font-variant-numeric: tabular-nums;
+}
+/* 걸린 날은 정보라서 흐린 글자(남은 날처럼 색으로 다그치지 않아요) */
+.cm-taken {
+  color: var(--muted);
+  font-weight: 600;
+}

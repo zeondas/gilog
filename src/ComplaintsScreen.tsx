@@ -26,6 +26,7 @@ import {
   COLUMNS,
   ColFilters,
   daysLeft,
+  daysTaken,
   ddayText,
   defaultWidths,
   expandType,
@@ -466,7 +467,7 @@ function HeadRow({
               col.label
             )}
             {open === fk && fk && dropdown}
-            {i < COLUMNS.length - 1 && <span className="cm-grip" aria-hidden="true" title="끌어서 열 너비 바꾸기" onMouseDown={(e) => start(e, i)} />}
+            {i < COLUMNS.length - 1 && !col.fixed && <span className="cm-grip" aria-hidden="true" title="끌어서 열 너비 바꾸기" onMouseDown={(e) => start(e, i)} />}
           </div>
         );
       })}
@@ -557,7 +558,11 @@ function FilterChips({
       {statuses.map((s) => {
         const on = sf !== null && sf.includes(s);
         return (
-          <button key={s} type="button" className="pchip" aria-pressed={on} onClick={() => onStatus(sf && sf.length === 1 && sf[0] === s ? null : [s])}>
+          <button key={s} type="button" className="pchip" aria-pressed={on} onClick={() => {
+              // 여러 개를 골라요(2026-10-19 사용자): 누르면 넣고·빼고, 다 빠지거나 전부 고르면 전체예요.
+              const next = sf === null ? [s] : on ? sf.filter((x) => x !== s) : [...sf, s];
+              onStatus(next.length === 0 || next.length === statuses.length ? null : statuses.filter((x) => next.includes(x)));
+            }}>
             <span>{s}</span>
             <span className="pchip-n">{base.filter((c) => c.status === s).length}</span>
           </button>
@@ -1224,6 +1229,7 @@ function ViewRow({
   onStatus: (status: string) => void;
 }) {
   const n = daysLeft(c, today);
+  const taken = daysTaken(c);
   const [bg, fg] = statusColor(c.status);
   const hasMemo = parseMemo(c.memo).length > 0;
   const t = (s: string): ReactNode => <Hl text={s} q={q} />;
@@ -1288,8 +1294,13 @@ function ViewRow({
       <div role="cell" className="cm-c">
         <StatusPick status={c.status} statuses={statuses} bg={bg} fg={fg} render={t} onPick={onStatus} />
       </div>
-      <div role="cell" className="cm-c cm-num">
-        {t(c.done ?? "")}
+      <div role="cell" className="cm-c cm-num cm-due">
+        <span>{t(c.done ?? "")}</span>
+        {taken !== null && (
+          <span className="cm-dday cm-taken" title="접수부터 조치완료까지">
+            {taken}일
+          </span>
+        )}
       </div>
       <div role="cell" className="cm-c cm-center">
         <span onDoubleClick={(e) => e.stopPropagation()}>

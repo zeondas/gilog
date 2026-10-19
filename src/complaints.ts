@@ -20,6 +20,14 @@ export function daysLeft(c: Pick<Complaint, "due" | "status">, today: string): n
   return daysBetween(today, c.due);
 }
 
+/** 접수일부터 조치완료일까지 걸린 날(조치완료일 − 접수일). 둘 중 하나라도 없거나 거꾸로면 null이에요. */
+export function daysTaken(c: Pick<Complaint, "received" | "done">): number | null {
+  const ok = (d?: string) => !!d && /^\d{4}-\d{2}-\d{2}$/.test(d);
+  if (!ok(c.received) || !ok(c.done)) return null;
+  const n = daysBetween(c.received, c.done!);
+  return n < 0 ? null : n;
+}
+
 /** 3 → "D-3", 0 → "D-day", -2 → "D+2" */
 export function ddayText(n: number): string {
   return n > 0 ? `D-${n}` : n === 0 ? "D-day" : `D+${-n}`;
@@ -73,21 +81,21 @@ export type ColKey =
  * 기본 폭은 1600×900 창 기준(2026-10-17 사용자 1안, 시안 ComplaintCols.dc.html): 열마다 글 폭에 맞춰 줄이고
  * 위치·내용·조치내용의 긴 글은 칸 안에서 다음 줄로 넘겨요. 가로 스크롤이 없어야 해요.
  */
-export const COLUMNS: { key: ColKey; label: string; w: number | null }[] = [
+export const COLUMNS: { key: ColKey; label: string; w: number | null; fixed?: boolean }[] = [
   { key: "no", label: "연번", w: 52 },
   { key: "intake", label: "접수유형", w: 92 },
-  { key: "received", label: "접수일", w: 96 },
+  { key: "received", label: "접수일", w: 96, fixed: true },
   { key: "ctype", label: "민원유형", w: 84 },
   { key: "area", label: "지역", w: 64 },
   { key: "place", label: "위치", w: 116 },
   { key: "person", label: "민원인", w: 60 },
-  { key: "phone", label: "연락처", w: 120 },
+  { key: "phone", label: "연락처", w: 120, fixed: true },
   { key: "body", label: "내용", w: null },
   { key: "action", label: "조치내용", w: null },
-  { key: "due", label: "마감일", w: 130 },
-  { key: "status", label: "상태", w: 72 },
-  { key: "done", label: "조치완료일", w: 96 },
-  { key: "memo", label: "메모", w: 40 },
+  { key: "due", label: "마감일", w: 130, fixed: true },
+  { key: "status", label: "상태", w: 72, fixed: true },
+  { key: "done", label: "조치완료일", w: 130, fixed: true },
+  { key: "memo", label: "메모", w: 40, fixed: true },
 ];
 
 /** 내용·조치내용의 가장 좁은 폭 */
@@ -106,10 +114,11 @@ export function readWidths(raw: string | null): (number | null)[] {
     // 조치완료일이 생기기 전(13열)에 저장한 폭이면 상태 뒤에 처음 폭을 끼워요(예전 처음 폭이면 새 처음 폭).
     if (Array.isArray(v) && v.length === COLUMNS.length - 1) {
       if (v.every((x, i) => x === OLD_DEFAULT[i])) return defaultWidths();
-      v.splice(12, 0, 96);
+      v.splice(12, 0, 130);
     }
     if (Array.isArray(v) && v.length === COLUMNS.length && v.every((x) => x === null || (typeof x === "number" && x >= COL_MIN))) {
-      return v;
+      // 폭이 정해진 열(날짜·연락처·상태·메모)은 저장값과 상관없이 늘 처음 폭이에요(2026-10-19 사용자).
+      return v.map((x, i) => (COLUMNS[i].fixed ? COLUMNS[i].w : x));
     }
   } catch {
     /* 처음 폭으로 */
@@ -124,11 +133,14 @@ export function readWidths(raw: string | null): (number | null)[] {
 export function fitWidths(ws: (number | null)[], avail: number): (number | null)[] {
   if (!(avail > 0)) return ws;
   const flex = ws.filter((w) => w === null).length * FLEX_MIN;
-  const fixed = ws.reduce<number>((a, w) => a + (w ?? 0), 0);
-  if (fixed + flex <= avail) return ws;
-  const room = Math.max(0, avail - flex);
-  const k = room / fixed;
-  return ws.map((w) => (w === null ? null : Math.max(COL_MIN, Math.floor(w * k))));
+  const total = ws.reduce<number>((a, w) => a + (w ?? 0), 0);
+  if (total + flex <= avail) return ws;
+  // 폭이 정해진 열은 줄이지 않고, 나머지 열만 같은 비율로 줄여요.
+  const locked = ws.reduce<number>((a, w, i) => a + (COLUMNS[i]?.fixed && w !== null ? w : 0), 0);
+  const free = total - locked;
+  if (free <= 0) return ws;
+  const k = Math.max(0, avail - flex - locked) / free;
+  return ws.map((w, i) => (w === null || COLUMNS[i]?.fixed ? w : Math.max(COL_MIN, Math.floor(w * k))));
 }
 
 export function gridTemplate(ws: (number | null)[]): string {
