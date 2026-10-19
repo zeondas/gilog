@@ -6973,10 +6973,11 @@ body.col-dragging * {
   color: var(--muted);
 }
 
-.pr-due {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1h);
+/* 기한: 날짜 아래 남은 날 배지 — 날짜가 옆 칸 글자와 같은 줄에 놓여요(2026-10-19 사용자) */
+.pr-date.pr-due {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
 }
 
 .pr-d {
