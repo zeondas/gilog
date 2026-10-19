@@ -120,7 +120,6 @@
   /* 뜨는 메뉴·작은 묻기 창 그림자 하나 */
   --shadow-pop: 0 8px 24px rgba(var(--shadow-rgb), 0.16);
   /* 탐색기 "위 폴더" 배지 */
-  --up-bg: #FFF3D6; --up-fg: #8A6400;
   /* 파일 아이콘 색(윈도우 아이콘 흉내 — 예외, 결정 ⑦ 1안: 값은 FileIcon.tsx 그림 안에 그대로, 여기는 모아 적기만) */
   --fi-folder: #E3A33A; --fi-folder-front: #F7C95C;
   --fi-ppt: #D24726; --fi-xls: #1F7A45; --fi-doc: #2B5797; --fi-hwp: #2B6CC4;
@@ -203,7 +202,6 @@
     --bd-tree: #4A4758; --bd-col-hl: rgba(182, 170, 255, 0.08);
     --bd-pj-bg: #25203F; --bd-pj-line: #3E3670; --bd-sel-bg: #2E2856;
     --bd-faint: #86839A; --bd-ghost: #6E6B7E; --bd-alt: #1B1A21;
-    --up-bg: #3A3012; --up-fg: #F0CF6A;
   }
 }
 
@@ -260,7 +258,6 @@
   --bd-tree: #4A4758; --bd-col-hl: rgba(182, 170, 255, 0.08);
   --bd-pj-bg: #25203F; --bd-pj-line: #3E3670; --bd-sel-bg: #2E2856;
   --bd-faint: #86839A; --bd-ghost: #6E6B7E; --bd-alt: #1B1A21;
-  --up-bg: #3A3012; --up-fg: #F0CF6A;
 }
 
 /* 강조색 테마 (2026-10-18 색 테마 세션, 사용자 1안 확정 — 시안 캔버스 Theme.dc.html의 T 표).

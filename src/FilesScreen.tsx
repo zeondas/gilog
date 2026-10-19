@@ -1396,12 +1396,20 @@ export default function FilesScreen() {
         >
           {!t.find && parentOf(t.path) && (p.view === "detail" || p.view === "brief") && (
             <div className={p.view === "brief" ? "fx-brow" : "fx-frow"} style={p.view === "detail" ? colStyle : undefined} onDoubleClick={() => up(pane)} title="두 번 누르면 위 폴더 (Backspace)">
-              <span className="fx-up">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 19V5M5 12l7-7 7 7" />
-                </svg>
-              </span>
-              <span className="fx-dim fx-strong">..</span>
+              {/* FC처럼 보통 폴더 아이콘 + ".." (칩·화살표 없이, 아래 폴더와 같은 크기) */}
+              {p.view === "brief" ? (
+                <>
+                  <FileIcon name=".." path="" dir size={16} />
+                  <span className="fx-bn fx-dim fx-strong">..</span>
+                </>
+              ) : (
+                <>
+                  <span className="fx-icell">
+                    <FileIcon name=".." path="" dir size={16} />
+                  </span>
+                  <span className="fx-ncell fx-dim fx-strong">..</span>
+                </>
+              )}
               {p.view === "detail" && (
                 <>
                   {shown.map((k) => (
@@ -1413,10 +1421,9 @@ export default function FilesScreen() {
           )}
           {!t.find && parentOf(t.path) && (p.view === "icons" || p.view === "thumb") && (
             <div className="fx-gcell" onDoubleClick={() => up(pane)}>
-              <span className="fx-up fx-up-big" style={{ width: p.view === "thumb" ? 88 : 48, height: p.view === "thumb" ? 66 : 48 }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 19V5M5 12l7-7 7 7" />
-                </svg>
+              {/* FC처럼 보통 폴더 아이콘 + ".." (칩·화살표 없이) */}
+              <span className="fx-gicon" style={{ width: p.view === "thumb" ? 88 : 48, height: p.view === "thumb" ? 66 : 48 }}>
+                <FileIcon name=".." path="" dir size={p.view === "thumb" ? 64 : 44} />
               </span>
               <span className="fx-dim fx-strong">..</span>
             </div>
