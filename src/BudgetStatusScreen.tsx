@@ -2,7 +2,7 @@
 // 시안: 캔버스 BudgetStatus(요약)·BudgetStatusDetail(자세히), 2026-10-19 사용자 결정(설정 단추는 작은 네모 하나, 숫자는 모두 오른쪽, 추경 열은 빼지 않음, 엑셀 열 비율 참고).
 // - 세부사업은 집행현황에서 자동으로 와요(이월 세부사업은 이어 붙이는 쪽). 사업명 옆 ⚙ 단추 → 단년도/다년도(기간)·재원·이월 사업.
 // - 재원 줄 두 번 누르기 = 고치는 줄(직접 적는 칸만 열려요), 바깥 누르기 = 저장, Esc = 취소. 규칙은 budgetStatus.ts.
-import { KeyboardEvent as RKeyboardEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Fragment } from "react";
+import React, { KeyboardEvent as RKeyboardEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Fragment } from "react";
 import { api } from "./api";
 import { BudgetProject, fmt, okWon, parseWon, typing, Unit } from "./budget";
 import { compute, defaultSetup, Line, Manual, projectNames, Setup, SOURCES } from "./budgetStatus";
@@ -18,15 +18,17 @@ const CD = "M6 9l6 6 6-6", CR = "M9 6l6 6-6 6", GEAR = "M4 6h16 M4 12h16 M4 18h1
 const KEY = (name: string) => "bstatus." + name;
 const UNIT_KEY = "bstatus.unit", VIEW_KEY = "bstatus.view";
 
-type Col = { id: string; label: string; sub?: string; line2?: string; w: number; num?: boolean };
-// sub = 묶음 아래 열 이름(머리 두 줄), line2 = 한 칸 안 줄바꿈(예산현액 ①+②, 집행률 %)
+type Col = { id: string; label: string; sub?: string; w: number; num?: boolean };
+// sub = 묶음 아래 열 이름(머리 두 줄). 고정 폭(끌 수 없음): 구분은 남는 폭, 집행률·메모
+const FIXED = new Set(["rate", "memo"]);
+const COLS_KEY = "bstatus.cols";
 /** 자세히 머리 줄 두 줄: 위 줄은 묶음 이름(여러 열에 걸침), 아래 줄은 열 이름. sub가 없는 열은 두 줄을 한 칸으로. */
 /** 엑셀 "집행·이월 현황" 열 비율 참고: 숫자 열은 같은 폭, 구분 열은 1.3배쯤 + 설정 단추 자리 */
 const SUM_COLS: Col[] = [
   { id: "name", label: "구분", w: 300 },
-  { id: "curSum", label: "당해예산", w: 152, num: true },
-  { id: "prev", label: "전년도 이월", w: 152, num: true },
-  { id: "act", label: "예산현액", w: 152, num: true },
+  { id: "curSum", label: "당해예산 ①", w: 152, num: true },
+  { id: "prev", label: "전년도 이월 ②", w: 152, num: true },
+  { id: "act", label: "예산현액 ①+②", w: 152, num: true },
   { id: "ex", label: "집행액", w: 152, num: true },
   { id: "rate", label: "집행률", w: 112, num: true },
   { id: "left", label: "다음연도 이월", w: 152, num: true },
@@ -35,21 +37,21 @@ const SUM_COLS: Col[] = [
 ];
 const DET_COLS: Col[] = [
   { id: "name", label: "구분", w: 260 },
-  { id: "curSum", label: "당해예산", sub: "소계", w: 132, num: true },
+  { id: "curSum", label: "당해예산 ①", sub: "소계", w: 132, num: true },
   { id: "cur", label: "", sub: "본예산", w: 132, num: true },
   { id: "a1", label: "", sub: "1추", w: 132, num: true },
   { id: "a2", label: "", sub: "2추", w: 132, num: true },
   { id: "a3", label: "", sub: "3추", w: 132, num: true },
   { id: "a4", label: "", sub: "4추", w: 132, num: true },
-  { id: "prev", label: "전년도 이월", sub: "소계", w: 132, num: true },
+  { id: "prev", label: "전년도 이월 ②", sub: "소계", w: 132, num: true },
   { id: "pm", label: "", sub: "명시이월", w: 132, num: true },
   { id: "ps", label: "", sub: "사고이월", w: 132, num: true },
-  { id: "act", label: "예산현액", line2: "①+②", w: 132, num: true },
+  { id: "act", label: "예산현액 ①+②", w: 152, num: true },
   { id: "ex", label: "집행액", sub: "소계", w: 132, num: true },
   { id: "en", label: "", sub: "당해", w: 132, num: true },
   { id: "em", label: "", sub: "명시", w: 132, num: true },
   { id: "es", label: "", sub: "사고", w: 132, num: true },
-  { id: "rate", label: "집행률", line2: "%", w: 112, num: true },
+  { id: "rate", label: "집행률", w: 112, num: true },
   { id: "left", label: "다음연도 이월", sub: "소계", w: 132, num: true },
   { id: "nm", label: "", sub: "명시이월", w: 132, num: true },
   { id: "ns", label: "", sub: "사고이월", w: 132, num: true },
@@ -78,6 +80,15 @@ export default function BudgetStatusScreen() {
   const formRow = useRef<HTMLDivElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
   const [popPos, setPopPos] = useState<{ left: number; top: number } | null>(null);
+  // 열 폭(집행현황과 같은 배치최적화·끌기·두 번 누르기·우클릭 처음대로) — 요약·자세히 따로, kv bstatus.cols
+  const [W, setW] = useState<Record<string, Record<string, number>>>({});
+  const [nameFixed, setNameFixed] = useState<Record<string, boolean>>({});
+  const [avail, setAvail] = useState(1200);
+  const [boxW, setBoxW] = useState(0);
+  const [sbw, setSbw] = useState(0);
+  const [toast, setToast] = useState("");
+  const scroller = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   // ---------- 읽기: 집행현황 여러 해 + 설정 ----------
   const thisYear = Number(todayStr().slice(0, 4));
@@ -108,7 +119,33 @@ export default function BudgetStatusScreen() {
     void load();
     api.get(UNIT_KEY).then((v) => setUnit(v === "1000" ? 1000 : 1), () => {});
     api.get(VIEW_KEY).then((v) => setDetail(v === "detail"), () => {});
+    api.get(COLS_KEY).then((v) => {
+      if (!v) return;
+      const o = JSON.parse(v) as { w?: Record<string, Record<string, number>>; fixed?: Record<string, boolean> };
+      if (o.w) setW(o.w);
+      if (o.fixed) setNameFixed(o.fixed);
+    }, () => {});
   }, [load]);
+  useEffect(() => {
+    if (!toast) return;
+    const t = window.setTimeout(() => setToast(""), 2200);
+    return () => window.clearTimeout(t);
+  }, [toast]);
+  // 표 폭(구분 열이 남는 폭을 채울 때·배치최적화 뒤 왼쪽으로 모을 때 씀)
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const measure = () => {
+      setAvail(el.clientWidth);
+      setSbw(el.offsetWidth - el.clientWidth);
+      if (rootRef.current) setBoxW(rootRef.current.clientWidth);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    if (rootRef.current) ro.observe(rootRef.current);
+    return () => ro.disconnect();
+  }, []);
 
   const names = useMemo(() => projectNames(byYear).filter((p) => !p.carry), [byYear]);
   const carryNames = useMemo(() => projectNames(byYear).filter((p) => p.carry), [byYear]);
@@ -179,8 +216,89 @@ export default function BudgetStatusScreen() {
     return () => document.removeEventListener("mousedown", h);
   }, [pop]);
 
-  const cols = detail ? DET_COLS : SUM_COLS;
+  const view = detail ? "detail" : "summary";
+  const base = detail ? DET_COLS : SUM_COLS;
+  const wv = W[view] ?? {};
+  const fixedName = !!nameFixed[view];
+  const widthOf = (c: Col) => (FIXED.has(c.id) ? c.w : wv[c.id] ?? c.w);
+  const rest = base.reduce((a, c) => a + (c.id === "name" ? 0 : widthOf(c)), 0);
+  const nameW = fixedName ? widthOf(base[0]) : Math.max(base[0].w, Math.floor(avail - 6 - rest)); // 구분 열은 남는 폭(최소 처음 폭)
+  const cols = base.map((c) => ({ ...c, w: c.id === "name" ? nameW : widthOf(c) }));
   const tmpl = cols.map((c) => c.w + "px").join(" ");
+  const colSum = cols.reduce((a, c) => a + c.w, 0);
+  // 배치최적화(또는 구분 열을 직접 맞춘) 뒤 남는 폭이 있으면 왼쪽으로 모아요(집행현황과 같게)
+  const packed = fixedName && boxW > 0 && colSum + 2 + sbw <= boxW;
+  const saveCols = (w: Record<string, number>, fixed: boolean) => {
+    const nw = { ...W, [view]: w }, nf = { ...nameFixed, [view]: fixed };
+    setW(nw);
+    setNameFixed(nf);
+    api.set(COLS_KEY, JSON.stringify({ w: nw, fixed: nf })).catch(() => {});
+  };
+  const startDrag = (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const x0 = e.clientX;
+    const w0 = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect().width;
+    let w: Record<string, number> = { ...wv, name: id === "name" ? Math.round(w0) : nameW };
+    const fixed = fixedName || id === "name";
+    const grip = e.currentTarget as HTMLElement;
+    grip.classList.add("drag");
+    const mv = (ev: MouseEvent) => {
+      w = { ...w, [id]: Math.max(id === "name" ? 160 : 36, Math.round(w0 + ev.clientX - x0)) };
+      setW((o) => ({ ...o, [view]: w }));
+      if (fixed) setNameFixed((o) => ({ ...o, [view]: true }));
+    };
+    const up = () => {
+      grip.classList.remove("drag");
+      removeEventListener("mousemove", mv);
+      removeEventListener("mouseup", up);
+      saveCols(w, fixed);
+    };
+    addEventListener("mousemove", mv);
+    addEventListener("mouseup", up);
+  };
+  /** 칸을 복사해 폭 제한 없이 놓고 잰 내용 폭 */
+  const need = (el: HTMLElement) => {
+    const c = el.cloneNode(true) as HTMLElement;
+    c.style.cssText += ";position:absolute;left:0;top:0;visibility:hidden;width:max-content;min-width:0;max-width:none";
+    c.querySelectorAll(".bd-grip").forEach((g) => g.remove());
+    el.before(c);
+    const w = c.getBoundingClientRect().width;
+    c.remove();
+    return Math.ceil(w);
+  };
+  /** 그 열에 보이는 내용(열 제목 포함) 가운데 가장 긴 폭 */
+  const fitOf = (ci: number, head: HTMLElement) => {
+    const cells = [head, ...document.querySelectorAll<HTMLElement>(`.bs .bd-body .bd-rw > .bd-c:nth-child(${ci + 1})`)];
+    return Math.max(ci === 0 ? 160 : 36, Math.max(...cells.map(need)) + 1);
+  };
+  /** 배치최적화: 고정 폭 열 빼고 모든 열을 보이는 내용 폭에 맞춰요 */
+  const fitAll = () => {
+    const w = { ...wv };
+    cols.forEach((c, i) => {
+      if (FIXED.has(c.id)) return;
+      const head = document.querySelector<HTMLElement>(`.bs .bd-hd > .bd-h[data-ci="${i}"]`);
+      if (head) w[c.id] = fitOf(i, head);
+    });
+    saveCols(w, true);
+    setToast("열 간격을 내용에 맞췄어요 · 열 제목 우클릭으로 처음대로");
+  };
+  const autoFit = (e: React.MouseEvent, ci: number, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const fit = fitOf(ci, (e.currentTarget as HTMLElement).parentElement as HTMLElement);
+    saveCols({ ...wv, name: nameW, [id]: fit }, fixedName || id === "name");
+  };
+  const resetCols = (e: React.MouseEvent) => {
+    e.preventDefault();
+    saveCols({}, false);
+    setToast("열 너비를 처음으로 돌렸어요");
+  };
+  const grip = (c: Col) => {
+    if (FIXED.has(c.id)) return null;
+    const ci = cols.findIndex((x) => x.id === c.id);
+    return <span className="bd-grip" title="끌어서 너비 · 두 번 누르면 내용에 맞춤" onMouseDown={(e) => startDrag(e, c.id)} onDoubleClick={(e) => autoFit(e, ci, c.id)} />;
+  };
 
   const cell = (v: ReactNode, cls = "", title?: string) => (
     <div className={"bd-c" + cls} role="cell" title={title}>
@@ -268,7 +386,10 @@ export default function BudgetStatusScreen() {
 
   const memoCell = cell(
     <button type="button" className="bd-memo" aria-label="메모 쓰기" title="메모 쓰기">
-      {ICON("M4 20h4l10-10-4-4L4 16z M13 7l4 4")}
+      <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 20h9" />
+        <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z" />
+      </svg>
     </button>,
   );
 
@@ -468,10 +589,16 @@ export default function BudgetStatusScreen() {
   );
 
   return (
-    <div className="bd bs">
-      <div className="bd-top">
+    <div ref={rootRef} className={"bd bs" + (packed ? " bd-packed" : "")}>
+      <div className="bd-top" style={packed ? { width: colSum + 1 } : undefined}>
         <h1 className="title">예산현황</h1>
         <span className="bd-sp" />
+        <button type="button" className="btn btn-ctrl bd-tool" title="열 간격을 보이는 내용 폭에 맞춰요 · 열 제목 우클릭으로 처음대로" onClick={fitAll}>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 5v14M21 5v14M3 12h6M21 12h-6M6 9l3 3-3 3M18 9l-3 3 3 3" />
+          </svg>
+          배치최적화
+        </button>
         {seg("요약", "자세히", detail ? 1 : 0, (i) => { setDetail(i === 1); api.set(VIEW_KEY, i === 1 ? "detail" : "summary").catch(() => {}); }, "보기")}
         {seg("원", "천원", unit === 1 ? 0 : 1, (i) => { setUnit(i ? 1000 : 1); api.set(UNIT_KEY, i ? "1000" : "1").catch(() => {}); }, "금액 단위")}
         <label className="search bd-search">
@@ -482,16 +609,17 @@ export default function BudgetStatusScreen() {
           엑셀{ICON(CD, 13)}
         </button>
       </div>
-      <div className="bd-tbl" style={{ ["--bd-cols" as string]: tmpl }}>
-        <div className="bd-scroll">
-          <div className={"bd-hd" + (detail ? " bs-hd2" : "")} role="row">
+      <div className="bd-tbl" style={{ ["--bd-cols" as string]: tmpl, ...(packed ? { width: colSum + 2 + sbw } : {}) }}>
+        <div ref={scroller} className="bd-scroll">
+          <div className={"bd-hd" + (detail ? " bs-hd2" : "")} role="row" onContextMenu={resetCols}>
             {cols.map((c, i) => {
               const cls = "bd-h" + (c.num ? " bs-hn" : "");
-              if (!detail) return <div key={c.id} className={cls} role="columnheader">{c.label}</div>;
+              if (!detail) return <div key={c.id} className={cls} role="columnheader" data-ci={i}>{c.label}{grip(c)}</div>;
               if (!c.sub) {
                 return (
-                  <div key={c.id} className={cls + " bs-span"} role="columnheader" style={{ gridColumn: `${i + 1}`, gridRow: "1 / span 2" }}>
-                    {c.line2 ? <span className="bs-two">{c.label}<br />{c.line2}</span> : c.label}
+                  <div key={c.id} className={cls + " bs-span"} role="columnheader" data-ci={i} style={{ gridColumn: `${i + 1}`, gridRow: "1 / span 2" }}>
+                    {c.label}
+                    {grip(c)}
                   </div>
                 );
               }
@@ -501,7 +629,7 @@ export default function BudgetStatusScreen() {
               return (
                 <Fragment key={c.id}>
                   {c.label && <div className="bd-h bs-grp" role="columnheader" style={{ gridColumn: `${i + 1} / span ${n}`, gridRow: 1 }}>{c.label}</div>}
-                  <div className={cls} role="columnheader" style={{ gridColumn: `${i + 1}`, gridRow: 2 }}>{c.sub}</div>
+                  <div className={cls} role="columnheader" data-ci={i} style={{ gridColumn: `${i + 1}`, gridRow: 2 }}>{c.sub}{grip(c)}</div>
                 </Fragment>
               );
             })}
@@ -512,6 +640,11 @@ export default function BudgetStatusScreen() {
           </div>
         </div>
       </div>
+      {toast && (
+        <div className="bd-toast" role="status">
+          {toast}
+        </div>
+      )}
       {pop && (
         <div ref={popRef} className="bd-pop" role="dialog" aria-label="사업 설정" style={popPos ?? { left: pop.x, top: pop.y, visibility: "hidden" }} onMouseDown={(e) => e.stopPropagation()}>
           {pop.t === "setup" && setupBody(pop.name)}

@@ -10770,7 +10770,6 @@ body.ew-dragging * {
 /* 자세히 머리 줄 두 줄(28+28): 위 줄 묶음 이름은 가운데, 아래 줄 열 이름은 숫자처럼 오른쪽 */
 .bs .bd-h { justify-content: flex-start; padding: 0 12px; } /* 머리 글자는 모두 왼쪽(2026-10-19 사용자) */
 .bs .bd-h.bs-hn { justify-content: flex-start; }
-.bs-two { line-height: 15px; }
 .bs .bd-hd.bs-hd2 { height: 56px; grid-template-rows: 28px 28px; }
 .bs .bd-hd.bs-hd2 .bd-h.bs-grp { border-bottom: 1px solid var(--line-soft); }
 .bs .bd-hd .bd-h { white-space: nowrap; }
