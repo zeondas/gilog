@@ -16,7 +16,7 @@ const ICON = (d: string, s = 14, w = 2) => (
 );
 const CD = "M6 9l6 6 6-6", CR = "M9 6l6 6-6 6", GEAR = "M4 6h16 M4 12h16 M4 18h16 M9 4v4 M15 10v4 M7 16v4", X = "M6 6l12 12M18 6L6 18";
 const KEY = (name: string) => "bstatus." + name;
-const UNIT_KEY = "bstatus.unit", VIEW_KEY = "bstatus.view", YEAR_KEY = "bstatus.year";
+const UNIT_KEY = "bstatus.unit", VIEW_KEY = "bstatus.view", YEAR_KEY = "bstatus.year", ORDER_KEY = "bstatus.order";
 
 type Col = { id: string; label: string; sub?: string; w: number; num?: boolean };
 // sub = 묶음 아래 열 이름(머리 두 줄). 고정 폭(끌 수 없음): 구분은 남는 폭, 집행률·메모
@@ -25,7 +25,7 @@ const COLS_KEY = "bstatus.cols";
 /** 자세히 머리 줄 두 줄: 위 줄은 묶음 이름(여러 열에 걸침), 아래 줄은 열 이름. sub가 없는 열은 두 줄을 한 칸으로. */
 /** 엑셀 "집행·이월 현황" 열 비율 참고: 숫자 열은 같은 폭, 구분 열은 1.3배쯤 + 설정 단추 자리 */
 const SUM_COLS: Col[] = [
-  { id: "yrs", label: "사업연도", w: 136 },
+  { id: "yrs", label: "사업기간", w: 136 },
   { id: "name", label: "사업명", w: 240 },
   { id: "curSum", label: "당해예산 ①", w: 152, num: true },
   { id: "prev", label: "전년도 이월 ②", w: 152, num: true },
@@ -37,7 +37,7 @@ const SUM_COLS: Col[] = [
   { id: "memo", label: "메모", w: 48 },
 ];
 const DET_COLS: Col[] = [
-  { id: "yrs", label: "사업연도", w: 136 },
+  { id: "yrs", label: "사업기간", w: 136 },
   { id: "name", label: "사업명", w: 240 },
   { id: "curSum", label: "당해예산 ①", sub: "소계", w: 132, num: true },
   { id: "cur", label: "", sub: "본예산", w: 132, num: true },
@@ -63,7 +63,7 @@ const DET_COLS: Col[] = [
 /** 직접 적을 수 있는 칸(재원 줄) */
 const EDIT_FIELDS: (keyof Manual)[] = ["cur", "a1", "a2", "a3", "a4", "pm", "ps", "en", "em", "es", "un"];
 
-type Pop = { t: "setup"; name: string; x: number; y: number } | { t: "src"; name: string; x: number; y: number };
+type Pop = { t: "setup"; name: string; x: number; y: number } | { t: "src"; name: string; x: number; y: number } | { t: "menu"; name: string; x: number; y: number };
 type Form = { name: string; year: number; src: string; text: Record<string, string> };
 
 export default function BudgetStatusScreen() {
@@ -73,6 +73,8 @@ export default function BudgetStatusScreen() {
   const [detail, setDetail] = useState(false);
   // 보는 해(집행현황처럼 ◀ 2026년 ▶): 단년도 사업은 이 해 것만 한 줄, 다년도 사업은 기간에 이 해가 들면 모든 해를 펼쳐요(2026-10-19 사용자)
   const [year, setYear] = useState(Number(todayStr().slice(0, 4)));
+  // 줄 순서(우클릭 위로·아래로): 세부사업 이름 목록, kv bstatus.order — 목록에 없는 것은 집행현황 순서대로 뒤에
+  const [order, setOrder] = useState<string[]>([]);
   const [q, setQ] = useState("");
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [openY, setOpenY] = useState<Record<string, boolean>>({});
@@ -121,6 +123,7 @@ export default function BudgetStatusScreen() {
     void load();
     api.get(UNIT_KEY).then((v) => setUnit(v === "1000" ? 1000 : 1), () => {});
     api.get(VIEW_KEY).then((v) => setDetail(v === "detail"), () => {});
+    api.get(ORDER_KEY).then((v) => { if (v) setOrder(JSON.parse(v) as string[]); }, () => {});
     api.get(YEAR_KEY).then((v) => { if (v && /^\d{4}$/.test(v)) setYear(Number(v)); }, () => {});
     api.get(COLS_KEY).then((v) => {
       if (!v) return;
@@ -148,7 +151,11 @@ export default function BudgetStatusScreen() {
     return () => ro.disconnect();
   }, []);
 
-  const names = useMemo(() => projectNames(byYear).filter((p) => !p.carry), [byYear]);
+  const names = useMemo(() => {
+    const all = projectNames(byYear).filter((p) => !p.carry);
+    const pos = new Map(order.map((n, i) => [n, i]));
+    return [...all].sort((a, b) => (pos.get(a.name) ?? 1e9) - (pos.get(b.name) ?? 1e9));
+  }, [byYear, order]);
   const carryNames = useMemo(() => projectNames(byYear).filter((p) => p.carry), [byYear]);
   const shown = names.filter((p) => {
     if (q && !p.name.includes(q)) return false;
@@ -156,6 +163,16 @@ export default function BudgetStatusScreen() {
     if (!s) return false;
     return s.multi ? s.from <= year && year <= s.to : p.years.includes(year);
   });
+  /** 우클릭 메뉴 위로·아래로: 지금 보이는 순서에서 한 칸 옮겨 전체 순서로 저장 */
+  const moveRow = (name: string, dir: -1 | 1) => {
+    const list = names.map((p) => p.name);
+    const i = list.indexOf(name), j = i + dir;
+    if (i < 0 || j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    setOrder(list);
+    api.set(ORDER_KEY, JSON.stringify(list)).catch(() => {});
+    setPop(null);
+  };
   const changeYear = (y: number) => {
     setForm(null);
     setPop(null);
@@ -277,7 +294,8 @@ export default function BudgetStatusScreen() {
   /** 그 열에 보이는 내용(열 제목 포함) 가운데 가장 긴 폭 */
   const fitOf = (ci: number, head: HTMLElement) => {
     const cells = [head, ...document.querySelectorAll<HTMLElement>(`.bs .bd-body .bd-rw > .bd-c:nth-child(${ci + 1})`)];
-    return Math.max(cols[ci]?.id === "name" ? 160 : 36, Math.max(...cells.map(need)) + 1);
+    const text = cols[ci]?.id === "name" || cols[ci]?.id === "yrs";
+    return Math.max(cols[ci]?.id === "name" ? 160 : 36, Math.max(...cells.map(need)) + (text ? 16 : 1)); // 글자 열은 오른쪽 여유 16(2026-10-19 사용자)
   };
   /** 배치최적화: 고정 폭 열 빼고 모든 열을 보이는 내용 폭에 맞춰요 */
   const fitAll = () => {
@@ -491,6 +509,25 @@ export default function BudgetStatusScreen() {
     );
   };
 
+  const mi = (t: string, onClick: (() => void) | null) => (
+    <div className={"bd-mi" + (!onClick ? " off" : "")} role="menuitem" aria-disabled={!onClick} onClick={(e) => { e.stopPropagation(); onClick?.(); }}>
+      <span className="bd-mi-ic" />
+      <span className="bd-mi-t">{t}</span>
+    </div>
+  );
+  const menuBody = (name: string) => {
+    const list = names.map((p) => p.name);
+    const i = list.indexOf(name);
+    return (
+      <>
+        {mi("설정", () => { const r = document.querySelector<HTMLElement>(`.bs .bd-rw.pj.sel .bs-gear`)?.getBoundingClientRect(); setPop(r ? { t: "setup", name, x: r.left, y: r.bottom + 4 } : null); })}
+        <div className="bd-mdiv" />
+        {mi("위로 옮기기", i > 0 ? () => moveRow(name, -1) : null)}
+        {mi("아래로 옮기기", i >= 0 && i < list.length - 1 ? () => moveRow(name, 1) : null)}
+      </>
+    );
+  };
+
   const formKeys = (e: RKeyboardEvent) => {
     const a = keyAction(e, "common");
     if (e.nativeEvent.isComposing) return;
@@ -514,7 +551,7 @@ export default function BudgetStatusScreen() {
     const oneSrc = s.sources[0];
     const yb = single ? book.years[0] : null;
     const isOpen = single ? !one && openY[p.name + ":" + year] !== false : !!open[p.name];
-    const srcLabel = s.multi ? `${s.from}~${s.to}년` : `${year}년`; // 사업연도 열(2026-10-19 사용자): 단년도 "2026년", 다년도 "2025~2027년"
+    const srcLabel = s.multi ? `${s.from}~${s.to}년` : "단년도"; // 사업기간 열(2026-10-19 사용자): 단년도 "단년도", 다년도 "2025~2027년"
     const pjEditing = single && one && form && form.name === p.name && form.year === year && form.src === oneSrc ? form : null;
     rows.push(
       <div
@@ -523,6 +560,7 @@ export default function BudgetStatusScreen() {
         className={"bd-rw pj" + (sel === p.name ? " sel" : "") + (pjEditing ? " edit" : "")}
         role="row"
         onClick={() => setSel(p.name)}
+        onContextMenu={(e) => { e.preventDefault(); setSel(p.name); setPop({ t: "menu", name: p.name, x: e.clientX, y: e.clientY }); }}
         onDoubleClick={single && one ? () => !pjEditing && startEdit(p.name, year, oneSrc) : undefined}
         onKeyDown={pjEditing ? formKeys : undefined}
       >
@@ -728,8 +766,9 @@ export default function BudgetStatusScreen() {
         </div>
       )}
       {pop && (
-        <div ref={popRef} className="bd-pop" role="dialog" aria-label="사업 설정" style={popPos ?? { left: pop.x, top: pop.y, visibility: "hidden" }} onMouseDown={(e) => e.stopPropagation()}>
+        <div ref={popRef} className="bd-pop" role={pop.t === "menu" ? "menu" : "dialog"} aria-label={pop.t === "menu" ? "세부사업 메뉴" : "사업 설정"} style={popPos ?? { left: pop.x, top: pop.y, visibility: "hidden" }} onMouseDown={(e) => e.stopPropagation()}>
           {pop.t === "setup" && setupBody(pop.name)}
+          {pop.t === "menu" && menuBody(pop.name)}
         </div>
       )}
     </div>
