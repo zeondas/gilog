@@ -1496,8 +1496,9 @@ export default function BudgetScreen() {
             const s = sel?.startsWith("p") ? Number(sel.slice(1)) : null;
             void startAdd(newProject(s));
           }}
+          title="세부사업 추가"
         >
-          세부사업 추가
+          사업 추가
         </button>
         <button
           type="button"
