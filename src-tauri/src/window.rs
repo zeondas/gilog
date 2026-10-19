@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use tauri::window::Color;
 use tauri::{App, AppHandle, Manager, PhysicalPosition, PhysicalSize, Theme, WebviewWindow, WebviewWindowBuilder, Window, WindowEvent};
 
-const LABEL: &str = "main";
+pub(crate) const LABEL: &str = "main";
 /// 화면이 준비됐다고 알리지 않아도 이만큼 지나면 보여요.
 const FALLBACK: Duration = Duration::from_secs(4);
 /// 옮기기·크기 바꾸기가 이만큼 멈추면 저장해요.
