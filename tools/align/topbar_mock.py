@@ -22,6 +22,8 @@ PLANS = {
     # 규칙안(2026-10-19 23:23 사용자 확정한 배치 규칙): 요소 사이 8 · 묶음 사이·제목 뒤 16 · 검색 260은 오른쪽 묶음 안 · 토글 34 안 26
     # 한 줄안(23:45 사용자: 두 줄 안 됨): 검색은 늘 오른쪽 끝(윈도우 탐색기·구글 캘린더처럼) — 같은 자리
     "one": {"gap": 8, "ggap": 16, "search": 260, "search_explorer": 260, "center": False, "seg": "box", "groups": True, "one": True},
+    # 23:53 사용자 규칙: 엑셀 → 검색 → 입력창 띄우는 단추(관리·세부사업 추가), 정하지 않은 것은 뺌
+    "six": {"gap": 8, "ggap": 8, "search": 260, "search_explorer": 260, "center": False, "seg": "box", "groups": True, "six": True},
     "rule": {"gap": 8, "ggap": 16, "search": 260, "search_explorer": 260, "center": False, "seg": "box", "groups": True},
 }
 P = PLANS[PLAN]
@@ -71,7 +73,17 @@ ONE = {
     "예산현황": {"L": [["@title"], ["@year"], ["@seg:요약"]], "R": [["@seg:원", "배치최적화"], ["엑셀"], ["@search"]], "S": "세부사업 검색"},
     "설정":     {"L": [["@title"]], "R": [["기본값으로 되돌리기"], ["@search"], ["설정 닫기"]], "S": "설정 검색"},
 }
-if P.get("one"):
+SIX = {
+    "민원대장": {"L": [], "R": [["엑셀", "@search", "분류 관리"]], "orig": True},
+    "민원처리": {"L": [], "R": [["@search", "공사 관리"]], "orig": True},
+    "업무일지": {"L": [], "R": [["엑셀", "@search"]], "orig": True},
+    "업무연락처": {"L": [], "R": [["엑셀", "@search", "프로젝트 관리"]], "orig": True},
+    "집행현황": {"L": [], "R": [["엑셀", "@search", "세부사업 추가"]], "orig": True},
+    "예산현황": {"L": [], "R": [["엑셀", "@search"]], "orig": True},
+}
+if P.get("six"):
+    SPEC = SIX
+elif P.get("one"):
     SPEC = ONE
 elif P.get("groups"):
     SPEC = GROUPS
@@ -127,7 +139,8 @@ const zone=(names,cls)=>{const z=document.createElement('div'); z.className='z '
 // 검색: 탐색기는 자기 것(자세히 ▾), 나머지는 같은 모양으로 새로
 let search=all.find(el=>el.matches('.search,.set-find'));
 let S;
-if(search&&search.matches('.fx-search')){keepH(search); S=search; const i=S.querySelector('input'); if(i) i.placeholder=spec.S;}
+if(spec.orig&&search){keepH(search); S=search;}
+else if(search&&search.matches('.fx-search')){keepH(search); S=search; const i=S.querySelector('input'); if(i) i.placeholder=spec.S;}
 else{ if(search){keepH(search); search.style.visibility='hidden';}
   S=document.createElement('label'); S.className='search';
   S.innerHTML='<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg><input type="text">';
@@ -146,6 +159,7 @@ if(P.groups){
   tb.style.display='flex'; tb.style.justifyContent='space-between'; tb.style.columnGap=P.ggap+'px';
   tb.append(gz(spec.L),gz(spec.R));
   document.body.appendChild(tb);
+  if(spec.orig){for(const el of all){ if(!tb.contains(el)&&!/(^| )jcal/.test(el.className||'')) el.style.visibility='hidden'; } for(const e of document.querySelectorAll('.cm-top > *, .ct-head > *')) if(!tb.contains(e)) e.style.visibility='hidden';}
   const ft=document.querySelector('.fx-tools'); if(ft) ft.style.visibility='hidden';
   return {miss, x0, x1, over: tb.scrollWidth>tb.clientWidth+1};
 }
