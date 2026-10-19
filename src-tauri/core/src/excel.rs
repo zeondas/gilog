@@ -232,7 +232,15 @@ fn write_sheet(wb: &mut Workbook, kind: SheetKind, rows: &[Vec<String>], data: &
         }
         // 1행 제목만 50, 나머지 모든 행은 30 고정(2026-10-17 사용자 — 여러 줄이어도 늘리지 않아요).
         // 업무일지만 내용 줄 수만큼 늘려요(2026-10-19 사용자 2안 — 말 줄이 여러 줄이라 잘려 보여요).
-        let h = if kind == SheetKind::Journal { journal_row_height(row, cols) } else { h_row };
+        // 업무연락처는 프로젝트 칸 줄 수만큼(한 사람 = 한 줄, 프로젝트 여러 개는 칸 안 줄바꿈 — 2026-10-19 사용자): 1줄 18, 줄마다 13.5씩.
+        let h = match kind {
+            SheetKind::Journal => journal_row_height(row, cols),
+            SheetKind::Contacts => {
+                let n = row.get(7).map(|v| v.split('\n').count()).unwrap_or(1).max(1);
+                (h_row + (n as f64 - 1.0) * 13.5).min(409.0)
+            }
+            _ => h_row,
+        };
         ws.set_row_height(rr, h).map_err(xerr)?;
     }
     let last_row = (rows.len() + 2) as u32;

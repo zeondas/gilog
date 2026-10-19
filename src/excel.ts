@@ -115,7 +115,8 @@ export function complaintImports(sheet: ExcelSheet): ComplaintImport[] {
 
 // ---------- 업무연락처 (양식: 2026-10-19 사용자 파일) ----------
 // 한 시트 "업무연락처" A~L. J 그룹·K 축약 공사명·L 색(1~8, 비우면 자동)은 숨긴 열로 그 줄 프로젝트의 정보예요.
-// 프로젝트가 여러 개인 사람은 프로젝트마다 한 줄(사용자 2안) — 연번·이름~메모는 줄마다 같게 적어요.
+// 한 사람 = 한 줄(2026-10-19 사용자: 사람이 중심이라 프로젝트 수만큼 같은 사람이 있으면 안 돼요). 프로젝트가 여러 개면
+// 프로젝트 칸에 "쉼표 + 줄바꿈"으로 한 줄에 하나씩, 숨긴 그룹·축약·색도 같은 줄 순서로 적어요(사용자). 행 높이는 프로젝트 줄 수만큼.
 // 연락처가 없는 프로젝트는 맨 아래에 이름 칸이 빈 "프로젝트만 있는 줄"로 적어요(사용자 1안, 가져오면 프로젝트만 생겨요).
 
 export type ProjectImport = { group: string; name: string; alias: string; color: number | null };
@@ -124,6 +125,14 @@ export type ContactsImport = { contacts: ContactImport[]; projects: ProjectImpor
 function projectCells(p: Project | undefined, gname: Map<number, string>): string[] {
   if (!p) return ["", "", ""];
   return [p.group !== null ? gname.get(p.group) ?? "" : "", p.alias && p.alias !== p.name ? p.alias : "", p.color !== null ? String(p.color + 1) : ""];
+}
+
+/** 프로젝트 여러 개를 한 칸에: "가,\n나,\n다"(쉼표 + 줄바꿈) */
+export const joinLines = (xs: string[]) => xs.join(",\n");
+
+/** joinLines의 거꾸로 — 줄로 나누고 줄 끝 쉼표를 떼요(빈 줄도 자리로 남겨요). */
+export function splitLines(v: string): string[] {
+  return v.split(/\r?\n/).map((x) => x.trim().replace(/,$/, "").trim());
 }
 
 /** 등록한 순서대로, 연번은 사람마다 1부터(앱에는 연번이 없어요). 맨 아래 프로젝트만 있는 줄은 그룹 순서 → 공사명 가나다순. */
@@ -142,11 +151,10 @@ export function contactRows(list: Contact[], projects: Project[], groups: Projec
       const memo = cellOfLines(c.memo);
       // 사람의 프로젝트는 붙인 순서 그대로(첫 프로젝트가 업무일지에 저절로 붙는 프로젝트라 가져와도 같아야 해요).
       const ps = c.projects.map((id) => byId.get(id)).filter((p): p is Project => !!p);
-      if (!ps.length) rows.push([...base, "", memo, "", "", ""]);
-      for (const p of ps) {
-        used.add(p.id);
-        rows.push([...base, p.name, memo, ...projectCells(p, gname)]);
-      }
+      ps.forEach((p) => used.add(p.id));
+      const cells = ps.map((p) => projectCells(p, gname));
+      const col = (k: number) => (cells.some((x) => x[k]) ? joinLines(cells.map((x) => x[k])) : "");
+      rows.push([...base, joinLines(ps.map((p) => p.name)), memo, col(0), col(1), col(2)]);
     });
   for (const p of [...projects].sort(cmp)) {
     if (!used.has(p.id)) rows.push(["", "", "", "", "", "", "", p.name, "", ...projectCells(p, gname)]);
@@ -158,7 +166,7 @@ export function contactRows(list: Contact[], projects: Project[], groups: Projec
  * 연번은 같은 사람 줄을 묶을 때만 봐요(앱에는 연번이 없어요). 같은 사람 = 연번과 이름이 같은 줄(떨어져 있어도 —
  * 엑셀에서 프로젝트로 정렬해도 돼요), 연번이 비었으면 이름~메모가 모두 같은 줄. 묶인 사람의 소속·번호·메모 등은
  * 처음 나온 줄 것을 쓰고, 그 칸이 비어 있으면 다음 줄 것으로 채워요.
- * 이름~메모가 모두 빈 줄은 프로젝트만 만들어요. 프로젝트 칸은 예전 파일처럼 쉼표로 여러 개여도 돼요.
+ * 이름~메모가 모두 빈 줄은 프로젝트만 만들어요. 프로젝트 칸은 줄바꿈(쉼표 + 줄바꿈)으로 여러 개, 예전 파일처럼 쉼표만이어도 돼요.
  */
 export function contactImports(sheet: ExcelSheet): ContactsImport {
   const get = picker(sheet.headers);
@@ -173,22 +181,25 @@ export function contactImports(sheet: ExcelSheet): ContactsImport {
       mobile: get(r, "무선"),
       tel: get(r, "유선"),
       email: get(r, "이메일").replace(/^mailto:/i, ""),
-      projects: splitProjects(get(r, "프로젝트")),
+      projects: [],
       memo: linesOfCell(get(r, "메모")),
     };
+    const pcell = get(r, "프로젝트");
+    const multi = /\n/.test(pcell);
+    const plines = multi ? splitLines(pcell) : splitProjects(pcell);
+    c.projects = plines.filter(Boolean);
     const no = get(r, "연번");
+    // 숨긴 열: 줄바꿈으로 적은 칸은 프로젝트와 같은 줄 순서로, 프로젝트가 한 개면 칸 전체로 읽어요.
+    // (쉼표만으로 여러 개 적은 예전 칸은 어느 것의 정보인지 몰라 읽지 않아요.) 같은 프로젝트는 처음 줄 것.
+    const hidden = (h: string) => (multi ? splitLines(get(r, h)) : plines.length === 1 ? [splitLines(get(r, h))[0] ?? ""] : []);
+    const hg = hidden("그룹"), ha = hidden("축약공사명"), hc = hidden("색");
+    plines.forEach((name, i) => {
+      if (!name || metas.has(name) || (!multi && plines.length !== 1)) return;
+      const n = Number(hc[i] ?? "");
+      const alias = ha[i] ?? "";
+      metas.set(name, { group: hg[i] ?? "", name, alias: alias !== name ? alias : "", color: Number.isInteger(n) && n >= 1 && n <= 8 ? n - 1 : null });
+    });
     const blank = !c.name && !c.org && !c.role && !c.mobile && !c.tel && !c.email && !c.memo;
-    // 숨긴 열은 프로젝트가 한 개인 줄에서 읽어요(쉼표로 여러 개면 어느 것의 정보인지 몰라요). 같은 프로젝트는 처음 줄 것.
-    if (c.projects.length === 1 && !metas.has(c.projects[0])) {
-      const n = Number(get(r, "색"));
-      const alias = get(r, "축약공사명");
-      metas.set(c.projects[0], {
-        group: get(r, "그룹"),
-        name: c.projects[0],
-        alias: alias !== c.projects[0] ? alias : "",
-        color: Number.isInteger(n) && n >= 1 && n <= 8 ? n - 1 : null,
-      });
-    }
     for (const p of c.projects) if (!metas.has(p)) metas.set(p, { group: "", name: p, alias: "", color: null });
     if (blank) continue;
     const key = no ? JSON.stringify(["no", no, c.name]) : JSON.stringify([c.name, c.org, c.role, c.mobile, c.tel, c.email, c.memo]);
