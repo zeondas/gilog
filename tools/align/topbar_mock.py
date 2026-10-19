@@ -78,7 +78,8 @@ SIX = {  # 00:10 사용자: 왼쪽 요소는 모두 그대로, 입력창 단추 
     "민원처리": {"L": [], "R": [["공사 관리", "@search"]], "orig": True, "padR": 82, "keep": ["신문고 열기", "민원 불러오기"], "keepSel": ["h1.title"]},
     "업무연락처": {"L": [], "R": [["프로젝트 관리", "@search", "엑셀"]], "orig": True, "keepSel": ["h1.title"], "rename": {"프로젝트 관리": "사업 관리"}},
     "집행현황": {"L": [], "R": [["배치최적화", "@unit:0", "@unit:1", "세부사업 추가", "@search", "엑셀"]], "orig": True, "keepSel": ["h1.title", ".bd-year"], "rename": {"세부사업 추가": "사업 추가"}},
-    "예산현황": {"L": [], "R": [["배치최적화", "@unit:0", "@unit:1", "@search", "엑셀"]], "orig": True, "keepSel": ["h1.title", ".bd-year"]},
+    # 00:13 사용자: 집행현황과 자리 맞춤 — 배치최적화·요약/자세히(↔ 집행액/시공량, 칸 52)·원/천원 같은 x, 사업 추가 자리(78) 비움, 엑셀 74
+    "예산현황": {"L": [], "R": [["배치최적화", "@unit:0", "@unit:1", "@gap:78.05", "@search", "엑셀"]], "orig": True, "keepSel": ["h1.title", ".bd-year"], "unitMin": 52, "uw": 114.84, "w": {"엑셀": 74.48}},
 }
 if P.get("six"):
     SPEC = SIX
@@ -131,8 +132,10 @@ const get=(name)=>{
  if(name.startsWith('@seg')){const k=name.split(':')[1]; const s=k?segs.find(x=>x.innerText.trim().startsWith(k)):segs[0]; if(!s) return null; keepH(s); const n=mkSeg(s); s.style.visibility='hidden'; return n;}
  if(name==='@calmgr'){const b=all.find(el=>el.matches('.cal-manage')); if(!b) return null; b.style.visibility='hidden';
    const n=document.createElement('button'); n.type='button'; n.className='btn btn-ctrl btn-text'; n.textContent='종류 관리'; return n;}
- if(name.startsWith('@unit:')){const u=segs[+name.split(':')[1]]; if(u){keepH(u); u.style.margin='0';} return u||null;}
+ if(name.startsWith('@gap:')){const g=document.createElement('span'); g.style.cssText='display:inline-block;flex:none;width:'+name.split(':')[1]+'px'; return g;}
+ if(name.startsWith('@unit:')){const u=segs[+name.split(':')[1]]; if(u){keepH(u); u.style.margin='0'; if(spec.unitMin&&name==='@unit:0') for(const b of u.querySelectorAll('button')) b.style.minWidth=spec.unitMin+'px'; if(spec.uw&&name==='@unit:0'){u.style.width=spec.uw+'px'; u.style.boxSizing='border-box';}} return u||null;}
  const bb=byText(name); if(bb&&spec.rename&&spec.rename[name]){const tn=[...bb.childNodes].reverse().find(n=>n.nodeType===3&&n.textContent.trim()); if(tn) tn.textContent=spec.rename[name]; else bb.textContent=spec.rename[name];}
+ if(bb&&spec.w&&spec.w[name]) bb.style.width=spec.w[name]+'px';
  return bb||null;};
 const miss=[];
 const zone=(names,cls)=>{const z=document.createElement('div'); z.className='z '+(cls||'');
@@ -165,7 +168,7 @@ if(P.groups){
   const kept=(e)=>(spec.keepSel||[]).some(q=>e.matches(q)||e.closest(q)||e.querySelector(q));
   if(spec.orig){for(const el of all){ if(!tb.contains(el)&&!/(^| )jcal/.test(el.className||'')&&!kept(el)&&!(spec.keep||[]).some(k=>(el.innerText||'').trim().startsWith(k))) el.style.visibility='hidden'; } for(const e of document.querySelectorAll('.cm-top > *, .ct-head > *')) if(!tb.contains(e)&&!kept(e)&&!(spec.keep||[]).some(k=>(e.innerText||'').trim().startsWith(k))) e.style.visibility='hidden';}
   const ft=document.querySelector('.fx-tools'); if(ft) ft.style.visibility='hidden';
-  return {miss, x0, x1, over: tb.scrollWidth>tb.clientWidth+1};
+  return {miss, x0, x1, over: tb.scrollWidth>tb.clientWidth+1, rects:[...tb.querySelectorAll(':scope > div > div > *')].map(e=>{const q=e.getBoundingClientRect(); return [(e.innerText||e.tagName).replace(/\s+/g,' ').trim().slice(0,8), +q.left.toFixed(2), +q.width.toFixed(2)]})};
 }
 const L=zone(spec.L), A=zone(spec.A), R=zone(spec.R,'zr');
 // 제목 뒤는 16(8 + h1 오른쪽 8)
