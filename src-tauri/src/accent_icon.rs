@@ -1,52 +1,85 @@
 //! 강조색에 맞춘 앱 아이콘 — 작업표시줄·창 제목·트레이(2026-10-19 사용자: 테마와 무관하게 보라로 보였어요).
-//! 그림은 `tools/brand/accent_icons.py`가 손 맞춤 아이콘(brand/icons)의 색만 바꿔 만든 `icons/accent/<색>-<크기>.png`예요.
+//! 그림은 `tools/brand/accent_icons.py`가 만든 `icons/accent/<색>-small-<크기>.png`·`<색>-big-<크기>.png`·`<색>.ico`예요.
 //! - 트레이: 트레이 아이콘을 그 색 그림으로 바꿔요.
 //! - 창: Tauri의 `set_icon`은 제목줄용 작은 아이콘만 바꿔요. 작업표시줄은 큰 아이콘(ICON_BIG)을 쓰니
 //!   윈도우에 큰·작은 아이콘을 직접 넣어요(WM_SETICON).
+//! - 모양(2026-10-19 사용자, 시안 캔버스 AppIconSet): 창 제목줄·트레이는 지금 손 맞춤 아이콘(small, 색만 바꿈),
+//!   작업표시줄·바로가기(24px~)는 사이드바 접힌 심볼 비율 + 픽셀 맞춤(big).
 //! - 바로가기(2026-10-19 사용자: 바로가기도 보라): exe 안 그림은 바꿀 수 없으니 색마다 .ico를 AppData에 두고,
 //!   기록 exe를 가리키는 바로가기(바탕화면·시작 메뉴·작업표시줄 고정)의 아이콘을 그 파일로 바꿔요. 보라면 exe 그림으로 되돌려요.
 //! 설치 파일과 exe 파일 자체의 아이콘은 보라 그대로예요.
 use tauri::image::Image;
 use tauri::{AppHandle, Manager};
 
-const SIZES: [u32; 10] = [16, 20, 24, 32, 40, 48, 64, 96, 128, 256];
+/// 창 제목줄·트레이용(손 맞춤 아이콘 색만 바꿈) 크기 — 2026-10-19 사용자: 지금 모양 그대로.
+const SMALL: [u32; 4] = [16, 20, 24, 32];
+/// 작업표시줄·바로가기용(사이드바 접힌 심볼 비율 + 픽셀 맞춤) 크기.
+const BIG: [u32; 10] = [24, 30, 32, 36, 40, 48, 64, 96, 128, 256];
 
-macro_rules! set {
+macro_rules! small {
     ($n:literal) => {
         [
-            include_bytes!(concat!("../icons/accent/", $n, "-16.png")).as_slice(),
-            include_bytes!(concat!("../icons/accent/", $n, "-20.png")).as_slice(),
-            include_bytes!(concat!("../icons/accent/", $n, "-24.png")).as_slice(),
-            include_bytes!(concat!("../icons/accent/", $n, "-32.png")).as_slice(),
-            include_bytes!(concat!("../icons/accent/", $n, "-40.png")).as_slice(),
-            include_bytes!(concat!("../icons/accent/", $n, "-48.png")).as_slice(),
-            include_bytes!(concat!("../icons/accent/", $n, "-64.png")).as_slice(),
-            include_bytes!(concat!("../icons/accent/", $n, "-96.png")).as_slice(),
-            include_bytes!(concat!("../icons/accent/", $n, "-128.png")).as_slice(),
-            include_bytes!(concat!("../icons/accent/", $n, "-256.png")).as_slice(),
+            include_bytes!(concat!("../icons/accent/", $n, "-small-16.png")).as_slice(),
+            include_bytes!(concat!("../icons/accent/", $n, "-small-20.png")).as_slice(),
+            include_bytes!(concat!("../icons/accent/", $n, "-small-24.png")).as_slice(),
+            include_bytes!(concat!("../icons/accent/", $n, "-small-32.png")).as_slice(),
         ]
     };
 }
 
-static PURPLE: [&[u8]; 10] = set!("purple");
-static NOCTUA: [&[u8]; 10] = set!("noctua");
-static BLUE: [&[u8]; 10] = set!("blue");
-static INK: [&[u8]; 10] = set!("ink");
-
-fn table(accent: &str) -> &'static [&'static [u8]; 10] {
-    match accent {
-        "noctua" => &NOCTUA,
-        "blue" => &BLUE,
-        "ink" => &INK,
-        _ => &PURPLE,
-    }
+macro_rules! big {
+    ($n:literal) => {
+        [
+            include_bytes!(concat!("../icons/accent/", $n, "-big-24.png")).as_slice(),
+            include_bytes!(concat!("../icons/accent/", $n, "-big-30.png")).as_slice(),
+            include_bytes!(concat!("../icons/accent/", $n, "-big-32.png")).as_slice(),
+            include_bytes!(concat!("../icons/accent/", $n, "-big-36.png")).as_slice(),
+            include_bytes!(concat!("../icons/accent/", $n, "-big-40.png")).as_slice(),
+            include_bytes!(concat!("../icons/accent/", $n, "-big-48.png")).as_slice(),
+            include_bytes!(concat!("../icons/accent/", $n, "-big-64.png")).as_slice(),
+            include_bytes!(concat!("../icons/accent/", $n, "-big-96.png")).as_slice(),
+            include_bytes!(concat!("../icons/accent/", $n, "-big-128.png")).as_slice(),
+            include_bytes!(concat!("../icons/accent/", $n, "-big-256.png")).as_slice(),
+        ]
+    };
 }
 
-/// 원하는 크기와 같거나 바로 큰 그림(없으면 가장 큰 것)과 그 크기.
-fn pick(accent: &str, want: u32) -> (&'static [u8], u32) {
-    let t = table(accent);
-    let i = SIZES.iter().position(|&s| s >= want).unwrap_or(SIZES.len() - 1);
-    (t[i], SIZES[i])
+static S_PURPLE: [&[u8]; 4] = small!("purple");
+static S_NOCTUA: [&[u8]; 4] = small!("noctua");
+static S_BLUE: [&[u8]; 4] = small!("blue");
+static S_INK: [&[u8]; 4] = small!("ink");
+static B_PURPLE: [&[u8]; 10] = big!("purple");
+static B_NOCTUA: [&[u8]; 10] = big!("noctua");
+static B_BLUE: [&[u8]; 10] = big!("blue");
+static B_INK: [&[u8]; 10] = big!("ink");
+
+/// 원하는 크기와 같거나 바로 큰 그림(없으면 가장 큰 것).
+fn nearest(sizes: &[u32], files: &'static [&'static [u8]], want: u32) -> &'static [u8] {
+    let i = sizes.iter().position(|&s| s >= want).unwrap_or(sizes.len() - 1);
+    files[i]
+}
+
+/// 창 제목줄·트레이 그림.
+fn small(accent: &str, want: u32) -> &'static [u8] {
+    let t: &'static [&'static [u8]] = match accent {
+        "noctua" => &S_NOCTUA,
+        "blue" => &S_BLUE,
+        "ink" => &S_INK,
+        _ => &S_PURPLE,
+    };
+    nearest(&SMALL, t, want)
+}
+
+/// 작업표시줄 그림.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn big(accent: &str, want: u32) -> &'static [u8] {
+    let t: &'static [&'static [u8]] = match accent {
+        "noctua" => &B_NOCTUA,
+        "blue" => &B_BLUE,
+        "ink" => &B_INK,
+        _ => &B_PURPLE,
+    };
+    nearest(&BIG, t, want)
 }
 
 /// 트레이 아이콘 크기(작은 아이콘, 100% 16 · 125% 20 · 150% 24 · 200% 32).
@@ -86,8 +119,7 @@ pub fn apply(app: &AppHandle, accent: &str) {
         });
     }
     if let Some(tray) = app.tray_by_id("main") {
-        let (png, _) = pick(accent, tray_size());
-        if let Ok(img) = Image::from_bytes(png) {
+        if let Ok(img) = Image::from_bytes(small(accent, tray_size())) {
             let _ = tray.set_icon(Some(img));
         }
     }
@@ -99,8 +131,7 @@ pub fn apply(app: &AppHandle, accent: &str) {
                 return;
             }
         }
-        let (png, _) = pick(accent, 32);
-        if let Ok(img) = Image::from_bytes(png) {
+        if let Ok(img) = Image::from_bytes(small(accent, 16)) {
             let _ = w.set_icon(img);
         }
     }
@@ -112,15 +143,13 @@ mod win {
     use windows_sys::Win32::Foundation::HWND;
     use windows_sys::Win32::UI::HiDpi::{GetDpiForWindow, GetSystemMetricsForDpi};
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        CreateIconFromResourceEx, DestroyIcon, SendMessageW, HICON, ICON_BIG, ICON_SMALL, LR_DEFAULTCOLOR, SM_CXICON,
-        SM_CXSMICON, WM_SETICON,
+        CreateIconFromResourceEx, DestroyIcon, SendMessageW, HICON, ICON_BIG, ICON_SMALL, LR_DEFAULTCOLOR, SM_CXSMICON, WM_SETICON,
     };
 
     /// 지금 창에 넣어 둔 아이콘(바꿀 때 앞의 것을 지워요).
     static HELD: Mutex<(usize, usize)> = Mutex::new((0, 0));
 
-    fn make(accent: &str, size: i32) -> HICON {
-        let (png, _) = super::pick(accent, size.max(16) as u32);
+    fn make(png: &[u8], size: i32) -> HICON {
         // PNG를 그대로 아이콘으로 만들어요(윈도우 비스타부터 됨). 0x00030000 = 아이콘 자료 버전.
         unsafe { CreateIconFromResourceEx(png.as_ptr(), png.len() as u32, 1, 0x0003_0000, size, size, LR_DEFAULTCOLOR) }
     }
@@ -129,10 +158,11 @@ mod win {
         unsafe {
             let dpi = GetDpiForWindow(hwnd);
             let dpi = if dpi == 0 { 96 } else { dpi };
-            let big = GetSystemMetricsForDpi(SM_CXICON, dpi).max(32);
+            // 작업표시줄 칸 크기(100% 24 · 125% 30 · 150% 36 · 200% 48)에 딱 맞는 그림을 줘요 — 윈도우가 줄이면 흐려져요.
+            let big = ((24 * dpi + 48) / 96) as i32;
             let small = GetSystemMetricsForDpi(SM_CXSMICON, dpi).max(16);
-            let hb = make(accent, big);
-            let hs = make(accent, small);
+            let hb = make(super::big(accent, big as u32), big);
+            let hs = make(super::small(accent, small as u32), small);
             if !hb.is_null() {
                 SendMessageW(hwnd, WM_SETICON, ICON_BIG as usize, hb as isize);
             }
