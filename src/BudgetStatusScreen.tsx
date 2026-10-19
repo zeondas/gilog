@@ -18,7 +18,8 @@ const CD = "M6 9l6 6 6-6", CR = "M9 6l6 6-6 6", GEAR = "M4 6h16 M4 12h16 M4 18h1
 const KEY = (name: string) => "bstatus." + name;
 const UNIT_KEY = "bstatus.unit", VIEW_KEY = "bstatus.view";
 
-type Col = { id: string; label: string; sub?: string; w: number; num?: boolean };
+type Col = { id: string; label: string; sub?: string; line2?: string; w: number; num?: boolean };
+// sub = 묶음 아래 열 이름(머리 두 줄), line2 = 한 칸 안 줄바꿈(예산현액 ①+②, 집행률 %)
 /** 자세히 머리 줄 두 줄: 위 줄은 묶음 이름(여러 열에 걸침), 아래 줄은 열 이름. sub가 없는 열은 두 줄을 한 칸으로. */
 /** 엑셀 "집행·이월 현황" 열 비율 참고: 숫자 열은 같은 폭, 구분 열은 1.3배쯤 + 설정 단추 자리 */
 const SUM_COLS: Col[] = [
@@ -27,10 +28,10 @@ const SUM_COLS: Col[] = [
   { id: "prev", label: "전년도 이월", w: 152, num: true },
   { id: "act", label: "예산현액", w: 152, num: true },
   { id: "ex", label: "집행액", w: 152, num: true },
-  { id: "rate", label: "집행률", w: 92, num: true },
+  { id: "rate", label: "집행률", w: 112, num: true },
   { id: "left", label: "다음연도 이월", w: 152, num: true },
   { id: "un", label: "불용액", w: 152, num: true },
-  { id: "memo", label: "", w: 36 },
+  { id: "memo", label: "메모", w: 48 },
 ];
 const DET_COLS: Col[] = [
   { id: "name", label: "구분", w: 260 },
@@ -43,17 +44,17 @@ const DET_COLS: Col[] = [
   { id: "prev", label: "전년도 이월", sub: "소계", w: 132, num: true },
   { id: "pm", label: "", sub: "명시이월", w: 132, num: true },
   { id: "ps", label: "", sub: "사고이월", w: 132, num: true },
-  { id: "act", label: "예산현액", sub: "①+②", w: 132, num: true },
+  { id: "act", label: "예산현액", line2: "①+②", w: 132, num: true },
   { id: "ex", label: "집행액", sub: "소계", w: 132, num: true },
   { id: "en", label: "", sub: "당해", w: 132, num: true },
   { id: "em", label: "", sub: "명시", w: 132, num: true },
   { id: "es", label: "", sub: "사고", w: 132, num: true },
-  { id: "rate", label: "집행률", sub: "%", w: 84, num: true },
+  { id: "rate", label: "집행률", line2: "%", w: 112, num: true },
   { id: "left", label: "다음연도 이월", sub: "소계", w: 132, num: true },
   { id: "nm", label: "", sub: "명시이월", w: 132, num: true },
   { id: "ns", label: "", sub: "사고이월", w: 132, num: true },
   { id: "un", label: "불용액", w: 132, num: true },
-  { id: "memo", label: "", w: 36 },
+  { id: "memo", label: "메모", w: 48 },
 ];
 /** 직접 적을 수 있는 칸(재원 줄) */
 const EDIT_FIELDS: (keyof Manual)[] = ["cur", "a1", "a2", "a3", "a4", "pm", "ps", "en", "em", "es", "un"];
@@ -186,7 +187,9 @@ export default function BudgetStatusScreen() {
       {v}
     </div>
   );
-  const num = (v: number | null | undefined, cls = "", title?: string) => cell(v == null ? "" : fmt(v, unit), " n" + cls, title);
+  // 숫자 글자: 0은 "-"(짧은 하이픈), 음수도 하이픈(2026-10-19 사용자 — 긴 줄표는 쓰지 않아요)
+  const fz = (v: number) => (v === 0 ? "-" : fmt(v, unit).replace("−", "-"));
+  const num = (v: number | null | undefined, cls = "", title?: string) => cell(v == null ? "" : fz(v), " n" + cls, title);
   const bar = (rate: number | null, sm: boolean, row: boolean) =>
     rate == null ? (
       ""
@@ -240,7 +243,7 @@ export default function BudgetStatusScreen() {
       if (id === "left") {
         out.push(
           <div className="bd-c n" role="cell" key={id}>
-            {fmt(l.left, unit)}
+            {fz(l.left)}
           </div>,
         );
         continue;
@@ -485,7 +488,13 @@ export default function BudgetStatusScreen() {
             {cols.map((c, i) => {
               const cls = "bd-h" + (c.num ? " bs-hn" : "");
               if (!detail) return <div key={c.id} className={cls} role="columnheader">{c.label}</div>;
-              if (!c.sub) return <div key={c.id} className={cls + " bs-span"} role="columnheader" style={{ gridColumn: `${i + 1}`, gridRow: "1 / span 2" }}>{c.label}</div>;
+              if (!c.sub) {
+                return (
+                  <div key={c.id} className={cls + " bs-span"} role="columnheader" style={{ gridColumn: `${i + 1}`, gridRow: "1 / span 2" }}>
+                    {c.line2 ? <span className="bs-two">{c.label}<br />{c.line2}</span> : c.label}
+                  </div>
+                );
+              }
               // 묶음 머리: 이 열에서 시작해 label 없는 sub 열이 이어지는 만큼 걸쳐요
               let n = 1;
               while (cols[i + n] && cols[i + n].sub && !cols[i + n].label) n++;

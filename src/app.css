@@ -10752,10 +10752,10 @@ body.ew-dragging * {
 .bs .bd-rw > .bd-c.n { justify-content: flex-end; padding: 0 12px; } /* 10억 단위 13자가 양옆 12px 여유로 들어가는 폭(자세히 132·요약 152) */
 .bs .bd-rw { border-bottom-color: var(--line); } /* 구분선은 집행현황보다 진하게(2026-10-19 사용자) */
 .bs .bd-rw > .bd-c { border-right-color: var(--line); }
+.bs .bd-rw > .bd-c:last-child, .bs .bd-h:last-child { border-right: 1px solid var(--line); } /* 메모 뒤에도 세로 선 */
 .bs .bd-rw.pj > .bd-c:first-child .bs-years { margin-left: auto; } /* 연도·⚙는 구분 칸 오른쪽 끝 */
 .bs-kind { margin-right: 4px; }
 .bs-lab2 { margin-left: 8px; } /* 집행현황의 2·9·11·12열 가운데 규칙을 덮어요 — 숫자는 모두 오른쪽 */
-.bs .bd-h.bs-hn { justify-content: flex-end; }
 .bs .bd-rw.pj > .bd-c:first-child { overflow: visible; }
 .bs .bd-rw.pj .bd-nm { flex: 0 1 auto; min-width: 0; }
 .bs-years { flex: none; margin-left: auto; padding-left: 8px; font-size: 11.5px; font-weight: 500; color: var(--muted); white-space: nowrap; }
@@ -10769,9 +10769,11 @@ body.ew-dragging * {
 .bs .bd-rw.edit > .bd-c.n { padding: 0 4px; }
 .bs .bd-rw.edit .bd-in { height: 28px; }
 /* 자세히 머리 줄 두 줄(28+28): 위 줄 묶음 이름은 가운데, 아래 줄 열 이름은 숫자처럼 오른쪽 */
-.bs .bd-h.bs-hn { padding-right: 12px; }
+.bs .bd-h { justify-content: flex-start; padding: 0 12px; } /* 머리 글자는 모두 왼쪽(2026-10-19 사용자) */
+.bs .bd-h.bs-hn { justify-content: flex-start; }
+.bs-two { line-height: 15px; }
 .bs .bd-hd.bs-hd2 { height: 56px; grid-template-rows: 28px 28px; }
-.bs .bd-hd.bs-hd2 .bd-h.bs-grp { justify-content: center; border-bottom: 1px solid var(--line-soft); }
+.bs .bd-hd.bs-hd2 .bd-h.bs-grp { border-bottom: 1px solid var(--line-soft); }
 .bs .bd-hd .bd-h { white-space: nowrap; }
 .bs-setup { display: flex; flex-direction: column; gap: 10px; width: 460px; padding: 10px 12px 8px; }
 .bs-row { display: flex; align-items: center; gap: 8px; }
