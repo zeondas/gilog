@@ -18,13 +18,13 @@ export type FsEntry = {
   group?: string;
 };
 
-/** 폴더가 아닌 자리: 내 PC(드라이브 목록)·홈(윈도우 탐색기 "홈" = 즐겨찾기·최근 파일) — 2026-10-18 사용자, 시안 FilesDrives */
+/** 폴더가 아닌 자리: 내 PC(드라이브 목록)·즐겨찾기(★로 지정한 폴더만 — 2026-10-19 사용자 1안, 예전 "홈" 자리) */
 export const PC = "::pc";
 export const HOME = "::home";
 /** 트리의 내 PC 묶음을 접었는지(tree.open에 들어 있으면 접힘) */
 export const PC_FOLD = "::pc:fold";
 export const isSpecial = (path: string) => path.startsWith("::");
-export const specialName = (path: string) => (path === PC ? "내 PC" : path === HOME ? "홈" : path);
+export const specialName = (path: string) => (path === PC ? "내 PC" : path === HOME ? "즐겨찾기" : path);
 
 export type FsDrive = { name: string; path: string; label: string; kind: string; free: number; total: number };
 

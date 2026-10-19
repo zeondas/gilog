@@ -865,7 +865,7 @@ function DriveRow({ label, desc, list, drives, onSet }: { label: string; desc: s
   return (
     <Row label={label} desc={desc}>
       <span className="fx-set-drives">
-        {[{ name: PC, label: "내 PC" }, ...drives.map((d) => ({ name: d.name, label: `${d.name} ${d.label}` })), { name: HOME, label: "홈" }].map((d) => {
+        {[{ name: PC, label: "내 PC" }, ...drives.map((d) => ({ name: d.name, label: `${d.name} ${d.label}` })), { name: HOME, label: "즐겨찾기" }].map((d) => {
           const on = !list.includes(d.name);
           return (
             <button key={d.name} type="button" className={"chip fx-set-drive" + (on ? " on" : "")} aria-pressed={on} onClick={() => onSet(on ? [...list, d.name] : list.filter((x) => x !== d.name))}>
