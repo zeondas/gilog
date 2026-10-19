@@ -32,10 +32,10 @@ function parts(date: string) {
   return { y, m, d, w: WEEK[new Date(y, m - 1, d).getDay()] };
 }
 
-/** "2026년 10월 15일(목)" */
+/** "2026년 10월 15일 목요일" (2026-10-19 사용자) */
 export function dayTitle(date: string): string {
   const p = parts(date);
-  return `${p.y}년 ${p.m}월 ${p.d}일(${p.w})`;
+  return `${p.y}년 ${p.m}월 ${p.d}일 ${p.w}요일`;
 }
 
 /** 날짜 목록의 한 칸 "15일(목)" */

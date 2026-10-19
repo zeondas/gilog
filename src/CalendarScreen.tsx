@@ -1629,7 +1629,7 @@ function GoogleBox() {
         <span>{g.lastError ? "구글 내보내기 실패" : "구글 캘린더 연동됨"}</span>
       </div>
       <span className={"g-box-sub" + (g.lastError ? " g-err" : "")}>
-        {g.busy ? "내보내는 중…" : g.lastError || "기Log → 구글 한 방향"}
+        {g.busy ? "내보내는 중…" : g.lastError || "기록 → 구글 한 방향"}
         {!g.busy && g.lastOk && <span className="g-box-at">마지막 성공 {whenText(g.lastOk)}</span>}
       </span>
       <button type="button" className="btn btn-xs" disabled={g.busy} onClick={() => exportNow()}>
@@ -1681,14 +1681,14 @@ function NotifyDialog({ onClose }: { onClose: () => void }) {
             {next && ` · 다음 알림 ${shortDay(todayStr(next))} ${String(next.getHours()).padStart(2, "0")}:${String(next.getMinutes()).padStart(2, "0")}`}
           </p>
           <p className="hint">
-            지금 쓰는 이름: {ps ? "PowerShell" : "기Log"}
+            지금 쓰는 이름: {ps ? "PowerShell" : "기록"}
             {st?.shown ? ` · 켠 뒤 띄운 알림 ${st.shown}건` : ""}
             {st?.lastError ? ` · 마지막 오류: ${st.lastError}` : ""}
           </p>
           {err && <p className="note">윈도우가 알림을 거절했어요: {err}</p>}
           {step === "asked" && (
             <div className="ask-band cal-notify-ask">
-              <span>화면 오른쪽 아래에 "기Log 알림 시험"이 보였나요?</span>
+              <span>화면 오른쪽 아래에 "기록 알림 시험"이 보였나요?</span>
               <button type="button" className="btn btn-xs" onClick={() => setStep("done")}>
                 보였어요
               </button>
@@ -1698,12 +1698,12 @@ function NotifyDialog({ onClose }: { onClose: () => void }) {
                 </button>
               ) : (
                 <button type="button" className="btn btn-xs" onClick={() => test(false)}>
-                  안 보였어요 (기Log 이름으로 다시)
+                  안 보였어요 (기록 이름으로 다시)
                 </button>
               )}
             </div>
           )}
-          {step === "done" && <p className="cal-hol-ok">✓ 이 이름({ps ? "PowerShell" : "기Log"})으로 알림을 띄워요.</p>}
+          {step === "done" && <p className="cal-hol-ok">✓ 이 이름({ps ? "PowerShell" : "기록"})으로 알림을 띄워요.</p>}
           <p className="hint">안 보이면 윈도우 설정 → 시스템 → 알림을 확인해 주세요.</p>
         </div>
         <div className="dialog-foot cal-dlg-foot">

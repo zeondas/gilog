@@ -38,7 +38,11 @@ export type Prefs = {
   autoLockMin: number;
   /** 사이드바 접힘 */
   sideCollapsed: boolean;
+  /** 창 닫기(X) 단추 — 작업표시줄로 / 트레이로(처음 값) / 묻고 끝내기 */
+  closeAction: CloseAction;
 };
+
+export type CloseAction = "minimize" | "tray" | "quit";
 
 export const DEFAULT_PREFS: Prefs = {
   dataDir: "",
@@ -51,6 +55,7 @@ export const DEFAULT_PREFS: Prefs = {
   autoLock: true,
   autoLockMin: 10,
   sideCollapsed: false,
+  closeAction: "tray",
 };
 
 /** 저장 쪽이 돌려주는 실패 이름이에요. */
@@ -1275,11 +1280,13 @@ export const api = {
   /** 지금 바로 알림 하나를 띄워 봐요. 실패하면 윈도우가 돌려준 이유로 실패해요. */
   testNotification: () => call<NotifyStatus>("test_notification"),
   notifyStatus: () => call<NotifyStatus>("notify_status"),
-  /** 알림을 PowerShell 이름으로 띄울지 (기Log 이름으로 안 보이는 PC) */
+  /** 알림을 PowerShell 이름으로 띄울지 (기록 이름으로 안 보이는 PC) */
   setNotifyMode: (powershell: boolean) => call<null>("set_notify_mode", { powershell }),
 
   /** 윈도우 입력기를 한글(true) 또는 영문(false) 상태로 바꿔요. 앱 밖에서는 아무 일도 안 해요. */
   /** 첫 화면을 그렸다고 알려요. 숨긴 채 만든 창이 이때 보여요(브라우저에서는 아무 일 없음). */
+  /** "기록을 끝낼까요?"의 끝내기 — 창 자리·크기를 저장하고 앱을 끝내요. */
+  quitApp: () => (inApp ? invoke<null>("quit_app").catch(() => null) : Promise.resolve(null)),
   windowReady: () => (inApp ? invoke<null>("window_ready").catch(() => null) : Promise.resolve(null)),
   setIme: (korean: boolean) => (inApp ? invoke<null>("set_ime", { korean }) : Promise.resolve(null)),
 };
@@ -1310,7 +1317,7 @@ export function errorText(e: unknown): string {
     case "keyring":
       return "윈도우 자격 증명 관리자에 열쇠를 맡기지 못했어요.";
     case "meta":
-      return "기Log 백업 파일이 아니에요.";
+      return "기록 백업 파일이 아니에요.";
     case "invalid":
       return "넣은 값을 확인해 주세요.";
     case "offline":

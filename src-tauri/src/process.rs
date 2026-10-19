@@ -422,7 +422,7 @@ pub fn check_sent(state: State<AppState>, now: String) -> Result<Vec<Case>, Stri
     for c in list.into_iter().filter(|c| c.stage == "queued") {
         let f = PathBuf::from(&c.outbox_file);
         // Claude(민원처리 세션)가 대화에 올린 뒤 "보냄" 폴더에 같은 이름을 써 두면 전송 완료예요.
-        // 세션은 파일을 옮기거나 지울 수 없어서 원본은 기Log가 지워요(2026-10-18).
+        // 세션은 파일을 옮기거나 지울 수 없어서 원본은 기록이 지워요(2026-10-18).
         let done = f.parent().zip(f.file_name()).map(|(d, n)| d.join(SENT_DIR).join(n)).is_some_and(|p| p.is_file());
         if done {
             let _ = fs::remove_file(&f);

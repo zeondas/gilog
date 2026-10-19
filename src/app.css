@@ -1738,28 +1738,6 @@ mark {
   opacity: 0.6;
 }
 
-.jcal-foot {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 10px;
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--line-row);
-  font-size: 11.5px;
-  color: var(--muted);
-}
-
-.jcal-legend {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.jcal-legend .jcal-dot {
-  visibility: visible;
-}
-
 /* 12달 고르기 */
 .jcal-months {
   display: grid;
@@ -1839,7 +1817,7 @@ mark {
   gap: var(--space-2) 20px;
   padding: 10px var(--space-4);
   border: 1px solid var(--line-soft);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   background: var(--surface-side);
 }
 
@@ -2314,10 +2292,6 @@ mark {
   display: flex;
   align-items: flex-start;
   gap: var(--space-2);
-}
-
-.jline-in .jsp-btn {
-  margin-top: calc((var(--size-input) - 24px) / 2);
 }
 
 /* 말 줄 칸: 한 말 안 줄 바꿈(왼쪽 Alt+Enter)이 있으면 글 높이만큼 늘어나요. 한 줄일 때는 다른 입력칸과 같은 높이·글자 자리예요. */
@@ -3808,6 +3782,35 @@ body.col-dragging * {
 }
 
 /* ---------- 할 일 목록 (7단계, 시안 Todo.dc.html) ---------- */
+/* 제목 줄을 맨 위에 두고 그 아래 목록·카드 (2026-10-19 사용자) */
+.td-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* 목록 칸: 맨 위 "새 목록 만들기"(상자 위 끝은 카드 위 끝선보다 4px 아래 — 착시 보정) → 목록(구분선 없음).
+   체크박스는 제목 왼쪽 끝선에 맞추고, 마우스를 올린 회색 바탕은 양쪽으로 8px 넓게(2026-10-19 사용자 — "목록" 글자는 지웠어요) */
+.td-page .td-newlist {
+  margin: 4px 0 var(--space-3);
+  padding: 0;
+  border: 0;
+}
+
+.td-page .td-list {
+  margin: 0 calc(var(--space-2) * -1);
+}
+
+/* 체크박스는 오른쪽으로 2px(글자 자리는 그대로), 건수 숫자는 왼쪽으로 2px (2026-10-19 사용자) */
+.td-page .td-list-box {
+  margin: 0 -2px 0 2px;
+}
+
+.td-page .td-list-count {
+  margin-right: 2px;
+}
+
 .td-screen {
   display: flex;
   align-items: flex-start;
@@ -6737,6 +6740,15 @@ body.col-dragging * {
 }
 
 .pr .ct-head .search {
+  margin-left: auto;
+}
+
+/* 제목 옆에 [신문고 열기]·[민원 불러오기], 검색·공사 관리는 오른쪽 (2026-10-19 사용자) */
+.pr .ct-head .title {
+  margin-right: var(--space-2);
+}
+
+.pr .ct-head .pr-push {
   margin-left: auto;
 }
 
@@ -9886,6 +9898,21 @@ button.bd-chip:hover {
 .fx-nowrap { white-space: nowrap; }
 select.input.fx-set-date { width: 190px; }
 
+/* 닫기(X) 단추 "프로그램 종료" — 끝낼지 묻는 창(2026-10-18 앱 창 세션). 다른 창 위에도 떠요. */
+.overlay.close-ask-ov {
+  z-index: 100;
+}
+
+.dialog.close-ask {
+  width: 360px;
+}
+
+/* 설정 "닫기(X) 단추" 줄 — 종료를 고르면 설명 아래 한 줄 */
+.row-note {
+  display: block;
+  color: var(--danger);
+}
+
 /* 탐색기 머리 줄 도구 모음(2026-10-18 시안): 검색창이 맨 앞, 단추는 아이콘 + 네 글자 */
 .fx-top > .fx-findbox { margin-right: 2px; }
 .fx-tool { gap: 6px; padding: 0; width: 90px; flex: none; justify-content: center; white-space: nowrap; }
@@ -9965,3 +9992,18 @@ select.input.fx-set-date { width: 190px; }
 .fx-pv-info dt { color: var(--muted); }
 .fx-pv-info dd { margin: 0; }
 .fx-pv-path { word-break: break-all; color: var(--muted); }
+
+/* 민원대장: 제목 대신 상태 줄을 위 줄에 (2026-10-19 사용자) — 제목은 화면 읽기용으로만 남겨요 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.cm-top .ct-chips {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-right: var(--space-2);
+}

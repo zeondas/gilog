@@ -416,7 +416,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   if (!works) {
     return (
       <>
-        <h1 className="title">민원처리</h1>
+        <h1 className="title">국민신문고 민원 불러오기</h1>
         {note && <p className="note" role="status">{note}</p>}
       </>
     );
@@ -430,17 +430,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   return (
     <div className="pr">
       <div className="ct-head">
-        <h1 className="title">민원처리</h1>
-        <label className="search">
-          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <circle cx="11" cy="11" r="7" />
-            <path d="M20 20l-3.5-3.5" />
-          </svg>
-          <input type="search" aria-label="민원처리 검색" placeholder="접수번호, 위치, 내용 검색" value={q} onChange={(e) => setQ(e.target.value)} />
-        </label>
-        <button type="button" className="btn btn-ctrl btn-text" onClick={() => setWorksOpen(true)}>
-          공사 관리
-        </button>
+        <h1 className="title">국민신문고 민원 불러오기</h1>
         <button type="button" className="btn btn-ctrl btn-text" title="업무처리포털을 엣지로 열어요. 처음 한 번 로그인해 두면 돼요" onClick={() => (inApp ? api.openPortal(PORTAL_URL).catch((e) => setNote(errText(e))) : window.open(PORTAL_URL, "_blank"))}>
           신문고 열기
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -452,6 +442,16 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
             <path d="M12 3v12M7 10l5 5 5-5M4 19h16" />
           </svg>
           {run ? "불러오는 중…" : "민원 불러오기"}
+        </button>
+        <label className="search pr-push">
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <circle cx="11" cy="11" r="7" />
+            <path d="M20 20l-3.5-3.5" />
+          </svg>
+          <input type="search" aria-label="민원처리 검색" placeholder="접수번호, 위치, 내용 검색" value={q} onChange={(e) => setQ(e.target.value)} />
+        </label>
+        <button type="button" className="btn btn-ctrl btn-text" onClick={() => setWorksOpen(true)}>
+          공사 관리
         </button>
       </div>
 

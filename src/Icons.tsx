@@ -12,7 +12,7 @@ const NAV_PATHS = {
   explorer: "M3 5h6l2 3h10v12H3z",
   complaints: "M3 4h18v16H3z M3 9h18 M3 14.5h18 M9 9v11",
   process: "M5 3h9l5 5v13H5z M14 3v5h5 M8.5 14.5l2.5 2.5 4.5-5",
-  budget: "M3 21h18 M6 21v-7h3v7 M10.5 21V9h3v12 M15 21V4h3v17",
+  budget: "M12 3a9 9 0 1 1 0 18a9 9 0 1 1 0-18z M15 9.3c-.6-.8-1.7-1.3-3-1.3-1.7 0-3 .8-3 2s1.3 1.7 3 2 3 .8 3 2-1.3 2-3 2c-1.3 0-2.4-.5-3-1.3 M12 6.5v11", // 동전 + $ (2026-10-19 사용자 R4, 시안 BudgetIconRef)
   calendar: "M3 5h18v16H3z M3 10h18 M8 3v4 M16 3v4 M7 14h2 M11 14h2 M15 14h2 M7 17.5h2 M11 17.5h2",
   todo: "M20 12v8H4V4h11 M8 11l4 4 9-10",
   journal: "M3 5h12 M3 10h9 M3 15h5 M12 21v-3l7-7 3 3-7 7z",

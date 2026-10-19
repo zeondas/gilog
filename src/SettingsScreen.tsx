@@ -289,7 +289,6 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
         <Row
           label="민원 마감 임박 표시"
           desc="마감이 이 날짜 안으로 들어오면 빨갛게 보여요. 민원대장·민원처리·할 일·업무일지에 함께 적용돼요."
-          last
         >
           <select
             id="urgent-days"
@@ -301,6 +300,37 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
             <option value={3}>3일 전부터</option>
             <option value={5}>5일 전부터</option>
           </select>
+        </Row>
+        <Row
+          k="닫기 X 종료 끝내기 트레이 최소화 작업표시줄 창"
+          label="닫기(X) 단추"
+          desc={
+            <>
+              창의 X를 누르면 이렇게 해요.
+              {prefs.closeAction === "quit" && <span className="row-note">앱이 꺼져 알림이 오지 않아요.</span>}
+            </>
+          }
+          last
+        >
+          <span className="seg" role="radiogroup" aria-label="닫기(X) 단추">
+            {(
+              [
+                ["minimize", "작업표시줄로 내림"],
+                ["tray", "트레이로 보냄"],
+                ["quit", "프로그램 종료"],
+              ] as const
+            ).map(([id, name]) => (
+              <button
+                key={id}
+                type="button"
+                role="radio"
+                aria-checked={(prefs.closeAction || "tray") === id}
+                onClick={() => setPref("closeAction", id)}
+              >
+                {name}
+              </button>
+            ))}
+          </span>
         </Row>
       </section>
 
@@ -756,7 +786,7 @@ function GoogleCard() {
   }
 
   if (!g) return null;
-  const sub = g.busy ? "내보내는 중…" : g.lastError || (g.lastOk ? `기Log → 구글 한 방향 · 마지막 내보내기 ${whenText(g.lastOk)}` : "기Log → 구글 한 방향");
+  const sub = g.busy ? "내보내는 중…" : g.lastError || (g.lastOk ? `기록 → 구글 한 방향 · 마지막 내보내기 ${whenText(g.lastOk)}` : "기록 → 구글 한 방향");
 
   return (
     <section className="card">
@@ -941,7 +971,7 @@ function Row({
   k,
 }: {
   label: string;
-  desc: string;
+  desc: React.ReactNode;
   children: React.ReactNode;
   last?: boolean;
   /** 찾기에만 쓰는 숨은 낱말 */
@@ -1377,7 +1407,7 @@ function PasswordChange() {
 async function pickFolder(): Promise<string | null> {
   if (!inApp) return null;
   const { open } = await import("@tauri-apps/plugin-dialog");
-  const r = await open({ directory: true, title: "기Log 자료를 둘 폴더" });
+  const r = await open({ directory: true, title: "기록 자료를 둘 폴더" });
   return typeof r === "string" ? r : null;
 }
 
@@ -1414,7 +1444,7 @@ function BackupRow({ onLocked, setNote }: { onLocked: () => void; setNote: (s: s
     const path = await save({
       title: "백업 파일 저장",
       defaultPath: `giLog-${today}.gilogbak`,
-      filters: [{ name: "기Log 백업", extensions: ["gilogbak"] }],
+      filters: [{ name: "기록 백업", extensions: ["gilogbak"] }],
     });
     if (!path) return;
     try {
@@ -1428,7 +1458,7 @@ function BackupRow({ onLocked, setNote }: { onLocked: () => void; setNote: (s: s
   async function pickImport() {
     if (!inApp) return;
     const { open } = await import("@tauri-apps/plugin-dialog");
-    const r = await open({ title: "불러올 백업 파일", filters: [{ name: "기Log 백업", extensions: ["gilogbak"] }] });
+    const r = await open({ title: "불러올 백업 파일", filters: [{ name: "기록 백업", extensions: ["gilogbak"] }] });
     if (typeof r === "string") {
       setImportPath(r);
       setMsg("");

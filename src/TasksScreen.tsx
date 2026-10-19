@@ -46,6 +46,8 @@ export default function TasksScreen({ urgentDays, focusId, onFocused, onOpenComp
   /** "완료됨"을 펼친 목록 */
   const [openDone, setOpenDone] = useState<Set<number>>(new Set());
   const [flash, setFlash] = useState<string | null>(null);
+  /** 카드 제목 줄 우클릭 메뉴(목록 지우기) */
+  const [cardMenu, setCardMenu] = useState<{ id: number; x: number; y: number; mode: "menu" | "rename" | "ask" } | null>(null);
   /** 이번에 체크한 민원의 그 전 상태. 체크를 풀면 이 상태로 돌려요. */
   const prevStatus = useRef(new Map<number, string>());
 
@@ -193,151 +195,189 @@ export default function TasksScreen({ urgentDays, focusId, onFocused, onOpenComp
   const remaining = data.lists.reduce((n, l) => n + openCount(itemsOf.get(l.id) ?? []), 0);
   const shown = data.lists.filter((l) => l.visible);
 
+  async function renameList(l: TaskList, name: string): Promise<boolean> {
+    const r = await run(api.renameTaskList(l.id, name), "목록 이름이 비었거나 같은 이름의 목록이 있어요.");
+    if (r) putList(r);
+    return !!r;
+  }
+
+  function moveList(l: TaskList, dir: number) {
+    run(api.moveTaskList(l.id, dir)).then((r) => r && setData((d) => (d ? { ...d, lists: r } : d)));
+  }
+
+  async function deleteList(l: TaskList) {
+    const n = await run(api.deleteTaskList(l.id));
+    if (n === null) return;
+    setData((d) => (d ? { lists: d.lists.filter((x) => x.id !== l.id), tasks: d.tasks.filter((t) => t.list !== l.id) } : d));
+  }
+
+  const menuList = cardMenu ? data.lists.find((l) => l.id === cardMenu.id) : undefined;
+
+  // 제목 줄(제목·남은 일·검색)이 화면 맨 위 전체 폭이고, 그 아래 왼쪽에 목록, 오른쪽에 카드예요(2026-10-19 사용자).
   return (
-    <div className="td-screen">
-      <ListPanel
-        lists={data.lists}
-        counts={(id) => openCount(itemsOf.get(id) ?? [])}
-        taskCount={(id) => data.tasks.filter((t) => t.list === id).length}
-        onToggle={(l) => run(api.setTaskListVisible(l.id, !l.visible)).then((r) => r && putList(r))}
-        onAdd={addList}
-        onRename={async (l, name) => {
-          const r = await run(api.renameTaskList(l.id, name), "목록 이름이 비었거나 같은 이름의 목록이 있어요.");
-          if (r) putList(r);
-          return !!r;
-        }}
-        onMove={(l, dir) => run(api.moveTaskList(l.id, dir)).then((r) => r && setData((d) => (d ? { ...d, lists: r } : d)))}
-        onDelete={async (l) => {
-          const n = await run(api.deleteTaskList(l.id));
-          if (n === null) return;
-          setData((d) => (d ? { lists: d.lists.filter((x) => x.id !== l.id), tasks: d.tasks.filter((t) => t.list !== l.id) } : d));
-        }}
-      />
+    <div className="td-page">
+      <div className="ct-head">
+        <h1 className="title">할 일 목록</h1>
+        <span className="td-summary">남은 일 {remaining}건</span>
+        <label className="search">
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <circle cx="11" cy="11" r="7" />
+            <path d="M20 20l-3.5-3.5" />
+          </svg>
+          <input type="search" aria-label="할 일 검색" placeholder="할 일 검색" value={q} onChange={(e) => setQ(e.target.value)} />
+        </label>
+      </div>
+      {note && <p className="note" role="status">{note}</p>}
+      <div className="td-screen">
+        <ListPanel
+          lists={data.lists}
+          counts={(id) => openCount(itemsOf.get(id) ?? [])}
+          taskCount={(id) => data.tasks.filter((t) => t.list === id).length}
+          onToggle={(l) => run(api.setTaskListVisible(l.id, !l.visible)).then((r) => r && putList(r))}
+          onAdd={addList}
+          onRename={renameList}
+          onMove={moveList}
+          onDelete={deleteList}
+        />
 
-      <div className="td-body">
-        <div className="ct-head">
-          <h1 className="title">할 일 목록</h1>
-          <span className="td-summary">남은 일 {remaining}건</span>
-          <label className="search">
-            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <circle cx="11" cy="11" r="7" />
-              <path d="M20 20l-3.5-3.5" />
-            </svg>
-            <input type="search" aria-label="할 일 검색" placeholder="할 일 검색" value={q} onChange={(e) => setQ(e.target.value)} />
-          </label>
-        </div>
-        {note && <p className="note" role="status">{note}</p>}
-
-        {shown.length ? (
-          <div className="td-cards">
-            {shown.map((l) => {
-              const { open, done } = split(itemsOf.get(l.id) ?? [], lq);
-              const doneOpen = openDone.has(l.id) || (!!lq && done.length > 0);
-              const row = (it: Item, sub: boolean, inDone: boolean): ReactNode => (
-                <ItemRow
-                  key={it.key}
-                  it={it}
-                  sub={sub}
-                  inDone={inDone}
-                  q={lq}
-                  today={today}
-                  urgentDays={urgentDays}
-                  selected={sel === it.key}
-                  flash={flash === it.key}
-                  editing={!!it.task && editId === it.task.id}
-                  onSelect={() => setSel((s) => (s === it.key ? null : it.key))}
-                  onEdit={() => {
-                    if (it.complaint) return onOpenComplaint?.(it.complaint.id);
-                    if (it.task) {
-                      setSel(it.key);
-                      setEditId(it.task.id);
-                    }
-                  }}
-                  onCheck={() => (it.task ? toggleTask(it.task) : it.complaint && toggleComplaint(it.complaint))}
-                  onOpenComplaint={() => it.complaint && onOpenComplaint?.(it.complaint.id)}
-                  onSub={() => it.task && setSubFor(it.task.id)}
-                  onSave={(e) => (it.task ? saveTask(it.task.id, e) : Promise.resolve(false))}
-                  onCancelEdit={() => setEditId(null)}
-                  onRemove={() => it.task && removeTask(it.task.id)}
-                />
-              );
-              return (
-                <section key={l.id} className="td-card" aria-label={l.name}>
-                  <div className="td-card-head">
-                    <h2 className="td-card-name">{l.name}</h2>
-                    {l.builtin && <span className="td-link-badge">민원대장 연동</span>}
-                    <span className="td-card-count">{openCount(itemsOf.get(l.id) ?? [])}건</span>
-                  </div>
-                  <AddForm
-                    open={addFor === l.id}
+        <div className="td-body">
+          {shown.length ? (
+            <div className="td-cards">
+              {shown.map((l) => {
+                const { open, done } = split(itemsOf.get(l.id) ?? [], lq);
+                const doneOpen = openDone.has(l.id) || (!!lq && done.length > 0);
+                const row = (it: Item, sub: boolean, inDone: boolean): ReactNode => (
+                  <ItemRow
+                    key={it.key}
+                    it={it}
+                    sub={sub}
+                    inDone={inDone}
+                    q={lq}
                     today={today}
-                    placeholder="할 일 추가"
-                    onOpen={() => setAddFor(l.id)}
-                    onClose={() => setAddFor((a) => (a === l.id ? null : a))}
-                    onAdd={(v) => addTask({ list: l.id, parent: null, ...v })}
+                    urgentDays={urgentDays}
+                    selected={sel === it.key}
+                    flash={flash === it.key}
+                    editing={!!it.task && editId === it.task.id}
+                    onSelect={() => setSel((s) => (s === it.key ? null : it.key))}
+                    onEdit={() => {
+                      if (it.complaint) return onOpenComplaint?.(it.complaint.id);
+                      if (it.task) {
+                        setSel(it.key);
+                        setEditId(it.task.id);
+                      }
+                    }}
+                    onCheck={() => (it.task ? toggleTask(it.task) : it.complaint && toggleComplaint(it.complaint))}
+                    onOpenComplaint={() => it.complaint && onOpenComplaint?.(it.complaint.id)}
+                    onSub={() => it.task && setSubFor(it.task.id)}
+                    onSave={(e) => (it.task ? saveTask(it.task.id, e) : Promise.resolve(false))}
+                    onCancelEdit={() => setEditId(null)}
+                    onRemove={() => it.task && removeTask(it.task.id)}
                   />
-                  <div className="td-items">
-                    {open.map((it) => (
-                      <div key={it.key} className="td-group">
-                        {row(it, false, false)}
-                        {it.children.map((c) => row(c, true, false))}
-                        {it.task && subFor === it.task.id && (
-                          <div className="td-subadd">
-                            <AddForm
-                              open
-                              sub
-                              today={today}
-                              placeholder="하위 항목 제목"
-                              onOpen={() => {}}
-                              onClose={() => setSubFor(null)}
-                              onAdd={(v) => addTask({ list: l.id, parent: it.task!.id, ...v })}
-                            />
+                );
+                return (
+                  <section key={l.id} className="td-card" aria-label={l.name}>
+                    <div
+                      className="td-card-head"
+                      title="우클릭하면 목록 지우기"
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        const r = e.currentTarget.getBoundingClientRect();
+                        setCardMenu({ id: l.id, x: e.clientX || r.left + 16, y: e.clientY || r.bottom, mode: "menu" });
+                      }}
+                    >
+                      <h2 className="td-card-name">{l.name}</h2>
+                      {l.builtin && <span className="td-link-badge">민원대장 연동</span>}
+                      <span className="td-card-count">{openCount(itemsOf.get(l.id) ?? [])}건</span>
+                    </div>
+                    <AddForm
+                      open={addFor === l.id}
+                      today={today}
+                      placeholder="할 일 추가"
+                      onOpen={() => setAddFor(l.id)}
+                      onClose={() => setAddFor((a) => (a === l.id ? null : a))}
+                      onAdd={(v) => addTask({ list: l.id, parent: null, ...v })}
+                    />
+                    <div className="td-items">
+                      {open.map((it) => (
+                        <div key={it.key} className="td-group">
+                          {row(it, false, false)}
+                          {it.children.map((c) => row(c, true, false))}
+                          {it.task && subFor === it.task.id && (
+                            <div className="td-subadd">
+                              <AddForm
+                                open
+                                sub
+                                today={today}
+                                placeholder="하위 항목 제목"
+                                onOpen={() => {}}
+                                onClose={() => setSubFor(null)}
+                                onAdd={(v) => addTask({ list: l.id, parent: it.task!.id, ...v })}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      {!open.length && <p className="td-empty">{lq ? "찾는 일이 없어요." : "남은 일이 없어요."}</p>}
+                    </div>
+                    {done.length > 0 && (
+                      <div className="td-done">
+                        <button
+                          type="button"
+                          className="td-done-toggle"
+                          aria-expanded={doneOpen}
+                          onClick={() =>
+                            setOpenDone((s) => {
+                              const n = new Set(s);
+                              if (n.has(l.id)) n.delete(l.id);
+                              else n.add(l.id);
+                              return n;
+                            })
+                          }
+                        >
+                          <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ transform: doneOpen ? "rotate(90deg)" : undefined }}>
+                            <path d="M9 5l7 7-7 7" />
+                          </svg>
+                          완료됨 ({done.reduce((n, it) => n + 1 + it.children.length, 0)}개)
+                        </button>
+                        {doneOpen && (
+                          <div className="td-done-list">
+                            {done.map((it) => (
+                              <div key={it.key} className="td-group">
+                                {row(it, !!it.task?.parent, true)}
+                                {it.children.map((c) => row(c, true, true))}
+                              </div>
+                            ))}
                           </div>
                         )}
                       </div>
-                    ))}
-                    {!open.length && <p className="td-empty">{lq ? "찾는 일이 없어요." : "남은 일이 없어요."}</p>}
-                  </div>
-                  {done.length > 0 && (
-                    <div className="td-done">
-                      <button
-                        type="button"
-                        className="td-done-toggle"
-                        aria-expanded={doneOpen}
-                        onClick={() =>
-                          setOpenDone((s) => {
-                            const n = new Set(s);
-                            if (n.has(l.id)) n.delete(l.id);
-                            else n.add(l.id);
-                            return n;
-                          })
-                        }
-                      >
-                        <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ transform: doneOpen ? "rotate(90deg)" : undefined }}>
-                          <path d="M9 5l7 7-7 7" />
-                        </svg>
-                        완료됨 ({done.reduce((n, it) => n + 1 + it.children.length, 0)}개)
-                      </button>
-                      {doneOpen && (
-                        <div className="td-done-list">
-                          {done.map((it) => (
-                            <div key={it.key} className="td-group">
-                              {row(it, !!it.task?.parent, true)}
-                              {it.children.map((c) => row(c, true, true))}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </section>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="muted small">보이는 목록이 없어요. 왼쪽에서 목록을 체크하면 카드가 나와요.</p>
-        )}
+                    )}
+                  </section>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="muted small">보이는 목록이 없어요. 왼쪽에서 목록을 체크하면 카드가 나와요.</p>
+          )}
+        </div>
       </div>
+      {cardMenu && menuList && (
+        <ListMenu
+          {...cardMenu}
+          list={menuList}
+          count={data.tasks.filter((t) => t.list === menuList.id).length}
+          first
+          last
+          deleteOnly
+          onMode={(mode) => setCardMenu({ ...cardMenu, mode })}
+          onClose={() => setCardMenu(null)}
+          onMove={() => {}}
+          onRename={() => {}}
+          onDelete={() => {
+            setCardMenu(null);
+            deleteList(menuList);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -376,7 +416,26 @@ function ListPanel({
 
   return (
     <nav className="td-lists" aria-label="목록">
-      <div className="td-lists-head">목록</div>
+      {/* 새 목록 만들기를 맨 위에 두고, 구분선 아래에 목록 (2026-10-19 사용자) */}
+      <div className="td-newlist">
+        <input
+          className="cell-input"
+          aria-label="새 목록 이름"
+          placeholder="새 목록 만들기"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (isComposing(e)) return;
+            if (e.key === "Enter") {
+              e.preventDefault();
+              add();
+            } else if (e.key === "Escape") setName("");
+          }}
+        />
+        <button type="button" className="btn-icon td-newlist-add" aria-label="목록 추가" onClick={add}>
+          <Plus />
+        </button>
+      </div>
       {lists.map((l) => (
         <button
           key={l.id}
@@ -398,25 +457,6 @@ function ListPanel({
           <span className="td-list-count">{counts(l.id)}</span>
         </button>
       ))}
-      <div className="td-newlist">
-        <input
-          className="cell-input"
-          aria-label="새 목록 이름"
-          placeholder="새 목록 만들기"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => {
-            if (isComposing(e)) return;
-            if (e.key === "Enter") {
-              e.preventDefault();
-              add();
-            } else if (e.key === "Escape") setName("");
-          }}
-        />
-        <button type="button" className="btn-icon td-newlist-add" aria-label="목록 추가" onClick={add}>
-          <Plus />
-        </button>
-      </div>
       {menu && ml && (
         <ListMenu
           {...menu}
@@ -457,6 +497,7 @@ function ListMenu({
   onMove,
   onRename,
   onDelete,
+  deleteOnly,
 }: {
   list: TaskList;
   x: number;
@@ -470,6 +511,8 @@ function ListMenu({
   onMove: (dir: number) => void;
   onRename: (name: string) => void;
   onDelete: () => void;
+  /** 카드 제목 줄 우클릭: 지우기만 보여요 */
+  deleteOnly?: boolean;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const [name, setName] = useState(list.name);
@@ -503,19 +546,23 @@ function ListMenu({
     <div ref={box} className="dmenu" role="menu" aria-label={`${list.name} 목록 메뉴`} style={style}>
       {mode === "menu" && (
         <>
-          {!list.builtin && (
-            <button type="button" role="menuitem" className="dmenu-item" onClick={() => onMode("rename")}>
-              이름 바꾸기
-            </button>
+          {!deleteOnly && (
+            <>
+              {!list.builtin && (
+                <button type="button" role="menuitem" className="dmenu-item" onClick={() => onMode("rename")}>
+                  이름 바꾸기
+                </button>
+              )}
+              <button type="button" role="menuitem" className="dmenu-item" disabled={first} onClick={() => onMove(-1)}>
+                위로 옮기기
+              </button>
+              <button type="button" role="menuitem" className="dmenu-item" disabled={last} onClick={() => onMove(1)}>
+                아래로 옮기기
+              </button>
+            </>
           )}
-          <button type="button" role="menuitem" className="dmenu-item" disabled={first} onClick={() => onMove(-1)}>
-            위로 옮기기
-          </button>
-          <button type="button" role="menuitem" className="dmenu-item" disabled={last} onClick={() => onMove(1)}>
-            아래로 옮기기
-          </button>
           {list.builtin ? (
-            <span className="dmenu-note">민원 목록은 지우거나 이름을 바꿀 수 없어요.</span>
+            <span className="dmenu-note">{deleteOnly ? "민원 목록은 지울 수 없어요." : "민원 목록은 지우거나 이름을 바꿀 수 없어요."}</span>
           ) : (
             <button type="button" role="menuitem" className="dmenu-item danger" onClick={() => onMode("ask")}>
               목록 지우기
