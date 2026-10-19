@@ -75,7 +75,7 @@ ONE = {
 }
 SIX = {  # 23:56 사용자 바로잡음: 입력창 단추 → 검색 → 엑셀(맨 오른쪽)
     "민원대장": {"L": [], "R": [["분류 관리", "@search", "엑셀"]], "orig": True},
-    "민원처리": {"L": [], "R": [["공사 관리", "@search"]], "orig": True},
+    "민원처리": {"L": [], "R": [["공사 관리", "@search"]], "orig": True, "padR": 82},  # 엑셀 없음 → 엑셀 자리(74 + 8) 비움
     "업무일지": {"L": [], "R": [["@search", "엑셀"]], "orig": True},
     "업무연락처": {"L": [], "R": [["프로젝트 관리", "@search", "엑셀"]], "orig": True},
     "집행현황": {"L": [], "R": [["세부사업 추가", "@search", "엑셀"]], "orig": True},
@@ -158,6 +158,7 @@ if(P.groups){
       z.appendChild(gg);} return z;};
   tb.style.display='flex'; tb.style.justifyContent='space-between'; tb.style.columnGap=P.ggap+'px';
   tb.append(gz(spec.L),gz(spec.R));
+  if(spec.padR) tb.lastChild.style.marginRight=spec.padR+'px';
   document.body.appendChild(tb);
   if(spec.orig){for(const el of all){ if(!tb.contains(el)&&!/(^| )jcal/.test(el.className||'')) el.style.visibility='hidden'; } for(const e of document.querySelectorAll('.cm-top > *, .ct-head > *')) if(!tb.contains(e)) e.style.visibility='hidden';}
   const ft=document.querySelector('.fx-tools'); if(ft) ft.style.visibility='hidden';
