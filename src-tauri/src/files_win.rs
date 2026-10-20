@@ -318,7 +318,7 @@ fn parse(path: &str) -> Result<Pidl, String> {
     Ok(Pidl(p))
 }
 
-/// 기록이 메뉴 맨 아래에 더하는 줄 "윈도우 탐색기에서 열기 · 보안 해제"의 번호(윈도우 항목 번호와 겹치지 않게 그 범위 밖)
+/// 기록이 메뉴 맨 아래에 더하는 줄 "보안해제 바로가기"의 번호(윈도우 항목 번호와 겹치지 않게 그 범위 밖)
 const ID_REVEAL: u32 = 0x7F00;
 
 /// 윈도우 우클릭 메뉴를 띄우고 고른 것을 실행해요.
@@ -362,7 +362,7 @@ pub fn context_menu(hwnd_raw: isize, origin: (i32, i32), scale: f64, dir: &str, 
             return Err(format!("query:{hr:?}"));
         }
         if !names.is_empty() {
-            let label = wide("윈도우 탐색기에서 열기 · 보안 해제");
+            let label = wide("보안해제 바로가기");
             let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
             let _ = AppendMenuW(menu, MF_STRING, ID_REVEAL as usize, PCWSTR(label.as_ptr()));
         }
