@@ -8,6 +8,9 @@
 // - [폰 전송] = 지시부의 JPG를 보낼 폴더에 복사 → "보내는 중". Claude가 대화에 올리고 "보냄" 폴더에 써 두면 ✓ 전송 완료(사용자 2안).
 // - 대상이 아닌 건은 줄 끝 ×(작은 묻기 창). 불러오기는 접수번호로만 걸러요 – 표에 없는 번호(지운 건 포함)는 다시 와요(2026-10-20 사용자).
 // - 공사 관리 창: 현장대리인은 업무연락처에서 골라요(같은 연락처 하나 – 쌍방향), 공사명은 업무연락처 프로젝트로도 등록돼요.
+// - 진행 열(2026-10-20 20:42 사용자 1안, 시안 ProcessStatus): 줄 한 줄 44, 맨 끝 "진행" = 글자가 든 게이지 하나(150×22) –
+//   접수 20 · 지시부 40 · 보내는 중 40(빗금) · 보냄 60 · 확인 필요 60(주황 빗금) · 답변 80 · 완료 100, 색은 강조색 진하기(토큰 --pg-*).
+//   보냄 막대를 누르면 보낸 증거 카드, 지시부 현황 단추 넷은 줄 끝 ⋯ 메뉴·줄 우클릭으로. 끝난 줄은 "완료 N건" 띠 아래(처음엔 접힘).
 import { createPortal } from "react-dom";
 import { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, Case, Complaint, Contact, ContactsData, errorText, inApp, Order, OrderResult, previewInbox, RunStatus, Work, WorkInput } from "./api";
@@ -17,7 +20,7 @@ import { DelIcon } from "./Icons";
 import { koIndex, todayStr } from "./journal";
 import { PlaceInput } from "./PlaceInputs";
 import { actionLine, aiGuide, fileName, mailDraft, mailGuide, md, orderLabel, orderTag, PORTAL_URL, processError, SAMPLE_WORKS, SAMPLES } from "./process";
-import { DEFAULT_PROCESS, isClosed, loadSettings, ProcessSettings } from "./settingsStore";
+import { DEFAULT_PROCESS, isAnswered, isClosed, loadSettings, ProcessSettings } from "./settingsStore";
 
 type Props = { urgentDays: number; onOpenComplaint: (id: number) => void };
 
@@ -30,20 +33,24 @@ function workColor(w: Work | undefined, cd: ContactsData | null): number {
 const phoneOf = (c: Contact | undefined) => (c ? c.mobile || c.tel : "");
 
 const FETCHED_KEY = "process.fetched";
-// 2026-10-20 표 줄 정리(시안 ProcessRows)로 처음 폭이 바뀌어 새 키 – 예전에 끈 폭(지시부 320)은 버려요
-const COLS_KEY = "process.colWidths2";
+/** 마지막 불러오기 결과(아래 줄 "새 민원 N건 · 건너뜀 N건 · 걸린 시간 · [로그 열기]") */
+const LAST_RUN_KEY = "process.lastRun";
+type LastRun = { at: string; added: number; skipped: number | null; secs: number; log: string };
+// 2026-10-20 진행 막대(시안 ProcessStatus)로 열이 바뀌어 새 키 – 예전에 끈 폭은 버려요
+const COLS_KEY = "process.colWidths3";
+const MAIL_BOX = "https://mail.korea.kr";
 
 /** 열 제목과 처음 폭. null은 남는 폭을 쓰는 열(민원 요약)이에요. 끌어서 바꾼 폭은 COLS_KEY에 저장해요. */
 const COLUMNS: { label: string; w: number | null; center?: boolean; fixed?: boolean }[] = [
   { label: "", w: 36, fixed: true },
-  { label: "접수번호", w: 144 },
+  { label: "번호", w: 96 },
   { label: "접수", w: 58 },
   { label: "기한", w: 112 },
-  { label: "위치", w: 182 },
-  { label: "민원 요약 · 판단 이유", w: null },
-  { label: "판단 공사", w: 160 },
-  { label: "고려사항", w: 240 },
-  { label: "지시부 현황", w: 150, fixed: true },
+  { label: "위치", w: 170 },
+  { label: "민원 요약", w: null },
+  { label: "판단 공사", w: 160, fixed: true },
+  { label: "고려사항", w: 220 },
+  { label: "진행", w: 190, fixed: true },
 ];
 const defaultWidths = () => COLUMNS.map((c) => c.w);
 
@@ -76,6 +83,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   const [cd, setCd] = useState<ContactsData | null>(null);
   const [ps, setPs] = useState<ProcessSettings>(DEFAULT_PROCESS);
   const [fetched, setFetched] = useState("");
+  const [lastRun, setLastRun] = useState<LastRun | null>(null);
   const [widths, setWidths] = useState<(number | null)[]>(defaultWidths);
   // 목록 안쪽 폭과 세로 스크롤 막대 폭(열 제목 줄 오른쪽을 그만큼 비워 세로선을 맞춰요)
   const [avail, setAvail] = useState(0);
@@ -99,13 +107,23 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   const [sendMenu, setSendMenu] = useState<{ id: number; rect: DOMRect } | null>(null);
   const [mailAsk, setMailAsk] = useState<MailDraft | null>(null);
   const [mailRun, setMailRun] = useState<{ id: number; label: string; n: number } | null>(null);
+  // 줄 끝 ⋯ 메뉴(줄 우클릭도) · 보낸 증거 카드 · 민원 요약에 마우스를 올리면 판단 이유
+  const [menu, setMenu] = useState<{ no: string; rect: DOMRect } | null>(null);
+  const [proof, setProof] = useState<{ id: number; rect: DOMRect } | null>(null);
+  const [tip, setTip] = useState<{ text: string; rect: DOMRect } | null>(null);
+  const tipTimer = useRef(0);
 
   const today = todayStr();
 
   useEffect(() => {
     (async () => {
-      const [pd, cl, cdata, st, f, cw] = await Promise.all([api.processData(), api.complaints(), api.contactsData(), loadSettings(), api.get(FETCHED_KEY), api.get(COLS_KEY)]);
+      const [pd, cl, cdata, st, f, cw, lr] = await Promise.all([api.processData(), api.complaints(), api.contactsData(), loadSettings(), api.get(FETCHED_KEY), api.get(COLS_KEY), api.get(LAST_RUN_KEY)]);
       setWidths(readWidths(cw));
+      try {
+        if (lr) setLastRun(JSON.parse(lr) as LastRun);
+      } catch {
+        /* 예전 자료 – 없는 것으로 */
+      }
       setCases(pd.cases);
       setOrders(pd.orders);
       setComplaints(cl);
@@ -265,6 +283,8 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
       return;
     }
     setRun({ n: 0, total: null });
+    const t0 = Date.now();
+    let skipped: number | null = null;
     const acc = { n: 0, failed: new Set<string>(), missing: 0, added: [] as string[] };
     let st: RunStatus;
     for (;;) {
@@ -272,10 +292,12 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
       st = await api.claudeStatus(ps.inbox).catch(() => ({ state: "error", total: null, done: null, message: "", log: "", skipped: [] }) as RunStatus);
       await pullInbox(acc).catch(() => {});
       setRun({ n: st.done ?? acc.n, total: st.total });
+      if (st.skipCount != null) skipped = st.skipCount;
       if (st.state !== "running") break;
     }
     await pullInbox(acc).catch(() => {});
     setRun(null);
+    const secs = Math.round((Date.now() - t0) / 1000);
     const tail = [acc.failed.size ? `못 읽은 파일 ${[...acc.failed].join(", ")}` : "", acc.missing ? `못 찾은 사진 ${acc.missing}개` : ""].filter(Boolean);
     const head =
       st.state === "login"
@@ -285,11 +307,15 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
           : st.state === "error"
             ? `Claude가 멈췄어요${st.message ? ` – ${st.message}` : ""} · 새 민원 ${acc.n}건`
             : `새 민원 ${acc.n}건`;
-    setNote([head, ...tail].join(" · "));
+    // 잘 끝났으면 결과는 아래 줄(새 민원 · 건너뜀 · 걸린 시간 · 로그)에 남아요 – 안내 줄은 멈춤·오류·못 읽은 것만.
+    setNote(st.state === "done" && !tail.length ? "" : [head, ...tail].join(" · "));
     if (st.state === "error" || st.state === "stopped") setNoteLog(st.log);
     const f = `${stamp()} · 새 민원 ${acc.n}건`;
     setFetched(f);
+    const lr: LastRun = { at: stamp(), added: acc.n, skipped, secs, log: st.log };
+    setLastRun(lr);
     await api.set(FETCHED_KEY, f);
+    await api.set(LAST_RUN_KEY, JSON.stringify(lr));
   }
 
   async function stopFetch() {
@@ -342,9 +368,11 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     setMailRun(null);
     if (st.state === "done") {
       const at = `${todayStr()} ${stamp().slice(6)}`;
+      // 보내기는 됐는데 보낸메일함에서 같은 제목을 못 찾았으면 "확인 필요"(Claude 마지막 답 MAIL_UNCONFIRMED)
+      const ok = st.message !== "unconfirmed";
       try {
-        putOrder(await api.orderMailed(o.id, m.to, at));
-        setNote(`${m.label}을 ${m.toName || m.to} 현장대리인에게 메일로 보냈어요 · ${at.slice(11)}`);
+        putOrder(await api.orderMailed(o.id, m.to, at, m.subject, ok));
+        setNote(ok ? `${m.label}을 ${m.toName || m.to} 현장대리인에게 메일로 보냈어요 · ${at.slice(11)}` : `${m.label} 메일 – 보낸메일함에서 같은 제목을 못 찾았어요 · 진행 막대를 눌러 확인해 주세요`);
       } catch (e) {
         setNote(errText(e));
       }
@@ -527,11 +555,11 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
 
   // 바깥 누르기·Esc로 뜨는 것 닫기
   useEffect(() => {
-    if (!pick && !ask) return;
-    const key = (e: KeyboardEvent) => e.key === "Escape" && (setPick(null), setAsk(null));
+    if (!pick && !ask && !menu && !proof) return;
+    const key = (e: KeyboardEvent) => e.key === "Escape" && (setPick(null), setAsk(null), setMenu(null), setProof(null));
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [pick, ask]);
+  }, [pick, ask, menu, proof]);
 
   // 목록 안쪽 폭과 스크롤 막대 폭을 재요(창 크기·줄 수가 바뀌면 다시).
   useEffect(() => {
@@ -574,6 +602,170 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   const total = cases.filter((c) => !isDone(c)).length;
   const shownWidths = fitWidths(widths, avail);
   const tableStyle = { "--pr-cols": gridTemplate(shownWidths), "--pr-gutter": `${gutter}px` } as CSSProperties;
+
+  /** 진행 막대 한 칸(2026-10-20 1안): 채움·단계(색 진하기)·글자·아이콘 – 민원대장 답변·완료가 지시부보다 앞서요. */
+  const progOf = (c: Case): Prog => {
+    const m = linked(c);
+    if (m && isClosed(m.status)) return { pct: 100, step: 5, label: m.status, kind: "done" };
+    if (m && isAnswered(m.status)) return { pct: 80, step: 4, label: m.status, kind: "answer" };
+    const o = orderOf(c);
+    if (o ? busy[o.id] : busy[`c${c.no}`]) return { pct: 40, step: 2, label: "만드는 중", icon: "doc", hatch: true, kind: "busy" };
+    if (!o) return { pct: 20, step: 1, label: "접수", kind: "new" };
+    if (mailRun?.id === o.id) return { pct: 40, step: 2, label: "보내는 중", icon: "mail", hatch: true, kind: "sending" };
+    if (o.stage === "queued") return { pct: 40, step: 2, label: "보내는 중", icon: "phone", hatch: true, kind: "sending" };
+    if (o.mailedAt)
+      return o.mailOk === false
+        ? { pct: 60, step: 3, label: "확인 필요", icon: "warn", warn: true, kind: "proof" }
+        : { pct: 60, step: 3, label: `메일 보냄 ${o.mailedAt.slice(5, 10)}`, icon: "mail", check: true, kind: "proof" };
+    if (o.stage === "sent") return { pct: 60, step: 3, label: `폰 보냄 ${(o.sentAt || "").slice(5, 10)}`.trim(), icon: "phone", check: true, kind: "proof" };
+    return { pct: 40, step: 2, label: "지시부", icon: "doc", kind: "order" };
+  };
+
+  const openMenu = (c: Case, rect: DOMRect) => {
+    setPick(null);
+    setAsk(null);
+    setProof(null);
+    setMenu(menu?.no === c.no ? null : { no: c.no, rect });
+  };
+
+  const renderRow = (c: Case) => {
+    const w = works.find((x) => x.id === c.work);
+    const isD = isDone(c);
+    const left = c.due ? daysBetween(today, c.due) : null;
+    const k = workColor(w, cd);
+    const o = orderOf(c);
+    const b = o ? busy[o.id] : undefined;
+    const picked = chosen.includes(c.no);
+    const p = progOf(c);
+    const m = linked(c);
+    const why = [c.reason, c.road ? `원래 주소 ${c.road}` : ""].filter(Boolean).join(" · ");
+    const barTitle =
+      p.kind === "proof"
+        ? "눌러서 보낸 증거 보기"
+        : p.kind === "order"
+          ? `지시부 열기 · ${orderLabel(works.find((x) => x.id === o?.work)?.name ?? "", o?.seq ?? 0, c.item)}번째 항목${o?.dirty ? " · 다시 만들어야 해요" : " · 보내기 전"}`
+          : p.kind === "answer" || p.kind === "done"
+            ? `민원대장 ${m?.no ?? ""}번 · 눌러서 그 줄로 가요`
+            : p.kind === "sending"
+              ? "보내는 중이에요"
+              : p.kind === "busy"
+                ? "지시부를 만들고 있어요"
+                : "가져왔고 아직 지시부 전이에요";
+    return (
+      <div
+        key={c.no}
+        className="pr-row"
+        role="row"
+        data-sel={sel === c.no || ask?.no === c.no || menu?.no === c.no || picked ? "1" : undefined}
+        data-done={isD ? "1" : undefined}
+        onClick={() => setSel(sel === c.no ? null : c.no)}
+        onDoubleClick={() => c.complaint != null && onOpenComplaint(c.complaint)}
+        onContextMenu={(e) => {
+          if ((e.target as HTMLElement).closest("input, textarea")) return;
+          e.preventDefault();
+          openMenu(c, new DOMRect(e.clientX, e.clientY, 0, 0));
+        }}
+      >
+        <div className="pr-check" onClick={(e) => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            aria-label={`${c.no} 고르기`}
+            checked={picked}
+            disabled={!picked && !canChoose(c)}
+            title={
+              c.order != null
+                ? "이 지시부 고르기(같은 지시부 줄이 함께 골라져요)"
+                : c.work == null
+                  ? "먼저 공사를 골라요"
+                  : !picked && !canChoose(c)
+                    ? "같은 공사만 함께 고를 수 있어요"
+                    : "지시부로 묶을 민원 고르기"
+            }
+            onChange={() => toggle(c)}
+          />
+        </div>
+        <div className="pr-no">
+          <button
+            type="button"
+            className="pr-no-link"
+            title={`${c.no} · 누르면 전체 번호를 복사하고 신문고를 열어요`}
+            onClick={(e) => {
+              e.stopPropagation();
+              openCase(c.no);
+            }}
+          >
+            {shortNo(c.no)}
+          </button>
+        </div>
+        <div className="pr-date">{md(c.received)}</div>
+        <div className="pr-date pr-due">
+          <span className={isD ? "pr-strike" : undefined}>{md(c.due)}</span>
+          {!isD && left !== null && (
+            <span className={"pr-d" + (left <= urgentDays ? " urgent" : left <= urgentDays + 1 ? " soon" : "")}>
+              {left > 0 ? `D-${left}` : left === 0 ? "D-day" : `D+${-left}`}
+            </span>
+          )}
+        </div>
+        <PlaceCell c={c} disabled={isD || !!b} onSave={(a, pl, r) => saveAddress(c, a, pl, r)} />
+        <div
+          className="pr-sum"
+          onMouseEnter={(e) => {
+            if (!why) return;
+            const rect = (e.currentTarget.firstElementChild as HTMLElement).getBoundingClientRect();
+            window.clearTimeout(tipTimer.current);
+            tipTimer.current = window.setTimeout(() => setTip({ text: why, rect }), 250);
+          }}
+          onMouseLeave={() => {
+            window.clearTimeout(tipTimer.current);
+            setTip(null);
+          }}
+        >
+          <span className={"pr-sum-t" + (why ? " has-tip" : "")}>{c.summary}</span>
+        </div>
+        <div>
+          <button
+            type="button"
+            className={"pr-work" + (w ? "" : " none")}
+            style={w ? ({ "--wc": `var(--pj-${k}-line)`, "--wf": `var(--pj-${k}-fg)` } as CSSProperties) : undefined}
+            disabled={isD || !!b}
+            title={isD ? w?.name : c.order == null ? (w ? `${w.name}\n눌러서 공사 바꾸기` : "눌러서 공사 고르기") : `${w?.name ?? ""}\n공사를 바꾸면 이 지시부에서 빠져요(남은 건으로 다시 만들어요)`}
+            onClick={(e) => {
+              e.stopPropagation();
+              setAsk(null);
+              setMenu(null);
+              setPick(pick?.no === c.no ? null : { no: c.no, rect: e.currentTarget.getBoundingClientRect() });
+            }}
+          >
+            {w ? w.name : "– 공사 고르기"}
+          </button>
+        </div>
+        <div onClick={(e) => e.stopPropagation()}>
+          <TextCell value={c.note} disabled={isD} placeholder={isD ? "" : "예: 야간 작업, 교통 통제 협의"} onSave={(v) => patch(c.no, { note: v })} />
+        </div>
+        <div className="pr-prog" onClick={(e) => e.stopPropagation()}>
+          <Gauge
+            p={p}
+            title={barTitle}
+            onClick={
+              p.kind === "proof" && o
+                ? (e) => {
+                    setMenu(null);
+                    setProof(proof?.id === o.id ? null : { id: o.id, rect: e.currentTarget.getBoundingClientRect() });
+                  }
+                : p.kind === "order" && o?.file
+                  ? () => openFile(o.file)
+                  : (p.kind === "answer" || p.kind === "done") && m
+                    ? () => onOpenComplaint(m.id)
+                    : undefined
+            }
+          />
+          <button type="button" className={"pr-more" + (menu?.no === c.no ? " on" : "")} aria-label="이 민원 메뉴" aria-haspopup="menu" aria-expanded={menu?.no === c.no} title="지시부 · 저장 폴더 · 민원대장 · 지우기" onClick={(e) => openMenu(c, e.currentTarget.getBoundingClientRect())}>
+            <MoreIcon />
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="pr">
@@ -732,182 +924,42 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
       <div className="pr-table" role="table" aria-label="민원처리 목록" style={tableStyle}>
         <HeadRow widths={shownWidths} avail={avail} onResize={setWidths} onResized={saveWidths} onReset={() => saveWidths(defaultWidths())} />
         <div className="pr-body" ref={bodyRef}>
-          {rows.length === 0 && (
+          {open.length === 0 && (
             <p className="pr-empty">{cases.length === 0 ? "[민원 불러오기]를 누르면 Claude가 신문고에서 기록에 없는 민원을 가져와요." : q ? "찾는 민원이 없어요." : "처리할 민원이 없어요."}</p>
           )}
-          {rows.map((c) => {
-            const w = works.find((x) => x.id === c.work);
-            const isD = isDone(c);
-            const left = c.due ? daysBetween(today, c.due) : null;
-            const k = workColor(w, cd);
-            const asking = ask?.no === c.no;
-            const o = orderOf(c);
-            const ow = o ? works.find((x) => x.id === o.work) : undefined;
-            const b = o ? busy[o.id] : undefined;
-            const picked = chosen.includes(c.no);
-            return (
-              <div
-                key={c.no}
-                className="pr-row"
-                role="row"
-                data-sel={sel === c.no || asking || picked ? "1" : undefined}
-                data-done={isD ? "1" : undefined}
-                onClick={() => setSel(sel === c.no ? null : c.no)}
-                onDoubleClick={() => c.complaint != null && onOpenComplaint(c.complaint)}
-              >
-                <div className="pr-check" onClick={(e) => e.stopPropagation()}>
-                  <input
-                    type="checkbox"
-                    aria-label={`${c.no} 고르기`}
-                    checked={picked}
-                    disabled={!picked && !canChoose(c)}
-                    title={
-                      c.order != null
-                        ? "이 지시부 고르기(같은 지시부 줄이 함께 골라져요)"
-                        : c.work == null
-                          ? "먼저 공사를 골라요"
-                          : !picked && !canChoose(c)
-                            ? "같은 공사만 함께 고를 수 있어요"
-                            : "지시부로 묶을 민원 고르기"
-                    }
-                    onChange={() => toggle(c)}
-                  />
-                </div>
-                <div className="pr-no">
-                  <button
-                    type="button"
-                    className="pr-no-link"
-                    title="신문고를 열고 접수번호를 복사해요. 신문고 검색 칸에 붙여 넣으세요(Ctrl+V)"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openCase(c.no);
-                    }}
-                  >
-                    {c.no}
-                  </button>
-                </div>
-                <div className="pr-date">{md(c.received)}</div>
-                <div className="pr-date pr-due">
-                  <span>{md(c.due)}</span>
-                  {!isD && left !== null && (
-                    <span className={"pr-d" + (left <= urgentDays ? " urgent" : left <= urgentDays + 1 ? " soon" : "")}>
-                      {left > 0 ? `D-${left}` : left === 0 ? "D-day" : `D+${-left}`}
-                    </span>
-                  )}
-                </div>
-                <PlaceCell c={c} disabled={isD || !!b} onSave={(a, p, r) => saveAddress(c, a, p, r)} />
-                <div className="pr-sum" title={[c.summary, c.reason, c.road ? `원래 주소 ${c.road}` : ""].filter(Boolean).join("\n")}>
-                  <span className="pr-sum-t">{c.summary}</span>
-                  <span className="pr-sub">
-                    {c.reason}
-                    {c.road && <span className="pr-road">원래 주소 {c.road}</span>}
-                  </span>
-                </div>
-                <div>
-                  <button
-                    type="button"
-                    className={"pr-work" + (w ? "" : " none")}
-                    style={w ? ({ "--wc": `var(--pj-${k}-line)`, "--wf": `var(--pj-${k}-fg)` } as CSSProperties) : undefined}
-                    disabled={isD || !!b}
-                    title={isD ? w?.name : c.order == null ? (w ? `${w.name}\n눌러서 공사 바꾸기` : "눌러서 공사 고르기") : `${w?.name ?? ""}\n공사를 바꾸면 이 지시부에서 빠져요(남은 건으로 다시 만들어요)`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setAsk(null);
-                      setPick(pick?.no === c.no ? null : { no: c.no, rect: e.currentTarget.getBoundingClientRect() });
-                    }}
-                  >
-                    {w ? w.name : "– 공사 고르기"}
-                  </button>
-                </div>
-                <div onClick={(e) => e.stopPropagation()}>
-                  <TextCell value={c.note} disabled={isD} placeholder={isD ? "" : "예: 야간 작업, 교통 통제 협의"} onSave={(v) => patch(c.no, { note: v })} />
-                </div>
-                <div className="pr-acts" onClick={(e) => e.stopPropagation()}>
-                  {/* 지시부 현황 단추 넷 – 지시부(이 건만 만들기 / 열기) · 저장 폴더 · 민원대장 · 지우기 (2026-10-20 사용자, 시안 ProcessRows) */}
-                  {o ? (
-                    <button
-                      type="button"
-                      className={"pr-icon pr-doc" + (o.mailedAt || o.stage === "sent" ? " done" : " on")}
-                      aria-label="지시부 열기"
-                      title={`지시부 열기 · ${orderLabel(ow?.name ?? "", o.seq, c.item)}번째 항목${b ? ` · ${b}` : o.dirty ? " · 다시 만들어야 해요" : o.mailedAt ? ` · 메일 보냄 ${o.mailedAt.slice(5)}` : o.stage === "sent" ? " · 폰 전송 완료" : o.stage === "queued" ? " · 폰으로 보내는 중" : " · 보내기 전"}\n${fileName(o.file)}`}
-                      disabled={!o.file}
-                      onClick={() => openFile(o.file)}
-                    >
-                      <DocIcon />
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="pr-icon pr-doc"
-                      aria-label="이 건만으로 지시부 만들기"
-                      title={busy[`c${c.no}`] ? "지시부를 만들고 있어요" : isD ? "민원대장에서 끝난 건이에요" : w ? `이 건만으로 지시부 만들기\n${w.name}-${String(w.nextSeq).padStart(2, "0")}` : "먼저 공사를 골라요"}
-                      disabled={!w || isD || !!busy[`c${c.no}`]}
-                      onClick={() => {
-                        setChosen((l) => l.filter((n) => n !== c.no));
-                        runOrder({ nos: [c.no], order: null }, `c${c.no}`);
-                      }}
-                    >
-                      <DocPlusIcon />
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="pr-icon"
-                    aria-label="저장 폴더 열기"
-                    title="저장 폴더를 열어 이 민원 파일을 보여요"
-                    onClick={() => {
-                      const f = o?.file || c.photos[0] || c.map;
-                      openFile(f || c.folder || ps.root, !!f);
-                    }}
-                  >
-                    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    className={"pr-icon pr-reg" + (linked(c) ? " on" : "")}
-                    aria-label={linked(c) ? `민원대장 ${linked(c)!.no}번 보기` : "민원대장에 추가"}
-                    title={linked(c) ? `민원대장 ${linked(c)!.no}번 · 눌러서 그 줄로 가요` : "민원대장에 추가해요(지시부 없이도 돼요. 지시부를 만들면 조치내용이 채워져요)"}
-                    onClick={() => register(c)}
-                  >
-                    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="miter">
-                      <path d={linked(c) ? "M3 4h18v16H3z M3 9h18 M3 14.5h18 M9 9v11" : "M3 4h18v7 M3 4v16h9 M3 9h18 M9 9v11 M18 14v8 M14 18h8"} />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    className={"pr-del" + (asking ? " on" : "")}
-                    aria-label="이 민원 지우기"
-                    aria-expanded={asking}
-                    title={c.order != null ? "지시부를 만들 건이 아니면 지워요(이 지시부에서도 빠져요)" : "지시부를 만들 건이 아니면 지워요"}
-                    onClick={(e) => {
-                      setPick(null);
-                      setAsk(asking ? null : { no: c.no, rect: e.currentTarget.getBoundingClientRect() });
-                    }}
-                  >
-                    <DelIcon />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+          {open.map(renderRow)}
+          {done.length > 0 && (
+            <div className="pr-doneband">
+              <span className="pr-doneband-t">완료 {done.length}건</span>
+              <button type="button" className="btn btn-xs" aria-expanded={showDone} onClick={() => setShowDone(!showDone)}>
+                {showDone ? "숨기기" : "보기"}
+              </button>
+            </div>
+          )}
+          {showDone && done.map(renderRow)}
         </div>
       </div>
 
       <div className="pr-foot">
         <span>
-          {fetched ? `마지막 불러오기 ${fetched} · ` : ""}처리 중 {total}건
+          {lastRun ? `마지막 불러오기 ${lastRun.at} · ` : fetched ? `마지막 불러오기 ${fetched} · ` : ""}처리 중 {total}건
         </span>
-        {done.length > 0 || showDone ? (
-          <button type="button" className="btn btn-xs" aria-expanded={showDone} onClick={() => setShowDone(!showDone)}>
-            {showDone ? "완료 숨기기" : `완료 ${done.length}건 보기`}
-          </button>
-        ) : null}
+        {lastRun && (
+          <>
+            <span className="pr-lastrun">
+              새 민원 {lastRun.added}건{lastRun.skipped != null ? ` · 건너뜀 ${lastRun.skipped}건` : ""} · {duration(lastRun.secs)}
+            </span>
+            {lastRun.log && (
+              <button type="button" className="btn btn-xs" title="Claude 실행 기록(_claude.log)을 탐색기에서 보여 줘요" onClick={() => openFile(lastRun.log, true)}>
+                로그 열기
+              </button>
+            )}
+          </>
+        )}
         {note && (
           <span className="pr-note" role="status">
             {note}
-            {noteLog && (
+            {noteLog && noteLog !== lastRun?.log && (
               <button type="button" className="btn btn-xs pr-log" title="Claude 실행 기록(_claude.log)을 탐색기에서 보여 줘요" onClick={() => openFile(noteLog, true)}>
                 로그 열기
               </button>
@@ -920,6 +972,157 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
         </button>
       </div>
 
+      {tip &&
+        createPortal(
+          <div className="pr-tip" role="tooltip" style={{ top: Math.round(tip.rect.bottom + 4), left: Math.round(tip.rect.left) }}>
+            <span className="pr-tip-k">판단 이유 · </span>
+            {tip.text}
+          </div>,
+          document.body,
+        )}
+
+      {menu &&
+        (() => {
+          const c = cases.find((x) => x.no === menu.no);
+          if (!c) return null;
+          const o = orderOf(c);
+          const w = works.find((x) => x.id === c.work);
+          const isD = isDone(c);
+          const m = linked(c);
+          const close = () => setMenu(null);
+          return (
+            <Floating rect={menu.rect} align="right" onClose={close}>
+              <div className="dmenu pr-rowmenu" role="menu" aria-label="이 민원">
+                {o ? (
+                  <button type="button" role="menuitem" className="dmenu-item" disabled={!o.file} onClick={() => (close(), openFile(o.file))}>
+                    <DocIcon />
+                    지시부 열기
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="dmenu-item"
+                    disabled={!w || isD || !!busy[`c${c.no}`]}
+                    title={!w ? "먼저 공사를 골라요" : isD ? "민원대장에서 끝난 건이에요" : `${w.name}-${String(w.nextSeq).padStart(2, "0")}`}
+                    onClick={() => {
+                      close();
+                      setChosen((l) => l.filter((n) => n !== c.no));
+                      runOrder({ nos: [c.no], order: null }, `c${c.no}`);
+                    }}
+                  >
+                    <DocPlusIcon />
+                    이 건만 지시부 만들기
+                  </button>
+                )}
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="dmenu-item"
+                  onClick={() => {
+                    close();
+                    const f = o?.file || c.photos[0] || c.map;
+                    openFile(f || c.folder || ps.root, !!f);
+                  }}
+                >
+                  <FolderIcon />
+                  저장 폴더 열기
+                </button>
+                <button type="button" role="menuitem" className="dmenu-item" onClick={() => (close(), register(c))}>
+                  <TableIcon add={!m} />
+                  {m ? `민원대장 ${m.no}번 보기` : "민원대장에 추가"}
+                </button>
+                <div className="dmenu-sep" />
+                <button type="button" role="menuitem" className="dmenu-item danger" onClick={() => (close(), setAsk({ no: c.no, rect: menu.rect }))}>
+                  <DelIcon />
+                  지우기
+                </button>
+              </div>
+            </Floating>
+          );
+        })()}
+
+      {proof &&
+        (() => {
+          const o = orders.find((x) => x.id === proof.id);
+          if (!o) return null;
+          const r = recipientOf(o);
+          const files = [o.file, ...o.jpgs].filter(Boolean).map(fileName);
+          const mail = !!o.mailedAt;
+          const ok = !mail || o.mailOk !== false;
+          const mailLog = `${ps.outbox}\\메일\\_claude.log`;
+          const openBox = () => (inApp ? api.openPortal(MAIL_BOX).catch((e) => setNote(errText(e))) : window.open(MAIL_BOX, "_blank"));
+          return (
+            <Floating rect={proof.rect} align="right" onClose={() => setProof(null)}>
+              <div className={"pr-proof" + (ok ? "" : " warn")} role="dialog" aria-label="보낸 증거">
+                <div className="pr-proof-h">
+                  {ok ? <CheckIcon /> : <WarnIcon />}
+                  {mail ? (ok ? "메일 보냄 · 확인됨" : "확인 필요 · 보낸메일함에서 못 찾았어요") : "폰 보냄 · 확인됨"}
+                </div>
+                {mail ? (
+                  <>
+                    <ProofRow k="받는 사람" v={[r.name && `${r.name} 현장대리인`, o.mailTo].filter(Boolean).join(" · ")} />
+                    <ProofRow k="보낸 시각" v={`${o.mailedAt} (Claude가 보냄)`} />
+                    <ProofRow k={`첨부 ${files.length}개`} v={files.join(" · ")} />
+                    <ProofRow k="보낸메일함" v={o.mailSubject ? `“${o.mailSubject}” – ${ok ? "맨 위에서 확인" : "같은 제목이 없어요"}` : ok ? "Claude가 확인했어요" : "같은 제목이 없어요"} />
+                  </>
+                ) : (
+                  <>
+                    <ProofRow k="보낸 곳" v="Claude 앱 “민원처리” 대화(내 폰)" />
+                    <ProofRow k="보낸 시각" v={o.sentAt || "–"} />
+                    <ProofRow k={`JPG ${o.jpgs.length}장`} v={o.jpgs.map(fileName).join(" · ")} />
+                  </>
+                )}
+                <div className="pr-proof-b">
+                  {mail && !ok ? (
+                    <>
+                      <button type="button" className="btn-primary btn-sm" onClick={openBox}>
+                        보낸메일함 열기
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        onClick={async () => {
+                          setProof(null);
+                          try {
+                            putOrder(await api.orderMailed(o.id, o.mailTo ?? "", o.mailedAt ?? "", o.mailSubject, true));
+                          } catch (e) {
+                            setNote(errText(e));
+                          }
+                        }}
+                      >
+                        보냈어요로 표시
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        onClick={() => {
+                          setProof(null);
+                          openMail(o);
+                        }}
+                      >
+                        다시 보내기
+                      </button>
+                    </>
+                  ) : mail ? (
+                    <>
+                      <button type="button" className="btn btn-sm" onClick={openBox}>
+                        보낸메일함 열기
+                      </button>
+                      <button type="button" className="btn btn-sm" onClick={() => openFile(mailLog, true)}>
+                        로그 열기
+                      </button>
+                    </>
+                  ) : (
+                    <button type="button" className="btn btn-sm" onClick={() => openFile(o.jpgs[0] || o.file, true)}>
+                      폴더 열기
+                    </button>
+                  )}
+                </div>
+              </div>
+            </Floating>
+          );
+        })()}
       {pick && pickCase && (
         <Floating rect={pick.rect} align="left" onClose={() => setPick(null)}>
           <div className="pr-menu" role="listbox" aria-label="공사 고르기">
@@ -1669,9 +1872,9 @@ function DocIcon() {
 }
 
 /** 이 건만으로 지시부 만들기 – 문서 + 더하기 */
-function DocPlusIcon() {
+function DocPlusIcon({ size = 14 }: { size?: number }) {
   return (
-    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M13 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v4" />
       <path d="M14 3v5h5M18 15v6M15 18h6" />
     </svg>
@@ -1688,25 +1891,25 @@ function WorkTag({ w, cd }: { w: Work; cd: ContactsData | null }) {
   );
 }
 
-function MailIcon() {
+function MailIcon({ size = 13 }: { size?: number }) {
   return (
-    <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 5h18v14H3z M3 6l9 7 9-7" />
     </svg>
   );
 }
 
-function PhoneIcon() {
+function PhoneIcon({ size = 13 }: { size?: number }) {
   return (
-    <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M7 3h10v18H7z M11 18h2" />
     </svg>
   );
 }
 
-function CheckIcon() {
+function CheckIcon({ size = 13 }: { size?: number }) {
   return (
-    <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+    <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
       <path d="M5 12l5 5 9-10" />
     </svg>
   );
@@ -1769,5 +1972,96 @@ function MailDialog({ draft, files, from, onChange, onSend, onClose }: { draft: 
         </div>
       </div>
     </div>
+  );
+}
+
+// ---------- 진행 막대 · 보낸 증거 카드 (2026-10-20 사용자 1안, 시안 ProcessStatus) ----------
+
+type Prog = {
+  pct: number;
+  /** 색 진하기 1~5(--pg-1~5) */
+  step: number;
+  label: string;
+  icon?: "doc" | "mail" | "phone" | "warn";
+  check?: boolean;
+  /** 보내는 중·만드는 중 – 빗금 */
+  hatch?: boolean;
+  /** 확인 필요 – 주황 빗금 */
+  warn?: boolean;
+  kind: "new" | "busy" | "order" | "sending" | "proof" | "answer" | "done";
+};
+
+/** 접수번호 마지막 묶음 7자리(1AA-2610-0527749 → 0527749) */
+const shortNo = (no: string) => no.split(/[\s/]/)[0].split("-").pop() || no;
+
+/** 걸린 시간: 42초 · 1분 42초 */
+const duration = (secs: number) => (secs < 60 ? `${secs}초` : `${Math.floor(secs / 60)}분${secs % 60 ? ` ${secs % 60}초` : ""}`);
+
+function Gauge({ p, title, onClick }: { p: Prog; title: string; onClick?: (e: ReactMouseEvent<HTMLElement>) => void }) {
+  const cls = "pr-gauge" + (p.step >= 4 ? " strong" : "") + (p.warn ? " warn" : "") + (p.hatch ? " hatch" : "") + (onClick ? " go" : "");
+  const inner = (
+    <>
+      <span className="pr-gauge-fill" style={{ width: `${p.pct}%`, background: p.warn ? undefined : `var(--pg-${p.step})` }} />
+      <span className="pr-gauge-t">
+        {p.icon === "doc" ? <DocPlusIcon size={12} /> : p.icon === "mail" ? <MailIcon size={12} /> : p.icon === "phone" ? <PhoneIcon size={12} /> : p.icon === "warn" ? <WarnIcon size={12} /> : null}
+        {p.label}
+        {p.check && <CheckIcon size={12} />}
+      </span>
+    </>
+  );
+  return onClick ? (
+    <button type="button" className={cls} title={title} aria-label={`진행 ${p.pct}% · ${p.label}`} onClick={onClick}>
+      {inner}
+    </button>
+  ) : (
+    <span className={cls} title={title} role="img" aria-label={`진행 ${p.pct}% · ${p.label}`}>
+      {inner}
+    </span>
+  );
+}
+
+function ProofRow({ k, v }: { k: string; v: string }) {
+  return (
+    <div className="pr-proof-r">
+      <span className="pr-proof-k">{k}</span>
+      <span className="pr-proof-v" title={v}>
+        {v}
+      </span>
+    </div>
+  );
+}
+
+function MoreIcon() {
+  return (
+    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+      <circle cx="5" cy="12" r="1.8" />
+      <circle cx="12" cy="12" r="1.8" />
+      <circle cx="19" cy="12" r="1.8" />
+    </svg>
+  );
+}
+
+function FolderIcon() {
+  return (
+    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+    </svg>
+  );
+}
+
+/** 민원대장(표) – 아직 없으면 + */
+function TableIcon({ add }: { add: boolean }) {
+  return (
+    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="miter">
+      <path d={add ? "M3 4h18v7 M3 4v16h9 M3 9h18 M9 9v11 M18 14v8 M14 18h8" : "M3 4h18v16H3z M3 9h18 M3 14.5h18 M9 9v11"} />
+    </svg>
+  );
+}
+
+function WarnIcon({ size = 13 }: { size?: number }) {
+  return (
+    <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3l10 18H2z M12 10v5 M12 18v.5" />
+    </svg>
   );
 }

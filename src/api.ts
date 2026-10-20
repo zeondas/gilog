@@ -340,12 +340,16 @@ export type Order = {
   mailTo?: string;
   /** 메일로 보낸 때 "YYYY-MM-DD HH:MM" */
   mailedAt?: string;
+  /** 보낸 메일 제목(보낸 증거 카드) */
+  mailSubject?: string;
+  /** 보낸메일함에서 같은 제목을 찾았는지 – false면 "확인 필요"(2026-10-20 진행 막대) */
+  mailOk?: boolean;
 };
 
 export type CasePatch = Partial<Pick<Case, "work" | "area" | "place" | "road" | "note" | "short" | "seq" | "stage" | "complaint" | "folder" | "orderFile" | "orderJpg" | "outboxFile" | "sentAt">>;
 export type ProcessData = { works: Work[]; cases: Case[]; orders: Order[] };
 export type InboxResult = { added: Case[]; skipped: number; failed: string[]; missingFiles: string[] };
-export type RunStatus = { state: "idle" | "running" | "done" | "login" | "stopped" | "error"; total: number | null; done: number | null; message: string; log: string; skipped: string[] };
+export type RunStatus = { state: "idle" | "running" | "done" | "login" | "stopped" | "error"; total: number | null; done: number | null; message: string; log: string; skipped: string[]; skipCount?: number | null };
 export type OrderResult = { order: Order; cases: Case[]; works: Work[]; missing: string[] };
 
 export const inApp = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -1082,7 +1086,7 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
     case "order_mailed": {
       const o = fake.orders.find((x) => x.id === a.id);
       if (!o) throw "noorder";
-      Object.assign(o, { mailTo: a.to, mailedAt: a.at });
+      Object.assign(o, { mailTo: a.to, mailedAt: a.at, mailOk: a.ok ?? true, ...(a.subject != null ? { mailSubject: a.subject } : {}) });
       return structuredClone(o);
     }
     case "check_sent":
@@ -1100,7 +1104,7 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
         return null;
       }
       // 미리 보기: 보기 민원을 몇 번에 나눠 가져올 폴더에 넣는 것처럼 보여요.
-      fake.run = { state: "running", total: fake.runQueue.length, done: 0, message: "", log: "D:\\민원처리\\받은편지함\\_claude.log", skipped: [] };
+      fake.run = { state: "running", total: fake.runQueue.length, done: 0, message: "", log: "D:\\민원처리\\받은편지함\\_claude.log", skipped: [], skipCount: fake.cases.length };
       return null;
     case "stop_claude":
       if (fake.run.state === "running") fake.run.state = "stopped";
@@ -1420,7 +1424,8 @@ export const api = {
   sendOrder: (id: number, outbox: string) => call<Order>("send_order", { id, outbox }),
   checkSent: (now: string) => call<Order[]>("check_sent", { now }),
   /** 지시부를 메일로 보냈다고 적어요(Claude가 보낸 메일함에서 확인한 뒤) */
-  orderMailed: (id: number, to: string, at: string) => call<Order>("order_mailed", { id, to, at }),
+  /** ok: 보낸메일함에서 같은 제목을 찾았는지(false면 "확인 필요") · subject: 보낸 제목 */
+  orderMailed: (id: number, to: string, at: string, subject?: string, ok = true) => call<Order>("order_mailed", { id, to, at, subject: subject ?? null, ok }),
   openPath: (path: string) => call<null>("open_path", { path }),
   showInFolder: (path: string) => call<null>("show_in_folder", { path }),
   openPortal: (url: string) => call<null>("open_portal", { url }),

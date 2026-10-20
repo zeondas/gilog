@@ -41,6 +41,13 @@
   --cs-long-bg: #BAE3F5; --cs-long-fg: #0B4A6B;
   --cs-done-bg: #F5F5F7; --cs-done-fg: #A3A1AE;
   --cs-reject-bg: #F7F2F3; --cs-reject-fg: #B29A9F;
+  /* 민원처리 진행 막대(2026-10-20 사용자 1안 – 강조색 진하기): 바탕 · 접수 20 → 지시부 40 → 보냄 60 → 답변 80 → 완료 100,
+     글자 fg(1~3단 – 막대 밖 바탕에도 걸려요)·strong(4·5단), 보내는 중 빗금, 확인 필요 주황 빗금 */
+  --pg-track: #ECEAF2;
+  --pg-1: #E3DEFA; --pg-2: #CBC2F3; --pg-3: #A99BEA; --pg-4: #6A4DFF; --pg-5: #4B37C4;
+  --pg-fg: #1C1B22; --pg-fg-strong: #FFFFFF;
+  --pg-hatch: rgba(255, 255, 255, 0.55);
+  --pg-warn: #F5C46E; --pg-warn-fg: #3D2A00; --pg-warn-hatch: rgba(0, 0, 0, 0.12);
   --st-new-bg: #EEEAFF;
   --st-new-fg: #4B37C4;
   /* 가운데 뜨는 창 뒤를 덮는 막과 창 바탕 (2026-10-17 사용자 1안: 뒤 흐리게 + 더 어둡게 + 창 테두리) */
@@ -203,6 +210,11 @@
     --cs-long-bg: #0E4A63; --cs-long-fg: #A9E0F5;
     --cs-done-bg: #1F1E25; --cs-done-fg: #6F6D7A;
     --cs-reject-bg: #241E21; --cs-reject-fg: #7E6C72;
+    --pg-track: #2C2B34;
+    --pg-1: #2A2740; --pg-2: #342C66; --pg-3: #4B37C4; --pg-4: #6A4DFF; --pg-5: #8F6BFF;
+    --pg-fg: #ECEAF2; --pg-fg-strong: #ECEAF2;
+    --pg-hatch: rgba(255, 255, 255, 0.14);
+    --pg-warn: #F2C078; --pg-warn-fg: #2A1608; --pg-warn-hatch: rgba(0, 0, 0, 0.18);
     --st-new-bg: #2B2552;
     --st-new-fg: #C9C0FF;
   --danger: #F08A95;
@@ -273,6 +285,11 @@
   --cs-long-bg: #0E4A63; --cs-long-fg: #A9E0F5;
   --cs-done-bg: #1F1E25; --cs-done-fg: #6F6D7A;
   --cs-reject-bg: #241E21; --cs-reject-fg: #7E6C72;
+  --pg-track: #2C2B34;
+  --pg-1: #2A2740; --pg-2: #342C66; --pg-3: #4B37C4; --pg-4: #6A4DFF; --pg-5: #8F6BFF;
+  --pg-fg: #ECEAF2; --pg-fg-strong: #ECEAF2;
+  --pg-hatch: rgba(255, 255, 255, 0.14);
+  --pg-warn: #F2C078; --pg-warn-fg: #2A1608; --pg-warn-hatch: rgba(0, 0, 0, 0.18);
   --danger: #F08A95;
   --lock: #E7C66A; --lock-shackle: #C9A23E; --lock-hole: #2A2410;
   --urgent: #F28B82;
@@ -439,4 +456,30 @@
 }
 :root[data-accent="ink"][data-theme="dark"] {
   --bd-pj-bg: #27262E; --bd-pj-line: #41404B; --bd-sel-bg: #33323B; --bd-col-hl: rgba(201, 199, 212, 0.08);
+}
+
+/* 민원처리 진행 막대 – 보라가 아닌 강조색(2026-10-20 1안 "테마 강조색을 따라가요"): 보라 값과 같은 자리를
+   밝게 강조색(--icon-bg)·어둡게 강조색(--icon-l)과 바탕의 섞기로 만들어요. */
+:root[data-accent] {
+  --pg-1: color-mix(in srgb, var(--icon-bg) 12%, #FFFFFF);
+  --pg-2: color-mix(in srgb, var(--icon-bg) 24%, #FFFFFF);
+  --pg-3: color-mix(in srgb, var(--icon-bg) 40%, #FFFFFF);
+  --pg-4: color-mix(in srgb, var(--icon-bg) 75%, #FFFFFF);
+  --pg-5: var(--icon-bg);
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-accent]:not([data-theme="light"]) {
+    --pg-1: color-mix(in srgb, var(--icon-bg) 18%, var(--pg-track));
+    --pg-2: color-mix(in srgb, var(--icon-bg) 50%, var(--pg-track));
+    --pg-3: var(--icon-bg);
+    --pg-4: color-mix(in srgb, var(--icon-bg) 72%, var(--icon-l));
+    --pg-5: color-mix(in srgb, var(--icon-bg) 50%, var(--icon-l));
+  }
+}
+:root[data-accent][data-theme="dark"] {
+  --pg-1: color-mix(in srgb, var(--icon-bg) 18%, var(--pg-track));
+  --pg-2: color-mix(in srgb, var(--icon-bg) 50%, var(--pg-track));
+  --pg-3: var(--icon-bg);
+  --pg-4: color-mix(in srgb, var(--icon-bg) 72%, var(--icon-l));
+  --pg-5: color-mix(in srgb, var(--icon-bg) 50%, var(--icon-l));
 }
