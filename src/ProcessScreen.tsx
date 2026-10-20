@@ -6,7 +6,7 @@
 // - 줄 끝 지시부 칸: "1지구-03 · 1" + 진행 [폰 전송] → 보내는 중 → ✓ 전송 완료(지시부째 함께 바뀌어요).
 //   지시부에 든 건의 공사·주소·고려사항을 고치면 그 지시부를 다시 만들어요(같은 연번·같은 파일).
 // - [폰 전송] = 지시부의 JPG를 보낼 폴더에 복사 → "보내는 중". Claude가 대화에 올리고 "보냄" 폴더에 써 두면 ✓ 전송 완료(사용자 2안).
-// - 대상이 아닌 건은 줄 끝 ×(작은 묻기 창). 지운 건은 다음 불러오기 때 다시 와요.
+// - 대상이 아닌 건은 줄 끝 ×(작은 묻기 창). 지운 건은 접수번호를 본 번호에 남겨 다음 불러오기 때 다시 오지 않아요(2026-10-20 사용자).
 // - 공사 관리 창: 현장대리인은 업무연락처에서 골라요(같은 연락처 하나 – 쌍방향), 공사명은 업무연락처 프로젝트로도 등록돼요.
 import { createPortal } from "react-dom";
 import { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -527,11 +527,8 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     try {
       await api.deleteCase(no);
       setCases((l) => l.filter((x) => x.no !== no));
-      // 지운 건은 다음 불러오기 때 다시 와요(기획) – 본 번호에서 빼요.
-      if (seenRef.current.includes(no)) {
-        seenRef.current = seenRef.current.filter((n) => n !== no);
-        await api.set(SEEN_KEY, JSON.stringify(seenRef.current)).catch(() => {});
-      }
+      // 지운 건은 다시 받지 않아요(2026-10-20 사용자) – 접수번호를 본 번호에 남겨 Claude가 목록에서 건너뛰어요.
+      await rememberSeen([no]);
       if (c?.order != null) {
         const pd = await api.processData();
         setCases(pd.cases);
@@ -981,6 +978,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
         <Floating rect={ask.rect} align="right" onClose={() => setAsk(null)}>
           <div className="pr-ask" role="dialog" aria-label="민원 지우기">
             <span className="pr-ask-t">이 민원을 지울까요?</span>
+            <span className="pr-sub">다음에 불러와도 다시 오지 않아요</span>
             <div className="pr-ask-btns">
               <button type="button" className="btn" onClick={() => setAsk(null)}>
                 취소
