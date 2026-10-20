@@ -21,6 +21,8 @@ export type FindSpec = {
   lockedOnly: boolean;
   complaintsOnly: boolean;
   showHidden: boolean;
+  /** 설정에서 빠른 찾기를 껐으면 true */
+  noFast?: boolean;
 };
 /** 빠른 찾기 도우미(드라이브 전체 목록) 상태 */
 export type FastStatus = {

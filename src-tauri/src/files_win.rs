@@ -630,3 +630,38 @@ pub fn clip_get() -> Result<(Vec<String>, bool), String> {
         Ok((paths, effect & 2 != 0 && effect & 1 == 0))
     }
 }
+
+// ── 빠른 찾기 도우미 설치(관리자 허용 묻기) ─────────────────────────────
+// 설정 → 탐색기 [설치]: 설치 폴더의 gilog-search.exe install을 관리자로 돌리고 끝날 때까지 기다려요.
+// 사용자가 "아니요"를 누르면 "canceled".
+pub fn run_elevated(exe: &std::path::Path, args: &str) -> Result<u32, String> {
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::System::Threading::{GetExitCodeProcess, WaitForSingleObject};
+    use windows::Win32::UI::Shell::{ShellExecuteExW, SEE_MASK_NOASYNC, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW};
+    let verb = wide("runas");
+    let file = wide(&exe.to_string_lossy());
+    let params = wide(args);
+    let mut info = SHELLEXECUTEINFOW {
+        cbSize: std::mem::size_of::<SHELLEXECUTEINFOW>() as u32,
+        fMask: SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC,
+        lpVerb: PCWSTR(verb.as_ptr()),
+        lpFile: PCWSTR(file.as_ptr()),
+        lpParameters: PCWSTR(params.as_ptr()),
+        nShow: 0, // 창 없이
+        ..Default::default()
+    };
+    if let Err(e) = unsafe { ShellExecuteExW(&mut info) } {
+        // ERROR_CANCELLED(1223) = 관리자 허용 창에서 "아니요"
+        return Err(if e.code().0 as u32 == 0x8007_04C7 { "canceled".into() } else { format!("runas:{e}") });
+    }
+    if info.hProcess.is_invalid() {
+        return Err("no_process".into());
+    }
+    let mut code = 1u32;
+    unsafe {
+        WaitForSingleObject(info.hProcess, 120_000);
+        let _ = GetExitCodeProcess(info.hProcess, &mut code);
+        let _ = CloseHandle(info.hProcess);
+    }
+    Ok(code)
+}

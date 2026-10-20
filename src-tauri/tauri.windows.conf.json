@@ -1,0 +1,12 @@
+{
+  "bundle": {
+    "resources": {
+      "bin/gilog-search.exe": "gilog-search.exe"
+    },
+    "windows": {
+      "nsis": {
+        "installerHooks": "./windows/hooks.nsh"
+      }
+    }
+  }
+}

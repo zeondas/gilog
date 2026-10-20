@@ -691,6 +691,7 @@ export default function FilesScreen() {
         lockedOnly: ff.lockedOnly,
         complaintsOnly: ff.complaintsOnly,
         showHidden: cfg.showHidden,
+        noFast: !cfg.fast,
       });
       if (live && seq !== findSeq.current) return; // 더 새 글자로 찾는 중
       const ms = Math.round(performance.now() - t0);
