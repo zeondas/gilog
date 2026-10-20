@@ -22,6 +22,15 @@ export type FindSpec = {
   complaintsOnly: boolean;
   showHidden: boolean;
 };
+/** 빠른 찾기 도우미(드라이브 전체 목록) 상태 */
+export type FastStatus = {
+  /** 도우미가 깔려 있는지 */
+  installed: boolean;
+  /** 도우미가 돌고 있는지 */
+  running: boolean;
+  /** 목록을 가진 드라이브(만드는 중이면 ready false) */
+  drives: { drive: string; count: number; ready: boolean }[];
+};
 /** 우클릭 메뉴 결과: "" 안 고름 · "done" 실행함 · "rename" 이름 바꾸기 시작 */
 export type MenuResult = "" | "done" | "rename" | "reveal";
 
@@ -224,17 +233,22 @@ function fakeCall(cmd: string, a: Record<string, unknown>): unknown {
       const out: Found[] = [];
       for (const p of fakeFs.keys()) {
         const e = fakeEntry(p)!;
-        if (e.dir) continue;
-        const inRoot = s.roots.some((r) => (s.sub ? p.startsWith(r.endsWith("\\") ? r : r + "\\") : parentOf(p) === r));
+        if (e.dir && s.roots.length) continue;
+        const inRoot = !s.roots.length || s.roots.some((r) => (s.sub ? p.startsWith(r.endsWith("\\") ? r : r + "\\") : parentOf(p) === r));
         if (!inRoot || !quickMatch(s.name, e.name)) continue;
         if (s.from && e.modified < s.from) continue;
         if (s.to && e.modified > s.to) continue;
         if (s.lockedOnly && !e.locked) continue;
         if (s.complaintsOnly && !/^\d{6}_.+_.+/.test(e.name)) continue;
-        out.push({ ...e, folder: baseName(parentOf(p)!) });
+        // 모든 드라이브에서 찾으면 폴더 칸은 전체 경로(어느 드라이브인지 보이게)
+        out.push({ ...e, folder: s.roots.length ? baseName(parentOf(p)!) : parentOf(p)! });
       }
       return out;
     }
+    case "fs_fast_setup":
+      return null;
+    case "fs_fast_status":
+      return { installed: true, running: true, drives: [{ drive: "C:", count: 412330, ready: true }, { drive: "D:", count: 88120, ready: true }] } as FastStatus;
     case "fs_icons":
       return {};
     case "fs_context_menu":
@@ -304,7 +318,11 @@ export const fsApi = {
   contextMenu: (dir: string, names: string[], x: number, y: number) => call<MenuResult>("fs_context_menu", { dir, names, x, y }),
   /** 윈도우 탐색기로 넘기기(보안 해제) — dir을 열어 names를 골라 두고 우클릭 메뉴를 띄워요 */
   reveal: (dir: string, names: string[]) => (inApp ? call<null>("fs_reveal", { dir, names, popup: true }) : Promise.resolve(null)),
+  /** roots가 비면 빠른 찾기 목록이 있는 모든 드라이브 */
   find: (spec: FindSpec) => call<Found[]>("fs_find", { spec }),
+  fastStatus: () => call<FastStatus>("fs_fast_status"),
+  /** 빠른 찾기 도우미 깔기·빼기 — 윈도우가 관리자 허용을 물어요 */
+  fastSetup: (op: "install" | "uninstall") => call<null>("fs_fast_setup", { op }),
   watch: (dirs: string[]) => (inApp ? call<null>("fs_watch", { dirs }) : Promise.resolve(null)),
 };
 

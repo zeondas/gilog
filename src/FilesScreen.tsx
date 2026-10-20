@@ -44,13 +44,25 @@ import {
   PC_FOLD,
   isSpecial,
 } from "./files";
-import { Conflict, Found, MenuResult, TreeDir, fsApi, fsErrorText, onFsChanged, onFsProgress } from "./filesApi";
+import { Conflict, FastStatus, Found, MenuResult, TreeDir, fsApi, fsErrorText, onFsChanged, onFsProgress } from "./filesApi";
 import { parseDate } from "./journal";
 import { DEFAULT_FILES_SETTINGS, FilesSettings, loadSettings, saveSettings } from "./settingsStore";
 
 const STATE_KEY = "files.state";
 
-type FindRun = { form: FindForm; results: Found[]; running: boolean; /** 펼쳐보기(하위 폴더 파일까지 한 목록) */ flat?: boolean };
+type FindRun = {
+  form: FindForm;
+  results: Found[];
+  running: boolean;
+  /** 펼쳐보기(하위 폴더 파일까지 한 목록) */
+  flat?: boolean;
+  /** 빠른 찾기 칸에 치는 대로 바뀌는 탭(치는 동안 새 탭을 만들지 않고 이 탭을 고쳐요) */
+  live?: boolean;
+  /** 모든 드라이브(빠른 찾기 목록)에서 찾음 */
+  all?: boolean;
+  /** 걸린 시간(밀리초) */
+  ms?: number;
+};
 /** back·fwd: 이 탭에서 다녀온 폴더(뒤로·앞으로 — 마우스 옆 단추·Alt+←/→). 저장하지 않아요. */
 type RTab = FsTab & { find?: FindRun; id: number; back?: string[]; fwd?: string[] };
 type RPane = Omit<FsPane, "tabs"> & { tabs: RTab[] };
@@ -123,6 +135,19 @@ export default function FilesScreen() {
   const [menu, setMenu] = useState<{ kind: "view" | "fav" | "tab"; pane: number; tab?: number; x?: number; y?: number } | null>(null);
   const [findOpen, setFindOpen] = useState(false);
   const [quickFind, setQuickFind] = useState("");
+  // 빠른 찾기 도우미(설치할 때 함께 깔림) — 목록이 준비된 드라이브가 있으면 "모든 드라이브"를 바로 찾아요.
+  const [fast, setFast] = useState<FastStatus | null>(null);
+  const fastReady = !!fast?.running && fast.drives.some((d) => d.ready);
+  useEffect(() => {
+    let on = true;
+    const ask = () => void fsApi.fastStatus().then((f) => on && setFast(f)).catch(() => on && setFast(null));
+    ask();
+    const t = window.setInterval(ask, 30000);
+    return () => {
+      on = false;
+      window.clearInterval(t);
+    };
+  }, []);
   const [form, setForm] = useState<FindForm>(EMPTY_FIND);
   const [formBad, setFormBad] = useState({ from: false, to: false });
   const [conflict, setConflict] = useState<{ list: Conflict[]; i: number; op: "copy" | "move"; resolve: (d: Record<string, string> | null) => void; dec: Record<string, string> } | null>(null);
@@ -627,11 +652,13 @@ export default function FilesScreen() {
   };
 
   // ---------- 찾기 ----------
-  const runFind = async (f: FindForm, flat = false) => {
+  const runFind = async (f: FindForm, flat = false, live = false) => {
     if (!st) return;
     const pane = st.active;
     const cur = activeTab(st.panes[pane]);
-    const where = cleanPath(f.where || (cur.find ? cur.find.form.where : cur.path));
+    // 어디서가 비면: 빠른 찾기가 있으면 모든 드라이브, 없으면 지금 창 폴더
+    const all = !flat && !f.where.trim() && fastReady;
+    const where = all ? "" : cleanPath(f.where || (cur.find ? cur.find.form.where : cur.path));
     const day = (s: string, end: boolean) => {
       const d = parseDate(s);
       if (!d) return 0;
@@ -640,15 +667,22 @@ export default function FilesScreen() {
     };
     const ff = { ...f, where };
     const label = ff.name || (ff.text ? `"${ff.text}"` : "*");
-    const id = tabSeq++;
-    updPane(pane, (p) => ({ ...p, tabs: [...p.tabs, { path: where, pinned: false, id, find: { form: ff, results: [], running: true, flat } }], active: p.tabs.length }));
-    setFindOpen(false);
+    // 치는 대로 찾기는 지금 탭이 그 탭이면 다시 써요(글자마다 탭이 늘지 않게)
+    const reuse = live && cur.find?.live ? cur.id : null;
+    const id = reuse ?? tabSeq++;
+    const run: FindRun = { form: ff, results: reuse != null ? cur.find!.results : [], running: true, flat, live, all };
+    if (reuse != null) updPane(pane, (p) => ({ ...p, tabs: p.tabs.map((t) => (t.id === id ? { ...t, find: run } : t)) }));
+    else updPane(pane, (p) => ({ ...p, tabs: [...p.tabs, { path: where, pinned: false, id, find: run }], active: p.tabs.length }));
+    if (!live) setFindOpen(false);
     setSel(pane, EMPTY_SEL);
+    const t0 = performance.now();
+    findSeq.current += 1;
+    const seq = findSeq.current;
     try {
       const results = await fsApi.find({
         name: ff.name,
         text: ff.text,
-        roots: [where],
+        roots: all ? [] : [where],
         sub: ff.sub,
         from: day(ff.from, false),
         to: day(ff.to, true),
@@ -658,13 +692,26 @@ export default function FilesScreen() {
         complaintsOnly: ff.complaintsOnly,
         showHidden: cfg.showHidden,
       });
-      updPane(pane, (p) => ({ ...p, tabs: p.tabs.map((t) => (t.id === id ? { ...t, find: { form: ff, results, running: false, flat } } : t)) }));
+      if (live && seq !== findSeq.current) return; // 더 새 글자로 찾는 중
+      const ms = Math.round(performance.now() - t0);
+      updPane(pane, (p) => ({ ...p, tabs: p.tabs.map((t) => (t.id === id ? { ...t, find: { ...run, results, running: false, ms } } : t)) }));
     } catch (e) {
-      updPane(pane, (p) => ({ ...p, tabs: p.tabs.map((t) => (t.id === id ? { ...t, find: { form: ff, results: [], running: false, flat } } : t)) }));
+      updPane(pane, (p) => ({ ...p, tabs: p.tabs.map((t) => (t.id === id ? { ...t, find: { ...run, results: [], running: false } } : t)) }));
       flash(fsErrorText(e));
     }
     void label;
   };
+
+  const findSeq = useRef(0);
+  // 빠른 찾기 칸: 도우미가 있으면 치는 대로(0.15초 쉬면) 모든 드라이브에서 찾아요.
+  useEffect(() => {
+    if (!fastReady) return;
+    const q = quickFind.trim();
+    if (!q) return;
+    const t = window.setTimeout(() => void runFind({ ...EMPTY_FIND, name: q, sub: true }, false, true), 150);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quickFind, fastReady]);
 
   const rerunFind = async (pane: number) => {
     if (!st) return;
@@ -1423,9 +1470,13 @@ export default function FilesScreen() {
         {t.find && (
           <div className="fx-findband">
             <span className="fx-strong">{t.find.flat ? "펼쳐보기" : t.find.form.name || (t.find.form.text ? `"${t.find.form.text}"` : "*")}</span>
-            <span className="fx-dim fx-ellip">{t.find.flat ? `${t.find.form.where} 아래 모든 파일` : findSummary(t.find.form)}</span>
+            <span className="fx-dim fx-ellip">{t.find.flat ? `${t.find.form.where} 아래 모든 파일` : findSummary(t.find.form, t.find.all)}</span>
             <span className="fx-grow" />
-            <span className="fx-dim">{t.find.running ? "찾는 중…" : `${t.find.results.length}개 찾음 · 폴더 ${new Set(t.find.results.map((r) => parentOf(r.path))).size}곳`}</span>
+            <span className="fx-dim">
+              {t.find.running && !t.find.live
+                ? "찾는 중…"
+                : `${t.find.results.length >= 5000 ? "5,000개 넘음" : `${t.find.results.length.toLocaleString()}개`} · 폴더 ${new Set(t.find.results.map((r) => parentOf(r.path))).size.toLocaleString()}곳${t.find.ms != null && t.find.all ? ` · ${(t.find.ms / 1000).toFixed(2)}초` : ""}`}
+            </span>
             {!t.find.flat && (
               <button
                 type="button"
@@ -1644,12 +1695,13 @@ export default function FilesScreen() {
             <input
               ref={quickRef}
               aria-label="파일 찾기"
-              placeholder="파일 찾기"
+              placeholder={fastReady ? "모든 드라이브에서 찾기" : "파일 찾기"}
               value={quickFind}
               onChange={(e) => setQuickFind(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && quickFind.trim()) {
-                  void runFind({ ...EMPTY_FIND, name: quickFind.trim(), sub: true });
+                  // 빠른 찾기는 이미 치는 대로 나와 있어요 — Enter는 결과 목록으로 옮겨 가기
+                  if (!fastReady) void runFind({ ...EMPTY_FIND, name: quickFind.trim(), sub: true });
                   e.currentTarget.blur();
                 }
                 if (e.key === "Escape") {
@@ -1678,7 +1730,17 @@ export default function FilesScreen() {
                 <input className="input" value={form.text} placeholder="한글·오피스·PDF" onChange={(e) => setForm({ ...form, text: e.target.value })} />
                 <span className="fx-dim">어디서</span>
                 <div className="fx-hrow">
-                  <input className="input fx-grow" value={form.where} onChange={(e) => setForm({ ...form, where: e.target.value })} />
+                  <input
+                    className="input fx-grow"
+                    value={form.where}
+                    placeholder={fastReady ? "비우면 모든 드라이브" : ""}
+                    onChange={(e) => setForm({ ...form, where: e.target.value })}
+                  />
+                  {fastReady && (
+                    <button type="button" className="btn btn-ctrl" disabled={!form.where} onClick={() => setForm({ ...form, where: "" })}>
+                      모든 드라이브
+                    </button>
+                  )}
                   <label className="fx-ck">
                     <input type="checkbox" checked={form.sub} onChange={(e) => setForm({ ...form, sub: e.target.checked })} /> 하위 폴더
                   </label>

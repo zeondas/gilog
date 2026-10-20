@@ -460,9 +460,10 @@ export function nextPane(cur: number, four: boolean): number {
 }
 
 /** 찾기 조건 요약(결과 띠) */
-export function findSummary(f: FindForm): string {
+export function findSummary(f: FindForm, all = false): string {
   const parts: string[] = [];
-  if (f.where) parts.push(`${f.where}${f.sub ? " 아래" : ""}`);
+  if (all) parts.push("모든 드라이브");
+  else if (f.where) parts.push(`${f.where}${f.sub ? " 아래" : ""}`);
   if (f.text) parts.push(`"${f.text}" 들어간`);
   if (f.from || f.to) parts.push(`${f.from || "처음"}~${f.to || "오늘"}`);
   if (f.minSize || f.maxSize) parts.push(`${f.minSize || "0"}~${f.maxSize || "∞"}`);
