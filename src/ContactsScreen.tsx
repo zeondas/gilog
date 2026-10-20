@@ -154,8 +154,11 @@ export default function ContactsScreen() {
 
   return (
     <>
-      <div className="ct-head">
+      <div className="ct-head tb5">
         <h1 className="title">업무연락처</h1>
+        <button type="button" className="btn btn-ctrl btn-text tb-pop" onClick={() => setProjOpen(true)}>
+          사업 관리
+        </button>
         <label className="search">
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <circle cx="11" cy="11" r="7" />
@@ -171,9 +174,6 @@ export default function ContactsScreen() {
             onCompositionEnd={qGuard.onCompositionEnd}
           />
         </label>
-        <button type="button" className="btn btn-ctrl btn-text" onClick={() => setProjOpen(true)}>
-          사업 관리
-        </button>
         <ExcelMenu
           kind="contacts"
           total={all.length}

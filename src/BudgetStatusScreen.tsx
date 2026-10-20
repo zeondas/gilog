@@ -853,8 +853,8 @@ export default function BudgetStatusScreen() {
     });
   }
 
-  const seg = (a: string, b: string, on: 0 | 1, pick: (i: 0 | 1) => void, label: string) => (
-    <span className="bd-unit" role="group" aria-label={label}>
+  const seg = (a: string, b: string, on: 0 | 1, pick: (i: 0 | 1) => void, label: string, cls = "") => (
+    <span className={"bd-unit" + cls} role="group" aria-label={label}>
       <button type="button" className={on === 0 ? "on" : ""} aria-pressed={on === 0} onClick={() => pick(0)}>{a}</button>
       <button type="button" className={on === 1 ? "on" : ""} aria-pressed={on === 1} onClick={() => pick(1)}>{b}</button>
     </span>
@@ -862,7 +862,7 @@ export default function BudgetStatusScreen() {
 
   return (
     <div ref={rootRef} className={"bd bs" + (packed ? " bd-packed" : "")}>
-      <div className="bd-top" style={packed ? { width: colSum + 1 } : undefined}>
+      <div className="bd-top tb5" style={packed ? { width: colSum + 1 } : undefined}>
         <h1 className="title">예산현황</h1>
         <span className="bd-year">
           <button type="button" aria-label="이전 해" onClick={() => changeYear(year - 1)}>
@@ -874,14 +874,15 @@ export default function BudgetStatusScreen() {
           </button>
         </span>
         <span className="bd-sp" />
-        <button type="button" className="btn btn-ctrl bd-tool" title="열 간격을 보이는 내용 폭에 맞춰요 · 열 제목 우클릭으로 처음대로" onClick={fitAll}>
+        {seg("요약", "자세히", detail ? 1 : 0, (i) => { setDetail(i === 1); api.set(VIEW_KEY, i === 1 ? "detail" : "summary").catch(() => {}); }, "보기", " tb-seg-l")}
+        {seg("원", "천원", unit === 1 ? 0 : 1, (i) => { setUnit(i ? 1000 : 1); api.set(UNIT_KEY, i ? "1000" : "1").catch(() => {}); }, "금액 단위", " tb-seg-s")}
+        <button type="button" className="btn btn-ctrl bd-tool tb-fit" title="열 간격을 보이는 내용 폭에 맞춰요 · 열 제목 우클릭으로 처음대로" onClick={fitAll}>
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M3 5v14M21 5v14M3 12h6M21 12h-6M6 9l3 3-3 3M18 9l-3 3 3 3" />
           </svg>
           배치최적화
         </button>
-        {seg("요약", "자세히", detail ? 1 : 0, (i) => { setDetail(i === 1); api.set(VIEW_KEY, i === 1 ? "detail" : "summary").catch(() => {}); }, "보기")}
-        {seg("원", "천원", unit === 1 ? 0 : 1, (i) => { setUnit(i ? 1000 : 1); api.set(UNIT_KEY, i ? "1000" : "1").catch(() => {}); }, "금액 단위")}
+        <span className="tb-hole-pop" aria-hidden="true" />
         <label className="search bd-search">
           {ICON("M11 4a7 7 0 1 1 0 14a7 7 0 1 1 0-14z M20 20l-3.5-3.5", 16)}
           <input type="text" aria-label="세부사업 검색" placeholder="세부사업 검색" value={q} onChange={(e) => setQ(e.target.value)} autoComplete="off" />
@@ -897,7 +898,7 @@ export default function BudgetStatusScreen() {
             setPop(pop?.t === "excel" ? null : { t: "excel", x: r.right - 200, y: r.bottom + 4 });
           }}
         >
-          엑셀{ICON(CD, 13)}
+          엑셀{ICON(CD, 16, 2.4)}
         </button>
       </div>
       <div className="bd-tbl" style={{ ["--bd-cols" as string]: tmpl, ...(packed ? { width: colSum + 2 + sbw } : {}) }}>
