@@ -137,7 +137,7 @@ export default function FilesScreen() {
   const [quickFind, setQuickFind] = useState("");
   // 빠른 찾기 도우미(설치할 때 함께 깔림) — 목록이 준비된 드라이브가 있으면 "모든 드라이브"를 바로 찾아요.
   const [fast, setFast] = useState<FastStatus | null>(null);
-  const fastReady = !!fast?.running && fast.drives.some((d) => d.ready);
+  const fastReady = cfg.fast && !!fast?.running && fast.drives.some((d) => d.ready);
   useEffect(() => {
     let on = true;
     const ask = () => void fsApi.fastStatus().then((f) => on && setFast(f)).catch(() => on && setFast(null));

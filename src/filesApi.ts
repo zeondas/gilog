@@ -248,6 +248,8 @@ function fakeCall(cmd: string, a: Record<string, unknown>): unknown {
     case "fs_fast_setup":
       return null;
     case "fs_fast_status":
+      // 미리 보기 시험: window.__fxNoFast = true면 "깔리지 않음"
+      if ((window as unknown as { __fxNoFast?: boolean }).__fxNoFast) return { installed: false, running: false, drives: [] } as FastStatus;
       return { installed: true, running: true, drives: [{ drive: "C:", count: 412330, ready: true }, { drive: "D:", count: 88120, ready: true }] } as FastStatus;
     case "fs_icons":
       return {};

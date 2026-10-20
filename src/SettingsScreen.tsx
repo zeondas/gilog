@@ -878,42 +878,30 @@ function DriveRow({ label, desc, list, drives, onSet }: { label: string; desc: s
   );
 }
 
-/** 빠른 찾기 도우미(설치할 때 함께 깔려요): 상태 + 깔기·빼기 */
-function FastRow() {
+/** 빠른 찾기(2026-10-20 사용자): 도우미가 깔려 있으면 켜고 끄는 스위치, 없으면(설치 때 관리자 허용을 거절) [깔기] */
+function FastRow({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
   const [f, setF] = useState<FastStatus | null | undefined>(undefined);
   const [busy, setBusy] = useState("");
   const ask = () => void fsApi.fastStatus().then(setF, () => setF(null));
   useEffect(ask, []);
-  const run = async (op: "install" | "uninstall") => {
-    setBusy(op === "install" ? "까는 중…" : "빼는 중…");
+  const desc = "모든 드라이브에서 이름을 바로 찾아요.";
+  if (f?.installed)
+    return <Toggle label="빠른 찾기" desc={desc} k="에브리띵 everything 모든 드라이브" on={on} onChange={onChange} />;
+  const install = async () => {
+    setBusy("까는 중…");
     try {
-      await fsApi.fastSetup(op);
+      await fsApi.fastSetup("install");
       setBusy("");
     } catch {
-      setBusy("관리자 허용을 받지 못했어요");
+      setBusy("관리자 허용을 받지 못했어요.");
     }
     ask();
   };
-  const on = !!f?.installed && f.running;
-  const desc = on
-    ? f!.drives.map((d) => `${d.drive} ${d.ready ? `${d.count.toLocaleString()}개` : "목록 만드는 중"}`).join(" · ") || "목록을 만들 드라이브가 없어요"
-    : f?.installed
-      ? "도우미가 꺼져 있어요. 지금은 폴더를 차례로 뒤져 찾아요."
-      : "도우미가 없어 폴더를 차례로 뒤져 찾아요. 깔 때 관리자 허용을 한 번 물어요.";
   return (
-    <Row label="빠른 찾기" desc={busy || desc} k="에브리띵 everything 모든 드라이브">
-      <span className="fx-set-dir">
-        <span className={on ? "fx-fast-on" : "muted"}>{f === undefined ? "" : on ? "켜짐" : f?.installed ? "꺼짐" : "없음"}</span>
-        {on ? (
-          <button type="button" className="btn btn-ctrl" onClick={() => void run("uninstall")}>
-            빼기
-          </button>
-        ) : (
-          <button type="button" className="btn btn-ctrl" disabled={f === undefined} onClick={() => void run("install")}>
-            {f?.installed ? "다시 켜기" : "깔기"}
-          </button>
-        )}
-      </span>
+    <Row label="빠른 찾기" desc={busy || "설치할 때 관리자 허용을 받지 못해 깔리지 않았어요. 깔 때 한 번 더 물어요."} k="에브리띵 everything 모든 드라이브">
+      <button type="button" className="btn btn-ctrl" disabled={f === undefined || !!busy && busy.endsWith("…")} onClick={() => void install()}>
+        깔기
+      </button>
     </Row>
   );
 }
@@ -945,7 +933,7 @@ function FilesRows({ value, onChange }: { value: FilesSettings; onChange: (v: Fi
       </Row>
       <DriveRow label="드라이브 단추" desc="위쪽 드라이브 단추 줄에 보일 것이에요." list={value.hiddenDrives} drives={drives} onSet={(l) => set({ hiddenDrives: l })} />
       <DriveRow label="폴더 트리" desc="왼쪽 폴더 트리에 보일 것이에요." list={value.treeHidden} drives={drives} onSet={(l) => set({ treeHidden: l })} />
-      <FastRow />
+      <FastRow on={value.fast} onChange={(fast) => set({ fast })} />
       <Row label="보이는 열" desc="자세히 보기의 열이에요. 이름은 늘 보여요.">
         <span className="fx-set-drives">
           {(
