@@ -468,12 +468,11 @@ export default function BudgetScreen() {
   };
 
   // ---------- 열 ----------
-  const rest = COLS.reduce((a, [c]) => a + (c === "name" ? 0 : W[c]), 0);
-  const nameW = nameFixed ? W.name : Math.max(160, Math.floor(avail - 6 - rest));
-  const cols = COLS.map(([c]) => (c === "name" ? nameW : W[c]) + "px").join(" ");
-  // 배치최적화(또는 세부사업 열을 직접 맞춘) 뒤 남는 폭이 있으면 왼쪽으로 모아요: 머리 줄 끝(엑셀) = 메모 끝, 세로 스크롤은 메모 끝 바로 옆(2026-10-19 사용자)
+  // 세부사업 열도 다른 열처럼 정해진 폭 — "남는 폭 채우기"는 없앴어요(2026-10-20 사용자, 예산현황과 같게)
+  const cols = COLS.map(([c]) => W[c] + "px").join(" ");
+  // 남는 폭이 있으면 늘 왼쪽으로 모아요: 머리 줄 끝(엑셀) = 메모 끝, 세로 스크롤은 메모 끝 바로 옆(2026-10-19 사용자)
   const colSum = COLS.reduce((a, [c]) => a + W[c], 0);
-  const packed = nameFixed && boxW > 0 && colSum + 2 + sbw <= boxW;
+  const packed = boxW > 0 && colSum + 2 + sbw <= boxW;
 
   const startDrag = (e: RMouseEvent, col: ColId) => {
     e.preventDefault();
