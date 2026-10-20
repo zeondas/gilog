@@ -10973,3 +10973,24 @@ body.ew-dragging .pjm-colgrip:active::after {
 .pjm-grp-tip {
   margin-left: 4px;
 }
+
+/* ---------- 머리 줄 칸 폭 고정 (상단 정리, 2026-10-20 사용자 확정 — 시안 TopBar.dc.html) ----------
+   민원대장·민원처리·업무연락처·집행현황·예산현황 다섯 화면만(.tb5). 오른쪽 묶음 순서:
+   토글 → 배치최적화 → 입력창 단추 → 검색 → 엑셀(맨 오른쪽). 없는 칸은 같은 폭을 비워 다른 화면과 자리를 맞춰요.
+   폭은 모두 정수라 100%·125%에서 반 픽셀에 걸리지 않아요. 간격 8은 .ct-head·.bd-top 그대로. */
+.tb5 .xl-btn,
+.tb5 .tb-pop,
+.tb5 .tb-fit { flex: none; justify-content: center; padding: 0; white-space: nowrap; }
+.tb5 .xl-btn { width: 76px; }
+.tb5 .tb-pop { width: 80px; }
+.tb5 .tb-fit { width: 102px; }
+.tb5 .search { width: 260px; flex: none; }
+.pr .ct-head.tb5 .search { margin-left: 0; }  /* 민원처리: 오른쪽으로 미는 건 공사 관리(.pr-push)가 맡아요 */
+.tb5 .tb-seg-l,
+.tb5 .tb-seg-s { flex: none; box-sizing: border-box; }
+.tb5 .tb-seg-l { width: 116px; }
+.tb5 .tb-seg-s { width: 84px; }
+.tb5 .tb-seg-l > button,
+.tb5 .tb-seg-s > button { flex: 1 1 0; min-width: 0; padding: 0; }
+.tb5 .tb-hole-pop { flex: none; width: 80px; }  /* 예산현황: 집행현황 "사업 추가" 자리 */
+.tb5 .tb-hole-xl { flex: none; width: 76px; }   /* 민원처리: 다른 화면 "엑셀" 자리 */

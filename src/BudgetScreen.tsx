@@ -1449,7 +1449,7 @@ export default function BudgetScreen() {
 
   return (
     <div ref={rootRef} className={"bd" + (packed ? " bd-packed" : "")} style={{ ["--bd-cols" as string]: cols }}>
-      <div className="bd-top" style={packed ? { width: colSum + 1 } : undefined}>
+      <div className="bd-top tb5" style={packed ? { width: colSum + 1 } : undefined}>
         <h1 className="title">집행현황</h1>
         <span className="bd-year">
           <button type="button" aria-label="이전 해" onClick={() => void changeYear(year - 1)}>
@@ -1461,26 +1461,37 @@ export default function BudgetScreen() {
           </button>
         </span>
         <span className="bd-sp" />
-        <button type="button" className="btn btn-ctrl bd-tool" title="열 간격을 보이는 내용 폭에 맞춰요 · 열 제목 우클릭으로 처음대로" onClick={() => void fitAll()}>
-          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 5v14M21 5v14M3 12h6M21 12h-6M6 9l3 3-3 3M18 9l-3 3 3 3" />
-          </svg>
-          배치최적화
-        </button>
-        <span className="bd-unit" role="group" aria-label="잔액·집행률 기준" title="잔액·집행률 기준">
+        <span className="bd-unit tb-seg-l" role="group" aria-label="잔액·집행률 기준" title="잔액·집행률 기준">
           {(["exp", "act"] as Basis[]).map((b) => (
             <button key={b} type="button" className={basis === b ? "on" : ""} aria-pressed={basis === b} onClick={() => void setBasis(b)}>
               {b === "exp" ? "집행액" : "시공량"}
             </button>
           ))}
         </span>
-        <span className="bd-unit" role="group" aria-label="금액 단위">
+        <span className="bd-unit tb-seg-s" role="group" aria-label="금액 단위">
           {([1, 1000] as Unit[]).map((u) => (
             <button key={u} type="button" className={unit === u ? "on" : ""} aria-pressed={unit === u} onClick={() => void setUnit(u)}>
               {u === 1 ? "원" : "천원"}
             </button>
           ))}
         </span>
+        <button type="button" className="btn btn-ctrl bd-tool tb-fit" title="열 간격을 보이는 내용 폭에 맞춰요 · 열 제목 우클릭으로 처음대로" onClick={() => void fitAll()}>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 5v14M21 5v14M3 12h6M21 12h-6M6 9l3 3-3 3M18 9l-3 3 3 3" />
+          </svg>
+          배치최적화
+        </button>
+        <button
+          type="button"
+          className="btn btn-ctrl btn-text tb-pop"
+          onClick={() => {
+            const s = sel?.startsWith("p") ? Number(sel.slice(1)) : null;
+            void startAdd(newProject(s));
+          }}
+          title="세부사업 추가"
+        >
+          사업 추가
+        </button>
         <label className="search bd-search">
           {searchIcon}
           <input
@@ -1516,17 +1527,6 @@ export default function BudgetScreen() {
             </button>
           )}
         </label>
-        <button
-          type="button"
-          className="btn btn-ctrl btn-text"
-          onClick={() => {
-            const s = sel?.startsWith("p") ? Number(sel.slice(1)) : null;
-            void startAdd(newProject(s));
-          }}
-          title="세부사업 추가"
-        >
-          사업 추가
-        </button>
         <button
           type="button"
           className="btn btn-ctrl btn-text xl-btn"

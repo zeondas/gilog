@@ -515,7 +515,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
 
   return (
     <div className="pr">
-      <div className="ct-head">
+      <div className="ct-head tb5">
         <h1 className="title">국민신문고 민원 불러오기</h1>
         <button type="button" className="btn btn-ctrl btn-text" title="업무처리포털을 크롬으로 열어요. 처음 한 번 로그인해 두면 돼요" onClick={() => (inApp ? api.openPortal(PORTAL_URL).catch((e) => setNote(errText(e))) : window.open(PORTAL_URL, "_blank"))}>
           신문고 열기
@@ -529,16 +529,17 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
           </svg>
           {run ? "불러오는 중…" : "민원 불러오기"}
         </button>
-        <label className="search pr-push">
+        <button type="button" className="btn btn-ctrl btn-text tb-pop pr-push" onClick={() => setWorksOpen(true)}>
+          공사 관리
+        </button>
+        <label className="search">
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <circle cx="11" cy="11" r="7" />
             <path d="M20 20l-3.5-3.5" />
           </svg>
           <input type="search" aria-label="민원처리 검색" placeholder="접수번호, 위치, 내용 검색" value={q} onChange={(e) => setQ(e.target.value)} />
         </label>
-        <button type="button" className="btn btn-ctrl btn-text" onClick={() => setWorksOpen(true)}>
-          공사 관리
-        </button>
+        <span className="tb-hole-xl" aria-hidden="true" />
       </div>
 
       {run && (

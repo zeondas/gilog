@@ -296,7 +296,7 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
 
   return (
     <>
-      <div className="ct-head cm-top">
+      <div className="ct-head cm-top tb5">
         <h1 className="sr-only">민원대장</h1>
         <FilterChips
           statuses={statuses}
@@ -307,6 +307,15 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
           onClear={(k) => setFilter(k, null)}
           onClearAll={clearFilters}
         />
+        <button type="button" className="btn btn-ctrl cm-tool tb-fit" title="열 폭을 글 길이에 맞추고 남는 폭은 내용·조치내용에 반씩 · 열 제목 우클릭으로 처음대로" onClick={fitColumns}>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 5v14M21 5v14M3 12h6M21 12h-6M6 9l3 3-3 3M18 9l-3 3 3 3" />
+          </svg>
+          배치최적화
+        </button>
+        <button type="button" className="btn btn-ctrl btn-text tb-pop" onClick={() => setCatsOpen(true)}>
+          분류 관리
+        </button>
         <label className="search">
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <circle cx="11" cy="11" r="7" />
@@ -322,15 +331,6 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
             onCompositionEnd={qGuard.onCompositionEnd}
           />
         </label>
-        <button type="button" className="btn btn-ctrl cm-tool" title="열 폭을 글 길이에 맞추고 남는 폭은 내용·조치내용에 반씩 · 열 제목 우클릭으로 처음대로" onClick={fitColumns}>
-          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 5v14M21 5v14M3 12h6M21 12h-6M6 9l3 3-3 3M18 9l-3 3 3 3" />
-          </svg>
-          배치최적화
-        </button>
-        <button type="button" className="btn btn-ctrl btn-text" onClick={() => setCatsOpen(true)}>
-          분류 관리
-        </button>
         <ExcelMenu
           kind="complaints"
           total={all.length}
