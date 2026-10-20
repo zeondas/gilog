@@ -2,7 +2,9 @@
 // 정한 것(2026-10-19 사용자):
 //   - 세부사업은 집행현황에서 자동으로 와요(여러 해에 같은 이름이면 하나). 기간·재원·이월 사업은 사업명 옆 설정 단추로 적어요.
 //   - 집행현황에 그 해 자료가 있으면 당해예산(본예산)·집행액(당해)은 거기서 와요. 이월 사업을 이으면 그 예산은 전년도 이월(명시), 집행액은 집행(명시).
-//   - 없는 해는 직접 적어요. 불용액은 늘 직접 적어요. 재원이 둘 이상이면 재원 줄은 직접 적고 합계 줄은 집행현황 값 — 다르면 붉게.
+//   - 없는 해는 직접 적어요. 불용액은 늘 직접 적어요. 재원이 둘 이상이면(2026-10-20 사용자 1안 — 집행현황은 전체 금액만, 재원은 보내기 창에서 나눠요):
+//     재원별 예산은 보내기 창(또는 재원 줄)에서 직접 적고(합이 집행현황 예산과 다르면 붉게), 집행액은 공사마다 고른 재원(한 재원 또는 "나눔" 금액 비율)대로 저절로 나뉘어요.
+//     합계 줄(연도·사업)은 집행현황 값 그대로예요.
 //   - 단년도 사업(처음 값)은 집행현황에 있는 해마다 따로(해 사이 이월 없음). 다년도 사업은 기간(시작~끝 해)을 적고, 남은 돈이 다음 해 전년도 이월로 이어져요(결산 표시는 없어요 — 2026-10-19 사용자).
 //   - 다음연도 이월(명시·사고)과 불용액은 늘 직접 적어요(2026-10-19 23:14 사용자 — 계산하지 않아요). 남은 돈(현액 − 집행 − 이월 − 불용)은 참고 값.
 //   - 집행현황의 "(명시이월)/(사고이월) …" 세부사업은 ⚙에서 어느 사업에 이으면 그 사업의 전년도 이월·집행(명시/사고)로 들어가고,
@@ -35,7 +37,9 @@ export type Setup = {
   rows: Record<string, Manual>; // "2025:시비" → 직접 적은 값
   memo?: string; // 메모(메모 편집기 HTML)
   sent?: boolean; // 집행현황에서 "예산현황으로 보내기"를 한 사업만 예산현황에 보여요(2026-10-20 사용자 2안)
-  match?: Record<string, string>; // 부기사업 이름 → 재원(재원이 둘 이상일 때 매칭) — 그 부기사업의 예산·공사 집행액이 그 재원 줄로
+  /** 공사별 재원(재원이 둘 이상일 때, 2026-10-20 사용자 1안): "해:공사 번호" → 재원 이름(통째로) 또는 { 재원: 금액 }(계약금액을 나눈 것 — 집행액은 그 비율대로).
+   *  안 고른 공사는 첫 재원으로 들어가요. */
+  split?: Record<string, string | Record<string, number>>;
 };
 
 export const defaultSetup = (years: number[]): Setup => ({ multi: false, from: Math.min(...years), to: Math.max(...years), sources: ["시비"], carry: "", carrySrc: "", rows: {} });
@@ -48,17 +52,43 @@ export function linkedOf(projects: BudgetProject[], name: string): Linked | null
   const exp = p.items.flatMap((i) => i.rows).reduce((s, r) => s + r.exp, 0);
   return { budget: p.budget ?? 0, exp };
 }
-/** 재원 매칭: 그 재원에 매칭된 부기사업들의 예산·집행액 합(매칭 안 한 부기사업은 첫 재원으로). 부기사업이 둘 미만이면 null(직접 적어요) */
-export function matchedOf(projects: BudgetProject[], name: string, setup: Setup, src: string): Linked | null {
-  const p = projects.find((x) => x.name === name);
-  if (!p || p.items.length < 2) return null;
-  let budget = 0, exp = 0;
-  for (const it of p.items) {
-    if ((setup.match?.[it.name] ?? setup.sources[0]) !== src) continue;
-    budget += it.budget ?? 0;
-    exp += it.rows.reduce((s, r) => s + r.exp, 0);
+/** 공사 한 줄의 집행액을 재원별로 나눠요(재원이 둘 이상일 때). 통째로면 그 재원, 나눔이면 적은 금액 비율(마지막 재원이 나머지 — 합이 십원 단위로 맞게), 안 골랐으면 첫 재원 */
+export function rowShares(row: { id: number; exp: number }, setup: Setup, year: number): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const s of setup.sources) out[s] = 0;
+  const first = setup.sources[0];
+  const spec = setup.split?.[`${year}:${row.id}`];
+  if (spec == null || typeof spec === "string") {
+    out[typeof spec === "string" && spec in out ? spec : first] = row.exp;
+    return out;
   }
-  return { budget, exp };
+  const total = setup.sources.reduce((a, s) => a + (spec[s] ?? 0), 0);
+  if (!total) {
+    out[first] = row.exp;
+    return out;
+  }
+  let rest = row.exp;
+  setup.sources.forEach((s, i) => {
+    const v = i === setup.sources.length - 1 ? rest : Math.round((row.exp * (spec[s] ?? 0)) / total / 10) * 10;
+    out[s] = v;
+    rest -= v;
+  });
+  return out;
+}
+/** 그 해 집행현황 세부사업의 집행액 중 이 재원 몫(공사별 재원대로). 세부사업이 없으면 null */
+export function splitExp(projects: BudgetProject[], name: string, setup: Setup, year: number, src: string): number | null {
+  const p = projects.find((x) => x.name === name);
+  if (!p) return null;
+  let exp = 0;
+  for (const it of p.items) for (const r of it.rows) exp += rowShares(r, setup, year)[src] ?? 0;
+  return exp;
+}
+/** 공사별 재원 요약(보내기 창·안내용): 안 고른 공사 수 */
+export function unsplitCount(p: BudgetProject | null, setup: Setup, year: number): number {
+  if (!p) return 0;
+  let n = 0;
+  for (const it of p.items) for (const r of it.rows) if (setup.split?.[`${year}:${r.id}`] == null) n++;
+  return n;
 }
 
 /** 한 줄(연도×재원 또는 합계)의 계산 결과 */
@@ -97,13 +127,13 @@ export function compute(name: string, setup: Setup, byYear: Record<number, Budge
     const bySrc: Record<string, Line> = {};
     for (const s of setup.sources) {
       const m = setup.rows[`${y}:${s}`] ?? {};
-      // 재원이 하나면 집행현황 값이 곧 그 줄, 둘 이상이면 직접 적은 값
-      // 재원이 둘 이상이면 부기사업 매칭으로 그 재원 몫이 와요(부기사업이 둘 미만이면 직접 적은 값)
-      const auto = one && main && !selfCarry ? main : !one && main && !selfCarry ? matchedOf(projs, name, setup, s) : null;
+      // 재원이 하나면 집행현황 값이 곧 그 줄. 둘 이상이면 본예산은 직접 적은 값(보내기 창 "재원별 예산"), 집행액은 공사별 재원대로 나눈 몫
+      const auto = one && main && !selfCarry ? main : null;
+      const splitEn = !one && main && !selfCarry ? splitExp(projs, name, setup, y, s) : null;
       const autoM = one && main && selfCarry === "m" ? main : null;
       const autoS = one && main && selfCarry === "s" ? main : null;
       const cur = auto ? auto.budget : z(m.cur);
-      const en = auto ? auto.exp : z(m.en);
+      const en = auto ? auto.exp : splitEn != null ? splitEn : z(m.en);
       const pl = prevLeft[s];
       const mine = carry != null && (one || s === (setup.carrySrc || setup.sources[0]));
       // 이어 붙인 이월 사업이 "(사고이월)"이면 사고 칸으로, 아니면 명시 칸으로
@@ -129,8 +159,8 @@ export function compute(name: string, setup: Setup, byYear: Record<number, Budge
     const total = sumLines(Object.values(bySrc));
     if (!one && main && !selfCarry) {
       // 재원이 둘 이상이면 합계 줄(연도·사업 줄)은 집행현황의 예산·집행액을 그대로 보여 주고(2026-10-20 사용자: 재원을 나눠 적기 전에도 예산이 보여야 해요),
-      // 재원 줄을 적기 시작했는데 합이 집행현황과 다르면 붉게
-      const sumCur = total.curSum, sumEn = total.en;
+      // 재원별 예산 합이 집행현황 예산과 다르면 붉게(집행액은 공사별 재원대로 나뉘어 늘 같아요)
+      const sumCur = total.curSum;
       const adds = total.a1 + total.a2 + total.a3 + total.a4;
       total.curSum = main.budget;
       total.cur = main.budget - adds;
@@ -139,7 +169,7 @@ export function compute(name: string, setup: Setup, byYear: Record<number, Budge
       total.act = total.curSum + total.prev;
       total.rate = total.act ? (total.ex / total.act) * 100 : null;
       total.left = total.act - total.ex - total.nm - total.ns - total.un;
-      if ((sumCur !== 0 && sumCur !== main.budget) || (sumEn !== 0 && sumEn !== main.exp)) total.diffSum = true;
+      if (sumCur !== main.budget) total.diffSum = true;
     }
     blocks.push({ year: y, linked, hasMain: main != null, total, bySrc });
   }

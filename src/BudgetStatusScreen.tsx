@@ -364,8 +364,8 @@ export default function BudgetStatusScreen() {
     );
 
   /** 숫자 칸들(구분·메모 사이) */
-  /** 그 해 집행현황에 부기사업이 둘 이상이면 재원 줄 예산·집행액은 매칭으로 와요(직접 적지 않음) */
-  const matchedYear = (name: string, y: number) => ((byYear[y] ?? []).find((x) => x.name === name)?.items.length ?? 0) >= 2;
+  /** 재원이 둘 이상인 사업: 그 해 집행현황에 있으면 재원 줄 집행액은 공사별 재원대로 와요(본예산은 직접 — 보내기 창 "재원별 예산"과 같은 값) */
+  const splitYear = (name: string, y: number) => (byYear[y] ?? []).some((x) => x.name === name);
   /** 집행현황에서 오는 칸: 보통 본예산·집행 당해, 잇지 않은 이월 세부사업은 명시/사고 쪽 */
   const lockOf = (name: string) => (/^\(명시이월\)/.test(name) ? ["pm", "em"] : /^\(사고이월\)/.test(name) ? ["ps", "es"] : ["cur", "en"]);
   // lock: 집행현황에서 오는 칸(재원 하나 + 그 해 집행현황 있음 → 본예산·집행 당해)은 고치는 줄에서도 값만 보여요
@@ -434,8 +434,8 @@ export default function BudgetStatusScreen() {
         out.push(num(v, (l.mismatch ? " red" : "") + ed, l.mismatch && year ? `${year - 1}년 다음연도 이월과 달라요` : undefined));
         continue;
       }
-      if (kind === "it" && l.diffSum && (id === "curSum" || id === "cur" || id === "ex" || id === "en")) {
-        out.push(num((l as unknown as Record<string, number>)[id], " red" + ed, "재원 줄을 더한 값이 집행현황과 달라요"));
+      if (kind === "it" && l.diffSum && (id === "curSum" || id === "cur")) {
+        out.push(num((l as unknown as Record<string, number>)[id], " red" + ed, "재원별 예산을 더한 값이 집행현황 예산과 달라요 — ⚙ 예산현황 설정에서 재원별 예산을 적어요"));
         continue;
       }
       out.push(num((l as unknown as Record<string, number>)[id], ed));
@@ -583,8 +583,8 @@ export default function BudgetStatusScreen() {
       const s = next[c.name];
       if (!s) continue;
       const m: Manual = { ...c.m };
-      // 집행현황에서 오는 칸(재원 하나 + 그 해 집행현황 있음)은 파일 값을 받지 않아요
-      if (s.sources.length === 1 && linkedOf(byYear[c.year] ?? [], c.name)) for (const k of lockOf(c.name)) delete m[k as keyof Manual];
+      // 집행현황에서 오는 칸은 파일 값을 받지 않아요(재원 하나면 본예산·집행 당해, 둘 이상이면 집행 당해)
+      if (linkedOf(byYear[c.year] ?? [], c.name)) for (const k of s.sources.length === 1 ? lockOf(c.name) : ["en"]) delete m[k as keyof Manual];
       next[c.name] = { ...s, rows: { ...s.rows, [`${c.year}:${c.src}`]: { ...(s.rows[`${c.year}:${c.src}`] ?? {}), ...m } } };
     }
     setSetups(next);
@@ -701,7 +701,7 @@ export default function BudgetStatusScreen() {
               <span className="bd-cr ind1 bs-noexp" aria-hidden="true" />
               <span className="bd-nm">{src}</span>
             </div>
-            {numCells(l, "gun", editing, year, true, matchedYear(p.name, year) ? ["cur", "en"] : [], true)}
+            {numCells(l, "gun", editing, year, true, splitYear(p.name, year) ? ["en"] : [], true)}
             {memoCell}
           </div>,
         );
@@ -766,7 +766,7 @@ export default function BudgetStatusScreen() {
               <span className="bd-tl h2" />
               <span className="bd-nm bd-gpad">{src}</span>
             </div>
-            {numCells(l, "gun", editing, b.year, first, matchedYear(p.name, b.year) ? ["cur", "en"] : [], true)}
+            {numCells(l, "gun", editing, b.year, first, splitYear(p.name, b.year) ? ["en"] : [], true)}
             {memoCell}
           </div>,
         );
@@ -865,6 +865,7 @@ export default function BudgetStatusScreen() {
           name: send,
           project: (byYear[yAt] ?? []).find((x) => x.name === send) ?? null,
           years: ys,
+          year: yAt,
           parents: all.filter((x) => !x.carry && setups[x.name]?.sent && x.name !== send).map((x) => ({ name: x.name, setup: setups[x.name] })),
           carries: all.filter((x) => x.carry && x.name !== send),
         };

@@ -1620,6 +1620,7 @@ export default function BudgetScreen() {
           name: bsSend,
           project: list.find((x) => x.name === bsSend) ?? null,
           years: [year],
+          year,
           parents: list.filter((x) => !x.carry && bsSetups[x.name]?.sent && x.name !== bsSend).map((x) => ({ name: x.name, setup: bsSetups[x.name] })),
           carries: list.filter((x) => x.carry && x.name !== bsSend).map((x) => ({ name: x.name, years: [year] })),
         };

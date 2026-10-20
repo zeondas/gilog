@@ -11002,3 +11002,20 @@ body.ew-dragging .pjm-colgrip:active::after {
 .fx-gcell[data-extdrop="1"],
 .fx-brow[data-extdrop="1"],
 .fx-tr[data-extdrop="1"] { background: var(--accent-tint); box-shadow: inset 0 0 0 1px var(--accent-line); }
+/* 예산현황 보내기 창 — 재원별 예산·공사별 재원(2026-10-20 사용자 1안) */
+.bss-amt { width: 160px; text-align: right; font-variant-numeric: tabular-nums; }
+.bss-amt.sm { width: 120px; }
+.bss-sum { font-size: 12px; color: var(--muted); padding: 0 2px; }
+.bss-sum b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.bss-ok { margin-left: 6px; color: var(--st-done-fg); font-weight: 600; }
+.bss-bad { margin-left: 6px; color: var(--danger); font-weight: 600; }
+.bss-row { height: auto; min-height: 34px; flex-direction: column; align-items: stretch; gap: 0; padding: 0; }
+.bss-row-main { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; }
+.bss-row.mixed { border-color: var(--accent-line); }
+.bss-item-kind { margin-left: 6px; font-size: 11px; color: var(--muted); font-weight: 500; }
+.bss-row-mix { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 0 10px 8px 10px; }
+.bss-mix { display: inline-flex; align-items: center; gap: 6px; }
+.bss-mix-lab { font-size: 12px; color: var(--muted); }
+.bss-mix-sum { font-size: 11.5px; color: var(--muted); }
+.bss-mix-sum.bad { color: var(--danger); }
+.bss-body { max-height: calc(100vh - 220px); overflow: auto; }
