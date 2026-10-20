@@ -1461,7 +1461,7 @@ export default function BudgetScreen() {
             ))}
           {cur != null && (
             <div className="bd-mi" onClick={() => void setOwner(id, null)}>
-              <span className="bs-mut">담당 비우기</span>
+              <span className="bs-own bs-oclear">비우기</span>
             </div>
           )}
         </div>

@@ -11401,7 +11401,10 @@ body.ew-dragging .pjm-colgrip:active::after {
 .bs-own { display: inline-flex; align-items: center; justify-content: center; max-width: 100%; height: 22px; padding: 0 8px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--ink-2); font: inherit; font-size: 11.5px; font-weight: 600; line-height: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; box-sizing: border-box; }
 .bs-own.none { width: 100%; }
 .bd-rw:hover .bs-own.none::after, .bs-own.none:focus-visible::after { content: "고르기"; color: var(--muted); font-weight: 400; }
-.bs-olist .bd-mi { min-width: 120px; }
+/* 담당 고르기 목록 = 단계 목록(.bd-stlist)처럼(2026-10-20 사용자): 줄 28, 배지는 모두 같은 폭(가장 긴 이름에 맞춤, 적어도 단계 배지 52) */
+.bs-olist .bd-mi { min-width: 0; }
+.bs-olist .bd-mi > .bs-own { width: 100%; min-width: 52px; }
+.bs-own.bs-oclear { border: 1px dashed var(--line); color: var(--muted); font-weight: 400; }
 .bd-pop.bs-pop { width: 300px; padding: 12px 14px; border-color: var(--line-raised, var(--line)); border-radius: 10px; }
 .bs-cf { display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 18px; color: var(--ink); }
 .bs-pt { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
