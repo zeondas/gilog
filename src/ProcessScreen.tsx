@@ -17,7 +17,7 @@ import { DelIcon } from "./Icons";
 import { koIndex, todayStr } from "./journal";
 import { PlaceInput } from "./PlaceInputs";
 import { actionLine, aiGuide, fileName, md, orderLabel, orderTag, PORTAL_URL, processError, SAMPLE_WORKS, SAMPLES } from "./process";
-import { DEFAULT_PROCESS, DONE_STATUS, loadSettings, ProcessSettings } from "./settingsStore";
+import { DEFAULT_PROCESS, isClosed, loadSettings, ProcessSettings } from "./settingsStore";
 
 type Props = { urgentDays: number; onOpenComplaint: (id: number) => void };
 
@@ -235,7 +235,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   const isDone = (c: Case) => {
     if (c.complaint == null) return false;
     const m = complaints.find((x) => x.id === c.complaint);
-    return !!m && m.status === DONE_STATUS;
+    return !!m && isClosed(m.status);
   };
 
   const found = useMemo(() => {

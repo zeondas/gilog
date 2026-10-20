@@ -25,9 +25,12 @@ jobs:
       # 암호화 저장(SQLCipher)에 들어가는 OpenSSL을 만들 때 필요해요.
       - uses: ilammy/setup-nasm@v1
 
+      # 저장·암호화 시험(src-tauri/core)은 따로 떨어진 프로젝트라 캐시에 함께 넣어요(빠지면 시험 단계만 20분 넘게 걸려요).
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: |
+            src-tauri
+            src-tauri/core
 
       - run: npm ci
 

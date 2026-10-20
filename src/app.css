@@ -6973,10 +6973,13 @@ body.col-dragging * {
   color: var(--muted);
 }
 
-.pr-due {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1h);
+/* 한 줄의 가운데 맞춤(2026-10-19 사용자): 첫 줄 글자 상자 11~29(가운데 20) — 고르기 칸·공사 배지 22·입력칸·단추 28도 가운데 20,
+   한 줄의 칸·단추·공사 고르기·지시부 이름은 모두 28(6~34) — 2026-10-19 사용자: 높이가 달라 보여요
+   둘째 줄 31~49(가운데 40) — 기한의 남은 날 배지 22도 29~51로 가운데 40 */
+.pr-date.pr-due {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
 }
 
 .pr-d {
@@ -7019,9 +7022,9 @@ body.col-dragging * {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   max-width: 100%;
-  min-height: var(--size-badge-h);
-  margin-top: -2px;
-  padding: 3px 8px;
+  min-height: 28px;
+  margin-top: -5px;
+  padding: 5px 8px;
   overflow: hidden;
   border: 1px solid var(--wc, var(--line));
   border-radius: var(--radius-sm);
@@ -7046,7 +7049,7 @@ body.col-dragging * {
 
 .pr-row > div:has(> .pr-in),
 .pr-row > div:has(> .cell-input) {
-  padding-top: 8px;
+  padding-top: 6px;
 }
 
 .pr-in.center {
@@ -7062,7 +7065,7 @@ body.col-dragging * {
   display: flex;
   align-items: center;
   gap: var(--space-1h);
-  padding-top: 8px !important;
+  padding-top: 6px !important;
 }
 
 /* 표준 지시부(2026-10-19): 줄 앞 고르기 칸 · 지시부 이름 칩 · 고른 줄 띠 */
@@ -7088,7 +7091,7 @@ body.col-dragging * {
 .pr-chip {
   flex: none;
   width: 84px;
-  height: 22px;
+  height: 28px;
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
@@ -7131,7 +7134,7 @@ body.col-dragging * {
 
 .pr-next {
   width: 76px;
-  height: 26px;
+  height: 28px;
   padding: 0;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
@@ -10805,3 +10808,33 @@ body.ew-dragging * {
 .bs .bd-bar.rowbar { height: 5px; background: var(--bd-bar-track); }
 .bs .bd-bar.rowbar > span { background: var(--bd-bar-fill); }
 .bs .bd-pct.rowp { font-weight: 400; color: var(--ink); }
+
+/* 민원대장 줄 위쪽 맞춤(2026-10-19 사용자 "굿", 시안 topcmp): 모든 칸의 첫 줄을 내용·조치내용 머릿기호 첫 줄(줄 위 17.5px)에 맞춰요.
+   한 줄 칸 위 9px·여러 줄 칸 8px, 높이가 다른 것(복사 단추 22·상태 배지 22·메모 단추 28)은 그만큼 위로 */
+.cm-view > .cm-c { align-items: flex-start; padding-top: 9px; padding-bottom: 8px; }
+.cm-view > .cm-multi { padding-top: 8px; }
+.cm-view > .cm-due { align-content: start; align-items: start; }
+.cm-view .cm-copy { margin-top: -2px; }
+.cm-view .cm-spick { margin-top: -3px; }
+.cm-view .cm-memo { margin-top: -5px; }
+
+/* 민원대장 고치는 줄 정리(2026-10-19 사용자, 시안 editcmp3 1안 + 저장 단추): 칸은 보기 줄과 같은 열 그대로, 입력 칸 높이 28,
+   아래 띠는 점선 위 — 왼쪽 "× 이 민원 지우기"(×를 연번 숫자 왼쪽 끝에 맞춤, 재서 넣어요), 오른쪽 짧은 안내·취소·저장 */
+.cm-edit > .cm-c { padding: 6px 4px; min-height: 0; }
+.cm-edit > .cm-no { display: block; padding: 6px 10px; line-height: 28px; text-align: right; }
+.cm-edit > .cm-area-auto { padding: 6px 10px; line-height: 28px; }
+.cm-edit input.cell-input { height: 28px; }
+.cm-edit-foot { margin: 0 8px; padding: 6px 4px 8px 0; border-top: 1px dashed var(--line); gap: 8px; }
+.cm-edit-foot > .cm-del { width: auto; gap: 4px; padding: 0 10px 0 0; margin-left: 0; border-radius: var(--radius-sm); font-size: 12.5px; font-weight: 600; }
+.cm-edit-foot > .cm-del:hover { padding-left: 0; }
+.cm-edit-hint { flex: 1; margin: 0 4px 0 0; text-align: right; }
+/* 지우기 단추 앞 붉은 네모 ×(2026-10-20 사용자): 채운 붉은 정사각형 + 바탕색 × — 네모 왼쪽 끝 = 연번 숫자 왼쪽 끝 */
+.cm-edit-foot > .cm-del { gap: 6px; }
+.cm-del-x { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 4px; background: var(--danger); color: var(--surface); flex: none; }
+.cm-del-x > svg { width: 12px; height: 12px; stroke-width: 2.6; }
+
+/* 폴더트리 첫 줄·드라이브 단추 줄 간격 맞춤(2026-10-19 사용자 1안): 구분선 아래 8px, 상자 옆 끝에서 10px.
+   단추 줄 높이(42)는 그대로 두고 단추만 위로 붙여(위 8·아래 5 + 선 1) 아래 경로 줄·목록은 움직이지 않아요. */
+.fx-tree-list { padding-top: 8px; }
+.fx-tr { margin: 0 8px; }
+.fx-pane .fx-row1 { align-items: flex-start; padding: 8px 8px 5px; }
