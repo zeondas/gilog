@@ -688,6 +688,9 @@ mod tests {
         let v = serde_json::json!({"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t2","content":"홍길동"}]}});
         assert!(!log_line(&v, "", &mut seen).contains("홍길동"));
         assert_eq!(final_state("NO_CHROME", false).0, "error");
+        let v = serde_json::json!({"type":"assistant","message":{"content":[{"type":"tool_use","id":"t3","name":"mcp__claude-in-chrome__computer","input":{"action":"left_click","ref":"ref_12"}},{"type":"tool_use","id":"t4","name":"mcp__claude-in-chrome__computer","input":{"action":"type","text":"홍길동"}},{"type":"tool_use","id":"t5","name":"mcp__claude-in-chrome__find","input":{"query":"목록 단추"}}]}});
+        let l = log_line(&v, "", &mut seen);
+        assert!(l.contains("computer action=left_click ref=ref_12") && l.contains("text=3자") && !l.contains("홍길동") && l.contains("find query=목록 단추"));
     }
 
     #[test]
@@ -803,6 +806,11 @@ fn log_line(v: &serde_json::Value, raw: &str, seen: &mut std::collections::HashS
                                 parts.push(format!("tool_use {name} {}", inp.to_string().chars().take(300).collect::<String>()));
                                 continue;
                             }
+                            // 무엇을 눌렀는지(2026-10-20 사용자: 불필요한 단추를 누름) – find 글·누른 자리·동작만, 친 글은 길이만
+                            if name.ends_with("__find") || name.ends_with("__computer") || name.ends_with("__browser_batch") {
+                                parts.push(format!("tool_use {} {}", name.rsplit("__").next().unwrap_or(name), click_hint(inp)));
+                                continue;
+                            }
                             let hint = ["url", "file_path", "path", "pattern", "command"]
                                 .iter()
                                 .find_map(|k| inp[k].as_str().map(|s| format!(" {k}={}", s.chars().take(160).collect::<String>())))
@@ -842,6 +850,21 @@ fn log_line(v: &serde_json::Value, raw: &str, seen: &mut std::collections::HashS
         }
         _ => format!("{t} {}", v["subtype"].as_str().unwrap_or("")),
     }
+}
+
+/// 누르기 도구 입력 요약: find는 찾는 글, computer는 동작·자리(ref/좌표), 친 글(text)은 길이만, browser_batch는 차례대로
+fn click_hint(inp: &serde_json::Value) -> String {
+    let one = |a: &serde_json::Value| -> String {
+        let mut v = Vec::new();
+        for k in ["query", "action", "ref", "coordinate", "scroll_direction"] {
+            if !a[k].is_null() { v.push(format!("{k}={}", a[k].to_string().trim_matches('"').chars().take(80).collect::<String>())); }
+        }
+        if let Some(t) = a["text"].as_str() { v.push(format!("text={}자", t.chars().count())); }
+        v.join(" ")
+    };
+    if let Some(list) = inp["actions"].as_array() {
+        list.iter().map(|a| format!("[{} {}]", a["tool"].as_str().or(a["name"].as_str()).unwrap_or("?"), one(a.get("input").or(a.get("args")).unwrap_or(a)))).collect::<Vec<_>>().join(" ")
+    } else { one(inp) }
 }
 
 /// 멈춘 이유를 사람이 읽을 말로(원인 목록 ①~⑥). 모르면 첫 줄을 그대로 보여요.
