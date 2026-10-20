@@ -6,7 +6,14 @@ import { inApp } from "./api";
 import { FsDrive, FsEntry, HOME, PC, baseName, bothName, formatSize, joinPath, parentOf, quickMatch } from "./files";
 
 export type Conflict = { src: FsEntry; dst: FsEntry };
-export type Summary = { done: number; skipped: number; errors: [string, string][] };
+export type Summary = { done: number; skipped: number; errors: [string, string][]; pairs?: [string, string][]; overwritten?: number };
+/** 되돌리기 한 걸음(Rust files.rs의 Step) */
+export type Step =
+  | { k: "move"; from: string; to: string }
+  | { k: "copy"; from: string; to: string }
+  | { k: "trash"; paths: string[] }
+  | { k: "restore"; paths: string[]; since: number }
+  | { k: "mkdir"; path: string };
 export type Found = FsEntry & { folder: string };
 export type TreeDir = { name: string; path: string; hasChildren: boolean };
 export type FindSpec = {
@@ -34,7 +41,9 @@ export type FastStatus = {
   drives: { drive: string; count: number; ready: boolean }[];
 };
 /** 우클릭 메뉴 결과: "" 안 고름 · "done" 실행함 · "rename" 이름 바꾸기 시작 */
-export type MenuResult = "" | "done" | "rename" | "reveal" | "newfolder";
+export type MenuResult = "" | "done" | "rename" | "reveal" | "newfolder" | "openlocation" | `x:${string}`;
+/** 기록이 윈도우 메뉴 맨 위에 더하는 줄(빈 곳의 보기·정렬 기준 등). label "-"는 구분선, items가 있으면 하위 메뉴 – 고르면 "x:id" */
+export type MenuExtra = { id: string; label: string; checked?: boolean; items?: MenuExtra[] };
 
 // ---------- 브라우저 흉내 ----------
 
@@ -60,6 +69,11 @@ function addDir(path: string) {
   const M = "D:\\민원처리\\";
   const k = 1024;
   const mb = k * k;
+  // zip 파일(폴더처럼 들어가 보기 – 호환 B): 먼저 파일로 두면 안의 것을 더해도 폴더로 바뀌지 않아요
+  fakeFs.set(M + "현장사진_10월.zip", { dir: false, size: 3.4 * mb, modified: T("2026-10-18T16:20") });
+  addFake(M + "현장사진_10월.zip\\공문.hwp", 52 * k, "2026-10-18T16:10");
+  addFake(M + "현장사진_10월.zip\\사진\\봉일천리_전.jpg", 1.2 * mb, "2026-10-15T09:02");
+  addFake(M + "현장사진_10월.zip\\사진\\봉일천리_후.jpg", 1.1 * mb, "2026-10-17T14:02");
   addFake(M + "261001_답곡리 산 82-9_포트홀.jpg", 405 * k, "2026-10-02T11:10");
   addFake(M + "261001_답곡리 산 82-9_포트홀.pptx", 1.6 * mb, "2026-10-02T11:10");
   addFake(M + "261015_봉일천리 209-10_포트홀.jpg", 412 * k, "2026-10-17T14:21");
@@ -146,6 +160,18 @@ function fakeCall(cmd: string, a: Record<string, unknown>): unknown {
       ];
     case "fs_home":
       return "D:\\민원처리";
+    case "fs_resolve": {
+      const v = (a.input as string).replace(/%USERPROFILE%/gi, "C:\\사용자\\hunmin");
+      const n = fakeFs.get(v);
+      return n ? [v, n.dir] : v === "F:\\" ? [v, true] : null;
+    }
+    case "fs_make_links":
+      return (a.paths as string[]).map((p) => {
+        const at = joinPath(a.dest as string, `${baseName(p)} - 바로 가기.lnk`);
+        fakeFs.set(at, { dir: false, size: 1200, modified: Date.now() });
+        fakeChanged(a.dest as string);
+        return at;
+      });
     case "fs_is_dir":
       return fakeFs.get(a.path as string)?.dir === true || a.path === "F:\\";
     case "fs_list":
@@ -199,7 +225,7 @@ function fakeCall(cmd: string, a: Record<string, unknown>): unknown {
       return { paths: fakeClip.paths.filter((p) => fakeFs.has(p)), cut: fakeClip.cut };
     case "fs_transfer": {
       const dec = a.decisions as Record<string, string>;
-      const sum: Summary = { done: 0, skipped: 0, errors: [] };
+      const sum: Summary = { done: 0, skipped: 0, errors: [], pairs: [], overwritten: 0 };
       for (const s of a.sources as string[]) {
         let d = joinPath(a.dest as string, baseName(s));
         // 같은 폴더에 붙여 넣기 → "이름 - 복사본"(앱과 같게)
@@ -217,16 +243,24 @@ function fakeCall(cmd: string, a: Record<string, unknown>): unknown {
           if (k === "both") d = joinPath(a.dest as string, bothName(baseName(s), (n) => fakeFs.has(joinPath(a.dest as string, n))));
         }
         const node = fakeFs.get(s)!;
+        const over = fakeFs.has(d);
         if (a.op === "move") fakeMove(s, d);
-        else fakeFs.set(d, { ...node, modified: node.modified });
+        else fakeCopy(s, d);
         sum.done++;
+        if (over) sum.overwritten!++;
+        else sum.pairs!.push([s, d]);
+        void node;
       }
       fakeChanged(a.dest as string, ...(a.sources as string[]).map(parentOf));
       return sum;
     }
     case "fs_delete":
       for (const p of a.paths as string[]) {
-        for (const k of [...fakeFs.keys()]) if (k === p || k.startsWith(p + "\\")) fakeFs.delete(k);
+        for (const k of [...fakeFs.keys()])
+          if (k === p || k.startsWith(p + "\\")) {
+            if (!a.permanent) fakeTrash.set(k, fakeFs.get(k)!);
+            fakeFs.delete(k);
+          }
       }
       fakeChanged(...(a.paths as string[]).map(parentOf));
       return null;
@@ -247,6 +281,42 @@ function fakeCall(cmd: string, a: Record<string, unknown>): unknown {
       }
       return out;
     }
+    case "fs_undo": {
+      const sum: Summary = { done: 0, skipped: 0, errors: [] };
+      const dirs: (string | null)[] = [];
+      for (const st of a.steps as Step[]) {
+        const fail = (p: string, why: string) => void sum.errors.push([p, why]);
+        if (st.k === "move" || st.k === "copy") {
+          if (!fakeFs.has(st.from)) fail(st.from, "not_found");
+          else if (fakeFs.has(st.to) && st.to.toLowerCase() !== st.from.toLowerCase()) fail(st.from, "exists");
+          else (st.k === "move" ? fakeMove(st.from, st.to) : fakeCopy(st.from, st.to), sum.done++);
+          dirs.push(parentOf(st.from), parentOf(st.to));
+        } else if (st.k === "mkdir") {
+          fakeFs.set(st.path, { dir: true, size: 0, modified: Date.now() });
+          sum.done++;
+          dirs.push(parentOf(st.path));
+        } else if (st.k === "trash") {
+          for (const p of st.paths) {
+            if (!fakeFs.has(p)) continue;
+            for (const k of [...fakeFs.keys()]) if (k === p || k.startsWith(p + "\\")) (fakeTrash.set(k, fakeFs.get(k)!), fakeFs.delete(k));
+            sum.done++;
+            dirs.push(parentOf(p));
+          }
+        } else {
+          for (const p of st.paths) {
+            if (!fakeTrash.has(p)) fail(p, "not_in_trash");
+            else if (fakeFs.has(p)) fail(p, "exists");
+            else {
+              for (const [k, n] of [...fakeTrash]) if (k === p || k.startsWith(p + "\\")) (fakeFs.set(k, n), fakeTrash.delete(k));
+              sum.done++;
+            }
+            dirs.push(parentOf(p));
+          }
+        }
+      }
+      fakeChanged(...dirs);
+      return sum;
+    }
     case "fs_fast_setup":
       return null;
     case "fs_fast_status":
@@ -255,14 +325,24 @@ function fakeCall(cmd: string, a: Record<string, unknown>): unknown {
       return { installed: true, running: true, drives: [{ drive: "C:", count: 412330, ready: true }, { drive: "D:", count: 88120, ready: true }] } as FastStatus;
     case "fs_icons":
       return {};
-    case "fs_context_menu":
-      return "";
+    case "fs_context_menu": {
+      // 미리 보기 시험: window.__fxMenuPick = "view:icons"면 더한 줄을 고른 것처럼
+      const w = window as unknown as { __fxMenuPick?: string; __fxMenuLast?: unknown };
+      w.__fxMenuLast = { dir: a.dir, names: a.names, extra: a.extra };
+      return w.__fxMenuPick ? `x:${w.__fxMenuPick}` : "";
+    }
+    case "fs_zip_extract":
+      return (a.paths as string[]).map((p) => "C:\\임시\\giLog-zip\\" + baseName(p));
     default:
       return null;
   }
 }
 
 let fakeClip: { paths: string[]; cut: boolean } = { paths: [], cut: false };
+const fakeTrash = new Map<string, FakeNode>();
+function fakeCopy(from: string, to: string) {
+  for (const [p, n] of [...fakeFs]) if (p === from || p.startsWith(from + "\\")) fakeFs.set(to + p.slice(from.length), { ...n });
+}
 
 function copyName(name: string, taken: (n: string) => boolean): string {
   const i = name.lastIndexOf(".");
@@ -309,6 +389,8 @@ export const fsApi = {
   transfer: (op: "copy" | "move", sources: string[], dest: string, decisions: Record<string, string>) =>
     call<Summary>("fs_transfer", { op, sources, dest, decisions }),
   cancel: () => call<null>("fs_cancel"),
+  /** Ctrl+Z·Y – 미리 만들어 둔 걸음들을 해요 */
+  undo: (steps: Step[]) => call<Summary>("fs_undo", { steps }),
   /** Ctrl+C·X – 윈도우 클립보드에 파일을 넣어요(빈 목록이면 비우기) */
   clipSet: (paths: string[], cut: boolean) => call<null>("fs_clip_set", { paths, cut }),
   /** Ctrl+V – 윈도우 클립보드의 파일 목록 */
@@ -319,7 +401,10 @@ export const fsApi = {
   icons: (keys: string[], size: number) => call<Record<string, string>>("fs_icons", { keys, size }),
   /** 파일 형식 이름(윈도우 것): 키는 ".xlsx"·"<dir>" */
   types: (keys: string[]) => (inApp ? call<Record<string, string>>("fs_types", { keys }) : Promise.resolve({} as Record<string, string>)),
-  contextMenu: (dir: string, names: string[], x: number, y: number) => call<MenuResult>("fs_context_menu", { dir, names, x, y }),
+  /** dir이 ""이면 names는 전체 경로(여러 폴더 찾기 결과·드라이브) */
+  contextMenu: (dir: string, names: string[], x: number, y: number, extra?: MenuExtra[]) => call<MenuResult>("fs_context_menu", { dir, names, x, y, extra: extra ?? null }),
+  /** zip 안의 것을 임시 폴더에 풀어 그 경로들을 돌려줘요(열기·복사해 나가기) */
+  zipExtract: (paths: string[]) => call<string[]>("fs_zip_extract", { paths }),
   /** 윈도우 끌기 시작(기록 → 윈도우 탐색기·바탕 화면) – 놓을 때까지 기다려요. "" 놓지 않음 · copy · move · link */
   startDrag: (paths: string[]) => call<string>("fs_start_drag", { paths }),
   /** Alt+Enter 속성 창 */
@@ -327,7 +412,11 @@ export const fsApi = {
   /** 바로가기(.lnk)가 가리키는 곳 */
   lnkTarget: (path: string) => (inApp ? call<string | null>("fs_lnk_target", { path }) : Promise.resolve(null)),
   /** 지금 누른 Ctrl·Shift */
-  mods: () => (inApp ? call<[boolean, boolean]>("fs_mods") : Promise.resolve([false, false] as [boolean, boolean])),
+  mods: () => (inApp ? call<[boolean, boolean, boolean]>("fs_mods") : Promise.resolve([false, false, false] as [boolean, boolean, boolean])),
+  /** Alt 누른 채 놓기: dest에 바로가기를 만들어요 */
+  makeLinks: (paths: string[], dest: string) => call<string[]>("fs_make_links", { paths, dest }),
+  /** 주소 칸: %환경변수%·shell:이름을 풀고 [경로, 폴더인지] – 없으면 null */
+  resolve: (input: string) => call<[string, boolean] | null>("fs_resolve", { input }),
   /** 윈도우 탐색기로 넘기기(보안 해제) – dir을 열어 names를 골라 두고 우클릭 메뉴를 띄워요 */
   reveal: (dir: string, names: string[]) => (inApp ? call<null>("fs_reveal", { dir, names, popup: true }) : Promise.resolve(null)),
   /** roots가 비면 빠른 찾기 목록이 있는 모든 드라이브 */
@@ -360,9 +449,11 @@ export function fsErrorText(e: unknown): string {
   const s = String(e);
   if (s === "exists") return "같은 이름이 이미 있어요.";
   if (s === "bad_name") return "쓸 수 없는 이름이에요.";
+  if (s === "reserved_name") return "CON·PRN·AUX·NUL·COM1·LPT1 같은 이름은 윈도우가 쓰는 이름이라 쓸 수 없어요.";
   if (s === "not_found") return "폴더를 찾지 못했어요.";
   if (s === "denied") return "권한이 없어 할 수 없어요.";
   if (s === "into_self") return "폴더를 그 안으로 옮기거나 복사할 수 없어요.";
+  if (s === "not_in_trash") return "휴지통에서 찾지 못했어요.";
   if (s.startsWith("trash")) return "휴지통으로 보내지 못했어요.";
   if (s.startsWith("clipboard")) return "다른 프로그램이 클립보드를 쓰고 있어요. 다시 해 주세요.";
   return "하지 못했어요. 파일이 다른 프로그램에서 열려 있는지 확인해 주세요.";

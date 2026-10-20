@@ -111,6 +111,12 @@ pub async fn fs_list(path: String, show_hidden: bool) -> Result<Vec<Entry>, Stri
 }
 
 pub(crate) fn list(dir: &Path, show_hidden: bool) -> Result<Vec<Entry>, String> {
+    // zip 파일은 폴더처럼 들어가요(호환 B, 2026-10-20 사용자) – "…\자료.zip\사진" 같은 경로
+    if !dir.is_dir() {
+        if let Some((z, inner)) = zip_split(dir) {
+            return list_zip(&z, &inner);
+        }
+    }
     let mut out = Vec::new();
     for e in fs::read_dir(dir).map_err(io)? {
         let Ok(e) = e else { continue };
@@ -183,7 +189,167 @@ pub fn fs_home(app: AppHandle) -> String {
 /// 경로가 폴더로 있는지(경로 칸에 고쳐 적은 것 확인)
 #[tauri::command]
 pub fn fs_is_dir(path: String) -> bool {
-    Path::new(&path).is_dir()
+    let p = Path::new(&path);
+    p.is_dir() || (!p.exists() && zip_split(p).is_some_and(|(z, inner)| zip_has_dir(&z, &inner)))
+}
+
+// ---------- zip 안 보기(읽기만) ----------
+
+/// 경로가 zip 파일이거나 그 안이면 (zip 파일, 안쪽 경로 "a/b")
+pub(crate) fn zip_split(path: &Path) -> Option<(PathBuf, String)> {
+    for anc in path.ancestors() {
+        if anc.as_os_str().is_empty() {
+            break;
+        }
+        if anc.is_dir() {
+            return None;
+        }
+        if anc.is_file() {
+            let is_zip = anc.extension().is_some_and(|e| e.eq_ignore_ascii_case("zip"));
+            if !is_zip {
+                return None;
+            }
+            let rest = path.strip_prefix(anc).ok()?;
+            let inner = rest.components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect::<Vec<_>>().join("/");
+            return Some((anc.to_path_buf(), inner));
+        }
+    }
+    None
+}
+
+/// zip 안 이름: UTF-8이 아니면 한국 윈도우 압축(CP949)으로 읽어요
+fn zip_name(raw: &[u8]) -> String {
+    let s = match std::str::from_utf8(raw) {
+        Ok(s) => s.to_string(),
+        Err(_) => encoding_rs::EUC_KR.decode(raw).0.into_owned(),
+    };
+    s.replace('\\', "/")
+}
+
+fn zip_open(z: &Path) -> Result<zip::ZipArchive<fs::File>, String> {
+    zip::ZipArchive::new(fs::File::open(z).map_err(io)?).map_err(|_| "bad_zip".to_string())
+}
+
+fn zip_ms(dt: Option<zip::DateTime>) -> i64 {
+    let Some(d) = dt else { return 0 };
+    // 1970-01-01부터 날 수(그레고리력)
+    let (y, m, dd) = (d.year() as i64, d.month() as i64, d.day() as i64);
+    let (y2, m2) = if m <= 2 { (y - 1, m + 9) } else { (y, m - 3) };
+    let era = y2.div_euclid(400);
+    let yoe = y2 - era * 400;
+    let doy = (153 * m2 + 2) / 5 + dd - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let days = era * 146097 + doe - 719468;
+    ((days * 86400) + d.hour() as i64 * 3600 + d.minute() as i64 * 60 + d.second() as i64) * 1000
+}
+
+fn zip_has_dir(z: &Path, inner: &str) -> bool {
+    if inner.is_empty() {
+        return true;
+    }
+    let Ok(mut a) = zip_open(z) else { return false };
+    let pre = format!("{inner}/");
+    (0..a.len()).any(|i| a.by_index_raw(i).is_ok_and(|f| zip_name(f.name_raw()).starts_with(&pre)))
+}
+
+pub(crate) fn list_zip(z: &Path, inner: &str) -> Result<Vec<Entry>, String> {
+    let mut a = zip_open(z)?;
+    let pre = if inner.is_empty() { String::new() } else { format!("{inner}/") };
+    let base = if inner.is_empty() { z.to_path_buf() } else { z.join(inner.replace('/', std::path::MAIN_SEPARATOR_STR)) };
+    let mut out: Vec<Entry> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+    for i in 0..a.len() {
+        let Ok(f) = a.by_index_raw(i) else { continue };
+        let name = zip_name(f.name_raw());
+        let Some(rest) = name.strip_prefix(&pre) else { continue };
+        let rest = rest.trim_end_matches('/');
+        if rest.is_empty() {
+            continue;
+        }
+        let (first, deeper) = match rest.split_once('/') {
+            Some((a, _)) => (a, true),
+            None => (rest, f.is_dir()),
+        };
+        if !seen.insert(first.to_string()) {
+            continue;
+        }
+        let dir = deeper;
+        out.push(Entry {
+            name: first.to_string(),
+            path: base.join(first).to_string_lossy().into_owned(),
+            dir,
+            size: if dir { 0 } else { f.size() },
+            modified: zip_ms(f.last_modified()),
+            created: 0,
+            hidden: false,
+            locked: false,
+        });
+    }
+    Ok(out)
+}
+
+/// zip 안의 것들을 임시 폴더에 풀어 그 경로를 돌려줘요(복사해 나가기·열기). 폴더면 안의 것까지.
+#[tauri::command]
+pub async fn fs_zip_extract(paths: Vec<String>) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || zip_extract(&paths, &std::env::temp_dir().join("giLog-zip"))).await.map_err(|e| e.to_string())?
+}
+
+pub(crate) fn zip_extract(paths: &[String], tmp_root: &Path) -> Result<Vec<String>, String> {
+    let stamp = std::time::SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+    let base = tmp_root.join(stamp.to_string());
+    let mut out = Vec::new();
+    for p in paths {
+        let Some((z, inner)) = zip_split(Path::new(p)) else { return Err("not_found".into()) };
+        if inner.is_empty() {
+            return Err("not_found".into());
+        }
+        let last = inner.rsplit('/').next().unwrap_or(&inner).to_string();
+        let target = base.join(&last);
+        let pre = format!("{inner}/");
+        let mut a = zip_open(&z)?;
+        let mut found = false;
+        for i in 0..a.len() {
+            let mut f = a.by_index(i).map_err(|_| "bad_zip".to_string())?;
+            let name = zip_name(f.name_raw());
+            let name = name.trim_end_matches('/');
+            let to = if name == inner {
+                target.clone()
+            } else if let Some(rest) = name.strip_prefix(&pre) {
+                // ".." 같은 이름으로 임시 폴더 밖에 쓰지 않게
+                if rest.split('/').any(|c| c == ".." || c.is_empty()) {
+                    continue;
+                }
+                target.join(rest.replace('/', std::path::MAIN_SEPARATOR_STR))
+            } else {
+                continue;
+            };
+            found = true;
+            if f.is_dir() {
+                fs::create_dir_all(&to).map_err(io)?;
+                continue;
+            }
+            if let Some(par) = to.parent() {
+                fs::create_dir_all(par).map_err(io)?;
+            }
+            let mut w = fs::File::create(&to).map_err(io)?;
+            std::io::copy(&mut f, &mut w).map_err(io)?;
+        }
+        if !found {
+            return Err("not_found".into());
+        }
+        if !target.exists() {
+            fs::create_dir_all(&target).map_err(io)?;
+        }
+        out.push(target.to_string_lossy().into_owned());
+    }
+    Ok(out)
+}
+
+/// 윈도우가 장치 이름으로 쓰는 이름(CON, PRN, AUX, NUL, COM1~9, LPT1~9) – 확장자가 붙어도 못 써요
+pub(crate) fn reserved_name(name: &str) -> bool {
+    let stem = name.split('.').next().unwrap_or("").trim_end().to_uppercase();
+    matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || ((stem.starts_with("COM") || stem.starts_with("LPT")) && stem.len() == 4 && matches!(stem.as_bytes()[3], b'1'..=b'9'))
 }
 
 fn check_name(name: &str) -> Result<(), String> {
@@ -195,6 +361,8 @@ fn check_name(name: &str) -> Result<(), String> {
         || name.ends_with(' ');
     if bad {
         Err("bad_name".into())
+    } else if reserved_name(name) {
+        Err("reserved_name".into())
     } else {
         Ok(())
     }
@@ -485,6 +653,10 @@ pub struct Summary {
     pub skipped: usize,
     /// (경로, 이유)
     pub errors: Vec<(String, String)>,
+    /// 되돌리기용: 새로 생긴 것 (원본, 대상) – 통째로 옮긴·새로 만든 폴더는 폴더 하나로(덮어쓴 것은 빼요)
+    pub pairs: Vec<(String, String)>,
+    /// 덮어쓴 파일 수(되돌릴 수 없어요)
+    pub overwritten: usize,
 }
 
 #[derive(Serialize, Clone)]
@@ -543,6 +715,7 @@ pub(crate) fn transfer(
     let total = work.len();
     // 옮기기는 같은 드라이브에서 겹침이 없으면 폴더째 한 번에 옮겨요(빠르고, 빈 폴더도 따라가요).
     let mut handled: HashSet<PathBuf> = HashSet::new();
+    let mut pairs: Vec<(PathBuf, PathBuf)> = Vec::new();
     if is_move {
         for s in sources {
             let Some(name) = s.file_name() else { continue };
@@ -554,8 +727,22 @@ pub(crate) fn transfer(
             }
             if !to.exists() && fs::rename(s, &to).is_ok() {
                 handled.insert(s.clone());
+                pairs.push((s.clone(), to.clone()));
                 sum.done += if s.is_dir() || to.is_dir() { work.iter().filter(|(a, _)| a.starts_with(s)).count().max(1) } else { 1 };
             }
+        }
+    }
+    // 대상에 없던 폴더(통째로 새로 생기는 폴더) – 되돌릴 때 폴더 하나로 다뤄요
+    let mut fresh: Vec<(PathBuf, PathBuf)> = Vec::new();
+    for s in sources {
+        if handled.contains(s) || !s.is_dir() {
+            continue;
+        }
+        let Some(name) = s.file_name() else { continue };
+        let to = dest.join(name);
+        let to = if s.parent() == Some(dest) { copy_name(&to) } else { to };
+        if !to.exists() {
+            fresh.push((s.clone(), to));
         }
     }
     let mut n = 0usize;
@@ -570,10 +757,11 @@ pub(crate) fn transfer(
         n += 1;
         tell(n, total, &src.file_name().map(|x| x.to_string_lossy().into_owned()).unwrap_or_default());
         let mut target = dst.clone();
+        let mut over = false;
         if target.exists() || src == dst {
             let key = dst.to_string_lossy().into_owned();
             match decisions.get(&key).map(String::as_str).unwrap_or(if src == dst { "both" } else { "skip" }) {
-                "over" if src != dst => {}
+                "over" if src != dst => over = true,
                 "both" => target = unique_path(dst),
                 _ => {
                     sum.skipped += 1;
@@ -593,7 +781,14 @@ pub(crate) fn transfer(
             fs::copy(src, &target).map(|_| ())
         };
         match r {
-            Ok(()) => sum.done += 1,
+            Ok(()) => {
+                sum.done += 1;
+                if over {
+                    sum.overwritten += 1;
+                } else if !fresh.iter().any(|(_, t)| target.starts_with(t)) {
+                    pairs.push((src.clone(), target.clone()));
+                }
+            }
             Err(e) => sum.errors.push((src.to_string_lossy().into_owned(), io(e))),
         }
     }
@@ -607,7 +802,150 @@ pub(crate) fn transfer(
             let _ = remove_if_empty_tree(s);
         }
     }
+    for (s, t) in fresh {
+        if t.exists() {
+            pairs.push((s, t));
+        }
+    }
+    sum.pairs = pairs.into_iter().map(|(a, b)| (a.to_string_lossy().into_owned(), b.to_string_lossy().into_owned())).collect();
     Ok(sum)
+}
+
+// ---------- 되돌리기·다시 하기(Ctrl+Z·Y, 호환 A1) ----------
+
+/// 되돌리기 한 걸음. 화면이 일을 할 때 거꾸로 할 걸음을 미리 만들어 둬요.
+#[derive(Deserialize, Debug, Clone)]
+#[serde(tag = "k", rename_all = "lowercase")]
+pub enum Step {
+    /// 옮기기(이름 바꾸기 포함). 대상에 같은 이름 폴더가 있으면 안으로 합쳐요, 파일이 있으면 건너뛰어요.
+    Move { from: String, to: String },
+    /// 복사(폴더는 통째로). 대상이 있으면 건너뛰어요.
+    Copy { from: String, to: String },
+    /// 휴지통으로
+    Trash { paths: Vec<String> },
+    /// 휴지통에서 꺼내기 – since(유닉스 초) 뒤에 지운 것 가운데 가장 새것
+    Restore { paths: Vec<String>, since: i64 },
+    /// 빈 폴더 만들기
+    Mkdir { path: String },
+}
+
+#[tauri::command]
+pub async fn fs_undo(steps: Vec<Step>) -> Result<Summary, String> {
+    tauri::async_runtime::spawn_blocking(move || Ok(run_steps(&steps))).await.map_err(|e| e.to_string())?
+}
+
+pub(crate) fn run_steps(steps: &[Step]) -> Summary {
+    let mut sum = Summary::default();
+    let mut tell = |r: Result<usize, String>, path: &str| match r {
+        Ok(n) => sum.done += n,
+        Err(e) => sum.errors.push((path.to_string(), e)),
+    };
+    for st in steps {
+        match st {
+            Step::Move { from, to } => tell(move_back(Path::new(from), Path::new(to)).map(|_| 1), from),
+            Step::Copy { from, to } => {
+                let (f, t) = (Path::new(from), Path::new(to));
+                let r = if t.exists() {
+                    Err("exists".to_string())
+                } else if !f.exists() {
+                    Err("not_found".to_string())
+                } else {
+                    t.parent().map(fs::create_dir_all).transpose().map_err(io).and_then(|_| copy_tree(f, t)).map(|_| 1)
+                };
+                tell(r, from)
+            }
+            Step::Mkdir { path } => tell(fs::create_dir_all(path).map(|_| 1).map_err(io), path),
+            Step::Trash { paths } => {
+                let have: Vec<&String> = paths.iter().filter(|p| Path::new(p).exists()).collect();
+                let n = have.len();
+                let r = if n == 0 { Ok(0) } else { trash::delete_all(&have).map(|_| n).map_err(|e| format!("trash:{e}")) };
+                tell(r, paths.first().map(String::as_str).unwrap_or(""))
+            }
+            Step::Restore { paths, since } => tell(restore(paths, *since), paths.first().map(String::as_str).unwrap_or("")),
+        }
+    }
+    sum
+}
+
+/// from → to로 옮겨요. 같은 드라이브면 이름만, 다른 드라이브면 복사 뒤 지워요.
+/// to에 같은 이름 폴더가 이미 있으면 안의 것을 하나씩 옮겨 합치고, 파일이 있으면 "exists".
+pub(crate) fn move_back(from: &Path, to: &Path) -> Result<(), String> {
+    if !from.exists() {
+        return Err("not_found".into());
+    }
+    let same_but_case = from.to_string_lossy().to_lowercase() == to.to_string_lossy().to_lowercase();
+    if to.exists() && !same_but_case {
+        if from.is_dir() && to.is_dir() {
+            let mut first_err = None;
+            for e in fs::read_dir(from).map_err(io)?.flatten() {
+                if let Err(er) = move_back(&e.path(), &to.join(e.file_name())) {
+                    first_err.get_or_insert(er);
+                }
+            }
+            let _ = fs::remove_dir(from);
+            return first_err.map_or(Ok(()), Err);
+        }
+        return Err("exists".into());
+    }
+    if let Some(p) = to.parent() {
+        fs::create_dir_all(p).map_err(io)?;
+    }
+    if fs::rename(from, to).is_ok() {
+        return Ok(());
+    }
+    copy_tree(from, to)?;
+    if from.is_dir() { fs::remove_dir_all(from) } else { fs::remove_file(from) }.map_err(io)
+}
+
+/// 폴더째 복사(파일이면 파일 하나). 대상에 있는 파일은 덮지 않아요.
+fn copy_tree(from: &Path, to: &Path) -> Result<(), String> {
+    if from.is_dir() {
+        fs::create_dir_all(to).map_err(io)?;
+        for e in fs::read_dir(from).map_err(io)?.flatten() {
+            copy_tree(&e.path(), &to.join(e.file_name()))?;
+        }
+        Ok(())
+    } else if to.exists() {
+        Err("exists".into())
+    } else {
+        fs::copy(from, to).map(|_| ()).map_err(io)
+    }
+}
+
+/// 휴지통에서 그 경로로 지운 것 가운데 since 뒤의 가장 새것을 제자리로 꺼내요.
+/// 윈도우 휴지통의 이름은 확장자를 숨긴 채 올 수 있어 원래 이름은 우리가 아는 것으로 써요.
+fn restore(paths: &[String], since: i64) -> Result<usize, String> {
+    let items = trash::os_limited::list().map_err(|e| format!("trash:{e}"))?;
+    let mut pick: Vec<trash::TrashItem> = Vec::new();
+    for p in paths {
+        let want = Path::new(p);
+        let (Some(parent), Some(name)) = (want.parent(), want.file_name()) else { continue };
+        let name = name.to_string_lossy().to_lowercase();
+        let stem = want.file_stem().map(|s| s.to_string_lossy().to_lowercase()).unwrap_or_default();
+        let parent_l = parent.to_string_lossy().trim_end_matches(['\\', '/']).to_lowercase();
+        let best = items
+            .iter()
+            .filter(|it| it.original_parent.to_string_lossy().trim_end_matches(['\\', '/']).to_lowercase() == parent_l)
+            .filter(|it| {
+                let n = it.name.to_string_lossy().to_lowercase();
+                n == name || n == stem
+            })
+            // 리눅스 휴지통은 지운 때를 못 읽으면 음수예요
+            .filter(|it| it.time_deleted < 0 || it.time_deleted >= since - 10)
+            .max_by_key(|it| it.time_deleted);
+        if let Some(it) = best {
+            pick.push(trash::TrashItem { id: it.id.clone(), name: want.file_name().unwrap().to_os_string(), original_parent: parent.to_path_buf(), time_deleted: it.time_deleted });
+        }
+    }
+    let n = pick.len();
+    if n == 0 {
+        return Err("not_in_trash".into());
+    }
+    trash::os_limited::restore_all(pick).map_err(|e| match e {
+        trash::Error::RestoreCollision { .. } => "exists".to_string(),
+        e => format!("trash:{e}"),
+    })?;
+    Ok(n)
 }
 
 fn copy_empty_dirs(src: &Path, dst: &Path) {
@@ -778,19 +1116,30 @@ pub async fn fs_icons(keys: Vec<String>, size: u32) -> HashMap<String, String> {
 /// 메뉴가 닫힐 때까지 기다려요. 돌려주는 값: "" 안 고름 · "done" 실행함 · "rename" 화면이 이름 바꾸기를 시작해요.
 /// names는 dir 안의 이름들이에요(한 폴더 것만).
 #[tauri::command]
-pub fn fs_context_menu(window: tauri::WebviewWindow, dir: String, names: Vec<String>, x: f64, y: f64) -> Result<String, String> {
+pub fn fs_context_menu(window: tauri::WebviewWindow, dir: String, names: Vec<String>, x: f64, y: f64, extra: Option<Vec<MenuExtra>>) -> Result<String, String> {
+    let extra = extra.unwrap_or_default();
     #[cfg(windows)]
     {
         let hwnd = window.hwnd().map_err(|e| e.to_string())?;
         let origin = window.inner_position().map(|p| (p.x, p.y)).unwrap_or((0, 0));
         let scale = window.scale_factor().unwrap_or(1.0);
-        crate::files_win::context_menu(hwnd.0 as isize, origin, scale, &dir, &names, x, y)
+        crate::files_win::context_menu(hwnd.0 as isize, origin, scale, &dir, &names, x, y, &extra)
     }
     #[cfg(not(windows))]
     {
-        let _ = (window, dir, names, x, y);
+        let _ = (window, dir, names, x, y, extra);
         Err("windows_only".into())
     }
+}
+
+/// 우클릭 메뉴에 기록이 더하는 줄(label "-"는 구분선, items가 있으면 아래 메뉴)
+#[derive(Deserialize, Debug, Clone, Default)]
+#[serde(default)]
+pub struct MenuExtra {
+    pub id: String,
+    pub label: String,
+    pub checked: bool,
+    pub items: Vec<MenuExtra>,
 }
 
 /// 기록에서 윈도우 탐색기·바탕 화면으로 끌어 내기 – 줄을 끌기 시작하면 화면이 불러요(놓을 때까지 기다려요)
@@ -836,17 +1185,100 @@ pub fn fs_lnk_target(path: String) -> Option<String> {
     }
 }
 
-/// 지금 누르고 있는 Ctrl·Shift(기록 창 안에 놓을 때)
+/// 지금 누르고 있는 Ctrl·Shift·Alt(기록 창 안에 놓을 때)
 #[tauri::command]
-pub fn fs_mods() -> (bool, bool) {
+pub fn fs_mods() -> (bool, bool, bool) {
     #[cfg(windows)]
     {
         crate::files_win::modifiers()
     }
     #[cfg(not(windows))]
     {
-        (false, false)
+        (false, false, false)
     }
+}
+
+/// Alt 누른 채 놓기: dest에 "이름 - 바로 가기.lnk"를 만들어요. 만든 경로들을 돌려줘요.
+#[tauri::command]
+pub fn fs_make_links(paths: Vec<String>, dest: String) -> Result<Vec<String>, String> {
+    let mut out = Vec::new();
+    for p in &paths {
+        let src = Path::new(p);
+        let stem = src.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| p.trim_end_matches(['\\', ':']).to_string());
+        let mut at = Path::new(&dest).join(format!("{stem} - 바로 가기.lnk"));
+        let mut n = 2;
+        while at.exists() {
+            at = Path::new(&dest).join(format!("{stem} - 바로 가기 ({n}).lnk"));
+            n += 1;
+        }
+        #[cfg(windows)]
+        crate::files_win::make_link(p, &at.to_string_lossy())?;
+        #[cfg(not(windows))]
+        return Err("windows_only".into());
+        #[allow(unreachable_code)]
+        out.push(at.to_string_lossy().into_owned());
+    }
+    Ok(out)
+}
+
+/// 주소 칸에 적은 것 → 실제 경로와 폴더인지. %USERPROFILE% 같은 환경 변수와 shell:downloads 같은 이름도 풀어요.
+#[tauri::command]
+pub fn fs_resolve(input: String) -> Option<(String, bool)> {
+    let p = expand_env(input.trim());
+    let p = if p.to_lowercase().starts_with("shell:") {
+        #[cfg(windows)]
+        {
+            crate::files_win::shell_path(&p)?
+        }
+        #[cfg(not(windows))]
+        {
+            return None;
+        }
+    } else {
+        p
+    };
+    let path = Path::new(&p);
+    if path.exists() {
+        return Some((p.clone(), path.is_dir()));
+    }
+    // zip 안 경로
+    let (z, inner) = zip_split(path)?;
+    if zip_has_dir(&z, &inner) {
+        return Some((p.clone(), true));
+    }
+    let pre = inner.clone();
+    let mut a = zip_open(&z).ok()?;
+    (0..a.len()).any(|i| a.by_index_raw(i).is_ok_and(|f| zip_name(f.name_raw()) == pre)).then(|| (p.clone(), false))
+}
+
+/// %이름% 을 환경 변수 값으로(없는 이름은 그대로)
+pub(crate) fn expand_env(s: &str) -> String {
+    let mut out = String::new();
+    let mut rest = s;
+    while let Some(i) = rest.find('%') {
+        out.push_str(&rest[..i]);
+        let after = &rest[i + 1..];
+        match after.find('%') {
+            Some(j) if j > 0 => {
+                let name = &after[..j];
+                match std::env::var(name) {
+                    Ok(v) => out.push_str(&v),
+                    Err(_) => {
+                        out.push('%');
+                        out.push_str(name);
+                        out.push('%');
+                    }
+                }
+                rest = &after[j + 1..];
+            }
+            _ => {
+                out.push('%');
+                rest = after;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
 }
 
 // ---------- 찾기 ----------
@@ -1314,6 +1746,127 @@ mod tests {
         assert!(conflicts(&[d.join("사진.2026")], &d).is_empty());
         transfer(false, &[d.join("사진.2026")], &d, &HashMap::new(), &|_, _, _| {}).unwrap();
         assert!(d.join("사진.2026 - 복사본/a.jpg").exists());
+    }
+
+    #[test]
+    fn transfer_pairs_undo_and_redo() {
+        let d = tmp("undo");
+        let (a, b) = (d.join("a"), d.join("b"));
+        fs::create_dir_all(a.join("현장/사진")).unwrap();
+        fs::write(a.join("현장/사진/1.jpg"), "1").unwrap();
+        fs::write(a.join("메모.txt"), "m").unwrap();
+        fs::create_dir_all(b.join("현장")).unwrap(); // 대상에 같은 이름 폴더가 이미 있음 → 합치기
+        fs::write(b.join("현장/있던.txt"), "x").unwrap();
+        fs::write(b.join("메모.txt"), "old").unwrap();
+        let mut dec = HashMap::new();
+        dec.insert(b.join("메모.txt").to_string_lossy().into_owned(), "both".to_string());
+        // 복사: 새로 생긴 것만 짝으로(합친 폴더는 파일 단위, "메모 (2).txt")
+        let s = transfer(false, &[a.join("현장"), a.join("메모.txt")], &b, &dec, &|_, _, _| {}).unwrap();
+        let got: HashSet<String> = s.pairs.iter().map(|(_, t)| t.clone()).collect();
+        assert!(got.contains(&b.join("현장/사진/1.jpg").to_string_lossy().into_owned()), "{got:?}");
+        assert!(got.contains(&b.join("메모 (2).txt").to_string_lossy().into_owned()), "{got:?}");
+        assert!(!got.contains(&b.join("현장").to_string_lossy().into_owned()));
+        // 덮어쓰기는 짝에서 빠져요
+        let mut over = HashMap::new();
+        over.insert(b.join("메모.txt").to_string_lossy().into_owned(), "over".to_string());
+        let s2 = transfer(false, &[a.join("메모.txt")], &b, &over, &|_, _, _| {}).unwrap();
+        assert_eq!((s2.overwritten, s2.pairs.len()), (1, 0));
+        // 새 폴더로 통째로 옮기기 → 짝은 폴더 하나, 되돌리면 제자리, 다시 하면 또 옮김
+        let c = d.join("c");
+        fs::create_dir_all(&c).unwrap();
+        let s3 = transfer(true, &[a.join("현장")], &c, &HashMap::new(), &|_, _, _| {}).unwrap();
+        assert_eq!(s3.pairs, vec![(a.join("현장").to_string_lossy().into_owned(), c.join("현장").to_string_lossy().into_owned())]);
+        let back: Vec<Step> = s3.pairs.iter().rev().map(|(f, t)| Step::Move { from: t.clone(), to: f.clone() }).collect();
+        assert_eq!(run_steps(&back).errors.len(), 0);
+        assert!(a.join("현장/사진/1.jpg").exists() && !c.join("현장").exists());
+        let again: Vec<Step> = s3.pairs.iter().map(|(f, t)| Step::Move { from: f.clone(), to: t.clone() }).collect();
+        assert_eq!(run_steps(&again).done, 1);
+        assert!(c.join("현장/사진/1.jpg").exists());
+        // 되돌리는 자리에 같은 이름이 생겼으면 건너뛰고 알려요
+        fs::write(a.join("새것.txt"), "n").unwrap();
+        fs::write(c.join("새것.txt"), "c").unwrap();
+        let r = run_steps(&[Step::Move { from: c.join("새것.txt").to_string_lossy().into_owned(), to: a.join("새것.txt").to_string_lossy().into_owned() }]);
+        assert_eq!(r.errors[0].1, "exists");
+        // 복사 다시 하기·새 폴더
+        let r = run_steps(&[
+            Step::Copy { from: c.join("현장").to_string_lossy().into_owned(), to: d.join("e/현장").to_string_lossy().into_owned() },
+            Step::Mkdir { path: d.join("새 폴더").to_string_lossy().into_owned() },
+        ]);
+        assert_eq!(r.done, 2);
+        assert!(d.join("e/현장/사진/1.jpg").exists() && d.join("새 폴더").is_dir());
+    }
+
+    #[test]
+    fn merge_folders_by_rename() {
+        let d = tmp("merge");
+        fs::create_dir_all(d.join("가/속")).unwrap();
+        fs::write(d.join("가/속/1.txt"), "1").unwrap();
+        fs::write(d.join("가/겹침.txt"), "new").unwrap();
+        fs::create_dir_all(d.join("나/속")).unwrap();
+        fs::write(d.join("나/겹침.txt"), "old").unwrap();
+        let r = run_steps(&[Step::Move { from: d.join("가").to_string_lossy().into_owned(), to: d.join("나").to_string_lossy().into_owned() }]);
+        assert_eq!(r.errors.len(), 1); // 겹친 파일만 남아요
+        assert!(d.join("나/속/1.txt").exists());
+        assert_eq!(fs::read_to_string(d.join("나/겹침.txt")).unwrap(), "old");
+        assert!(d.join("가/겹침.txt").exists() && !d.join("가/속").exists());
+    }
+
+    #[test]
+    fn zip_as_folder() {
+        let d = tmp("zipdir");
+        let zp = d.join("자료.zip");
+        {
+            let f = fs::File::create(&zp).unwrap();
+            let mut z = zip::ZipWriter::new(f);
+            let o = zip::write::SimpleFileOptions::default();
+            z.start_file("공문.hwp", o).unwrap();
+            std::io::Write::write_all(&mut z, b"hwp").unwrap();
+            z.add_directory("사진/", o).unwrap();
+            z.start_file("사진/1.jpg", o).unwrap();
+            std::io::Write::write_all(&mut z, b"jpg1").unwrap();
+            z.start_file("사진/깊이/2.jpg", o).unwrap();
+            std::io::Write::write_all(&mut z, b"jpg2").unwrap();
+            z.finish().unwrap();
+        }
+        let top = list(&zp, false).unwrap();
+        let mut names: Vec<(String, bool)> = top.iter().map(|e| (e.name.clone(), e.dir)).collect();
+        names.sort();
+        assert_eq!(names, vec![("공문.hwp".into(), false), ("사진".into(), true)]);
+        let pics = list(&zp.join("사진"), false).unwrap();
+        assert_eq!(pics.len(), 2);
+        assert!(fs_is_dir(zp.join("사진").to_string_lossy().into_owned()));
+        assert!(!fs_is_dir(zp.join("공문.hwp").to_string_lossy().into_owned()));
+        assert_eq!(fs_resolve(zp.join("공문.hwp").to_string_lossy().into_owned()).map(|x| x.1), Some(false));
+        let out = zip_extract(&[zp.join("사진").to_string_lossy().into_owned(), zp.join("공문.hwp").to_string_lossy().into_owned()], &d.join("tmp")).unwrap();
+        assert_eq!(fs::read(Path::new(&out[0]).join("깊이").join("2.jpg")).unwrap(), b"jpg2");
+        assert_eq!(fs::read(&out[1]).unwrap(), b"hwp");
+        assert!(zip_ms(Some(zip::DateTime::from_date_and_time(2026, 10, 20, 9, 30, 0).unwrap())) == 1_792_488_600_000);
+    }
+
+    #[test]
+    fn reserved_and_env() {
+        assert!(reserved_name("CON") && reserved_name("nul.txt") && reserved_name("com3.hwp") && reserved_name("LPT9"));
+        assert!(!reserved_name("CONTACT") && !reserved_name("COM10") && !reserved_name("공문.hwp") && !reserved_name("com0"));
+        assert_eq!(check_name("aux.txt").unwrap_err(), "reserved_name");
+        std::env::set_var("GILOG_T", "C:\\Users\\hun");
+        assert_eq!(expand_env("%GILOG_T%\\Downloads"), "C:\\Users\\hun\\Downloads");
+        assert_eq!(expand_env("100% 끝 %없는이름%"), "100% 끝 %없는이름%");
+    }
+
+    /// 실제 휴지통을 써요 – `cargo test -- --ignored trash_and_restore`로만
+    #[test]
+    #[ignore]
+    fn trash_and_restore() {
+        let d = tmp("trash");
+        fs::write(d.join("공문.hwp"), "x").unwrap();
+        fs::create_dir_all(d.join("사진")).unwrap();
+        let ps = vec![d.join("공문.hwp").to_string_lossy().into_owned(), d.join("사진").to_string_lossy().into_owned()];
+        let since = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as i64;
+        assert_eq!(run_steps(&[Step::Trash { paths: ps.clone() }]).done, 2);
+        assert!(!d.join("공문.hwp").exists());
+        let r = run_steps(&[Step::Restore { paths: ps, since }]);
+        assert_eq!((r.done, r.errors.len()), (2, 0), "{:?}", r.errors);
+        assert!(d.join("공문.hwp").exists() && d.join("사진").is_dir());
     }
 
     #[test]

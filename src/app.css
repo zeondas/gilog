@@ -11749,3 +11749,59 @@ body.ew-dragging .pjm-colgrip:active::after {
   font-size: var(--fs-sm);
   font-weight: 600;
 }
+
+/* 탐색기 호환 B(2026-10-20): 작은 고르기 메뉴 · 경로 › 목록 · 주소 자동 완성 · 오른쪽 끌기 */
+.fx-pop {
+  z-index: 60;
+}
+.fx-pop-scroll {
+  max-height: min(420px, 70vh);
+  overflow-y: auto;
+  flex-wrap: nowrap;
+}
+.fx-mi[data-b="1"] {
+  font-weight: 700;
+}
+.fx-mi:disabled {
+  opacity: 0.45;
+  cursor: default;
+  background: none;
+}
+.fx-check {
+  flex: none;
+  width: 14px;
+  color: var(--accent);
+  font-weight: 700;
+}
+.fx-crumb-list {
+  padding: 0 3px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.fx-crumb-list:hover {
+  opacity: 1;
+  background: var(--surface-band);
+  color: var(--ink);
+}
+.fx-row2 {
+  position: relative;
+}
+.fx-sugg {
+  left: 8px;
+  right: 88px;
+  top: 40px;
+  max-height: 340px;
+  overflow-y: auto;
+  z-index: 40;
+}
+.fx-rdrag {
+  position: fixed;
+  z-index: 70;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 12px;
+  pointer-events: none;
+  white-space: nowrap;
+}
