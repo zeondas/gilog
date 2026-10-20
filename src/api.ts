@@ -6,6 +6,7 @@ import type { BudgetLevel, BudgetProject, BudgetRowInput } from "./budget";
 import type { GridSheet, ImportProject } from "./budgetExcel";
 import type { BStatusExport } from "./budgetStatus";
 import { fakeBudget } from "./budgetFake";
+import type { ShareOp } from "./budgetShare";
 
 export type Status = { exists: boolean; unlocked: boolean; folder: string };
 
@@ -1400,6 +1401,11 @@ export const api = {
   importBudget: (year: number, projects: ImportProject[]) => call<[BudgetProject[], number, number]>("import_budget", { year, projects }),
   budgetExcelWrite: (path: string, data: { year: number; unit: number; basis?: string; date: string; projects: BudgetProject[] }) => call<null>("budget_excel_write", { path, data }),
   budgetExcelRead: (path: string) => call<GridSheet[]>("budget_excel_read", { path }),
+  // 집행현황 팀 공유(2026-10-20): 자료가 있는 해, 세부사업 담당, 받은 줄 넣기(uid), 처음 묶일 때 비우기
+  budgetYears: () => call<number[]>("budget_years"),
+  setBudgetOwner: (id: number, owner: number | null) => call<BudgetProject[]>("set_budget_owner", { id, owner }),
+  budgetShareApply: (ops: ShareOp[]) => call<number>("budget_share_apply", { ops }),
+  budgetShareClear: () => call<null>("budget_share_clear"),
   // 예산현황(13단계): 세부사업 설정 JSON(core 표 bstatus), 엑셀 쓰기(읽기는 budgetExcelRead)
   bstatusList: () => call<{ name: string; setup: string }[]>("bstatus_list", {}),
   bstatusSet: (name: string, setup: string) => call<null>("bstatus_set", { name, setup }),

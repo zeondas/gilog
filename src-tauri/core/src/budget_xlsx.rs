@@ -323,7 +323,7 @@ mod tests {
     use crate::budget::{BudgetItem, BudgetRow};
 
     fn g(id: i64, name: &str, stage: &str, cmt: i64, exp: i64, act: i64) -> BudgetRow {
-        BudgetRow { id, name: name.into(), kind: "공사".into(), co: "대원".into(), cmt, exp, act, stage: stage.into(), memo: String::new() }
+        BudgetRow { id, name: name.into(), kind: "공사".into(), co: "대원".into(), cmt, exp, act, stage: stage.into(), memo: String::new(), uid: String::new() }
     }
 
     #[test]
@@ -350,7 +350,10 @@ mod tests {
                     open: true,
                     memo: "□ 면적\n  ○ 4,000㎡".into(),
                     rows: vec![g(3, "상반기", "완료", 89_003_500, 104_876_000, 104_876_000), g(4, "하반기", "추진", 87_239_870, 26_034_750, 26_034_750)],
+                    uid: String::new(),
                 }],
+                uid: String::new(),
+                owner: None,
             }],
         };
         write_budget_xlsx(&path, &data).unwrap();
@@ -394,7 +397,10 @@ mod tests {
                     open: true,
                     memo: String::new(),
                     rows: vec![g(3, "연간단가", "추진", 300_000_000, 120_000_000, 180_000_000), g(4, "완료", "완료", 100_000_000, 90_000_000, 0)],
+                    uid: String::new(),
                 }],
+                uid: String::new(),
+                owner: None,
             }],
         };
         write_budget_xlsx(&path, &data).unwrap();

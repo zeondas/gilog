@@ -32,6 +32,9 @@ pub struct BudgetRow {
     pub act: i64,
     pub stage: String,
     pub memo: String,
+    /// 팀 공유에서 PC 사이 같은 줄을 찾는 이름(만들 때 정해지고 바뀌지 않아요)
+    #[serde(default)]
+    pub uid: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -43,6 +46,8 @@ pub struct BudgetItem {
     pub open: bool,
     pub memo: String,
     pub rows: Vec<BudgetRow>,
+    #[serde(default)]
+    pub uid: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -57,6 +62,11 @@ pub struct BudgetProject {
     pub open: bool,
     pub memo: String,
     pub items: Vec<BudgetItem>,
+    #[serde(default)]
+    pub uid: String,
+    /// 담당(팀 공유 "함께 쓰는 사람" 번호, 한 명) — 공유를 쓰지 않으면 비어 있어요
+    #[serde(default)]
+    pub owner: Option<i64>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -144,6 +154,30 @@ pub(crate) const SCHEMA: &str = "
     );
 ";
 
+/// 팀 공유(2026-10-20): 줄마다 uid(만들 때 정해지는 이름), 세부사업 담당(owner).
+/// uid는 넣을 때 트리거가 채워서 넣는 명령마다 따로 적지 않아요.
+pub(crate) fn upgrade(conn: &Connection) -> Result<()> {
+    for t in ["budget_projects", "budget_items", "budget_rows"] {
+        let has: bool = conn
+            .prepare(&format!("SELECT 1 FROM pragma_table_info('{t}') WHERE name = 'uid'"))?
+            .exists([])?;
+        if !has {
+            conn.execute_batch(&format!("ALTER TABLE {t} ADD COLUMN uid TEXT NOT NULL DEFAULT ''"))?;
+        }
+        conn.execute_batch(&format!(
+            "UPDATE {t} SET uid = lower(hex(randomblob(8))) WHERE uid = '';
+             CREATE UNIQUE INDEX IF NOT EXISTS {t}_uid ON {t}(uid);
+             CREATE TRIGGER IF NOT EXISTS {t}_uid_new AFTER INSERT ON {t} WHEN NEW.uid = ''
+             BEGIN UPDATE {t} SET uid = lower(hex(randomblob(8))) WHERE id = NEW.id; END;"
+        ))?;
+    }
+    let has: bool = conn.prepare("SELECT 1 FROM pragma_table_info('budget_projects') WHERE name = 'owner'")?.exists([])?;
+    if !has {
+        conn.execute_batch("ALTER TABLE budget_projects ADD COLUMN owner INTEGER")?;
+    }
+    Ok(())
+}
+
 fn bad(msg: &str) -> Error {
     Error::Invalid(msg.into())
 }
@@ -193,7 +227,7 @@ fn clean_row(r: &BudgetRowInput) -> Result<BudgetRowInput> {
 }
 
 fn read_year(conn: &Connection, year: i64) -> Result<Vec<BudgetProject>> {
-    let mut ps = conn.prepare("SELECT id, name, budget, carry, open, memo FROM budget_projects WHERE year = ?1 ORDER BY carry, ord, id")?;
+    let mut ps = conn.prepare("SELECT id, name, budget, carry, open, memo, uid, owner FROM budget_projects WHERE year = ?1 ORDER BY carry, ord, id")?;
     let mut projects = ps
         .query_map(params![year], |r| {
             Ok(BudgetProject {
@@ -205,11 +239,13 @@ fn read_year(conn: &Connection, year: i64) -> Result<Vec<BudgetProject>> {
                 open: r.get::<_, i64>(4)? != 0,
                 memo: r.get(5)?,
                 items: Vec::new(),
+                uid: r.get(6)?,
+                owner: r.get(7)?,
             })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;
-    let mut is = conn.prepare("SELECT id, name, budget, open, memo FROM budget_items WHERE project = ?1 ORDER BY ord, id")?;
-    let mut rs = conn.prepare("SELECT id, name, kind, co, cmt, exp, act, stage, memo FROM budget_rows WHERE item = ?1 ORDER BY ord, id")?;
+    let mut is = conn.prepare("SELECT id, name, budget, open, memo, uid FROM budget_items WHERE project = ?1 ORDER BY ord, id")?;
+    let mut rs = conn.prepare("SELECT id, name, kind, co, cmt, exp, act, stage, memo, uid FROM budget_rows WHERE item = ?1 ORDER BY ord, id")?;
     for p in projects.iter_mut() {
         p.items = is
             .query_map(params![p.id], |r| {
@@ -220,6 +256,7 @@ fn read_year(conn: &Connection, year: i64) -> Result<Vec<BudgetProject>> {
                     open: r.get::<_, i64>(3)? != 0,
                     memo: r.get(4)?,
                     rows: Vec::new(),
+                    uid: r.get(5)?,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -236,6 +273,7 @@ fn read_year(conn: &Connection, year: i64) -> Result<Vec<BudgetProject>> {
                         act: r.get(6)?,
                         stage: r.get(7)?,
                         memo: r.get(8)?,
+                        uid: r.get(9)?,
                     })
                 })?
                 .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -641,6 +679,226 @@ impl Store {
         }
         tx.commit()?;
         Ok((self.budget_data(year)?, upd, add))
+    }
+}
+
+/// 팀 공유에서 받은 한 줄(세부사업·부기사업·공사). 없는 uid면 새로 넣고, 있으면 칸을 바꿔요.
+/// del이면 지워요(딸린 것까지). 위 줄(parent)은 uid — 세부사업은 비어 있어요.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct BudgetShareOp {
+    pub level: String,
+    pub uid: String,
+    pub del: bool,
+    pub parent: String,
+    pub year: i64,
+    pub ord: i64,
+    pub name: String,
+    pub budget: Option<i64>,
+    pub carry: bool,
+    pub memo: String,
+    pub owner: Option<i64>,
+    pub kind: String,
+    pub co: String,
+    pub cmt: i64,
+    pub exp: i64,
+    pub act: i64,
+    pub stage: String,
+}
+
+fn id_by_uid(tx: &Transaction, table: &str, uid: &str) -> Result<Option<i64>> {
+    Ok(tx.query_row(&format!("SELECT id FROM {table} WHERE uid = ?1"), params![uid], |r| r.get(0)).optional()?)
+}
+
+/// 받은 값은 앱에서 친 값처럼 엄격히 막지 않고 고쳐서 넣어요(다른 PC에서 이미 통과한 값이에요).
+fn soft_name(s: &str) -> String {
+    let n = one_line(s);
+    if n.is_empty() { "(이름 없음)".into() } else { n }
+}
+
+impl Store {
+    /// 자료가 있는 해(오름차순)
+    pub fn budget_years(&self) -> Result<Vec<i64>> {
+        let mut s = self.conn.prepare("SELECT DISTINCT year FROM budget_projects ORDER BY year")?;
+        let v = s.query_map([], |r| r.get(0))?.collect::<std::result::Result<Vec<i64>, _>>()?;
+        Ok(v)
+    }
+
+    /// 세부사업 담당(팀 공유 사람 번호, None이면 비움)
+    pub fn set_budget_owner(&self, id: i64, owner: Option<i64>) -> Result<Vec<BudgetProject>> {
+        if self.conn.execute("UPDATE budget_projects SET owner = ?2 WHERE id = ?1", params![id, owner])? == 0 {
+            return Err(Error::NotFound);
+        }
+        self.budget_data(year_of_project(&self.conn, id)?)
+    }
+
+    /// 팀 공유에서 받은 것을 한 번에 넣어요(세부사업 → 부기사업 → 공사 차례로 — 위 줄이 먼저 있어야 해요).
+    /// 위 줄을 찾지 못한 줄은 건너뛰어요. 넣거나 바꾼 수를 돌려줘요.
+    pub fn budget_share_apply(&mut self, ops: &[BudgetShareOp]) -> Result<usize> {
+        let tx = self.conn.transaction()?;
+        let mut n = 0;
+        let rank = |l: &str| match l { "project" => 0, "item" => 1, _ => 2 };
+        let mut list: Vec<&BudgetShareOp> = ops.iter().collect();
+        // 지우기는 나중에(옮겨 간 아래 줄이 함께 지워지지 않게), 넣기는 위 겹부터
+        list.sort_by_key(|o| (o.del, if o.del { -rank(&o.level) } else { rank(&o.level) }));
+        for o in list {
+            let table = match o.level.as_str() {
+                "project" => "budget_projects",
+                "item" => "budget_items",
+                "row" => "budget_rows",
+                _ => continue,
+            };
+            if o.uid.is_empty() {
+                continue;
+            }
+            let have = id_by_uid(&tx, table, &o.uid)?;
+            if o.del {
+                if let Some(id) = have {
+                    match o.level.as_str() {
+                        "project" => {
+                            tx.execute("DELETE FROM budget_rows WHERE item IN (SELECT id FROM budget_items WHERE project = ?1)", params![id])?;
+                            tx.execute("DELETE FROM budget_items WHERE project = ?1", params![id])?;
+                        }
+                        "item" => {
+                            tx.execute("DELETE FROM budget_rows WHERE item = ?1", params![id])?;
+                        }
+                        _ => {}
+                    }
+                    tx.execute(&format!("DELETE FROM {table} WHERE id = ?1"), params![id])?;
+                    n += 1;
+                }
+                continue;
+            }
+            let name = soft_name(&o.name);
+            let memo = o.memo.trim();
+            match o.level.as_str() {
+                "project" => match have {
+                    Some(id) => {
+                        tx.execute(
+                            "UPDATE budget_projects SET year = ?2, ord = ?3, name = ?4, budget = ?5, carry = ?6, memo = ?7, owner = ?8 WHERE id = ?1",
+                            params![id, o.year, o.ord, name, o.budget, o.carry as i64, memo, o.owner],
+                        )?;
+                    }
+                    None => {
+                        tx.execute(
+                            "INSERT INTO budget_projects (year, ord, name, budget, carry, open, memo, owner, uid) VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, ?7, ?8)",
+                            params![o.year, o.ord, name, o.budget, o.carry as i64, memo, o.owner, o.uid],
+                        )?;
+                    }
+                },
+                "item" => {
+                    let Some(pid) = id_by_uid(&tx, "budget_projects", &o.parent)? else { continue };
+                    match have {
+                        Some(id) => {
+                            tx.execute(
+                                "UPDATE budget_items SET project = ?2, ord = ?3, name = ?4, budget = ?5, memo = ?6 WHERE id = ?1",
+                                params![id, pid, o.ord, name, o.budget, memo],
+                            )?;
+                        }
+                        None => {
+                            tx.execute(
+                                "INSERT INTO budget_items (project, ord, name, budget, open, memo, uid) VALUES (?1, ?2, ?3, ?4, 0, ?5, ?6)",
+                                params![pid, o.ord, name, o.budget, memo, o.uid],
+                            )?;
+                        }
+                    }
+                }
+                _ => {
+                    let Some(iid) = id_by_uid(&tx, "budget_items", &o.parent)? else { continue };
+                    let kind = if BUDGET_KINDS.contains(&o.kind.trim()) { o.kind.trim() } else { "공사" };
+                    let stage = if BUDGET_STAGES.contains(&o.stage.trim()) { o.stage.trim() } else { "준비" };
+                    let co = one_line(&o.co);
+                    match have {
+                        Some(id) => {
+                            tx.execute(
+                                "UPDATE budget_rows SET item = ?2, ord = ?3, name = ?4, kind = ?5, co = ?6, cmt = ?7, exp = ?8, act = ?9, stage = ?10, memo = ?11 WHERE id = ?1",
+                                params![id, iid, o.ord, name, kind, co, o.cmt, o.exp, o.act, stage, memo],
+                            )?;
+                        }
+                        None => {
+                            tx.execute(
+                                "INSERT INTO budget_rows (item, ord, name, kind, co, cmt, exp, act, stage, memo, uid) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                                params![iid, o.ord, name, kind, co, o.cmt, o.exp, o.act, stage, memo, o.uid],
+                            )?;
+                        }
+                    }
+                }
+            }
+            n += 1;
+        }
+        tx.commit()?;
+        Ok(n)
+    }
+
+    /// 팀 공유에 처음 묶일 때: 내 집행현황을 모두 지워요(그 전에 화면이 백업을 남겨요).
+    pub fn budget_share_clear(&mut self) -> Result<()> {
+        let tx = self.conn.transaction()?;
+        tx.execute_batch("DELETE FROM budget_rows; DELETE FROM budget_items; DELETE FROM budget_projects;")?;
+        tx.commit()?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod share_tests {
+    use super::*;
+
+    fn store() -> (tempfile::TempDir, Store) {
+        let d = tempfile::tempdir().unwrap();
+        let s = Store::create(d.path(), "1234").unwrap();
+        (d, s)
+    }
+
+    fn op(level: &str, uid: &str, parent: &str, name: &str) -> BudgetShareOp {
+        BudgetShareOp { level: level.into(), uid: uid.into(), parent: parent.into(), year: 2026, name: name.into(), ..Default::default() }
+    }
+
+    #[test]
+    fn uid_given_on_every_insert() {
+        let (_d, mut s) = store();
+        let y = s.save_budget_project(2026, None, None, "가", None).unwrap();
+        let p = y[0].id;
+        let y = s.save_budget_item(p, None, "시도", None).unwrap();
+        let it = y[0].items[0].id;
+        let (y, _) = s.save_budget_row(it, None, &BudgetRowInput { name: "공사".into(), ..Default::default() }).unwrap();
+        assert_eq!(y[0].uid.len(), 16);
+        assert_eq!(y[0].items[0].uid.len(), 16);
+        assert_eq!(y[0].items[0].rows[0].uid.len(), 16);
+        assert_ne!(y[0].uid, y[0].items[0].uid);
+        let y2 = s.copy_budget_year(2026, 2027).unwrap();
+        assert_ne!(y2[0].uid, y[0].uid, "다음 해로 복사하면 새 이름");
+        assert_eq!(s.budget_years().unwrap(), [2026, 2027]);
+    }
+
+    #[test]
+    fn apply_insert_update_delete() {
+        let (_d, mut s) = store();
+        let ops = vec![
+            BudgetShareOp { cmt: 1_000, stage: "추진".into(), kind: "관급".into(), ..op("row", "r1", "i1", "포장") },
+            BudgetShareOp { budget: Some(5_000), owner: Some(2), ..op("project", "p1", "", "도로") },
+            op("item", "i1", "p1", "시도"),
+            op("row", "r9", "없음", "떠돌이"),
+        ];
+        assert_eq!(s.budget_share_apply(&ops).unwrap(), 3);
+        let y = s.budget_data(2026).unwrap();
+        assert_eq!((y[0].uid.as_str(), y[0].owner, y[0].budget), ("p1", Some(2), Some(5_000)));
+        let r = &y[0].items[0].rows[0];
+        assert_eq!((r.uid.as_str(), r.cmt, r.kind.as_str(), r.stage.as_str()), ("r1", 1_000, "관급", "추진"));
+        // 바꾸기: 이상한 단계는 준비로, 빈 이름은 (이름 없음)
+        s.budget_share_apply(&[BudgetShareOp { stage: "멈춤".into(), ..op("row", "r1", "i1", " ") }]).unwrap();
+        let r = &s.budget_data(2026).unwrap()[0].items[0].rows[0];
+        assert_eq!((r.name.as_str(), r.stage.as_str()), ("(이름 없음)", "준비"));
+        // 담당
+        let y = s.set_budget_owner(y[0].id, None).unwrap();
+        assert_eq!(y[0].owner, None);
+        // 지우기는 딸린 것까지
+        s.budget_share_apply(&[BudgetShareOp { del: true, ..op("project", "p1", "", "") }]).unwrap();
+        assert!(s.budget_data(2026).unwrap().is_empty());
+        let n: i64 = s.conn.query_row("SELECT count(*) FROM budget_rows", [], |r| r.get(0)).unwrap();
+        assert_eq!(n, 0);
+        s.budget_share_apply(&[op("project", "p2", "", "다시")]).unwrap();
+        s.budget_share_clear().unwrap();
+        assert!(s.budget_years().unwrap().is_empty());
     }
 }
 

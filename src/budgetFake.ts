@@ -3,10 +3,13 @@
 import type { BudgetItem, BudgetLevel, BudgetProject, BudgetRow, BudgetRowInput } from "./budget";
 import { KINDS, STAGES } from "./budget";
 import type { ImportProject } from "./budgetExcel";
+import type { ShareOp } from "./budgetShare";
 
-type P = Omit<BudgetProject, "items"> & { ord: number };
-type I = Omit<BudgetItem, "rows"> & { project: number; ord: number };
-type R = BudgetRow & { item: number; ord: number };
+// uid는 core처럼 넣을 때 정해져요(흉내는 "f"+번호, 팀 공유로 받은 줄은 받은 uid).
+type P = Omit<BudgetProject, "items" | "uid" | "owner"> & { ord: number; uid?: string; owner?: number | null };
+type I = Omit<BudgetItem, "rows" | "uid"> & { project: number; ord: number; uid?: string };
+type R = Omit<BudgetRow, "uid"> & { item: number; ord: number; uid?: string };
+const uidOf = (x: { id: number; uid?: string }) => x.uid ?? "f" + x.id;
 
 const db = { p: [] as P[], i: [] as I[], r: [] as R[], id: 1 };
 
@@ -34,9 +37,12 @@ function year(y: number): BudgetProject[] {
   return structuredClone(
     ps.map(({ ord: _o, ...p }) => ({
       ...p,
+      uid: uidOf(p),
+      owner: p.owner ?? null,
       items: byOrd(db.i.filter((i) => i.project === p.id)).map(({ project: _p, ord: _o2, ...i }) => ({
         ...i,
-        rows: byOrd(db.r.filter((r) => r.item === i.id)).map(({ item: _i, ord: _o3, ...r }) => r),
+        uid: uidOf(i),
+        rows: byOrd(db.r.filter((r) => r.item === i.id)).map(({ item: _i, ord: _o3, ...r }) => ({ ...r, uid: uidOf(r) })),
       })),
     })),
   );
@@ -109,7 +115,7 @@ function importYear(y: number, list: ImportProject[]): [number, number] {
 }
 
 if (typeof window !== "undefined" && !("__TAURI_INTERNALS__" in window)) {
-  (window as unknown as { __budgetFake: unknown }).__budgetFake = { import: importYear, year };
+  (window as unknown as { __budgetFake: unknown }).__budgetFake = { import: importYear, db };
 }
 
 export function fakeBudget(cmd: string, a: Record<string, unknown>): unknown {
@@ -227,10 +233,71 @@ export function fakeBudget(cmd: string, a: Record<string, unknown>): unknown {
       importYear(n("to"), src.map((p) => ({ name: p.name, budget: p.budget, carry: false, memo: "", items: p.items.map((i) => ({ name: i.name, budget: i.budget, memo: "", rows: [] })) })));
       return year(n("to"));
     }
+    case "budget_years":
+      return [...new Set(db.p.map((p) => p.year))].sort((x, z) => x - z);
+    case "set_budget_owner":
+      proj(n("id")).owner = (a.owner as number | null) ?? null;
+      return year(proj(n("id")).year);
+    case "budget_share_clear":
+      db.p = [];
+      db.i = [];
+      db.r = [];
+      return null;
+    case "budget_share_apply":
+      return shareApply(a.ops as ShareOp[]);
     case "import_budget": {
       const [u, c] = importYear(n("year"), a.projects as ImportProject[]);
       return [year(n("year")), u, c];
     }
   }
   return undefined;
+}
+
+/** core budget_share_apply와 같아요 – uid로 찾아 넣고·바꾸고·지워요. */
+function shareApply(ops: ShareOp[]): number {
+  const rank = (l: string) => (l === "project" ? 0 : l === "item" ? 1 : 2);
+  const list = [...ops].sort((x, y) => Number(x.del) - Number(y.del) || (x.del ? rank(y.level) - rank(x.level) : rank(x.level) - rank(y.level)));
+  let n = 0;
+  for (const o of list) {
+    const name = one(o.name) || "(이름 없음)";
+    if (o.level === "project") {
+      const p = db.p.find((x) => uidOf(x) === o.uid);
+      if (o.del) {
+        if (!p) continue;
+        const items = db.i.filter((i) => i.project === p.id).map((i) => i.id);
+        db.r = db.r.filter((r) => !items.includes(r.item));
+        db.i = db.i.filter((i) => i.project !== p.id);
+        db.p = db.p.filter((x) => x !== p);
+      } else if (p) Object.assign(p, { year: o.year, ord: o.ord, name, budget: o.budget, carry: o.carry, memo: o.memo.trim(), owner: o.owner });
+      else db.p.push({ id: db.id++, uid: o.uid, year: o.year, ord: o.ord, name, budget: o.budget, carry: o.carry, open: true, memo: o.memo.trim(), owner: o.owner });
+    } else if (o.level === "item") {
+      const it = db.i.find((x) => uidOf(x) === o.uid);
+      if (o.del) {
+        if (!it) continue;
+        db.r = db.r.filter((r) => r.item !== it.id);
+        db.i = db.i.filter((x) => x !== it);
+      } else {
+        const p = db.p.find((x) => uidOf(x) === o.parent);
+        if (!p) continue;
+        if (it) Object.assign(it, { project: p.id, ord: o.ord, name, budget: o.budget, memo: o.memo.trim() });
+        else db.i.push({ id: db.id++, uid: o.uid, project: p.id, ord: o.ord, name, budget: o.budget, open: false, memo: o.memo.trim() });
+      }
+    } else {
+      const r = db.r.find((x) => uidOf(x) === o.uid);
+      if (o.del) {
+        if (!r) continue;
+        db.r = db.r.filter((x) => x !== r);
+      } else {
+        const it = db.i.find((x) => uidOf(x) === o.parent);
+        if (!it) continue;
+        const kind = (KINDS as readonly string[]).includes(o.kind.trim()) ? o.kind.trim() : "공사";
+        const stage = (STAGES as readonly string[]).includes(o.stage.trim()) ? o.stage.trim() : "준비";
+        const v = { item: it.id, ord: o.ord, name, kind, co: one(o.co), cmt: o.cmt, exp: o.exp, act: o.act, stage, memo: o.memo.trim() };
+        if (r) Object.assign(r, v);
+        else db.r.push({ id: db.id++, uid: o.uid, ...v });
+      }
+    }
+    n++;
+  }
+  return n;
 }

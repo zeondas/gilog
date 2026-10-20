@@ -1,4 +1,5 @@
 import { FormEvent, Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { BudgetShareRows } from "./BudgetShareCard";
 import { ACCENTS, api, DEFAULT_PREFS, errorText, inApp, Prefs, Status } from "./api";
 import { splitJamo } from "./journal";
 import { DEFAULT_MAIL_BODY, DEFAULT_MAIL_SUBJECT, DEFAULT_SETTINGS, MAIL_FIELDS, Kind, loadSettings, MEMO_KIND, ProcessSettings, saveSettings, Settings, FilesSettings, STATUS_COLORS } from "./settingsStore";
@@ -40,8 +41,8 @@ type Props = {
   onClose: () => void;
 };
 
-/** 설정이 있는 모듈만 "모듈별 설정"에 카드를 둬요(사이드바 순서). 없는 모듈(집행현황·할 일·업무연락처)은 빼요 — 2026-10-18 사용자. */
-const SET_SCREENS = SCREENS.filter((sc) => (["explorer", "complaints", "process", "calendar", "journal"] as string[]).includes(sc.id));
+/** 설정이 있는 모듈만 "모듈별 설정"에 카드를 둬요(사이드바 순서). 없는 모듈(할 일·업무연락처)은 빼요 – 2026-10-18 사용자. 집행현황은 팀 공유(2026-10-20). */
+const SET_SCREENS = SCREENS.filter((sc) => (["explorer", "complaints", "process", "budget", "calendar", "journal"] as string[]).includes(sc.id));
 
 export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onModules, onClose }: Props) {
   const [s, setS] = useState<Settings | null>(null);
@@ -396,6 +397,8 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
             </>
           ) : sc.id === "process" ? (
             <ProcessRows p={s.process} onChange={(process) => update({ ...s, process })} />
+          ) : sc.id === "budget" ? (
+            <BudgetShareRows myName={s.myName} />
           ) : sc.id === "calendar" ? (
             <Toggle
               k="공휴일 토요일 일요일 빨강"
