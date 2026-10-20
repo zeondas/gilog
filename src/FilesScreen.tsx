@@ -4,7 +4,7 @@
 // - 우클릭(파일·폴더·빈 곳)은 윈도우 우클릭 메뉴 그대로(2안), 탭 우클릭만 기록 메뉴.
 // - 상태(탭·열 폭·정렬·보기·트리·즐겨찾기·찾기 조건·일괄 이름 바꾸기 설정)는 암호화 파일 kv "files.state".
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api } from "./api";
+import { api, inApp } from "./api";
 import { FileIcon } from "./FileIcon";
 import { ConflictDialog, Decision, DeleteDialog, NameDialog, RenameDialog } from "./FilesDialogs";
 import {
@@ -981,6 +981,68 @@ export default function FilesScreen() {
     void transfer(src.pane, op, src.rows, dest);
   };
 
+  // ---------- 윈도우(탐색기·바탕 화면)에서 끌어온 파일 놓기 (2026-10-20 사용자) ----------
+  // 앱 틀이 끌어다 놓기를 먼저 받아 파일 위치(paths)와 마우스 자리를 알려 줘요. 놓은 자리가 폴더 줄·트리 줄이면 그 폴더,
+  // 아니면 그 창이 연 폴더로. 같은 드라이브면 옮기기·다른 드라이브면 복사(윈도우 탐색기와 같게).
+  const [extHover, setExtHover] = useState<{ pane: number | null; dir: string | null } | null>(null);
+  const extRef = useRef<{ paths: string[] }>({ paths: [] });
+  const dropAtRef = useRef<(paths: string[], x: number, y: number) => void>(() => {});
+  const hitAt = (x: number, y: number) => {
+    const el = document.elementFromPoint(x, y) as HTMLElement | null;
+    if (!el) return { pane: null, dir: null };
+    const tree = el.closest<HTMLElement>("[data-tree-dir]");
+    if (tree) return { pane: null, dir: tree.dataset.treeDir || null };
+    const paneEl = el.closest<HTMLElement>("[data-pane]");
+    const pane = paneEl ? Number(paneEl.dataset.pane) : null;
+    const row = el.closest<HTMLElement>("[data-dir]");
+    return { pane, dir: row?.dataset.dir || null };
+  };
+  dropAtRef.current = (paths: string[], x: number, y: number) => {
+    if (!st || !paths.length) return;
+    const hit = hitAt(x, y);
+    let dest = hit.dir;
+    const pane = hit.pane ?? st.active;
+    if (!dest) {
+      if (hit.pane === null) return;
+      const t = activeTab(st.panes[hit.pane]);
+      if (t.find) return flash("찾기 결과에는 놓을 수 없어요. 폴더를 연 창에 놓아 주세요.");
+      dest = t.path;
+    }
+    if (!dest || isSpecial(dest)) return flash("폴더를 연 창에 놓아 주세요.");
+    const srcs = paths.filter((p) => p !== dest);
+    if (!srcs.length || srcs.every((p) => parentOf(p) === dest)) return;
+    const op = driveOf(srcs[0]) === driveOf(dest) ? "move" : "copy";
+    void transfer(pane, op, srcs.map((path) => ({ path }) as Row), dest);
+  };
+  useEffect(() => {
+    // 브라우저 미리 보기 시험용: window.__fxExtDrop(경로들, x, y)
+    if (!inApp) (window as unknown as { __fxExtDrop?: unknown }).__fxExtDrop = (paths: string[], x: number, y: number) => dropAtRef.current(paths, x, y);
+    if (!inApp) return;
+    let off: (() => void) | undefined;
+    let dead = false;
+    void import("@tauri-apps/api/webview").then(({ getCurrentWebview }) =>
+      getCurrentWebview()
+        .onDragDropEvent((ev) => {
+          const d = ev.payload;
+          const r = window.devicePixelRatio || 1;
+          if (d.type === "enter") extRef.current.paths = d.paths;
+          if (d.type === "enter" || d.type === "over") {
+            const h = hitAt(d.position.x / r, d.position.y / r);
+            setExtHover((o) => (o && o.pane === h.pane && o.dir === h.dir ? o : h));
+          } else if (d.type === "drop") {
+            setExtHover(null);
+            dropAtRef.current(d.paths, d.position.x / r, d.position.y / r);
+          } else setExtHover(null);
+        })
+        .then((u) => (dead ? u() : (off = u))),
+    );
+    return () => {
+      dead = true;
+      off?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   if (!st) return <div className="fx-root" />;
 
   const fmt = cfg.dateFmt;
@@ -1093,6 +1155,8 @@ export default function FilesScreen() {
       <section
         key={pane}
         className="fx-pane"
+        data-pane={pane}
+        data-extdrop={extHover && extHover.pane === pane && !extHover.dir ? "1" : "0"}
         data-on={on ? "1" : "0"}
         data-target={isTarget && st.four ? "1" : "0"}
         data-rest={!on && !isTarget ? "1" : "0"}
@@ -1417,6 +1481,8 @@ export default function FilesScreen() {
               "data-sel": isSel ? "1" : "0",
               "data-cur": s.cursor === r.path && on ? "1" : "0",
               "data-hid": r.hidden ? "1" : "0",
+              "data-dir": r.dir ? r.path : undefined,
+              "data-extdrop": r.dir && extHover?.dir === r.path ? "1" : "0",
               draggable: !inline,
               onMouseDown: (e: React.MouseEvent) => e.button === 0 && pick(r, e),
               onDoubleClick: () => openEntry(pane, r),
@@ -1719,6 +1785,8 @@ export default function FilesScreen() {
                         onMouseDown={(e) => e.detail > 1 && e.preventDefault()}
                         onClick={() => go(st.active, r.path)}
                         onDoubleClick={() => toggleTreeRow(r)}
+                        data-tree-dir={r.special ? undefined : r.path}
+                        data-extdrop={!r.special && extHover?.dir === r.path ? "1" : "0"}
                         onDragOver={(e) => dragSrc.current && e.preventDefault()}
                         onDrop={(e) => dropTo(st.active, e, r.path)}
                         onContextMenu={(e) => {
