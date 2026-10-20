@@ -112,9 +112,19 @@ export function compute(name: string, setup: Setup, byYear: Record<number, Budge
       prevLeft[s] = setup.multi ? { nm, ns } : null;
     }
     const total = sumLines(Object.values(bySrc));
-    if (!one && main && !selfCarry && (total.curSum !== main.budget || total.en !== main.exp)) {
-      // 재원 줄 합이 집행현황과 다르면 합계 줄은 집행현황 값으로 보여 주고 붉게
-      total.diffSum = true;
+    if (!one && main && !selfCarry) {
+      // 재원이 둘 이상이면 합계 줄(연도·사업 줄)은 집행현황의 예산·집행액을 그대로 보여 주고(2026-10-20 사용자: 재원을 나눠 적기 전에도 예산이 보여야 해요),
+      // 재원 줄을 적기 시작했는데 합이 집행현황과 다르면 붉게
+      const sumCur = total.curSum, sumEn = total.en;
+      const adds = total.a1 + total.a2 + total.a3 + total.a4;
+      total.curSum = main.budget;
+      total.cur = main.budget - adds;
+      total.en = main.exp;
+      total.ex = total.en + total.em + total.es;
+      total.act = total.curSum + total.prev;
+      total.rate = total.act ? (total.ex / total.act) * 100 : null;
+      total.left = total.act - total.ex - total.nm - total.ns - total.un;
+      if ((sumCur !== 0 && sumCur !== main.budget) || (sumEn !== 0 && sumEn !== main.exp)) total.diffSum = true;
     }
     blocks.push({ year: y, linked, hasMain: main != null, total, bySrc });
   }

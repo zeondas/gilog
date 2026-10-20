@@ -17,7 +17,7 @@
     P("(명시이월) 도로환경 정비(동부권)", 120000000, true, [["제초(2025 하반기 이월)", "공사", "가산", 118000000, 118000000]]),
     P("(사고이월) 파주여고 앞 방호벽 정비", 49050000, true, [["방호벽 정비 공사", "공사", "한양", 49050000, 34335000, "추진"]]),
   ];
-  const setup57 = { multi: true, from: 2025, to: 2027, sources: ["시비", "특조"], carry: "(명시이월) 시도57호선 도로정비", carrySrc: "특조", rows: { "2025:특조": { cur: 700000000, en: 144657170, nm: 555343000 }, "2026:시비": { cur: 300000000, en: 154728670 }, "2026:특조": { nm: 52433170 } } };
+  const setup57 = { multi: true, from: 2025, to: 2027, sources: ["시비", "특조"], carry: "(명시이월) 시도57호선 도로정비", carrySrc: "특조", rows: { "2025:특조": { nm: 555343000 }, "2026:특조": { nm: 52433170 } } };
   const seed = (f) => {
     f.password = "1234"; f.unlocked = true;
     f.prefs = { ...f.prefs, askPassword: false, theme: "light", startScreen: "bstatus" };
