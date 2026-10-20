@@ -362,8 +362,20 @@ export default function BudgetStatusScreen() {
   /** 집행현황에서 오는 칸: 보통 본예산·집행 당해, 잇지 않은 이월 세부사업은 명시/사고 쪽 */
   const lockOf = (name: string) => (/^\(명시이월\)/.test(name) ? ["pm", "em"] : /^\(사고이월\)/.test(name) ? ["ps", "es"] : ["cur", "en"]);
   // lock: 집행현황에서 오는 칸(재원 하나 + 그 해 집행현황 있음 → 본예산·집행 당해)은 고치는 줄에서도 값만 보여요
-  const numCells = (l: Line, kind: "pj" | "it" | "gun", editing: Form | null, year?: number, first = false, lock: string[] = []) => {
+  // canEdit: 이 줄을 두 번 눌러 고칠 수 있는 줄(재원 줄, 재원 하나면 연도 줄, 단년도+재원 하나면 사업 줄) — 직접 적는 칸을 살색으로 표시해요(2026-10-20 사용자)
+  const numCells = (l: Line, kind: "pj" | "it" | "gun", editing: Form | null, year?: number, first = false, lock: string[] = [], canEdit = false) => {
     const out: ReactNode[] = [];
+    /** 이 열이 직접 적는 칸인지(요약은 당해예산→본예산, 전년도 이월→명시(첫 해), 집행액→당해, 다음연도 이월→명시) */
+    const manualOf = (id: string): string | null => {
+      if (!detail) {
+        if (id === "curSum") return "cur";
+        if (id === "prev") return first ? "pm" : null;
+        if (id === "ex") return "en";
+        if (id === "next") return "nm";
+      }
+      if ((EDIT_FIELDS as string[]).includes(id)) return (id === "pm" || id === "ps") && !first ? null : id;
+      return null;
+    };
     const edit = (k: keyof Manual, label: string) => (
       <div className="bd-c n" role="cell" key={k}>
         <input
@@ -381,6 +393,8 @@ export default function BudgetStatusScreen() {
     for (const c of cols) {
       if (c.id === "name" || c.id === "memo" || c.id === "yrs") continue;
       const id = c.id;
+      const mf = canEdit ? manualOf(id) : null;
+      const ed = mf && !lock.includes(mf) ? " bs-ed" : "";
       if (editing && (EDIT_FIELDS as string[]).includes(id) && !lock.includes(id) && !((id === "pm" || id === "ps") && !first)) {
         out.push(edit(id as keyof Manual, c.sub || c.label));
         continue;
@@ -397,27 +411,27 @@ export default function BudgetStatusScreen() {
         continue;
       }
       if (first && ["prev", "pm", "ps"].includes(id) && !(l as unknown as Record<string, number>)[id]) {
-        out.push(cell("", " n"));
+        out.push(cell("", " n" + ed));
         continue;
       }
       if (id === "next") {
-        out.push(num(l.next, "", l.left ? `남은 돈 ${fz(l.left)}(현액 − 집행 − 이월 − 불용)` : undefined));
+        out.push(num(l.next, ed, l.left ? `남은 돈 ${fz(l.left)}(현액 − 집행 − 이월 − 불용)` : undefined));
         continue;
       }
       if (id === "nm" || id === "ns") {
-        out.push(num(id === "nm" ? l.nm : l.ns));
+        out.push(num(id === "nm" ? l.nm : l.ns, ed));
         continue;
       }
       if (id === "prev" || id === "pm") {
         const v = (l as unknown as Record<string, number>)[id];
-        out.push(num(v, l.mismatch ? " red" : "", l.mismatch && year ? `${year - 1}년 다음연도 이월과 달라요` : undefined));
+        out.push(num(v, (l.mismatch ? " red" : "") + ed, l.mismatch && year ? `${year - 1}년 다음연도 이월과 달라요` : undefined));
         continue;
       }
       if (kind === "it" && l.diffSum && (id === "curSum" || id === "cur" || id === "ex" || id === "en")) {
-        out.push(num((l as unknown as Record<string, number>)[id], " red", "재원 줄을 더한 값이 집행현황과 달라요"));
+        out.push(num((l as unknown as Record<string, number>)[id], " red" + ed, "재원 줄을 더한 값이 집행현황과 달라요"));
         continue;
       }
-      out.push(num((l as unknown as Record<string, number>)[id]));
+      out.push(num((l as unknown as Record<string, number>)[id], ed));
     }
     return out;
   };
@@ -753,7 +767,7 @@ export default function BudgetStatusScreen() {
           )}
           <span className="bd-nm" title={p.name}>{p.name}</span>
         </div>
-        {single && one && yb ? numCells(yb.bySrc[oneSrc], "pj", pjEditing, year, true, yb.hasMain ? lockOf(p.name) : []) : numCells(book.total, "pj", null)}
+        {single && one && yb ? numCells(yb.bySrc[oneSrc], "pj", pjEditing, year, true, yb.hasMain ? lockOf(p.name) : [], true) : numCells(book.total, "pj", null)}
         {memoBtn(p.name)}
       </div>,
     );
@@ -780,7 +794,7 @@ export default function BudgetStatusScreen() {
               <span className="bd-cr ind1 bs-noexp" aria-hidden="true" />
               <span className="bd-nm">{src}</span>
             </div>
-            {numCells(l, "gun", editing, year, true)}
+            {numCells(l, "gun", editing, year, true, [], true)}
             {memoCell}
           </div>,
         );
@@ -820,7 +834,7 @@ export default function BudgetStatusScreen() {
             <span className="bd-nm">{b.year}년</span>
             <span className="bs-note">{b.linked ? "집행현황" : "직접 입력"}</span>
           </div>
-          {one ? numCells(b.bySrc[oneSrc], "it", yEditing, b.year, first, b.hasMain ? lockOf(p.name) : []) : numCells(b.total, "it", null, b.year, first)}
+          {one ? numCells(b.bySrc[oneSrc], "it", yEditing, b.year, first, b.hasMain ? lockOf(p.name) : [], true) : numCells(b.total, "it", null, b.year, first)}
           {memoCell}
         </div>,
       );
@@ -845,7 +859,7 @@ export default function BudgetStatusScreen() {
               <span className="bd-tl h2" />
               <span className="bd-nm bd-gpad">{src}</span>
             </div>
-            {numCells(l, "gun", editing, b.year, first)}
+            {numCells(l, "gun", editing, b.year, first, [], true)}
             {memoCell}
           </div>,
         );
@@ -929,6 +943,9 @@ export default function BudgetStatusScreen() {
             {rows}
             {!rows.length && <div className="bd-empty"><p className="bd-empty-bs">{year}년에 보여 줄 세부사업이 없어요</p></div>}
           </div>
+        </div>
+        <div className="bs-guide">
+          <span className="bs-guide-sw" aria-hidden="true" /> 직접 적는 칸 — 줄을 두 번 누르면 고쳐요(불용액·다음연도 이월·추경 등) · 나머지는 집행현황에서 와요
         </div>
       </div>
       {ask && (

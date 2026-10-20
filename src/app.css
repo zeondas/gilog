@@ -10780,6 +10780,10 @@ body.ew-dragging * {
 .bs .bd-hd.bs-hd2 .bd-h.bs-span { align-items: flex-start; line-height: 28px; } /* 두 줄 걸친 머리(구분·예산현액…)는 윗줄 높이에 */
 .bs .bd-rw > .bd-c.n.bs-rate { justify-content: center; } /* 집행률 막대·숫자는 가운데 */
 .bs .bd-bar { width: 44px; }
+/* 직접 적는 칸은 살색(--input-wash), 사업 줄 보라 바탕 위에서도 살색이 이겨요. 아래 안내 줄 */
+.bs .bd-rw > .bd-c.bs-ed, .bs .bd-rw.pj > .bd-c.bs-ed, .bs .bd-rw.alt > .bd-c.bs-ed { background: var(--input-wash); }
+.bs-guide { display: flex; align-items: center; gap: 6px; flex: none; height: 28px; padding: 0 12px; border-top: 1px solid var(--line-soft); font-size: 11.5px; color: var(--muted); }
+.bs-guide-sw { display: inline-block; width: 14px; height: 14px; border: 1px solid var(--line); border-radius: 3px; background: var(--input-wash); }
 .bs .bd-h.bs-hn { justify-content: flex-start; }
 .bs .bd-hd.bs-hd2 { height: 56px; grid-template-rows: 28px 28px; }
 .bs .bd-hd.bs-hd2 .bd-h.bs-grp { border-bottom: 1px solid var(--line-soft); }
