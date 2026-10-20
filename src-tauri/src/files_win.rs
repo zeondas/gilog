@@ -320,18 +320,39 @@ fn parse(path: &str) -> Result<Pidl, String> {
 
 /// 기록이 메뉴 맨 아래에 더하는 줄 "보안해제 바로가기"의 번호(윈도우 항목 번호와 겹치지 않게 그 범위 밖)
 const ID_REVEAL: u32 = 0x7F00;
+/// 기록이 더하는 줄들의 번호(0x7E00부터 – 윈도우 항목은 그 앞까지만)
+const ID_EXTRA: u32 = 0x7E00;
 
 /// 윈도우 우클릭 메뉴를 띄우고 고른 것을 실행해요.
 /// 돌려주는 값: "" 아무것도 안 고름 · "done" 실행함 · "rename" 화면이 이름 바꾸기를 시작해야 해요 · "newfolder" 화면이 새 폴더를 만들고 이름 칸을 열어요
 /// · "reveal" 화면이 윈도우 탐색기로 넘겨야 해요(회사 보안 프로그램 메뉴는 윈도우 탐색기에서만 나와요, 2026-10-18).
 /// hwnd는 앱 창, (x, y)는 화면 안 CSS 픽셀(음수면 마우스 자리), scale은 화면 배율.
-pub fn context_menu(hwnd_raw: isize, origin: (i32, i32), scale: f64, dir: &str, names: &[String], x: f64, y: f64) -> Result<String, String> {
+/// dir이 비어 있으면 names는 전체 경로예요 – 여러 폴더에 걸친 찾기 결과·드라이브(C:\\) 메뉴(호환 B, 2026-10-20).
+/// extra는 기록이 메뉴 맨 위에 더하는 줄(빈 곳 메뉴의 보기·정렬 기준·새로 고침·실행 취소) – 고르면 "x:아이디".
+pub fn context_menu(hwnd_raw: isize, origin: (i32, i32), scale: f64, dir: &str, names: &[String], x: f64, y: f64, extra: &[crate::files::MenuExtra]) -> Result<String, String> {
+    use windows::Win32::System::Com::IBindCtx;
+    use windows::Win32::UI::Shell::{SHCreateShellItemArrayFromIDLists, BHID_SFUIObject};
     unsafe {
         let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
         let hwnd = HWND(hwnd_raw as *mut c_void);
+        let full = dir.is_empty();
+        let dir_owned = if full {
+            names.first().and_then(|n| std::path::Path::new(n).parent().map(|p| p.to_string_lossy().into_owned())).unwrap_or_default()
+        } else {
+            dir.to_string()
+        };
+        let cm: IContextMenu = if full {
+            if names.is_empty() {
+                return Ok(String::new());
+            }
+            let pidls: Vec<Pidl> = names.iter().map(|p| parse(p)).collect::<Result<_, _>>()?;
+            let raw: Vec<*const ITEMIDLIST> = pidls.iter().map(|p| p.0 as *const ITEMIDLIST).collect();
+            let arr = SHCreateShellItemArrayFromIDLists(&raw).map_err(|e| format!("items:{e}"))?;
+            arr.BindToHandler::<_, IContextMenu>(None::<&IBindCtx>, &BHID_SFUIObject).map_err(|e| format!("ui:{e}"))?
+        } else {
         let dir_pidl = parse(dir)?;
         let folder: IShellFolder = SHBindToObject(None, dir_pidl.0, None).map_err(|e| format!("bind:{e}"))?;
-        let cm: IContextMenu = if names.is_empty() {
+        if names.is_empty() {
             // 빈 곳: 그 폴더의 바탕 메뉴(새로 만들기·붙여 넣기·속성 등)
             folder.CreateViewObject(hwnd).map_err(|e| format!("view:{e}"))?
         } else {
@@ -349,6 +370,7 @@ pub fn context_menu(hwnd_raw: isize, origin: (i32, i32), scale: f64, dir: &str, 
             let cm = folder.GetUIObjectOf(hwnd, &raw, None).map_err(|e| format!("ui:{e}"))?;
             drop(kids);
             cm
+        }
         };
         let menu = CreatePopupMenu().map_err(|e| format!("menu:{e}"))?;
         // CMF_CANRENAME: "이름 바꾸기"를 메뉴에 넣어 달라는 표시(2026-10-20 사용자 – 없으면 윈도우가 그 줄을 빼요). 고르면 화면의 F2로 넘겨요.
@@ -357,10 +379,54 @@ pub fn context_menu(hwnd_raw: isize, origin: (i32, i32), scale: f64, dir: &str, 
             flags |= CMF_EXTENDEDVERBS;
         }
         const FIRST: u32 = 1;
-        let hr = cm.QueryContextMenu(menu, 0, FIRST, ID_REVEAL - 1, flags);
+        let hr = cm.QueryContextMenu(menu, 0, FIRST, ID_EXTRA - 1, flags);
         if hr.is_err() {
             let _ = DestroyMenu(menu);
             return Err(format!("query:{hr:?}"));
+        }
+        // 기록이 더하는 줄: 윈도우의 같은 이름 줄(보기·정렬 기준·그룹화·새로 고침 – 기록 화면엔 안 먹어요)은 빼고 맨 위에
+        let mut extra_ids: Vec<String> = Vec::new();
+        if !extra.is_empty() {
+            use windows::Win32::UI::WindowsAndMessaging::{DeleteMenu, GetMenuItemCount, GetMenuStringW, InsertMenuW, MF_BYPOSITION, MF_CHECKED, MF_POPUP};
+            let n = GetMenuItemCount(Some(menu));
+            for pos in (0..n.max(0)).rev() {
+                let mut t = [0u16; 64];
+                let k = GetMenuStringW(menu, pos as u32, Some(&mut t), MF_BYPOSITION);
+                let t = String::from_utf16_lossy(&t[..k.max(0) as usize]).replace('&', "");
+                let t = t.split('(').next().unwrap_or("").trim().to_lowercase();
+                if ["보기", "정렬 기준", "그룹화 기준", "새로 고침", "view", "sort by", "group by", "refresh"].contains(&t.as_str()) {
+                    let _ = DeleteMenu(menu, pos as u32, MF_BYPOSITION);
+                }
+            }
+            let mut pos = 0u32;
+            for e in extra {
+                if e.label == "-" {
+                    let _ = InsertMenuW(menu, pos, MF_BYPOSITION | MF_SEPARATOR, 0, PCWSTR::null());
+                } else if !e.items.is_empty() {
+                    let sub = CreatePopupMenu().map_err(|e| format!("menu:{e}"))?;
+                    for c in &e.items {
+                        if c.label == "-" {
+                            let _ = AppendMenuW(sub, MF_SEPARATOR, 0, PCWSTR::null());
+                            continue;
+                        }
+                        let id = ID_EXTRA + extra_ids.len() as u32;
+                        extra_ids.push(c.id.clone());
+                        let w = wide(&c.label);
+                        let _ = AppendMenuW(sub, if c.checked { MF_STRING | MF_CHECKED } else { MF_STRING }, id as usize, PCWSTR(w.as_ptr()));
+                    }
+                    let w = wide(&e.label);
+                    let _ = InsertMenuW(menu, pos, MF_BYPOSITION | MF_POPUP | MF_STRING, sub.0 as usize, PCWSTR(w.as_ptr()));
+                } else {
+                    let id = ID_EXTRA + extra_ids.len() as u32;
+                    extra_ids.push(e.id.clone());
+                    let w = wide(&e.label);
+                    let _ = InsertMenuW(menu, pos, MF_BYPOSITION | MF_STRING, id as usize, PCWSTR(w.as_ptr()));
+                }
+                pos += 1;
+            }
+            if GetMenuItemCount(Some(menu)) > pos as i32 {
+                let _ = InsertMenuW(menu, pos, MF_BYPOSITION | MF_SEPARATOR, 0, PCWSTR::null());
+            }
         }
         if !names.is_empty() {
             let label = wide("보안해제 바로가기");
@@ -387,6 +453,10 @@ pub fn context_menu(hwnd_raw: isize, origin: (i32, i32), scale: f64, dir: &str, 
             let _ = DestroyMenu(menu);
             return Ok("reveal".into());
         }
+        if (ID_EXTRA..ID_REVEAL).contains(&cmd) {
+            let _ = DestroyMenu(menu);
+            return Ok(format!("x:{}", extra_ids.get((cmd - ID_EXTRA) as usize).cloned().unwrap_or_default()));
+        }
         let id = (cmd - FIRST) as usize;
         let mut verb = [0u16; 128];
         let _ = cm.GetCommandString(id, GCS_VERBW, None, PSTR(verb.as_mut_ptr() as *mut u8), verb.len() as u32);
@@ -408,7 +478,7 @@ pub fn context_menu(hwnd_raw: isize, origin: (i32, i32), scale: f64, dir: &str, 
             let _ = DestroyMenu(menu);
             return Ok("openlocation".into());
         }
-        let dir_w = wide(dir);
+        let dir_w = wide(&dir_owned);
         let info = CMINVOKECOMMANDINFOEX {
             cbSize: std::mem::size_of::<CMINVOKECOMMANDINFOEX>() as u32,
             fMask: CMIC_MASK_UNICODE | CMIC_MASK_PTINVOKE,

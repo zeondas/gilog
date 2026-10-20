@@ -41,7 +41,9 @@ export type FastStatus = {
   drives: { drive: string; count: number; ready: boolean }[];
 };
 /** 우클릭 메뉴 결과: "" 안 고름 · "done" 실행함 · "rename" 이름 바꾸기 시작 */
-export type MenuResult = "" | "done" | "rename" | "reveal" | "newfolder" | "openlocation";
+export type MenuResult = "" | "done" | "rename" | "reveal" | "newfolder" | "openlocation" | `x:${string}`;
+/** 기록이 윈도우 메뉴 맨 위에 더하는 줄(빈 곳의 보기·정렬 기준 등). label "-"는 구분선, items가 있으면 하위 메뉴 – 고르면 "x:id" */
+export type MenuExtra = { id: string; label: string; checked?: boolean; items?: MenuExtra[] };
 
 // ---------- 브라우저 흉내 ----------
 
@@ -67,6 +69,11 @@ function addDir(path: string) {
   const M = "D:\\민원처리\\";
   const k = 1024;
   const mb = k * k;
+  // zip 파일(폴더처럼 들어가 보기 – 호환 B): 먼저 파일로 두면 안의 것을 더해도 폴더로 바뀌지 않아요
+  fakeFs.set(M + "현장사진_10월.zip", { dir: false, size: 3.4 * mb, modified: T("2026-10-18T16:20") });
+  addFake(M + "현장사진_10월.zip\\공문.hwp", 52 * k, "2026-10-18T16:10");
+  addFake(M + "현장사진_10월.zip\\사진\\봉일천리_전.jpg", 1.2 * mb, "2026-10-15T09:02");
+  addFake(M + "현장사진_10월.zip\\사진\\봉일천리_후.jpg", 1.1 * mb, "2026-10-17T14:02");
   addFake(M + "261001_답곡리 산 82-9_포트홀.jpg", 405 * k, "2026-10-02T11:10");
   addFake(M + "261001_답곡리 산 82-9_포트홀.pptx", 1.6 * mb, "2026-10-02T11:10");
   addFake(M + "261015_봉일천리 209-10_포트홀.jpg", 412 * k, "2026-10-17T14:21");
@@ -318,8 +325,14 @@ function fakeCall(cmd: string, a: Record<string, unknown>): unknown {
       return { installed: true, running: true, drives: [{ drive: "C:", count: 412330, ready: true }, { drive: "D:", count: 88120, ready: true }] } as FastStatus;
     case "fs_icons":
       return {};
-    case "fs_context_menu":
-      return "";
+    case "fs_context_menu": {
+      // 미리 보기 시험: window.__fxMenuPick = "view:icons"면 더한 줄을 고른 것처럼
+      const w = window as unknown as { __fxMenuPick?: string; __fxMenuLast?: unknown };
+      w.__fxMenuLast = { dir: a.dir, names: a.names, extra: a.extra };
+      return w.__fxMenuPick ? `x:${w.__fxMenuPick}` : "";
+    }
+    case "fs_zip_extract":
+      return (a.paths as string[]).map((p) => "C:\\임시\\giLog-zip\\" + baseName(p));
     default:
       return null;
   }
@@ -388,7 +401,10 @@ export const fsApi = {
   icons: (keys: string[], size: number) => call<Record<string, string>>("fs_icons", { keys, size }),
   /** 파일 형식 이름(윈도우 것): 키는 ".xlsx"·"<dir>" */
   types: (keys: string[]) => (inApp ? call<Record<string, string>>("fs_types", { keys }) : Promise.resolve({} as Record<string, string>)),
-  contextMenu: (dir: string, names: string[], x: number, y: number) => call<MenuResult>("fs_context_menu", { dir, names, x, y }),
+  /** dir이 ""이면 names는 전체 경로(여러 폴더 찾기 결과·드라이브) */
+  contextMenu: (dir: string, names: string[], x: number, y: number, extra?: MenuExtra[]) => call<MenuResult>("fs_context_menu", { dir, names, x, y, extra: extra ?? null }),
+  /** zip 안의 것을 임시 폴더에 풀어 그 경로들을 돌려줘요(열기·복사해 나가기) */
+  zipExtract: (paths: string[]) => call<string[]>("fs_zip_extract", { paths }),
   /** 윈도우 끌기 시작(기록 → 윈도우 탐색기·바탕 화면) – 놓을 때까지 기다려요. "" 놓지 않음 · copy · move · link */
   startDrag: (paths: string[]) => call<string>("fs_start_drag", { paths }),
   /** Alt+Enter 속성 창 */

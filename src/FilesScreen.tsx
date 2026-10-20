@@ -3,7 +3,7 @@
 // - 창마다 탭 줄 → 드라이브 줄(드라이브 · 빠른 필터 · 보기 ▾) → 경로 줄(경로 · 경로 복사 · 윈도우 탐색기로 열기 · ★) → 목록 → 상태 줄.
 // - 우클릭(파일·폴더·빈 곳)은 윈도우 우클릭 메뉴 그대로(2안), 탭 우클릭만 기록 메뉴.
 // - 상태(탭·열 폭·정렬·보기·트리·즐겨찾기·찾기 조건·일괄 이름 바꾸기 설정)는 암호화 파일 kv "files.state".
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, inApp } from "./api";
 import { FileIcon } from "./FileIcon";
 import { AskDialog, ConflictDialog, Decision, DeleteDialog, NameDialog, RenameDialog, TransferAsk } from "./FilesDialogs";
@@ -47,12 +47,21 @@ import {
   isReservedName,
   shownName,
   tidyName,
+  inZip,
+  isZipFile,
+  zipOrIn,
 } from "./files";
-import { Conflict, FastStatus, Found, MenuResult, Step, TreeDir, fsApi, fsErrorText, onFsChanged, onFsProgress } from "./filesApi";
+import { Conflict, FastStatus, Found, MenuExtra, MenuResult, Step, TreeDir, fsApi, fsErrorText, onFsChanged, onFsProgress } from "./filesApi";
 import { parseDate } from "./journal";
 import { DEFAULT_FILES_SETTINGS, FilesSettings, loadSettings, saveSettings } from "./settingsStore";
 
 const STATE_KEY = "files.state";
+const ZIP_RO = "zip 파일 안은 읽기만 돼요 – 꺼내려면 다른 폴더로 복사해 주세요";
+/** Ctrl+휠로 바꾸는 보기 차례(작은 것 → 큰 것, 호환 B) */
+const VIEW_SIZES: ViewMode[] = ["detail", "brief", "icons", "thumb"];
+const SORT_NAME: Record<SortKey, string> = { name: "이름", modified: "수정한 날짜", type: "유형", size: "크기", folder: "폴더" };
+type PopItem = { id: string; label: string; checked?: boolean; bold?: boolean; disabled?: boolean } | "-";
+type Pop = { x: number; y: number; items: PopItem[]; onPick: (id: string) => void; scroll?: boolean };
 
 type FindRun = {
   form: FindForm;
@@ -140,6 +149,10 @@ export default function FilesScreen() {
   const [ask, setAsk] = useState<{ title: string; sub: string; yes: string; resolve: (ok: boolean) => void } | null>(null);
   const askYes = (title: string, sub: string, yes: string) => new Promise<boolean>((resolve) => setAsk({ title, sub, yes, resolve }));
   const [menu, setMenu] = useState<{ kind: "view" | "fav" | "tab"; pane: number; tab?: number; x?: number; y?: number } | null>(null);
+  /** 작은 고르기 메뉴(경로 › 아래 폴더 · 열 머리 · 오른쪽 끌기 놓기 – 호환 B) */
+  const [pop, setPop] = useState<Pop | null>(null);
+  /** 주소 칸 자동 완성(호환 B) */
+  const [sugg, setSugg] = useState<{ pane: number; items: TreeDir[]; i: number } | null>(null);
   const [findOpen, setFindOpen] = useState(false);
   const [quickFind, setQuickFind] = useState("");
   // 빠른 찾기 도우미(설치할 때 함께 깔림) – 목록이 준비된 드라이브가 있으면 "모든 드라이브"를 바로 찾아요.
@@ -380,6 +393,19 @@ export default function FilesScreen() {
 
   // ---------- 동작 ----------
   const openEntry = (pane: number, e: Row, newTabIfFolder = false) => {
+    // zip 파일은 폴더처럼 들어가요 · zip 안 파일은 임시 폴더에 풀어 열어요(호환 B)
+    if (isZipFile(e)) {
+      if (newTabIfFolder) newTab(pane, e.path);
+      else go(pane, e.path);
+      return;
+    }
+    if (!e.dir && inZip(e.path)) {
+      void fsApi
+        .zipExtract([e.path])
+        .then((out) => fsApi.open(out[0]))
+        .catch((er) => flash(fsErrorText(er)));
+      return;
+    }
     if (e.dir) {
       if (newTabIfFolder) newTab(pane, e.path);
       else go(pane, e.path);
@@ -510,8 +536,14 @@ export default function FilesScreen() {
     })();
     if (!dest) return flash("대상 창이 찾기 결과예요. 폴더를 연 창으로 보내 주세요."), false;
     if (isSpecial(dest)) return flash("대상 창이 내 PC·즐겨찾기예요. 폴더를 연 창으로 보내 주세요."), false;
-    const sources = src.map((e) => e.path);
+    if (zipOrIn(dest)) return flash(ZIP_RO), false;
+    let sources = src.map((e) => e.path);
     try {
+      // zip 안의 것은 임시 폴더에 풀어 복사해요(zip은 읽기만 – 옮기기도 복사로)
+      if (sources.some((x) => inZip(x))) {
+        sources = await fsApi.zipExtract(sources);
+        op = "copy";
+      }
       const list = await fsApi.conflicts(sources, dest);
       const dec = await askConflicts(list, op);
       if (!dec) return false;
@@ -545,8 +577,13 @@ export default function FilesScreen() {
     if (!t.find && t.path === PC) return flash("드라이브는 복사할 수 없어요.");
     const items = selected(pane);
     if (!items.length) return;
-    const paths = items.map((r) => r.path);
+    let paths = items.map((r) => r.path);
     try {
+      // zip 안의 것은 풀어 둔 것을 복사해요(잘라내기도 복사로)
+      if (paths.some((x) => inZip(x))) {
+        paths = await fsApi.zipExtract(paths);
+        isCut = false;
+      }
       await fsApi.clipSet(paths, isCut);
       setCut(isCut ? new Set(paths) : new Set());
       flash(`${paths.length}개 ${isCut ? "잘라냈어요" : "복사했어요"}`);
@@ -558,6 +595,7 @@ export default function FilesScreen() {
     if (!st) return;
     const t = activeTab(st.panes[pane]);
     if (t.find || isSpecial(t.path)) return flash("폴더를 연 창에서 붙여 주세요.");
+    if (zipOrIn(t.path)) return flash(ZIP_RO);
     let c: { paths: string[]; cut: boolean };
     try {
       c = await fsApi.clipGet();
@@ -593,6 +631,7 @@ export default function FilesScreen() {
   const askDelete = (pane: number, permanent: boolean) => {
     const items = selected(pane);
     if (!items.length) return;
+    if (items.some((x) => inZip(x.path))) return flash(ZIP_RO);
     if (!permanent && !cfg.askDelete) return void doDelete(pane, items, false);
     setDel({ items, permanent, pane });
   };
@@ -616,9 +655,11 @@ export default function FilesScreen() {
 
   const startRename = (pane: number) => {
     const items = selected(pane);
+    if (items.some((x) => inZip(x.path))) return flash(ZIP_RO);
     if (items.length > 1) return openBatch(pane);
     const e = items[0];
     if (!e) return;
+    if (inZip(e.path)) return flash(ZIP_RO);
     setInline({ pane, path: e.path, value: shownName(e), dir: e.dir });
   };
 
@@ -689,6 +730,7 @@ export default function FilesScreen() {
     if (!st) return;
     const t = activeTab(st.panes[pane]);
     if (t.find || isSpecial(t.path)) return;
+    if (zipOrIn(t.path)) return flash(ZIP_RO);
     const taken = new Set(lists[pane].entries.map((e) => e.name.toLowerCase()));
     const name = taken.has("새 폴더") ? bothName("새 폴더", (n) => taken.has(n.toLowerCase())) : "새 폴더";
     try {
@@ -829,23 +871,74 @@ export default function FilesScreen() {
     if (folder) go(pane, folder, target);
   };
 
+  /** 빈 곳 메뉴에서 기록이 더한 줄을 골랐을 때 */
+  const menuExtra = (pane: number, id: string) => {
+    if (id.startsWith("view:")) updPane(pane, (x) => ({ ...x, view: id.slice(5) as ViewMode }));
+    else if (id === "sort:asc" || id === "sort:desc") updPane(pane, (x) => ({ ...x, asc: id === "sort:asc" }));
+    else if (id.startsWith("sort:")) updPane(pane, (x) => ({ ...x, sort: id.slice(5) as SortKey }));
+    else if (id === "refresh") refreshAll();
+    else if (id === "undo") void undoRedo(false);
+    else if (id === "redo") void undoRedo(true);
+  };
+  /** 드라이브 단추·트리 드라이브 줄 우클릭 = 윈도우 드라이브 메뉴(꺼내기·포맷·속성 등, 호환 B) */
+  const driveMenu = async (path: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    try {
+      const r = await fsApi.contextMenu("", [path], e.clientX, e.clientY);
+      if (r === "rename") flash("드라이브 이름은 윈도우 탐색기에서 바꿔 주세요");
+      else if (r === "done") window.setTimeout(() => void fsApi.drives().then(setDrives).catch(() => {}), 500);
+    } catch (er) {
+      if (String(er) === "windows_only") flash("우클릭 메뉴는 윈도우에서 떠요(미리 보기에서는 안 돼요)");
+      else flash("윈도우 메뉴를 띄우지 못했어요");
+    }
+  };
+
   const shellMenu = async (pane: number, e: React.MouseEvent | null, rowsForMenu: Row[]) => {
     if (!st) return;
     const t = activeTab(st.panes[pane]);
     let dir = t.find ? "" : t.path;
     let names = rowsForMenu.map((r) => r.name);
     if (rowsForMenu.length) {
-      // 윈도우 메뉴는 한 폴더 것만 받아요(찾기 결과에서 여러 폴더를 골랐으면 누른 줄만).
+      // 여러 폴더에 걸친 찾기 결과·즐겨찾기·드라이브는 전체 경로로 넘겨 한 메뉴로(호환 B) – dir ""이 그 표시
       const parents = new Set(rowsForMenu.map((r) => parentOf(r.path)));
-      const first = rowsForMenu[0];
-      if (parents.size > 1) names = [first.name];
-      dir = parentOf(first.path) ?? dir;
-    }
-    if (!dir || isSpecial(dir)) return;
+      const par = parentOf(rowsForMenu[0].path);
+      if (parents.size > 1 || !par) {
+        dir = "";
+        names = rowsForMenu.map((r) => r.path);
+      } else dir = par;
+    } else if (!dir || isSpecial(dir)) return;
+    const onDrives = !dir && rowsForMenu.every((r) => /^[A-Za-z]:\\$/.test(r.path));
     // 빈 곳 메뉴의 "새로 만들기"(텍스트 문서 등)로 생긴 것을 찾아 이름 칸을 열려고 지금 목록을 기억해요
     const before = !names.length && !t.find ? new Set(lists[pane].entries.map((x) => x.path)) : null;
+    // 빈 곳 메뉴 맨 위: 보기·정렬 기준·새로 고침·실행 취소(윈도우 탐색기와 같은 자리, 호환 B)
+    const p = st.panes[pane];
+    const H = hist.current;
+    const lastU = H.undo[H.undo.length - 1];
+    const lastR = H.redo[H.redo.length - 1];
+    const extra: MenuExtra[] | undefined = names.length
+      ? undefined
+      : [
+          { id: "view", label: "보기", items: VIEWS.map((v) => ({ id: `view:${v.id}`, label: `${v.name}\t${v.key}`, checked: p.view === v.id })) },
+          {
+            id: "sort",
+            label: "정렬 기준",
+            items: [
+              ...(["name", "modified", "type", "size"] as SortKey[]).map((k) => ({ id: `sort:${k}`, label: SORT_NAME[k], checked: p.sort === k })),
+              { id: "-", label: "-" },
+              { id: "sort:asc", label: "오름차순", checked: p.asc },
+              { id: "sort:desc", label: "내림차순", checked: !p.asc },
+            ],
+          },
+          { id: "-", label: "-" },
+          { id: "refresh", label: "새로 고침\tCtrl+R" },
+          ...(lastU ? [{ id: "undo", label: `실행 취소 – ${lastU.label}\tCtrl+Z` }] : []),
+          ...(lastR ? [{ id: "redo", label: `다시 실행 – ${lastR.label}\tCtrl+Y` }] : []),
+        ];
     try {
-      const r: MenuResult = await fsApi.contextMenu(dir, names, e ? e.clientX : -1, e ? e.clientY : -1);
+      const r: MenuResult = await fsApi.contextMenu(dir, names, e ? e.clientX : -1, e ? e.clientY : -1, extra);
+      if (r.startsWith("x:")) return menuExtra(pane, r.slice(2));
+      if (onDrives && (r === "rename" || r === "newfolder")) return flash("드라이브 이름은 윈도우 탐색기에서 바꿔 주세요");
+      if (onDrives && r === "done") return void window.setTimeout(() => void fsApi.drives().then(setDrives).catch(() => {}), 500);
       if (r === "rename") startRename(pane);
       else if (r === "newfolder") void newFolder(pane);
       else if (r === "reveal") void revealRows(rowsForMenu);
@@ -1130,6 +1223,7 @@ export default function FilesScreen() {
     if (k === "PageDown") return handled(), step((idx < 0 ? 0 : idx) + page());
     if (k === "PageUp") return handled(), step((idx < 0 ? 0 : idx) - page());
     if (k === "Escape") {
+      if (pop) return handled(), setPop(null);
       if (menu) return handled(), setMenu(null);
       if (filters[pane]) return handled(), setFilters((f) => f.map((x, i) => (i === pane ? "" : x)));
       return setSel(pane, EMPTY_SEL);
@@ -1157,17 +1251,39 @@ export default function FilesScreen() {
 
   // 바깥을 누르면 작은 메뉴가 닫혀요.
   useEffect(() => {
-    if (!menu && !findOpen) return;
+    if (!menu && !findOpen && !pop) return;
     const f = (e: MouseEvent) => {
       const t = e.target as HTMLElement;
       if (!t.closest(".fx-menu, .fx-menu-btn")) {
         setMenu(null);
+        setPop(null);
         if (!t.closest(".fx-findbox")) setFindOpen(false);
       }
     };
     window.addEventListener("mousedown", f);
     return () => window.removeEventListener("mousedown", f);
-  }, [menu, findOpen]);
+  }, [menu, findOpen, pop]);
+
+  // Ctrl+휠: 보기 크기 바꾸기(자세히 ↔ 간단히 ↔ 큰 아이콘 ↔ 썸네일, 호환 B)
+  const wheelAt = useRef(0);
+  useEffect(() => {
+    const f = (e: WheelEvent) => {
+      if (!e.ctrlKey) return;
+      const el = (e.target as HTMLElement | null)?.closest?.<HTMLElement>(".fx-list[data-pane]");
+      if (!el) return;
+      e.preventDefault();
+      const now = performance.now();
+      if (!e.deltaY || now - wheelAt.current < 150) return;
+      wheelAt.current = now;
+      updPane(Number(el.dataset.pane), (x) => {
+        const i = Math.max(0, VIEW_SIZES.indexOf(x.view));
+        const j = Math.max(0, Math.min(VIEW_SIZES.length - 1, i + (e.deltaY < 0 ? 1 : -1)));
+        return j === i ? x : { ...x, view: VIEW_SIZES[j] };
+      });
+    };
+    window.addEventListener("wheel", f, { passive: false });
+    return () => window.removeEventListener("wheel", f);
+  }, [updPane]);
 
   // ---------- 트리 ----------
   const loadTree = useCallback(
@@ -1220,6 +1336,49 @@ export default function FilesScreen() {
     } catch {
       /* 저장 못 해도 이번에는 보여요 */
     }
+  };
+  /** 열 머리 우클릭으로 보일 열 고르기(호환 B) – 설정 "탐색기 › 보일 열"과 같은 값 */
+  const toggleCol = async (k: "size" | "modified" | "type") => {
+    const next = { ...cfg, cols: { ...cfg.cols, [k]: !cfg.cols[k] } };
+    setCfg(next);
+    try {
+      const s = await loadSettings();
+      await saveSettings({ ...s, files: { ...s.files, cols: next.cols } });
+    } catch {
+      /* 저장 못 해도 이번에는 보여요 */
+    }
+  };
+  /** 경로 › 를 누르면 그 폴더의 아래 폴더 목록(호환 B) */
+  const crumbList = async (pane: number, path: string, next: string | undefined, el: HTMLElement) => {
+    const r = el.getBoundingClientRect();
+    const subs = await fsApi.subdirs(path, cfg.showHidden).catch(() => [] as TreeDir[]);
+    if (!subs.length) return flash("아래 폴더가 없어요");
+    setPop({
+      x: r.left - 6,
+      y: r.bottom + 2,
+      scroll: true,
+      items: subs.map((d) => ({ id: d.path, label: d.name, bold: !!next && d.path.toLowerCase() === next.toLowerCase() })),
+      onPick: (id) => go(pane, id),
+    });
+  };
+  /** 주소 칸 자동 완성: 친 경로의 위 폴더 안에서 이름이 그렇게 시작하는 폴더(호환 B) */
+  const suggTimer = useRef(0);
+  const suggSeq = useRef(0);
+  const suggest = (pane: number, v: string) => {
+    window.clearTimeout(suggTimer.current);
+    const seq = ++suggSeq.current;
+    suggTimer.current = window.setTimeout(async () => {
+      const raw = v.trim().replace(/^"/, "");
+      const i = raw.lastIndexOf("\\");
+      if (i < 0 || !/^([A-Za-z]:|\\\\[^\\]+\\[^\\]+)/.test(raw)) return setSugg(null);
+      const base = raw.slice(0, i + 1);
+      const pre = raw.slice(i + 1).toLowerCase();
+      const dir = /^[A-Za-z]:\\$/.test(base) ? base : base.slice(0, -1);
+      const subs = await fsApi.subdirs(dir, cfg.showHidden).catch(() => [] as TreeDir[]);
+      if (seq !== suggSeq.current) return;
+      const items = subs.filter((d) => d.name.toLowerCase().startsWith(pre)).slice(0, 12);
+      setSugg(items.length && !(items.length === 1 && items[0].name.toLowerCase() === pre) ? { pane, items, i: -1 } : null);
+    }, 120);
   };
   /** 펼쳐보기: 지금 폴더 아래 모든 파일을 한 목록으로(다시 누르면 닫기) */
   const flatOn = !!(st && activeTab(st.panes[st.active]).find?.flat);
@@ -1416,24 +1575,37 @@ export default function FilesScreen() {
   }, [!!band]);
 
   // 윈도우 끌기(2026-10-20 사용자: 기록 → 윈도우 탐색기로 끌어 내기): 줄을 누른 채 6px 넘게 움직이면 시작
-  const nativeDrag = useRef<{ x: number; y: number; paths: string[] } | null>(null);
+  // 오른쪽 단추로 끌기(호환 B): 놓으면 "여기에 복사·여기로 이동·바로 가기" 메뉴. 윈도우 탐색기에 놓으면 윈도우가 같은 메뉴를 띄워요.
+  const nativeDrag = useRef<{ x: number; y: number; paths: string[]; right?: boolean } | null>(null);
   const keepPick = useRef<{ pane: number; path: string } | null>(null);
+  /** 이 시각까지 들어온 놓기는 오른쪽 끌기 · 이 시각까지 우클릭 메뉴를 띄우지 않음 */
+  const rightUntil = useRef(0);
+  const noCtxUntil = useRef(0);
+  /** 미리 보기의 오른쪽 끌기(앱에서는 윈도우 끌기를 써요) */
+  const [rdrag, setRdrag] = useState<{ paths: string[]; x: number; y: number } | null>(null);
   useEffect(() => {
-    if (!inApp) return;
     const move = (e: MouseEvent) => {
       const d = nativeDrag.current;
       if (!d) return;
-      if (!(e.buttons & 1)) {
+      if (!(e.buttons & (d.right ? 2 : 1))) {
         nativeDrag.current = null;
         return;
       }
       if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) < 6) return;
       nativeDrag.current = null;
       keepPick.current = null;
+      if (!inApp) {
+        if (d.right) setRdrag({ paths: d.paths, x: e.clientX, y: e.clientY });
+        return;
+      }
+      if (d.right) rightUntil.current = noCtxUntil.current = Date.now() + 3_600_000;
       void fsApi
         .startDrag(d.paths)
         .then((r) => r && window.setTimeout(() => refreshRef.current(), 300))
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => {
+          if (d.right) rightUntil.current = noCtxUntil.current = Date.now() + 800;
+        });
     };
     const up = () => {
       nativeDrag.current = null;
@@ -1464,7 +1636,24 @@ export default function FilesScreen() {
   // 아니면 그 창이 연 폴더로. 같은 드라이브면 옮기기·다른 드라이브면 복사(윈도우 탐색기와 같게).
   const [extHover, setExtHover] = useState<{ pane: number | null; dir: string | null } | null>(null);
   const extRef = useRef<{ paths: string[] }>({ paths: [] });
-  const dropAtRef = useRef<(paths: string[], x: number, y: number) => void>(() => {});
+  const dropAtRef = useRef<(paths: string[], x: number, y: number, right?: boolean) => void>(() => {});
+  useEffect(() => {
+    if (!rdrag) return;
+    const move = (e: MouseEvent) => setRdrag((o) => (o ? { ...o, x: e.clientX, y: e.clientY } : o));
+    const up = (e: MouseEvent) => {
+      if (e.button !== 2) return;
+      noCtxUntil.current = Date.now() + 500;
+      const r = rdrag;
+      setRdrag(null);
+      dropAtRef.current(r.paths, e.clientX, e.clientY, true);
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+    return () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    };
+  }, [!!rdrag]); // eslint-disable-line react-hooks/exhaustive-deps
   /** 끄는 동안 목록 위·아래 끝에 대면 그쪽으로 스크롤(호환 B) */
   const dragScroll = (x: number, y: number) => {
     const el = (document.elementFromPoint(x, y) as HTMLElement | null)?.closest<HTMLElement>(".fx-list, .fx-tree-body");
@@ -1484,7 +1673,7 @@ export default function FilesScreen() {
     const row = el.closest<HTMLElement>("[data-dir]");
     return { pane, dir: row?.dataset.dir || null };
   };
-  dropAtRef.current = (paths: string[], x: number, y: number) => {
+  dropAtRef.current = (paths: string[], x: number, y: number, right = Date.now() < rightUntil.current) => {
     if (!st || !paths.length) return;
     const hit = hitAt(x, y);
     let dest = hit.dir;
@@ -1499,18 +1688,43 @@ export default function FilesScreen() {
     const srcs = paths.filter((p) => p !== dest);
     if (!srcs.length || srcs.every((p) => parentOf(p) === dest)) return;
     const d = dest;
+    const linkAt = () => {
+      if (zipOrIn(d)) return flash(ZIP_RO);
+      void fsApi
+        .makeLinks(srcs, d)
+        .then((made) => {
+          flash(`바로 가기 ${made.length}개를 만들었어요`);
+          record({ label: `바로 가기 ${made.length}개`, undo: { steps: [{ k: "trash", paths: made }] }, redo: { steps: [] } });
+          refreshAll();
+        })
+        .catch((er) => flash(fsErrorText(er)));
+    };
+    if (right) {
+      // 오른쪽 끌기로 놓음: 윈도우처럼 고르는 메뉴(굵은 줄 = 왼쪽 끌기였으면 했을 일)
+      rightUntil.current = 0;
+      const ro = srcs.some((x) => inZip(x));
+      const def = ro || driveOf(srcs[0]) !== driveOf(d) ? "copy" : "move";
+      setPop({
+        x,
+        y,
+        items: [
+          { id: "copy", label: "여기에 복사", bold: def === "copy" },
+          { id: "move", label: "여기로 이동", bold: def === "move", disabled: ro },
+          { id: "link", label: "여기에 바로 가기 만들기", disabled: ro },
+          "-",
+          { id: "", label: "취소" },
+        ],
+        onPick: (id) => {
+          if (id === "link") linkAt();
+          else if (id === "copy" || id === "move") void transfer(pane, id, srcs.map((path) => ({ path }) as Row), d);
+        },
+      });
+      return;
+    }
     // 놓을 때 Ctrl = 복사 · Shift = 옮기기, 아니면 같은 드라이브 옮기기·다른 드라이브 복사(호환 A7, 윈도우와 같게)
     void fsApi.mods().then(([c, sh, alt]) => {
       // Alt(또는 Ctrl+Shift) 누른 채 놓기 = 바로가기 만들기(호환 B)
-      if (alt || (c && sh))
-        return void fsApi
-          .makeLinks(srcs, d)
-          .then((made) => {
-            flash(`바로 가기 ${made.length}개를 만들었어요`);
-            record({ label: `바로 가기 ${made.length}개`, undo: { steps: [{ k: "trash", paths: made }] }, redo: { steps: [] } });
-            refreshAll();
-          })
-          .catch((er) => flash(fsErrorText(er)));
+      if (alt || (c && sh)) return linkAt();
       const op = c ? "copy" : sh ? "move" : driveOf(srcs[0]) === driveOf(d) ? "move" : "copy";
       void transfer(pane, op, srcs.map((path) => ({ path }) as Row), d);
     });
@@ -1590,6 +1804,7 @@ export default function FilesScreen() {
     };
     const rowCtx = (r: Row, e: React.MouseEvent) => {
       e.preventDefault();
+      if (Date.now() < noCtxUntil.current) return;
       focusPane(pane);
       let items = rows.filter((x) => s.paths.has(x.path));
       if (!items.some((x) => x.path === r.path)) {
@@ -1763,6 +1978,7 @@ export default function FilesScreen() {
               data-on={!isSpecial(t.path) && (curDrive === d.name || (d.name.length > 2 && t.path === d.path)) ? "1" : "0"}
               title={`${d.name} ${d.label}${d.total ? ` · 남은 ${formatSize(d.free)}` : ""}`}
               onClick={() => go(pane, d.path)}
+              onContextMenu={(e) => void driveMenu(d.path, e)}
             >
 
               {d.name}
@@ -1826,16 +2042,42 @@ export default function FilesScreen() {
         </div>
         <div className="fx-row2">
           {editPath && editPath.pane === pane ? (
+            <>
             <input
               className="input fx-path-in"
               aria-label="경로"
               autoFocus
               value={editPath.value}
               onFocus={(e) => e.currentTarget.select()}
-              onChange={(e) => setEditPath({ pane, value: e.target.value })}
+              onChange={(e) => {
+                setEditPath({ pane, value: e.target.value });
+                suggest(pane, e.target.value);
+              }}
               onKeyDown={async (e) => {
-                if (e.key === "Escape") setEditPath(null);
+                const sg = sugg && sugg.pane === pane ? sugg : null;
+                if (sg && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+                  e.preventDefault();
+                  const n = sg.items.length;
+                  return setSugg({ ...sg, i: e.key === "ArrowDown" ? (sg.i + 1) % n : sg.i <= 0 ? n - 1 : sg.i - 1 });
+                }
+                if (sg && e.key === "Tab" && !e.shiftKey) {
+                  // Tab: 고른(없으면 첫) 폴더 이름으로 채우고 그 안을 이어서 보여 줘요
+                  e.preventDefault();
+                  const v = sg.items[Math.max(0, sg.i)].path + "\\";
+                  setEditPath({ pane, value: v });
+                  return suggest(pane, v);
+                }
+                if (e.key === "Escape") {
+                  if (sg) return setSugg(null);
+                  setEditPath(null);
+                }
+                if (e.key === "Enter" && sg && sg.i >= 0) {
+                  setSugg(null);
+                  setEditPath(null);
+                  return go(pane, sg.items[sg.i].path);
+                }
                 if (e.key === "Enter") {
+                  setSugg(null);
                   // %USERPROFILE%·shell:downloads 같은 이름도 받고, 파일 경로면 그 파일을 열어요(호환 B)
                   const v = cleanPath(editPath.value);
                   const hit = await fsApi.resolve(v).catch(() => null);
@@ -1848,8 +2090,33 @@ export default function FilesScreen() {
                   } else flash("그 폴더·파일을 찾지 못했어요");
                 }
               }}
-              onBlur={() => setEditPath(null)}
+              onBlur={() => {
+                setEditPath(null);
+                setSugg(null);
+              }}
             />
+            {sugg && sugg.pane === pane && (
+              <div className="fx-menu fx-sugg" role="listbox" aria-label="폴더 자동 완성">
+                {sugg.items.map((d, k) => (
+                  <button
+                    key={d.path}
+                    type="button"
+                    className="fx-mi"
+                    data-on={k === sugg.i ? "1" : "0"}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setSugg(null);
+                      setEditPath(null);
+                      go(pane, d.path);
+                    }}
+                  >
+                    <FileIcon name={d.name} path="" dir size={16} />
+                    {d.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            </>
           ) : (
             <div className="fx-crumbs" role="button" tabIndex={0} title="눌러서 경로 고쳐 적기 · Enter로 이동" onClick={() => !t.find && setEditPath({ pane, value: t.path })}>
               {t.find ? (
@@ -1869,7 +2136,17 @@ export default function FilesScreen() {
                     >
                       {c.name}
                     </span>
-                    {i < crumbs.length - 1 && <span className="fx-crumb-sep">›</span>}
+                    <span
+                      className="fx-crumb-sep fx-crumb-list fx-menu-btn"
+                      title="아래 폴더"
+                      onClick={(ev) => {
+                        // › 를 누르면 그 폴더의 아래 폴더 목록(호환 B)
+                        ev.stopPropagation();
+                        void crumbList(pane, c.path, crumbs[i + 1]?.path, ev.currentTarget);
+                      }}
+                    >
+                      ›
+                    </span>
                   </Fragment>
                 ))
               )}
@@ -1941,7 +2218,25 @@ export default function FilesScreen() {
           </div>
         )}
         {(p.view === "detail" || t.find) && (
-          <div className="fx-hdr" style={colStyle}>
+          <div
+            className="fx-hdr"
+            style={colStyle}
+            onContextMenu={(e) => {
+              // 열 머리 우클릭: 보일 열 고르기(호환 B)
+              e.preventDefault();
+              setPop({
+                x: e.clientX,
+                y: e.clientY,
+                items: [
+                  { id: "name", label: "이름", checked: true, disabled: true },
+                  { id: "size", label: "크기", checked: cfg.cols.size },
+                  { id: "modified", label: "수정한 날짜", checked: cfg.cols.modified },
+                  { id: "type", label: "파일 형식", checked: cfg.cols.type },
+                ],
+                onPick: (id) => void toggleCol(id as "size" | "modified" | "type"),
+              });
+            }}
+          >
             <span />
             <button type="button" className="fx-hcell" onClick={() => sortBy("name")}>
               이름{arrow("name")}
@@ -1973,6 +2268,7 @@ export default function FilesScreen() {
           </div>
         )}
         <div
+          data-pane={pane}
           className={p.view === "brief" && !t.find ? "fx-list fx-brief" : p.view === "icons" || p.view === "thumb" ? (t.find ? "fx-list" : "fx-list fx-grid") : "fx-list"}
           onDoubleClick={(e) => {
             if (e.target === e.currentTarget) up(pane);
@@ -1987,6 +2283,7 @@ export default function FilesScreen() {
           onContextMenu={(e) => {
             if (e.target !== e.currentTarget) return;
             e.preventDefault();
+            if (Date.now() < noCtxUntil.current) return;
             setSel(pane, EMPTY_SEL);
             void shellMenu(pane, e, []);
           }}
@@ -2042,6 +2339,13 @@ export default function FilesScreen() {
               draggable: !inline && !inApp,
               onMouseDown: (e: React.MouseEvent) => {
                 if (e.button === 1) return e.preventDefault(); // 가운데 단추 자동 스크롤 막기
+                if (e.button === 2 && !inline) {
+                  // 오른쪽 단추로 끌기 준비(호환 B) – 고르지 않은 줄이면 그 줄만 골라요(윈도우와 같게)
+                  const items = s.paths.has(r.path) ? rows.filter((x) => s.paths.has(x.path)) : [r];
+                  if (!s.paths.has(r.path)) setSel(pane, { paths: new Set([r.path]), cursor: r.path, anchor: r.path });
+                  nativeDrag.current = { x: e.clientX, y: e.clientY, paths: items.map((x) => x.path), right: true };
+                  return;
+                }
                 if (e.button !== 0) return;
                 if (inApp && !inline && !e.shiftKey && !e.ctrlKey) {
                   const items = s.paths.has(r.path) ? rows.filter((x) => s.paths.has(x.path)) : [r];
@@ -2380,6 +2684,7 @@ export default function FilesScreen() {
                           e.preventDefault();
                           if (r.special) return;
                           const par = parentOf(r.path);
+                          if (!par) return void driveMenu(r.path, e);
                           void (async () => {
                             try {
                               const res = await fsApi.contextMenu(par ?? r.path, par ? [r.name] : [], e.clientX, e.clientY);
@@ -2540,6 +2845,12 @@ export default function FilesScreen() {
         {toast && <span className="fx-toast">{toast}</span>}
       </div>
 
+      {pop && <PopMenu pop={pop} onClose={() => setPop(null)} />}
+      {rdrag && (
+        <div className="fx-rdrag" style={{ left: rdrag.x + 12, top: rdrag.y + 12 }}>
+          {rdrag.paths.length === 1 ? baseName(rdrag.paths[0]) : `${rdrag.paths.length}개`}
+        </div>
+      )}
       {menu?.kind === "tab" && menu.tab !== undefined && (
         <TabMenu
           x={menu.x ?? 0}
@@ -2658,6 +2969,44 @@ function Thumb({ path }: { path: string }) {
     };
   }, [path]);
   return src ? <img className="fx-thumb" src={src} alt="" loading="lazy" draggable={false} /> : <span className="fx-thumb fx-thumb-ph" />;
+}
+
+/** 작은 고르기 메뉴 – 화면 밖으로 나가지 않게 자리를 맞춰요 */
+function PopMenu({ pop, onClose }: { pop: Pop; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ left: pop.x, top: pop.y });
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setPos({ left: Math.max(4, Math.min(pop.x, window.innerWidth - r.width - 4)), top: Math.max(4, Math.min(pop.y, window.innerHeight - r.height - 4)) });
+  }, [pop]);
+  const checks = pop.items.some((it) => it !== "-" && it.checked !== undefined);
+  return (
+    <div ref={ref} className={pop.scroll ? "fx-menu fx-tabmenu fx-pop fx-pop-scroll" : "fx-menu fx-tabmenu fx-pop"} role="menu" style={pos}>
+      {pop.items.map((it, i) =>
+        it === "-" ? (
+          <div key={i} className="fx-sep" />
+        ) : (
+          <button
+            key={i}
+            type="button"
+            role="menuitem"
+            className="fx-mi"
+            data-b={it.bold ? "1" : "0"}
+            disabled={it.disabled}
+            onClick={() => {
+              onClose();
+              pop.onPick(it.id);
+            }}
+          >
+            {checks && <span className="fx-check">{it.checked ? "✓" : ""}</span>}
+            {it.label}
+          </button>
+        ),
+      )}
+    </div>
+  );
 }
 
 function TabMenu({ x, y, tab, canClose, onAction }: { x: number; y: number; tab: RTab; canClose: boolean; onAction: (a: "pin" | "dup" | "other" | "close" | "others") => void }) {
