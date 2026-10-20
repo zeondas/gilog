@@ -11050,3 +11050,7 @@ body.ew-dragging .pjm-colgrip:active::after {
 .bss2-tr > span:first-child { font-weight: 500; }
 .bss2-tr.h > span:first-child, .bss2-tr.exp > span:first-child { font-weight: inherit; }
 .bss2-tr.sum > span:first-child { font-weight: 600; }
+.bss2-fl > .bd-unit { align-self: flex-start; }
+.bss2-other { flex: 1; min-width: 0; }
+.bss2-add { height: 28px; padding: 0 10px; flex: none; }
+.bss2-help + .bss2-help { margin-top: -4px; }

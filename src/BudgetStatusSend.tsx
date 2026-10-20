@@ -210,6 +210,12 @@ export function BudgetStatusSend({
       />
     );
   };
+  const addOther = () => {
+    const v = other.trim();
+    if (!v) return;
+    if (!s.sources.includes(v)) setS({ ...s, sources: [...s.sources, v] });
+    setOther("");
+  };
   const toggleSrc = (x: string) => {
     const on = s.sources.includes(x);
     if (on && s.sources.length === 1) return;
@@ -303,20 +309,23 @@ export function BudgetStatusSend({
             </span>
           ))}
         </span>
-        <input
-          className="fld bd-in"
-          placeholder="기타 재원 · Enter"
-          aria-label="기타 재원 이름"
-          value={other}
-          onChange={(e) => setOther(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.nativeEvent.isComposing && other.trim()) {
-              e.preventDefault();
-              if (!s.sources.includes(other.trim())) setS({ ...s, sources: [...s.sources, other.trim()] });
-              setOther("");
-            }
-          }}
-        />
+        <div className="bss2-row">
+          <input
+            className="fld bd-in bss2-other"
+            placeholder="기타 재원 이름"
+            aria-label="기타 재원 이름"
+            value={other}
+            onChange={(e) => setOther(e.target.value)}
+            onBlur={addOther}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && e.nativeEvent.keyCode !== 229) {
+                e.preventDefault();
+                addOther();
+              }
+            }}
+          />
+          <button type="button" className="btn btn-ctrl btn-text bss2-add" onClick={addOther} disabled={!other.trim()}>추가</button>
+        </div>
       </div>
       {!carry && (
         <div className="bss2-fl">
@@ -409,7 +418,7 @@ export function BudgetStatusSend({
 
       <div className="bss2-tb" role="table" aria-label="공사별 재원">
         <div className="bss2-tr h" style={{ gridTemplateColumns: grid }}>
-          <span>공사</span>
+          <span>공사(용역·물품)</span>
           <span className="bss2-th">
             계약금액
             <span className="bd-grip" title="끌어서 너비" onMouseDown={(e) => startDrag(e, "cmt")} />
@@ -473,11 +482,12 @@ export function BudgetStatusSend({
           </>
         )}
       </div>
-      <div className="bss2-hint">
-        계약금액을 재원 칸에 나눠 적어요 — 한 재원이면 그 칸에 전부. 빈 칸을 두 번 누르면 남은 금액이 채워져요. 집행액은 적은 금액 비율대로 나뉘고, 안 적은 공사{unsplit > 0 ? ` ${unsplit}건` : ""}는 첫 재원({s.sources[0]})으로 들어가요.
+      <div className="bss2-help">
+        <b>적는 방법</b>
+        <span>계약금액을 재원 칸에 나눠 적어요 — 한 재원이면 그 칸에 전부. 빈 칸을 두 번 누르면 남은 금액이 채워져요. 집행액은 적은 금액 비율대로 나뉘고, 안 적은 공사{unsplit > 0 ? ` ${unsplit}건` : ""}는 첫 재원({s.sources[0]})으로 들어가요.</span>
       </div>
       <div className="bss2-help">
-        <b>원인·지출재원 확인 방법</b>
+        <b>원인·지출 재원 확인 방법</b>
         <span>지출재원변경요청(21109) → 상단에서 사업 검색(적요) → "▶대상목록"에서 선택 → 스크롤을 내리면 "▶재원정보" 항목에서 금액 확인</span>
       </div>
     </div>
