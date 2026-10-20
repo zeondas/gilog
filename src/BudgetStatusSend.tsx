@@ -54,17 +54,36 @@ export function BudgetStatusSend({
   const parentSetup = target.parents.find((p) => p.name === parent)?.setup;
   const [parentSrc, setParentSrc] = useState("");
 
-  const yr = (k: "from" | "to") => (
-    <input
-      className="fld bd-in bs-yr"
-      aria-label={k === "from" ? "시작 연도" : "끝 연도"}
-      value={s[k]}
-      onChange={(e) => {
-        const v = Number(e.target.value.replace(/\D/g, "").slice(0, 4));
-        if (v >= 2000 && v <= 2100) setS({ ...s, [k]: v });
-      }}
-    />
-  );
+  // 연도 칸: 치는 동안은 글자 그대로 두고(지우다 세 자리가 되면 바로 막혀 "안 고쳐지는" 문제 — 2026-10-20 사용자), 떠날 때 네 자리면 반영
+  const [yrText, setYrText] = useState<{ from: string; to: string }>({ from: String(s.from), to: String(s.to) });
+  const yr = (k: "from" | "to") => {
+    const commit = () => {
+      const v = Number(yrText[k]);
+      if (/^\d{4}$/.test(yrText[k]) && v >= 2000 && v <= 2100) {
+        const ns = { ...s, [k]: v };
+        if (ns.from > ns.to) (k === "from" ? (ns.to = v) : (ns.from = v));
+        setS(ns);
+        setYrText({ from: String(ns.from), to: String(ns.to) });
+      } else setYrText((t) => ({ ...t, [k]: String(s[k]) }));
+    };
+    return (
+      <input
+        className={"fld bd-in bs-yr" + (/^\d{4}$/.test(yrText[k]) ? "" : " bad")}
+        aria-label={k === "from" ? "시작 연도" : "끝 연도"}
+        inputMode="numeric"
+        data-ime="en"
+        value={yrText[k]}
+        onChange={(e) => setYrText((t) => ({ ...t, [k]: e.target.value.replace(/\D/g, "").slice(0, 4) }))}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commit();
+          }
+        }}
+      />
+    );
+  };
   const toggleSrc = (x: string) => {
     const on = s.sources.includes(x);
     if (on && s.sources.length === 1) return;
