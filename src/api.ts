@@ -335,6 +335,10 @@ export type Order = {
   sentAt: string;
   /** 든 민원을 고쳐 다시 만들어야 해요 */
   dirty: boolean;
+  /** 메일로 보낸 받는 사람 주소(2026-10-20 지시부 메일 — 보내지 않았으면 없거나 "") */
+  mailTo?: string;
+  /** 메일로 보낸 때 "YYYY-MM-DD HH:MM" */
+  mailedAt?: string;
 };
 
 export type CasePatch = Partial<Pick<Case, "work" | "area" | "place" | "road" | "note" | "short" | "seq" | "stage" | "complaint" | "folder" | "orderFile" | "orderJpg" | "outboxFile" | "sentAt">>;
@@ -372,6 +376,8 @@ const fake = {
   /** 미리 보기: Claude가 차례로 놓을 보기 민원과 진행 */
   runQueue: [] as Partial<Case>[],
   run: { state: "idle", total: null, done: null, message: "", log: "" } as RunStatus,
+  /** 미리 보기: 지시부 메일 보내기 남은 걸음(메일쓰기 → 칸 채우기 → 첨부 → 보내기) */
+  mailSteps: 0,
   taskLists: [
     { id: 1, name: "민원", visible: true, builtin: true, ord: 0 },
     { id: 2, name: "행정업무", visible: true, builtin: false, ord: 1 },
@@ -1072,6 +1078,12 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
       fakeMirror(o);
       return structuredClone(o);
     }
+    case "order_mailed": {
+      const o = fake.orders.find((x) => x.id === a.id);
+      if (!o) throw "noorder";
+      Object.assign(o, { mailTo: a.to, mailedAt: a.at });
+      return structuredClone(o);
+    }
     case "check_sent":
       // 미리 보기에는 Claude가 없어요 — 보내는 중으로 남아요.
       return [];
@@ -1080,6 +1092,12 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
     case "open_portal":
       return null;
     case "run_claude":
+      if (String((a.req as { guide?: string })?.guide ?? "").startsWith("# 기록 지시부 메일")) {
+        // 미리 보기: 메일쓰기 → 받는 사람·제목·본문 → 첨부 → 보내기, 네 걸음을 차례로 보여요.
+        fake.mailSteps = 4;
+        fake.run = { state: "running", total: 4, done: 0, message: "", log: "D:\\민원처리\\보낼편지함\\메일\\_claude.log" };
+        return null;
+      }
       // 미리 보기: 보기 민원을 몇 번에 나눠 가져올 폴더에 넣는 것처럼 보여요.
       fake.run = { state: "running", total: fake.runQueue.length, done: 0, message: "", log: "D:\\민원처리\\받은편지함\\_claude.log" };
       return null;
@@ -1088,6 +1106,12 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
       fake.runQueue = [];
       return null;
     case "claude_status": {
+      if (fake.run.state === "running" && fake.mailSteps > 0) {
+        fake.mailSteps--;
+        fake.run.done = 4 - fake.mailSteps;
+        if (fake.mailSteps === 0) fake.run.state = "done";
+        return { ...fake.run };
+      }
       if (fake.run.state === "running") {
         const next = fake.runQueue.shift();
         if (next) {
@@ -1389,6 +1413,8 @@ export const api = {
   orderJpg: (id: number) => call<Order>("order_jpg", { id }),
   sendOrder: (id: number, outbox: string) => call<Order>("send_order", { id, outbox }),
   checkSent: (now: string) => call<Order[]>("check_sent", { now }),
+  /** 지시부를 메일로 보냈다고 적어요(Claude가 보낸 메일함에서 확인한 뒤) */
+  orderMailed: (id: number, to: string, at: string) => call<Order>("order_mailed", { id, to, at }),
   openPath: (path: string) => call<null>("open_path", { path }),
   showInFolder: (path: string) => call<null>("show_in_folder", { path }),
   openPortal: (url: string) => call<null>("open_portal", { url }),

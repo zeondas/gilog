@@ -1,6 +1,7 @@
 // 민원처리(10단계) 화면의 규칙 함수예요. 사양서 "민원처리" 절, 시안 Process.dc.html.
 // 저장은 core/process.rs(표 works·cases), 파일 일은 src-tauri/src/process.rs가 해요.
 import type { Case } from "./api";
+import { DEFAULT_MAIL_BODY, DEFAULT_MAIL_SUBJECT } from "./settingsStore";
 
 export type { Case, Stage, Work } from "./api";
 
@@ -135,3 +136,68 @@ PC에 이어져 있지 않으면 "PC 연결이 끊겨 있어요 — 데스크톱
 `;
 }
 
+
+/** 메일 틀의 {자리}를 값으로 바꿔요. 자리가 있는데 모두 빈 값인 줄은 빼요(예: 연락처가 없으면 "문의 {연락처}"처럼 직접 넣은 줄). */
+export function fillMail(tpl: string, v: Record<string, string>): string {
+  return tpl
+    .split("\n")
+    .map((line) => {
+      const keys = [...line.matchAll(/\{([^{}]+)\}/g)].map((m) => m[1].trim());
+      if (keys.length && keys.every((k) => k in v && !v[k])) return null;
+      return line.replace(/\{([^{}]+)\}/g, (m, k: string) => (k.trim() in v ? v[k.trim()] : m));
+    })
+    .filter((l): l is string => l !== null)
+    .join("\n")
+    .trim();
+}
+
+/** 지시부 메일(korea.kr)의 제목·본문 처음 값 — 설정 "민원처리"의 메일 틀에 그 지시부 값을 넣어요(2026-10-20 사용자 1안, 확인 창에서 한 통만 고칠 수 있어요). */
+export function mailDraft(p: { signer: string; signerPhone: string; mailSubject: string; mailBody: string }, w: { name: string; full: string; co: string }, seq: number, count: number, agent: string) {
+  const v: Record<string, string> = {
+    공사명: w.full || w.name,
+    "축약 공사명": w.name,
+    연번: String(seq).padStart(2, "0"),
+    건수: String(count),
+    현장대리인: agent,
+    시공사: w.co,
+    지시자: p.signer.trim(),
+    연락처: p.signerPhone.trim(),
+  };
+  return { subject: fillMail(p.mailSubject || DEFAULT_MAIL_SUBJECT, v).replace(/\s*\n\s*/g, " "), body: fillMail(p.mailBody || DEFAULT_MAIL_BODY, v) };
+}
+
+/**
+ * 지시부를 공직자 통합메일(korea.kr)로 보내는 지침이에요(2026-10-20 사용자 2안 — Claude가 [보내기]까지 눌러요).
+ * 진행은 dir의 "_진행.json"(신문고 불러오기와 같은 모양), 마지막 답은 MAIL_SENT · LOGIN_REQUIRED · PAGE_UNREADABLE · ATTACH_FAILED · MAIL_FAILED 중 하나.
+ */
+export function mailGuide(m: { dir: string; to: string; toName: string; subject: string; body: string; files: string[] }): string {
+  return `# 기록 지시부 메일
+
+공사 지시부를 현장대리인에게 공직자 통합메일(korea.kr)로 보내요. 이 지침에 적힌 것만 해요.
+
+## 0. 시작
+- 크롬(Claude 확장)으로 일해요. 새 탭에서 https://mail.korea.kr 을 열어요(담당자가 로그인해 둔 상태).
+- 로그인 화면이 나오면 아무것도 쓰지 말고 마지막 답을 정확히 LOGIN_REQUIRED 한 줄로 끝내요. 비밀번호·인증서는 넣지 않아요.
+- 탭이 열렸는데 화면을 읽을 수 없으면 마지막 답을 정확히 PAGE_UNREADABLE 한 줄로 끝내요.
+- 진행 폴더(${m.dir})에 "_진행.json"을 {"total": 4, "done": 0} 으로 쓰고, 아래 걸음을 하나 끝낼 때마다 done을 올려요.
+
+## 1. 메일쓰기
+1. 왼쪽 [메일쓰기]를 눌러 메일쓰기 화면을 열어요.
+2. 받는 사람: ${m.to} (${m.toName}) — 이 주소 하나만. 참조·숨은참조는 비워요.
+3. 제목: ${m.subject}
+4. 본문 맨 위에 아래 글을 그대로 넣어요(서명은 그대로 둬요):
+${m.body
+  .split("\n")
+  .map((l) => `   ${l}`)
+  .join("\n")}
+5. 첨부파일 칸의 파일 입력란에 아래 파일을 모두 붙여요. 첨부 목록에 ${m.files.length}개가 다 보이는지 확인해요. 하나라도 안 붙으면 보내지 말고 마지막 답을 ATTACH_FAILED 와 이유 한 줄로 끝내요.
+${m.files.map((f) => `   - ${f}`).join("\n")}
+
+## 2. 보내기
+1. 받는 사람·제목·첨부 수를 한 번 더 확인하고 [보내기]를 눌러요.
+2. 보낸 메일함에 같은 제목이 있으면 마지막 답을 정확히 MAIL_SENT 한 줄로 끝내요.
+3. 보내기가 안 되면 MAIL_FAILED 와 이유 한 줄로 끝내요.
+
+다른 메일을 열거나 지우지 않아요. 민원인 이름·연락처는 쓰지 않아요.
+`;
+}

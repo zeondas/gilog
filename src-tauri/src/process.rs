@@ -343,7 +343,7 @@ pub fn make_order(state: State<AppState>, req: OrderRequest) -> Result<OrderResu
                 }
                 s.update_order(
                     o.id,
-                    &OrderPatch { file: Some(file.clone()), jpgs: Some(vec![]), stage: Some("made".into()), outbox: Some(vec![]), sent_at: Some(String::new()), dirty: Some(false) },
+                    &OrderPatch { file: Some(file.clone()), jpgs: Some(vec![]), stage: Some("made".into()), outbox: Some(vec![]), sent_at: Some(String::new()), dirty: Some(false), ..Default::default() },
                 )?
             }
             None => {
@@ -480,6 +480,12 @@ pub fn send_order(state: State<AppState>, id: i64, outbox: String) -> Result<Ord
     with_store(&state, |s| s.update_order(id, &OrderPatch { stage: Some("queued".into()), outbox: Some(sent.clone()), ..Default::default() }))
 }
 
+/// 지시부를 메일(korea.kr)로 보냈다고 적어요 — Claude가 보낸 메일함에서 확인한 뒤 화면이 불러요(2026-10-20).
+#[tauri::command]
+pub fn order_mailed(state: State<AppState>, id: i64, to: String, at: String) -> Result<Order, String> {
+    with_store(&state, |s| s.update_order(id, &OrderPatch { mail_to: Some(to.trim().to_string()), mailed_at: Some(at.trim().to_string()), ..Default::default() }))
+}
+
 /// 보내는 중인 지시부를 살펴요: JPG가 모두 "보냄" 폴더에 있으면 전송 완료(보낼 폴더의 원본은 지워요),
 /// 하나라도 어디에도 없으면 다시 보낼 수 있게 되돌려요. 바뀐 지시부만 돌려줘요.
 #[tauri::command]
@@ -608,6 +614,10 @@ mod tests {
         assert_eq!(final_state("오류: 확장 연결 안 됨\n자세히", true).0, "error");
         assert_eq!(final_state("신문고 로그인 화면이 떠서 멈췄어요", false).0, "login");
         assert!(final_state("PAGE_UNREADABLE", false).1.contains("IE 모드"));
+        // 지시부 메일(2026-10-20)
+        assert_eq!(final_state("MAIL_SENT", false).0, "done");
+        assert_eq!(final_state("ATTACH_FAILED 파일 입력란을 못 찾았어요", false), ("error".into(), "첨부를 붙이지 못했어요 — 파일 입력란을 못 찾았어요".into()));
+        assert_eq!(final_state("MAIL_FAILED", false).1, "메일을 보내지 못했어요");
     }
 
     #[test]
@@ -777,8 +787,21 @@ pub struct RunRequest {
 
 /// 마지막 답에서 상태를 읽어요. 지침대로 LOGIN_REQUIRED가 아니어도 "로그인" 얘기로 끝나면 로그인 풀림으로 봐요(원인 ⑤).
 fn final_state(result: &str, is_error: bool) -> (String, String) {
+    // 지시부 메일(2026-10-20): 첨부·보내기 실패는 이유 한 줄과 함께 실패로
+    let after = |tag: &str| result.split(tag).nth(1).map(|r| r.trim_start_matches([':', ' ', '—', '-']).lines().next().unwrap_or("").trim().to_string()).unwrap_or_default();
+    if result.contains("ATTACH_FAILED") {
+        let why = after("ATTACH_FAILED");
+        return ("error".into(), if why.is_empty() { "첨부를 붙이지 못했어요".into() } else { format!("첨부를 붙이지 못했어요 — {why}") });
+    }
+    if result.contains("MAIL_FAILED") {
+        let why = after("MAIL_FAILED");
+        return ("error".into(), if why.is_empty() { "메일을 보내지 못했어요".into() } else { format!("메일을 보내지 못했어요 — {why}") });
+    }
+    if result.contains("MAIL_SENT") {
+        return ("done".into(), String::new());
+    }
     if result.contains("PAGE_UNREADABLE") {
-        ("error".into(), "Claude가 신문고 화면을 읽지 못했어요 — 크롬에 Claude 확장이 켜져 있고 엣지 확장은 꺼져 있는지 봐 주세요(엣지는 IE 모드라 못 읽어요)".into())
+        ("error".into(), "Claude가 크롬 화면을 읽지 못했어요 — 크롬에 Claude 확장이 켜져 있고 엣지 확장은 꺼져 있는지 봐 주세요(엣지는 IE 모드라 못 읽어요)".into())
     } else if result.contains("LOGIN_REQUIRED") || (!is_error && result.contains("로그인") && !result.contains("새 민원")) {
         ("login".into(), String::new())
     } else if is_error {

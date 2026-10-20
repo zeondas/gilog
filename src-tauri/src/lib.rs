@@ -748,6 +748,7 @@ pub fn run() {
             process::order_jpg,
             process::send_order,
             process::check_sent,
+            process::order_mailed,
             process::open_path,
             process::open_portal,
             process::run_claude,

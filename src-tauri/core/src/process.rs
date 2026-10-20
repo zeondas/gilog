@@ -120,6 +120,10 @@ pub struct Order {
     pub sent_at: String,
     /// 든 민원을 고쳐 다시 만들어야 해요
     pub dirty: bool,
+    /// 메일(korea.kr)로 보낸 받는 사람 주소 — 보내지 않았으면 ""(2026-10-20)
+    pub mail_to: String,
+    /// 메일로 보낸 때 "YYYY-MM-DD HH:MM"
+    pub mailed_at: String,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -131,6 +135,8 @@ pub struct OrderPatch {
     pub outbox: Option<Vec<String>>,
     pub sent_at: Option<String>,
     pub dirty: Option<bool>,
+    pub mail_to: Option<String>,
+    pub mailed_at: Option<String>,
 }
 
 /// 줄에서 고치는 칸이에요. None은 그대로 둬요.
@@ -186,7 +192,9 @@ pub(crate) const SCHEMA: &str = "
         stage    TEXT NOT NULL DEFAULT 'made',
         outbox   TEXT NOT NULL DEFAULT '[]',
         sent_at  TEXT NOT NULL DEFAULT '',
-        dirty    INTEGER NOT NULL DEFAULT 0
+        dirty    INTEGER NOT NULL DEFAULT 0,
+        mail_to   TEXT NOT NULL DEFAULT '',
+        mailed_at TEXT NOT NULL DEFAULT ''
     );
     CREATE TABLE IF NOT EXISTS cases (
         no         TEXT PRIMARY KEY,
@@ -223,6 +231,10 @@ fn has_col(conn: &rusqlite::Connection, table: &str, col: &str) -> Result<bool> 
 /// 예전 자료 파일에 칸을 더해요: 도로명주소(road, 2026-10-18), 정식 공사명·지시부 묶음(2026-10-19).
 /// 예전에 한 건씩 만든 지시부는 한 건짜리 지시부로 옮겨요.
 pub(crate) fn upgrade(conn: &rusqlite::Connection) -> Result<()> {
+    // 지시부 메일 보내기(2026-10-20): 받는 사람·보낸 때
+    if has_col(conn, "orders", "id")? && !has_col(conn, "orders", "mail_to")? {
+        conn.execute_batch("ALTER TABLE orders ADD COLUMN mail_to TEXT NOT NULL DEFAULT ''; ALTER TABLE orders ADD COLUMN mailed_at TEXT NOT NULL DEFAULT '';")?;
+    }
     if !has_col(conn, "cases", "road")? {
         conn.execute_batch("ALTER TABLE cases ADD COLUMN road TEXT NOT NULL DEFAULT '';")?;
     }
@@ -251,7 +263,7 @@ pub(crate) fn upgrade(conn: &rusqlite::Connection) -> Result<()> {
 pub const UNKNOWN_PLACE: &str = "주소불명";
 
 const WORK_COLS: &str = "id, name, co, contact, project, scope, next_seq, tpl, full";
-const ORDER_COLS: &str = "id, work, seq, date, file, jpgs, stage, outbox, sent_at, dirty";
+const ORDER_COLS: &str = "id, work, seq, date, file, jpgs, stage, outbox, sent_at, dirty, mail_to, mailed_at";
 const CASE_COLS: &str = "no, received, due, area, place, summary, short, reason, work, note, seq, stage, complaint, photos, map, folder, order_file, order_jpg, outbox_file, sent_at, road, order_id, item";
 
 fn bad(msg: &str) -> Error {
@@ -289,6 +301,8 @@ fn order_row(r: &Row) -> rusqlite::Result<Order> {
         outbox: list(r.get(7)?),
         sent_at: r.get(8)?,
         dirty: r.get(9)?,
+        mail_to: r.get(10)?,
+        mailed_at: r.get(11)?,
     })
 }
 
@@ -648,10 +662,16 @@ impl Store {
         if let Some(v) = p.dirty {
             o.dirty = v;
         }
+        if let Some(v) = &p.mail_to {
+            o.mail_to = v.clone();
+        }
+        if let Some(v) = &p.mailed_at {
+            o.mailed_at = v.clone();
+        }
         let js = |v: &Vec<String>| serde_json::to_string(v).unwrap_or_else(|_| "[]".into());
         self.conn.execute(
-            "UPDATE orders SET file = ?2, jpgs = ?3, stage = ?4, outbox = ?5, sent_at = ?6, dirty = ?7 WHERE id = ?1",
-            params![id, o.file, js(&o.jpgs), o.stage, js(&o.outbox), o.sent_at, o.dirty],
+            "UPDATE orders SET file = ?2, jpgs = ?3, stage = ?4, outbox = ?5, sent_at = ?6, dirty = ?7, mail_to = ?8, mailed_at = ?9 WHERE id = ?1",
+            params![id, o.file, js(&o.jpgs), o.stage, js(&o.outbox), o.sent_at, o.dirty, o.mail_to, o.mailed_at],
         )?;
         self.conn.execute(
             "UPDATE cases SET stage = ?2, order_file = ?3, order_jpg = ?4, sent_at = ?5 WHERE order_id = ?1",
@@ -827,5 +847,24 @@ mod tests {
         let c = s.case("1AA-1").unwrap();
         assert_eq!((c.order, c.item), (Some(o.id), 1));
         assert_eq!(s.case("1AA-2").unwrap().order, None);
+    }
+}
+
+#[cfg(test)]
+mod mail_tests {
+    use super::*;
+
+    #[test]
+    fn order_mailed_is_saved() {
+        let d = tempfile::tempdir().unwrap();
+        let s = Store::create(d.path(), "1234").unwrap();
+        let w = s.save_work(None, &WorkInput { name: "유지보수".into(), ..Default::default() }).unwrap();
+        let wid = w.last().unwrap().id;
+        s.conn.execute("INSERT INTO orders (work, seq) VALUES (?1, 1)", params![wid]).unwrap();
+        let id = s.conn.last_insert_rowid();
+        assert_eq!(s.order(id).unwrap().mail_to, "");
+        let o = s.update_order(id, &OrderPatch { mail_to: Some("a@b.kr".into()), mailed_at: Some("2026-10-20 12:31".into()), ..Default::default() }).unwrap();
+        assert_eq!(o.mail_to, "a@b.kr");
+        assert_eq!(s.order(id).unwrap().mailed_at, "2026-10-20 12:31");
     }
 }

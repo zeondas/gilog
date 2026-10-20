@@ -16,7 +16,7 @@ import { projectColor } from "./ContactsScreen";
 import { DelIcon } from "./Icons";
 import { koIndex, todayStr } from "./journal";
 import { PlaceInput } from "./PlaceInputs";
-import { actionLine, aiGuide, fileName, md, orderLabel, orderTag, PORTAL_URL, processError, SAMPLE_WORKS, SAMPLES } from "./process";
+import { actionLine, aiGuide, fileName, mailDraft, mailGuide, md, orderLabel, orderTag, PORTAL_URL, processError, SAMPLE_WORKS, SAMPLES } from "./process";
 import { DEFAULT_PROCESS, isClosed, loadSettings, ProcessSettings } from "./settingsStore";
 
 type Props = { urgentDays: number; onOpenComplaint: (id: number) => void };
@@ -30,19 +30,20 @@ function workColor(w: Work | undefined, cd: ContactsData | null): number {
 const phoneOf = (c: Contact | undefined) => (c ? c.mobile || c.tel : "");
 
 const FETCHED_KEY = "process.fetched";
-const COLS_KEY = "process.colWidths";
+// 2026-10-20 표 줄 정리(시안 ProcessRows)로 처음 폭이 바뀌어 새 키 — 예전에 끈 폭(지시부 320)은 버려요
+const COLS_KEY = "process.colWidths2";
 
 /** 열 제목과 처음 폭. null은 남는 폭을 쓰는 열(민원 요약)이에요. 끌어서 바꾼 폭은 COLS_KEY에 저장해요. */
 const COLUMNS: { label: string; w: number | null; center?: boolean; fixed?: boolean }[] = [
   { label: "", w: 36, fixed: true },
-  { label: "접수번호", w: 140 },
-  { label: "접수", w: 60 },
-  { label: "기한", w: 100 },
-  { label: "위치", w: 180 },
+  { label: "접수번호", w: 144 },
+  { label: "접수", w: 58 },
+  { label: "기한", w: 112 },
+  { label: "위치", w: 182 },
   { label: "민원 요약 · 판단 이유", w: null },
   { label: "판단 공사", w: 160 },
-  { label: "고려사항", w: 140 },
-  { label: "지시부", w: 312 },
+  { label: "고려사항", w: 240 },
+  { label: "지시부 현황", w: 150, fixed: true },
 ];
 const defaultWidths = () => COLUMNS.map((c) => c.w);
 
@@ -105,6 +106,10 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   // 뜨는 목록(공사 고르기)과 지우기 묻기 창
   const [pick, setPick] = useState<{ no: string; rect: DOMRect } | null>(null);
   const [ask, setAsk] = useState<{ no: string; rect: DOMRect } | null>(null);
+  // [보내기 ▾] 메뉴 · 메일 확인 창 · 메일 보내는 중(2026-10-20 지시부 메일)
+  const [sendMenu, setSendMenu] = useState<{ id: number; rect: DOMRect } | null>(null);
+  const [mailAsk, setMailAsk] = useState<MailDraft | null>(null);
+  const [mailRun, setMailRun] = useState<{ id: number; label: string; n: number } | null>(null);
 
   const today = todayStr();
 
@@ -307,6 +312,70 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     await api.stopClaude().catch(() => {});
   }
 
+  // ---------- 지시부 메일 보내기 (korea.kr, 2026-10-20 사용자 2안·2안 — Claude가 [보내기]까지) ----------
+
+  /** 지시부의 받는 사람: 공사 관리의 현장대리인 → 업무연락처 메일 주소 */
+  const recipientOf = (o: Order) => {
+    const w = (works ?? []).find((x) => x.id === o.work);
+    const c = w?.contact != null ? cd?.contacts.find((x) => x.id === w.contact) : undefined;
+    return { work: w, name: c?.name ?? "", org: c?.org ?? "", email: (c?.email ?? "").trim() };
+  };
+
+  function openMail(o: Order) {
+    setSendMenu(null);
+    const r = recipientOf(o);
+    if (!r.work || !r.email) return;
+    const n = cases.filter((c) => c.order === o.id).length;
+    const d = mailDraft(ps, r.work, o.seq, n, r.name);
+    setMailAsk({ id: o.id, to: r.email, toName: r.name, org: r.org, subject: d.subject, body: d.body, label: orderTag(r.work.name, o.seq) });
+  }
+
+  async function mailOrder(m: MailDraft) {
+    if (run || mailRun) return;
+    setMailAsk(null);
+    setNote("");
+    setNoteLog("");
+    const o0 = orders.find((x) => x.id === m.id);
+    if (!o0) return;
+    const o = o0.jpgs.length ? o0 : await makeJpg(o0.id);
+    if (!o?.jpgs.length) return;
+    const dir = `${ps.outbox}\\메일`;
+    const files = [o.file, ...o.jpgs];
+    try {
+      await api.runClaude({ exe: ps.claude, inbox: dir, downloads: ps.downloads, guide: mailGuide({ dir, to: m.to, toName: m.toName, subject: m.subject, body: m.body, files }) });
+    } catch (e) {
+      setNote(errText(e));
+      return;
+    }
+    setMailRun({ id: o.id, label: m.label, n: 0 });
+    let st: RunStatus;
+    for (;;) {
+      await new Promise((r) => setTimeout(r, inApp ? 2000 : 900));
+      st = await api.claudeStatus(dir).catch(() => ({ state: "error", total: null, done: null, message: "", log: "" }) as RunStatus);
+      setMailRun({ id: o.id, label: m.label, n: st.done ?? 0 });
+      if (st.state !== "running") break;
+    }
+    setMailRun(null);
+    if (st.state === "done") {
+      const at = `${todayStr()} ${stamp().slice(6)}`;
+      try {
+        putOrder(await api.orderMailed(o.id, m.to, at));
+        setNote(`${m.label}을 ${m.toName || m.to} 현장대리인에게 메일로 보냈어요 · ${at.slice(11)}`);
+      } catch (e) {
+        setNote(errText(e));
+      }
+      return;
+    }
+    setNote(
+      st.state === "login"
+        ? "korea.kr 로그인이 풀려 못 보냈어요 — 크롬에서 로그인한 뒤 다시 [보내기 ▾ → 메일]을 눌러 주세요"
+        : st.state === "stopped"
+          ? "메일 보내기를 멈췄어요 — 크롬의 메일쓰기 탭을 확인해 주세요"
+          : `메일을 못 보냈어요${st.message ? ` — ${st.message}` : ""}`,
+    );
+    setNoteLog(st.log);
+  }
+
   // ---------- 지시부 만들기 · 폰으로 보내기 (지시부째) ----------
   const setBusyOf = (k: string, v: string | null) => setBusy(({ [k]: _, ...b }) => (v ? { ...b, [k]: v } : b));
 
@@ -506,9 +575,18 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
 
   const pickCase = pick && cases.find((c) => c.no === pick.no);
   // 고른 줄의 공사(같은 공사만 함께 골라요)와 새 지시부 이름
-  const chosenWork = chosen.length ? works.find((w) => w.id === cases.find((c) => c.no === chosen[0])?.work) : undefined;
-  const canChoose = (c: Case) => c.work != null && c.order == null && !isDone(c) && (!chosenWork || c.work === chosenWork.id);
-  const toggle = (c: Case) => setChosen((l) => (l.includes(c.no) ? l.filter((n) => n !== c.no) : canChoose(c) ? [...l, c.no] : l));
+  // 지시부에 든 줄을 고르면 그 지시부의 줄이 함께 골라지고 위 띠가 그 지시부를 다뤄요(2026-10-20 시안 ProcessRows).
+  const first = chosen.length ? cases.find((c) => c.no === chosen[0]) : undefined;
+  const chosenOrder = first?.order != null ? orders.find((o) => o.id === first.order) : undefined;
+  const chosenWork = first ? works.find((w) => w.id === (chosenOrder ? chosenOrder.work : first.work)) : undefined;
+  const canChoose = (c: Case) => c.order != null || (c.work != null && !isDone(c) && (!chosenWork || !!chosenOrder || c.work === chosenWork.id));
+  const toggle = (c: Case) =>
+    setChosen((l) => {
+      if (c.order != null) return chosenOrder?.id === c.order ? [] : cases.filter((x) => x.order === c.order).map((x) => x.no);
+      if (l.includes(c.no)) return l.filter((n) => n !== c.no);
+      if (!canChoose(c)) return l;
+      return chosenOrder ? [c.no] : [...l, c.no];
+    });
   const total = cases.filter((c) => !isDone(c)).length;
   const shownWidths = fitWidths(widths, avail);
   const tableStyle = { "--pr-cols": gridTemplate(shownWidths), "--pr-gutter": `${gutter}px` } as CSSProperties;
@@ -557,16 +635,27 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
         </div>
       )}
 
-      {chosen.length > 0 && chosenWork && (
-        <div className="pr-pickbar" role="status">
-          <span
-            className="pr-work"
-            style={{ "--wc": `var(--pj-${workColor(chosenWork, cd)}-line)`, "--wf": `var(--pj-${workColor(chosenWork, cd)}-fg)` } as CSSProperties}
-          >
-            {chosenWork.name}
-          </span>
+      {mailRun && (
+        <div className="pr-run" role="status">
+          <span className="pr-run-dot" aria-hidden="true" />
           <span>
-            <b>{chosen.length}건</b> 골랐어요 · 지시부 <b>{chosenWork.name}-{String(chosenWork.nextSeq).padStart(2, "0")}</b> 으로 묶어요
+            <b>{mailRun.label}</b> 메일 보내는 중 · {MAIL_STEPS[Math.min(mailRun.n, MAIL_STEPS.length - 1)]} ({Math.min(mailRun.n + 1, 4)}/4)
+          </span>
+          <span className="pr-sub">Claude가 크롬 korea.kr 탭에서 하고 있어요 — 그 탭은 건드리지 말아 주세요</span>
+          <span className="pr-run-bar">
+            <span style={{ width: `${(Math.min(mailRun.n, 4) / 4) * 100}%` }} />
+          </span>
+          <button type="button" className="btn btn-xs" onClick={stopFetch}>
+            멈추기
+          </button>
+        </div>
+      )}
+
+      {chosen.length > 0 && chosenWork && !chosenOrder && (
+        <div className="pr-pickbar" role="status">
+          <WorkTag w={chosenWork} cd={cd} />
+          <span>
+            <b>{chosen.length}건</b> 골랐어요 · 지시부 <b>{chosenWork.name}-{String(chosenWork.nextSeq).padStart(2, "0")}</b> 로 묶어요
           </span>
           <span className="pr-sub">같은 공사만 함께 고를 수 있어요</span>
           <button type="button" className="btn btn-ctrl btn-text pr-push" onClick={() => setChosen([])}>
@@ -577,6 +666,84 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
           </button>
         </div>
       )}
+
+      {chosenOrder &&
+        chosenWork &&
+        (() => {
+          const o = chosenOrder;
+          const b = busy[o.id];
+          const n = cases.filter((c) => c.order === o.id).length;
+          const sending = mailRun?.id === o.id || o.stage === "queued";
+          return (
+            <div className="pr-pickbar" role="status">
+              <WorkTag w={chosenWork} cd={cd} />
+              <span>
+                지시부 <b>{orderTag(chosenWork.name, o.seq)}</b> · {n}건
+              </span>
+              {b ? (
+                <span className="pr-stat busy">{b}</span>
+              ) : o.dirty ? (
+                <span className="pr-stat warn">든 민원을 고쳤어요 · 다시 만들어요</span>
+              ) : mailRun?.id === o.id ? (
+                <span className="pr-stat busy">
+                  <MailIcon />
+                  메일 보내는 중
+                </span>
+              ) : o.stage === "queued" ? (
+                <span className="pr-stat busy" title="보낼 폴더에 있어요. Claude 앱 “민원처리” 대화에 “보내”라고 하면 내 폰으로 올려 주고 전송 완료로 바뀌어요">
+                  <PhoneIcon />
+                  폰으로 보내는 중
+                </span>
+              ) : o.mailedAt ? (
+                <span className="pr-stat done" title={o.mailTo}>
+                  <CheckIcon />
+                  메일 보냄 {o.mailedAt.slice(5)}
+                </span>
+              ) : o.stage === "sent" ? (
+                <span className="pr-stat done">
+                  <CheckIcon />
+                  폰 전송 완료{o.sentAt ? ` ${o.sentAt.slice(5, 16)}` : ""}
+                </span>
+              ) : (
+                <span className="pr-stat">보내기 전</span>
+              )}
+              <button type="button" className="btn btn-ctrl btn-text pr-push pr-ibtn" disabled={!o.file} onClick={() => openFile(o.file)}>
+                <DocIcon />
+                지시부 열기
+              </button>
+              <button
+                type="button"
+                className={o.dirty ? "btn-primary btn-ctrl" : "btn btn-ctrl btn-text"}
+                disabled={!!b}
+                title="같은 연번·같은 파일로 다시 만들어요"
+                onClick={() => remakeOrder(o.id)}
+              >
+                다시 만들기
+              </button>
+              <button type="button" className="btn btn-ctrl btn-text" onClick={() => setChosen([])}>
+                선택 해제
+              </button>
+              <button
+                type="button"
+                className="btn-primary btn-ctrl pr-ibtn"
+                disabled={!!b || o.dirty || sending}
+                aria-haspopup="menu"
+                aria-expanded={sendMenu?.id === o.id}
+                title={o.dirty ? "다시 만든 뒤에 보내요" : "메일(현장대리인) 또는 폰으로 보내요"}
+                onClick={(e) => {
+                  setPick(null);
+                  setAsk(null);
+                  setSendMenu(sendMenu?.id === o.id ? null : { id: o.id, rect: e.currentTarget.getBoundingClientRect() });
+                }}
+              >
+                {o.mailedAt || o.stage === "sent" ? "다시 보내기" : "보내기"}
+                <span className="pr-caret" aria-hidden="true">
+                  ▾
+                </span>
+              </button>
+            </div>
+          );
+        })()}
 
       <div className="pr-table" role="table" aria-label="민원처리 목록" style={tableStyle}>
         <HeadRow widths={shownWidths} avail={avail} onResize={setWidths} onResized={saveWidths} onReset={() => saveWidths(defaultWidths())} />
@@ -605,16 +772,22 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                 onDoubleClick={() => c.complaint != null && onOpenComplaint(c.complaint)}
               >
                 <div className="pr-check" onClick={(e) => e.stopPropagation()}>
-                  {c.order == null && (
-                    <input
-                      type="checkbox"
-                      aria-label={`${c.no} 고르기`}
-                      checked={picked}
-                      disabled={!picked && !canChoose(c)}
-                      title={c.work == null ? "먼저 공사를 골라요" : !picked && !canChoose(c) ? "같은 공사만 함께 고를 수 있어요" : "지시부로 묶을 민원 고르기"}
-                      onChange={() => toggle(c)}
-                    />
-                  )}
+                  <input
+                    type="checkbox"
+                    aria-label={`${c.no} 고르기`}
+                    checked={picked}
+                    disabled={!picked && !canChoose(c)}
+                    title={
+                      c.order != null
+                        ? "이 지시부 고르기(같은 지시부 줄이 함께 골라져요)"
+                        : c.work == null
+                          ? "먼저 공사를 골라요"
+                          : !picked && !canChoose(c)
+                            ? "같은 공사만 함께 고를 수 있어요"
+                            : "지시부로 묶을 민원 고르기"
+                    }
+                    onChange={() => toggle(c)}
+                  />
                 </div>
                 <div className="pr-no">
                   <button
@@ -639,8 +812,8 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                   )}
                 </div>
                 <PlaceCell c={c} disabled={isD || !!b} onSave={(a, p, r) => saveAddress(c, a, p, r)} />
-                <div className="pr-sum">
-                  <span>{c.summary}</span>
+                <div className="pr-sum" title={[c.summary, c.reason, c.road ? `원래 주소 ${c.road}` : ""].filter(Boolean).join("\n")}>
+                  <span className="pr-sum-t">{c.summary}</span>
                   <span className="pr-sub">
                     {c.reason}
                     {c.road && <span className="pr-road">원래 주소 {c.road}</span>}
@@ -652,7 +825,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                     className={"pr-work" + (w ? "" : " none")}
                     style={w ? ({ "--wc": `var(--pj-${k}-line)`, "--wf": `var(--pj-${k}-fg)` } as CSSProperties) : undefined}
                     disabled={isD || !!b}
-                    title={isD ? undefined : c.order == null ? "눌러서 공사 고르기" : "공사를 바꾸면 이 지시부에서 빠져요(남은 건으로 다시 만들어요)"}
+                    title={isD ? w?.name : c.order == null ? (w ? `${w.name}\n눌러서 공사 바꾸기` : "눌러서 공사 고르기") : `${w?.name ?? ""}\n공사를 바꾸면 이 지시부에서 빠져요(남은 건으로 다시 만들어요)`}
                     onClick={(e) => {
                       e.stopPropagation();
                       setAsk(null);
@@ -666,58 +839,38 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                   <TextCell value={c.note} disabled={isD} placeholder={isD ? "" : "예: 야간 작업, 교통 통제 협의"} onSave={(v) => patch(c.no, { note: v })} />
                 </div>
                 <div className="pr-acts" onClick={(e) => e.stopPropagation()}>
-                  {/* 지시부 이름 · 진행 · 지시부 열람 · 폴더 열기 · 대장 등록 · × (2026-10-19 표준 지시부) */}
+                  {/* 지시부 현황 단추 넷 — 지시부(이 건만 만들기 / 열기) · 저장 폴더 · 민원대장 · 지우기 (2026-10-20 사용자, 시안 ProcessRows) */}
                   {o ? (
-                    <span className="pr-chip" title={`${fileName(o.file)} · ${c.item}번째 항목`}>
-                      {orderLabel(ow?.name ?? "", o.seq, c.item)}
-                    </span>
+                    <button
+                      type="button"
+                      className={"pr-icon pr-doc" + (o.mailedAt || o.stage === "sent" ? " done" : " on")}
+                      aria-label="지시부 열기"
+                      title={`지시부 열기 · ${orderLabel(ow?.name ?? "", o.seq, c.item)}번째 항목${b ? ` · ${b}` : o.dirty ? " · 다시 만들어야 해요" : o.mailedAt ? ` · 메일 보냄 ${o.mailedAt.slice(5)}` : o.stage === "sent" ? " · 폰 전송 완료" : o.stage === "queued" ? " · 폰으로 보내는 중" : " · 보내기 전"}\n${fileName(o.file)}`}
+                      disabled={!o.file}
+                      onClick={() => openFile(o.file)}
+                    >
+                      <DocIcon />
+                    </button>
                   ) : (
-                    <span className="pr-chip none">—</span>
-                  )}
-                  {!o ? (
-                    <span className="pr-next-gap" />
-                  ) : b ? (
-                    <button type="button" className="pr-next go" disabled>
-                      {b}
+                    <button
+                      type="button"
+                      className="pr-icon pr-doc"
+                      aria-label="이 건만으로 지시부 만들기"
+                      title={busy[`c${c.no}`] ? "지시부를 만들고 있어요" : isD ? "민원대장에서 끝난 건이에요" : w ? `이 건만으로 지시부 만들기\n${w.name}-${String(w.nextSeq).padStart(2, "0")}` : "먼저 공사를 골라요"}
+                      disabled={!w || isD || !!busy[`c${c.no}`]}
+                      onClick={() => {
+                        setChosen((l) => l.filter((n) => n !== c.no));
+                        runOrder({ nos: [c.no], order: null }, `c${c.no}`);
+                      }}
+                    >
+                      <DocPlusIcon />
                     </button>
-                  ) : o.dirty ? (
-                    <button type="button" className="pr-next go" disabled={isD} title="든 민원을 고쳤어요. 같은 연번·같은 파일로 다시 만들어요" onClick={() => remakeOrder(o.id)}>
-                      다시 만들기
-                    </button>
-                  ) : o.stage === "made" ? (
-                    <button type="button" className="pr-next go" disabled={isD} title="이 지시부의 JPG(쪽마다)를 보낼 폴더에 넣어요. Claude 앱 “민원처리” 대화에 “보내”라고 하면 폰으로 올려 줘요" onClick={() => send(o)}>
-                      폰 전송
-                    </button>
-                  ) : o.stage === "queued" ? (
-                    <span className="pr-sent pr-queued" title="보낼 폴더에 있어요. Claude 앱 “민원처리” 대화에 “보내”라고 하면 올려 주고 전송 완료로 바뀌어요">
-                      보내는 중
-                    </span>
-                  ) : (
-                    <span className="pr-sent" title={isD ? "민원대장에서 완료됐어요" : "시공이 끝나면 민원대장에서 완료로 바꿔요. 그러면 이 표에서 숨어요"}>
-                      <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M5 12l5 5 9-10" />
-                      </svg>
-                      전송 완료
-                    </span>
                   )}
                   <button
                     type="button"
                     className="pr-icon"
-                    aria-label="지시부 열기"
-                    title={o?.file ? `${fileName(o.file)}\n한글로 열어요` : "아직 지시부가 없어요"}
-                    disabled={!o?.file}
-                    onClick={() => o && openFile(o.file)}
-                  >
-                    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
-                      <path d="M14 3v5h5M9 13h6M9 17h6" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    className="pr-icon"
-                    aria-label="이 민원 파일 보기"
-                    title="탐색기를 열어 이 민원 파일을 보여요"
+                    aria-label="저장 폴더 열기"
+                    title="저장 폴더를 열어 이 민원 파일을 보여요"
                     onClick={() => {
                       const f = o?.file || c.photos[0] || c.map;
                       openFile(f || c.folder || ps.root, !!f);
@@ -730,8 +883,8 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                   <button
                     type="button"
                     className={"pr-icon pr-reg" + (linked(c) ? " on" : "")}
-                    aria-label={linked(c) ? `민원대장 ${linked(c)!.no}번 보기` : "민원대장에 등록"}
-                    title={linked(c) ? `민원대장 ${linked(c)!.no}번 · 눌러서 그 줄로 가요` : "민원대장에 등록해요(지시부 없이도 돼요. 지시부를 만들면 조치내용이 채워져요)"}
+                    aria-label={linked(c) ? `민원대장 ${linked(c)!.no}번 보기` : "민원대장에 추가"}
+                    title={linked(c) ? `민원대장 ${linked(c)!.no}번 · 눌러서 그 줄로 가요` : "민원대장에 추가해요(지시부 없이도 돼요. 지시부를 만들면 조치내용이 채워져요)"}
                     onClick={() => register(c)}
                   >
                     <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="miter">
@@ -812,6 +965,58 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
             </div>
           </div>
         </Floating>
+      )}
+
+      {sendMenu &&
+        (() => {
+          const o = orders.find((x) => x.id === sendMenu.id);
+          if (!o) return null;
+          const r = recipientOf(o);
+          const why = !r.work?.contact ? "공사 관리에서 현장대리인을 골라 주세요" : !r.email ? "현장대리인 메일 주소가 없어요 — 업무연락처에서 넣어 주세요" : run || mailRun ? "Claude가 다른 일을 하고 있어요" : "";
+          return (
+            <Floating rect={sendMenu.rect} align="right" onClose={() => setSendMenu(null)}>
+              <div className="pr-menu pr-sendmenu" role="menu" aria-label="지시부 보내기">
+                <button type="button" role="menuitem" className="pr-sopt" disabled={!!why} onClick={() => openMail(o)}>
+                  <MailIcon />
+                  <span>
+                    <span className="pr-sopt-t">{o.mailedAt ? "메일로 다시 보내기" : "메일로 보내기"}</span>
+                    <span className={"pr-sopt-s" + (why ? " warn" : "")}>{why || `${r.name} 현장대리인 · ${r.email}`}</span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="pr-sopt"
+                  onClick={() => {
+                    setSendMenu(null);
+                    send(o);
+                  }}
+                >
+                  <PhoneIcon />
+                  <span>
+                    <span className="pr-sopt-t">이미지 보내기</span>
+                    <span className="pr-sopt-s">내 핸드폰의 Claude 앱으로 사진을 전송해요</span>
+                  </span>
+                </button>
+              </div>
+            </Floating>
+          );
+        })()}
+
+      {mailAsk && (
+        <MailDialog
+          draft={mailAsk}
+          files={(() => {
+            const o = orders.find((x) => x.id === mailAsk.id);
+            if (!o) return [];
+            const jp = o.jpgs.length ? o.jpgs : [o.file.replace(/\.hwpx$/i, ".jpg")];
+            return [o.file, ...jp];
+          })()}
+          from={ps.signer}
+          onChange={setMailAsk}
+          onSend={() => mailOrder(mailAsk)}
+          onClose={() => setMailAsk(null)}
+        />
       )}
 
       {worksOpen && cd && <WorksDialog works={works} cd={cd} onSave={saveWork} onDelete={deleteWork} onContacts={setCd} onClose={() => setWorksOpen(false)} />}
@@ -920,17 +1125,15 @@ function PlaceCell({ c, disabled, onSave }: { c: Case; disabled: boolean; onSave
     return (
       <div
         className="pr-place"
-        title={disabled ? undefined : "두 번 누르면 주소를 고쳐요"}
+        title={[`${c.area} ${c.place}`.trim(), c.road ? `원래 주소 ${c.road}` : "", disabled ? "" : "두 번 누르면 주소를 고쳐요"].filter(Boolean).join("\n")}
         onDoubleClick={(e) => {
           if (disabled) return;
           e.stopPropagation();
           setEditing(true);
         }}
       >
-        <span className="pr-sub">{c.area || "\u00a0"}</span>
-        <span className={c.place === UNKNOWN ? "pr-unknown" : undefined} title={c.road || undefined}>
-          {c.place}
-        </span>
+        {c.area && <span className="pr-sub">{c.area}</span>}
+        <span className={c.place === UNKNOWN ? "pr-unknown" : undefined}>{c.place}</span>
       </div>
     );
   }
@@ -1463,5 +1666,124 @@ function PersonIcon() {
       <circle cx="12" cy="8" r="4" />
       <path d="M4 21c0-4 4-6 8-6s8 2 8 6" />
     </svg>
+  );
+}
+
+// ---------- 지시부 메일 (2026-10-20) ----------
+
+type MailDraft = { id: number; to: string; toName: string; org: string; subject: string; body: string; label: string };
+
+const MAIL_STEPS = ["메일쓰기 여는 중", "받는 사람·제목·본문 채우는 중", "첨부 붙이는 중", "보내고 보낸 메일함 확인하는 중"];
+
+function DocIcon() {
+  return (
+    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+      <path d="M14 3v5h5M9 13h6M9 17h6" />
+    </svg>
+  );
+}
+
+/** 이 건만으로 지시부 만들기 — 문서 + 더하기 */
+function DocPlusIcon() {
+  return (
+    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M13 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v4" />
+      <path d="M14 3v5h5M18 15v6M15 18h6" />
+    </svg>
+  );
+}
+
+/** 위 띠의 공사 이름표 */
+function WorkTag({ w, cd }: { w: Work; cd: ContactsData | null }) {
+  const k = workColor(w, cd);
+  return (
+    <span className="pr-work" style={{ "--wc": `var(--pj-${k}-line)`, "--wf": `var(--pj-${k}-fg)` } as CSSProperties}>
+      {w.name}
+    </span>
+  );
+}
+
+function MailIcon() {
+  return (
+    <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 5h18v14H3z M3 6l9 7 9-7" />
+    </svg>
+  );
+}
+
+function PhoneIcon() {
+  return (
+    <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 3h10v18H7z M11 18h2" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 12l5 5 9-10" />
+    </svg>
+  );
+}
+
+/** 메일로 보낼까요? — 받는 사람·제목·본문(고칠 수 있어요)·첨부. [보내기]를 누르면 Claude가 korea.kr에서 보내기까지 해요(사용자 2안). */
+function MailDialog({ draft, files, from, onChange, onSend, onClose }: { draft: MailDraft; files: string[]; from: string; onChange: (d: MailDraft) => void; onSend: () => void; onClose: () => void }) {
+  const subjectRef = useRef<HTMLInputElement>(null);
+  useEffect(() => subjectRef.current?.focus(), []);
+  const ok = draft.subject.trim() !== "" && draft.to !== "";
+  return (
+    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div
+        className="dialog pr-mail"
+        role="dialog"
+        aria-modal="true"
+        aria-label="메일로 보내기"
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            onClose();
+          } else if (e.key === "Enter" && !(e.target instanceof HTMLTextAreaElement) && !e.nativeEvent.isComposing && ok) {
+            e.preventDefault();
+            onSend();
+          }
+        }}
+      >
+        <div className="dialog-head">
+          <span className="dialog-title">메일로 보낼까요?</span>
+        </div>
+        <div className="pr-mail-grid">
+          <span className="pr-mail-k">받는 사람</span>
+          <span>
+            <b>{draft.toName}</b> 현장대리인{draft.org ? ` · ${draft.org}` : ""} · {draft.to}
+          </span>
+          <span className="pr-mail-k">보내는 곳</span>
+          <span>korea.kr 메일 · {from} (크롬에 로그인해 둔 계정)</span>
+          <span className="pr-mail-k">제목</span>
+          <input ref={subjectRef} className="input" aria-label="메일 제목" value={draft.subject} onChange={(e) => onChange({ ...draft, subject: e.target.value })} />
+          <span className="pr-mail-k top">본문</span>
+          <textarea className="input pr-mail-body" aria-label="메일 본문" rows={4} value={draft.body} onChange={(e) => onChange({ ...draft, body: e.target.value })} />
+          <span className="pr-mail-k top">첨부 {files.length}개</span>
+          <div className="pr-mail-files">
+            {files.map((f) => (
+              <span key={f} className="pr-mail-file" title={f}>
+                {fileName(f)}
+              </span>
+            ))}
+          </div>
+        </div>
+        <p className="pr-mail-hint">[보내기]를 누르면 Claude가 크롬 korea.kr 탭에서 메일을 써서 바로 보내요.</p>
+        <div className="dialog-foot pr-mail-foot">
+          <button type="button" className="btn btn-ctrl btn-text" onClick={onClose}>
+            취소
+          </button>
+          <button type="button" className="btn-primary btn-ctrl pr-mail-send" disabled={!ok} onClick={onSend}>
+            <MailIcon />
+            보내기
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
