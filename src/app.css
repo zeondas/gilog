@@ -11162,3 +11162,155 @@ body.ew-dragging .pjm-colgrip:active::after {
 /* 메일 본문 줄: 설명을 위로(2026-10-20 사용자) — 첫 글줄을 본문 칸 첫 줄과 나란히 */
 .row:has(.proc-mail-body) { align-items: flex-start; }
 .row:has(.proc-mail-body) > .row-text { padding-top: 8px; }
+
+/* 표 줄 정리(2026-10-20 사용자 ①~⑥, 시안 캔버스 ProcessRows): 기한·위치 한 줄, 요약·판단 이유만 두 줄(넘치면 …),
+   나머지는 한 줄 위 맞춤 — 글자 11~29(가운데 20), 배지 22는 9~31, 칸·단추 28은 6~34. 지시부 이름·보내기는 위 띠로 */
+.pr-row {
+  grid-template-columns: var(--pr-cols, 36px 144px 58px 112px 182px minmax(0, 1fr) 160px 240px 150px);
+}
+
+.pr-date.pr-due {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  padding-top: 9px;
+}
+
+.pr-due .pr-d {
+  padding: 0 7px;
+}
+
+.pr-place:not(.pr-place-edit) {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pr-place:not(.pr-place-edit) > .pr-sub {
+  margin-right: 5px;
+}
+
+.pr-place.pr-place-edit {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.pr-place-edit .pr-sub {
+  flex: none;
+  padding-left: 0;
+}
+
+.pr-place-edit > :last-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.pr-sum > span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pr-sum-t {
+  font-weight: 600;
+}
+
+.pr-row .pr-work,
+.pr-pickbar > .pr-work {
+  display: block;
+  height: 28px;
+  box-sizing: border-box;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pr-pickbar > .pr-work {
+  flex: none;
+  margin-top: 0;
+  max-width: 240px;
+}
+
+.pr-acts {
+  gap: 6px;
+}
+
+.pr-icon:not(:disabled) {
+  cursor: pointer;
+}
+
+.pr-icon.pr-doc:not(:disabled):hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.pr-icon.pr-doc.on {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.pr-icon.pr-doc.done {
+  border-color: var(--st-done-bg);
+  background: var(--st-done-bg);
+  color: var(--st-done-fg);
+}
+
+.pr-icon.pr-doc.on:not(:disabled):hover {
+  border-color: var(--accent);
+  color: var(--on-accent);
+  filter: brightness(1.08);
+}
+
+.pr-icon.pr-doc.done:not(:disabled):hover {
+  border-color: var(--st-done-bg);
+  color: var(--st-done-fg);
+  filter: brightness(0.97);
+}
+
+/* 위 띠: 고른 지시부의 상태 · [지시부 열기] [다시 만들기] [선택 해제] [보내기 ▾] */
+.pr-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: var(--size-badge-h);
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  background: var(--st-hold-bg);
+  color: var(--st-hold-fg);
+  font-size: var(--fs-badge);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pr-stat.done {
+  background: var(--st-done-bg);
+  color: var(--st-done-fg);
+}
+
+.pr-stat.busy {
+  background: var(--accent-tint);
+  color: var(--accent);
+}
+
+.pr-stat.warn {
+  background: var(--st-work-bg);
+  color: var(--st-work-fg);
+}
+
+.pr-stat > svg {
+  width: 12px;
+  height: 12px;
+}
+
+.pr-ibtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pr-pickbar .pr-push ~ .btn,
+.pr-pickbar .pr-push ~ .btn-primary {
+  margin-left: 0;
+}
