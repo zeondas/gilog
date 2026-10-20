@@ -11314,3 +11314,9 @@ body.ew-dragging .pjm-colgrip:active::after {
 .pr-pickbar .pr-push ~ .btn-primary {
   margin-left: 0;
 }
+
+/* 위 띠 간격(2026-10-20 사용자: 들쭉날쭉) — 머리 줄·띠·표 사이는 .pr의 간격 16 하나로, 띠 아래 12를 더하지 않아요.
+   띠 안의 것은 모두 띠 높이 가운데(공사 이름표 28·글자·단추 34) */
+.pr-pickbar {
+  margin-bottom: 0;
+}
