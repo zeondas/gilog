@@ -681,22 +681,18 @@ pub fn run_elevated(exe: &std::path::Path, args: &str) -> Result<u32, String> {
 // 기록 창 안에 놓으면 앱 틀의 놓기 알림(onDragDropEvent)이 받아요 — 바깥에서 끌어온 것과 같은 길.
 // 돌려주는 값: "" 놓지 않음 · "copy" · "move" · "link"
 pub fn start_drag(hwnd_raw: isize, paths: &[String]) -> Result<String, String> {
-    use windows::Win32::System::Com::{IBindCtx, IDataObject};
+    use windows::Win32::System::Com::IDataObject;
     use windows::Win32::System::Ole::{IDropSource, DROPEFFECT};
-    use windows::Win32::UI::Shell::{SHCreateShellItemArrayFromIDLists, SHDoDragDrop, BHID_DataObject};
+    use windows::Win32::UI::Shell::SHDoDragDrop;
     if paths.is_empty() {
         return Ok(String::new());
     }
     unsafe {
         let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
-        let pidls: Vec<Pidl> = paths.iter().map(|p| parse(p)).collect::<Result<_, _>>()?;
-        let raw: Vec<*const ITEMIDLIST> = pidls.iter().map(|p| p.0 as *const ITEMIDLIST).collect();
-        let arr = SHCreateShellItemArrayFromIDLists(&raw).map_err(|e| format!("items:{e}"))?;
-        let data: IDataObject = arr.BindToHandler(None::<&IBindCtx>, &BHID_DataObject).map_err(|e| format!("data:{e}"))?;
+        let data: IDataObject = data_object(paths)?;
         let hwnd = HWND(hwnd_raw as *mut c_void);
         // 복사(1)·옮기기(2)·바로 가기(4) 모두 허용 — 무엇을 할지는 놓는 곳(윈도우 탐색기)이 정해요
         let eff = SHDoDragDrop(Some(hwnd), &data, None::<&IDropSource>, DROPEFFECT(1 | 2 | 4)).map_err(|e| format!("drag:{e}"))?;
-        drop(pidls);
         Ok(match eff.0 {
             0 => "",
             e if e & 2 != 0 => "move",
@@ -705,4 +701,54 @@ pub fn start_drag(hwnd_raw: isize, paths: &[String]) -> Result<String, String> {
         }
         .into())
     }
+}
+
+// ── 탐색기 호환 A3·A7·A11(2026-10-20 사용자 1안) ────────────────────────────
+
+/// 셸 항목들을 윈도우 "데이터 개체"로(끌기·속성 창이 같이 써요)
+unsafe fn data_object(paths: &[String]) -> Result<windows::Win32::System::Com::IDataObject, String> {
+    use windows::Win32::System::Com::{IBindCtx, IDataObject};
+    use windows::Win32::UI::Shell::{SHCreateShellItemArrayFromIDLists, BHID_DataObject};
+    unsafe {
+        let pidls: Vec<Pidl> = paths.iter().map(|p| parse(p)).collect::<Result<_, _>>()?;
+        let raw: Vec<*const ITEMIDLIST> = pidls.iter().map(|p| p.0 as *const ITEMIDLIST).collect();
+        let arr = SHCreateShellItemArrayFromIDLists(&raw).map_err(|e| format!("items:{e}"))?;
+        arr.BindToHandler::<_, IDataObject>(None::<&IBindCtx>, &BHID_DataObject).map_err(|e| format!("data:{e}"))
+    }
+}
+
+/// Alt+Enter 속성 창(여러 개면 묶어서 — 윈도우 탐색기와 같아요)
+pub fn properties(paths: &[String]) -> Result<(), String> {
+    use windows::Win32::UI::Shell::SHMultiFileProperties;
+    if paths.is_empty() {
+        return Ok(());
+    }
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        let data = data_object(paths)?;
+        SHMultiFileProperties(&data, 0).map_err(|e| format!("props:{e}"))
+    }
+}
+
+/// 바로가기(.lnk)가 가리키는 곳(폴더면 기록 안에서 열려고)
+pub fn lnk_target(path: &str) -> Option<String> {
+    use windows::Win32::System::Com::{CoCreateInstance, IPersistFile, CLSCTX_INPROC_SERVER, STGM_READ};
+    use windows::Win32::UI::Shell::{IShellLinkW, ShellLink};
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        let link: IShellLinkW = CoCreateInstance(&ShellLink, None::<&windows::core::IUnknown>, CLSCTX_INPROC_SERVER).ok()?;
+        let pf: IPersistFile = link.cast().ok()?;
+        let w = wide(path);
+        pf.Load(PCWSTR(w.as_ptr()), STGM_READ).ok()?;
+        let mut buf = [0u16; 1024];
+        link.GetPath(&mut buf, std::ptr::null_mut(), 0).ok()?;
+        let s = from_wide(&buf);
+        (!s.is_empty()).then_some(s)
+    }
+}
+
+/// 지금 Ctrl·Shift를 누르고 있는지(기록 창 안에 놓을 때 복사·옮기기 고르기)
+pub fn modifiers() -> (bool, bool) {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_CONTROL};
+    unsafe { (GetAsyncKeyState(VK_CONTROL.0 as i32) < 0, GetAsyncKeyState(VK_SHIFT.0 as i32) < 0) }
 }

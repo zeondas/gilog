@@ -808,6 +808,47 @@ pub fn fs_start_drag(window: tauri::WebviewWindow, paths: Vec<String>) -> Result
     }
 }
 
+/// Alt+Enter 속성 창
+#[tauri::command]
+pub fn fs_properties(paths: Vec<String>) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        crate::files_win::properties(&paths)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = paths;
+        Err("windows_only".into())
+    }
+}
+
+/// 바로가기(.lnk)가 가리키는 곳 — 없거나 못 읽으면 None
+#[tauri::command]
+pub fn fs_lnk_target(path: String) -> Option<String> {
+    #[cfg(windows)]
+    {
+        crate::files_win::lnk_target(&path)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = path;
+        None
+    }
+}
+
+/// 지금 누르고 있는 Ctrl·Shift(기록 창 안에 놓을 때)
+#[tauri::command]
+pub fn fs_mods() -> (bool, bool) {
+    #[cfg(windows)]
+    {
+        crate::files_win::modifiers()
+    }
+    #[cfg(not(windows))]
+    {
+        (false, false)
+    }
+}
+
 // ---------- 찾기 ----------
 
 #[derive(Deserialize, Clone, Debug, Default)]

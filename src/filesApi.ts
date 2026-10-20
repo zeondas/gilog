@@ -322,6 +322,12 @@ export const fsApi = {
   contextMenu: (dir: string, names: string[], x: number, y: number) => call<MenuResult>("fs_context_menu", { dir, names, x, y }),
   /** 윈도우 끌기 시작(기록 → 윈도우 탐색기·바탕 화면) — 놓을 때까지 기다려요. "" 놓지 않음 · copy · move · link */
   startDrag: (paths: string[]) => call<string>("fs_start_drag", { paths }),
+  /** Alt+Enter 속성 창 */
+  properties: (paths: string[]) => call<null>("fs_properties", { paths }),
+  /** 바로가기(.lnk)가 가리키는 곳 */
+  lnkTarget: (path: string) => (inApp ? call<string | null>("fs_lnk_target", { path }) : Promise.resolve(null)),
+  /** 지금 누른 Ctrl·Shift */
+  mods: () => (inApp ? call<[boolean, boolean]>("fs_mods") : Promise.resolve([false, false] as [boolean, boolean])),
   /** 윈도우 탐색기로 넘기기(보안 해제) — dir을 열어 names를 골라 두고 우클릭 메뉴를 띄워요 */
   reveal: (dir: string, names: string[]) => (inApp ? call<null>("fs_reveal", { dir, names, popup: true }) : Promise.resolve(null)),
   /** roots가 비면 빠른 찾기 목록이 있는 모든 드라이브 */

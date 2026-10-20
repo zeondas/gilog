@@ -11012,3 +11012,8 @@ body.ew-dragging .pjm-colgrip:active::after {
 /* 설정 탐색기 "새 탭이 여는 폴더": [고르기]를 옆 입력칸과 같은 28(모서리 6)로 — 줄 안 작은 단추 규칙(2026-10-20 사용자) */
 .fx-set-dir { align-items: center; }
 .fx-set-dir .btn { height: 28px; border-radius: var(--radius-sm); padding: 0 12px; }
+
+/* 탐색기 호환(2026-10-20 사용자 1안): 고무줄 고르기 사각형 · 경로 줄 조각 누르기 */
+.fx-band { position: fixed; z-index: 50; pointer-events: none; background: var(--accent-tint); border: 1px solid var(--accent-line); border-radius: 2px; }
+.fx-crumb-go { cursor: pointer; border-radius: 4px; }
+.fx-crumb-go:hover { color: var(--accent); text-decoration: underline; }

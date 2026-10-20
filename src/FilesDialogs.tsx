@@ -149,6 +149,41 @@ export function DeleteDialog({ items, permanent, onYes, onNo }: { items: FsEntry
   );
 }
 
+/** F5·F6 확인(2026-10-20 사용자 1안 — 새로 고침하려다 복사되는 일 막기). Enter 확인 · Esc 취소 */
+export function TransferAsk({ items, op, dest, onYes, onNo }: { items: { name: string }[]; op: "copy" | "move"; dest: string; onYes: () => void; onNo: () => void }) {
+  const yes = useRef<HTMLButtonElement>(null);
+  useEffect(() => yes.current?.focus(), []);
+  const what = items.length === 1 ? items[0].name : `${items[0].name} 외 ${items.length - 1}개`;
+  const verb = op === "copy" ? "복사" : "옮기기";
+  return (
+    <Overlay onClose={onNo} width={460}>
+      <div
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            onNo();
+          }
+        }}
+      >
+        <div className="dialog-head">
+          <span className="dialog-title">{op === "copy" ? "복사할까요?" : "옮길까요?"}</span>
+          <span className="fx-sub">
+            {what} → {dest}
+          </span>
+        </div>
+        <div className="dialog-foot fx-gap">
+          <button type="button" className="btn btn-ctrl" onClick={onNo}>
+            취소
+          </button>
+          <button type="button" ref={yes} className="btn-primary btn-ctrl" onClick={onYes}>
+            {verb}
+          </button>
+        </div>
+      </div>
+    </Overlay>
+  );
+}
+
 type RenameRow = FsEntry & { parentName: string; folder: string };
 
 /** 일괄 이름 바꾸기 (FreeCommander 창과 같은 구성, 시안 FilesRename.dc.html) */
