@@ -77,6 +77,8 @@ export function aiGuide(p: { inbox: string; downloads: string; outbox: string },
   return `# 기록 민원처리 지침
 
 ## 0. 규칙
+- **맨 먼저 브라우저를 골라요**: list_connected_browsers로 이어진 브라우저를 보고, 이름에 Chrome(크롬)이 든 것을 select_browser로 골라요(여럿이면 첫 것). 엣지(Edge)는 고르지 않아요 – 회사 정책으로 IE 모드라 읽지 못해요. 크롬이 없으면(엣지만 있거나 하나도 없으면) 아무것도 하지 말고 마지막 답을 정확히 NO_CHROME 한 줄로 끝내요.
+- 파일은 Write로만 써요. PowerShell·Bash는 쓰지 않아요(허락받을 사람이 없어 막혀요).
 - 크롬(Claude 확장)으로 일해요. 화면은 **글로** 읽어요(get_page_text·find·read_page). 스크린샷은 찍지 않아요 – 느리고 필요 없어요. 사진 파일은 열어 보지 않아요(판단은 본문 글과 파일 이름으로).
 - 한 화면에서 할 일이 여럿이면 한 번에 묶어 보내요(browser_batch). 생각은 짧게, 걸음은 아래 순서 그대로.
 - 민원인 이름·연락처는 어디에도 쓰지 않아요(목록의 "민원인" 열은 읽지 않아요). 개인정보 창은 열지 않아요. 민원 제목은 담당자가 붙인 것이라 판단에 쓰지 않아요.
@@ -195,6 +197,8 @@ export function mailGuide(m: { dir: string; to: string; toName: string; subject:
 화면 생김새와 걸음을 미리 적어 뒀어요 – 화면은 글로 읽고(get_page_text·find·read_page) 스크린샷은 찍지 않아요. 한 화면의 칸 채우기는 한 번에 묶어 보내요(browser_batch).
 
 ## 0. 시작
+- **맨 먼저 브라우저를 골라요**: list_connected_browsers로 이어진 브라우저를 보고, 이름에 Chrome(크롬)이 든 것을 select_browser로 골라요(여럿이면 첫 것). 엣지(Edge)는 고르지 않아요 – 회사 정책으로 IE 모드라 읽지 못해요. 크롬이 없으면(엣지만 있거나 하나도 없으면) 아무것도 하지 말고 마지막 답을 정확히 NO_CHROME 한 줄로 끝내요.
+- 파일은 Write로만 써요. PowerShell·Bash는 쓰지 않아요(허락받을 사람이 없어 막혀요).
 - 크롬(Claude 확장)으로 일해요. 새 탭에서 https://mail.korea.kr 을 열어요(담당자가 로그인해 둔 상태). 열리면 "받은메일함" 화면이에요 – 왼쪽 위 파란 [메일쓰기]·[내게쓰기] 단추, 그 아래 메일함 목록(받은메일함·보낸메일함·임시보관함…).
 - 로그인 화면이 나오면 아무것도 쓰지 말고 마지막 답을 정확히 LOGIN_REQUIRED 한 줄로 끝내요. 비밀번호·인증서는 넣지 않아요.
 - 탭이 열렸는데 화면을 읽을 수 없으면 마지막 답을 정확히 PAGE_UNREADABLE 한 줄로 끝내요.

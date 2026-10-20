@@ -671,11 +671,23 @@ mod tests {
     #[test]
     fn log_line_hides_bodies() {
         let v: serde_json::Value = serde_json::json!({"type":"user","message":{"content":[{"type":"tool_result","content":"홍길동 010-1234-5678","is_error":false}]}});
-        let l = log_line(&v, "");
+        let l = log_line(&v, "", &mut Default::default());
         assert!(!l.contains("홍길동") && l.contains("tool_result"));
         let v: serde_json::Value = serde_json::json!({"type":"assistant","message":{"content":[{"type":"tool_use","name":"Write","input":{"file_path":"D:\\a.json","content":"비밀"}},{"type":"text","text":"적었어요"}]}});
-        let l = log_line(&v, "");
+        let l = log_line(&v, "", &mut Default::default());
         assert!(l.contains("tool_use Write file_path=D:\\a.json") && !l.contains("비밀") && !l.contains("적었어요"));
+    }
+
+    #[test]
+    fn log_line_shows_browser_choice() {
+        let mut seen = Default::default();
+        let v = serde_json::json!({"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"mcp__claude-in-chrome__list_connected_browsers","input":{}}]}});
+        assert!(log_line(&v, "", &mut seen).contains("list_connected_browsers"));
+        let v = serde_json::json!({"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"Chrome (hunmin), Edge (hunmin)"}]}});
+        assert!(log_line(&v, "", &mut seen).contains("Chrome (hunmin), Edge"));
+        let v = serde_json::json!({"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t2","content":"홍길동"}]}});
+        assert!(!log_line(&v, "", &mut seen).contains("홍길동"));
+        assert_eq!(final_state("NO_CHROME", false).0, "error");
     }
 
     #[test]
@@ -771,7 +783,9 @@ pub const LOG_FILE: &str = "_claude.log";
 pub const SKIPPED_FILE: &str = "_건너뜀.json";
 
 /// stream-json 한 줄을 로그에 남길 모양으로 줄여요(개인정보가 들어갈 수 있는 글·도구 결과는 길이만).
-fn log_line(v: &serde_json::Value, raw: &str) -> String {
+/// `seen`: 브라우저 고르기 도구(list_connected_browsers·select_browser·switch_browser)의 tool_use id –
+/// 그 결과(브라우저 이름 목록)만 글을 남겨요. 어느 브라우저에 붙었는지 보려고(2026-10-20 엣지로 붙음 신고).
+fn log_line(v: &serde_json::Value, raw: &str, seen: &mut std::collections::HashSet<String>) -> String {
     let t = v["type"].as_str().unwrap_or("");
     match t {
         // 시작 정보(버전·도구·MCP 서버 상태)·마지막 답은 그대로 – 민원 글이 들어가지 않아요
@@ -783,6 +797,12 @@ fn log_line(v: &serde_json::Value, raw: &str) -> String {
                     match b["type"].as_str().unwrap_or("") {
                         "tool_use" => {
                             let inp = &b["input"];
+                            let name = b["name"].as_str().unwrap_or("?");
+                            if name.contains("browser") && !name.contains("batch") {
+                                if let Some(id) = b["id"].as_str() { seen.insert(id.to_string()); }
+                                parts.push(format!("tool_use {name} {}", inp.to_string().chars().take(300).collect::<String>()));
+                                continue;
+                            }
                             let hint = ["url", "file_path", "path", "pattern", "command"]
                                 .iter()
                                 .find_map(|k| inp[k].as_str().map(|s| format!(" {k}={}", s.chars().take(160).collect::<String>())))
@@ -806,7 +826,15 @@ fn log_line(v: &serde_json::Value, raw: &str) -> String {
                             serde_json::Value::Array(a) => a.iter().map(|c| c["text"].as_str().map(|s| s.chars().count()).unwrap_or(0)).sum(),
                             _ => 0,
                         };
-                        parts.push(format!("tool_result {}자{}", n, if b["is_error"] == true { " 오류" } else { "" }));
+                        let shown = if b["tool_use_id"].as_str().map_or(false, |id| seen.contains(id)) {
+                            let t = match &b["content"] {
+                                serde_json::Value::String(s) => s.clone(),
+                                serde_json::Value::Array(a) => a.iter().filter_map(|c| c["text"].as_str()).collect::<Vec<_>>().join(" "),
+                                _ => String::new(),
+                            };
+                            format!(" {}", t.replace('\n', " ").chars().take(500).collect::<String>())
+                        } else { String::new() };
+                        parts.push(format!("tool_result {}자{}{}", n, if b["is_error"] == true { " 오류" } else { "" }, shown));
                     }
                 }
             }
@@ -868,6 +896,9 @@ fn final_state(result: &str, is_error: bool) -> (String, String) {
     }
     if result.contains("MAIL_SENT") {
         return ("done".into(), String::new());
+    }
+    if result.contains("NO_CHROME") {
+        return ("error".into(), "Claude가 크롬에 붙지 못했어요 – 크롬을 켜고 Claude 확장에 로그인해 주세요(엣지에만 확장이 이어져 있으면 엣지는 쓰지 않아요)".into());
     }
     if result.contains("PAGE_UNREADABLE") {
         ("error".into(), "Claude가 크롬 화면을 읽지 못했어요 – 크롬에 Claude 확장이 켜져 있고 엣지 확장은 꺼져 있는지 봐 주세요(엣지는 IE 모드라 못 읽어요)".into())
@@ -992,13 +1023,14 @@ pub fn run_claude(run: State<ClaudeRun>, req: RunRequest) -> Result<(), String> 
     std::thread::spawn(move || {
         let mut last: Option<(String, String)> = None;
         let mut result_text = String::new();
+        let mut browser_ids = std::collections::HashSet::new();
         if let Some(out) = stdout {
             for line in std::io::BufReader::new(out).lines().map_while(Result::ok) {
                 let Ok(v) = serde_json::from_str::<serde_json::Value>(&line) else {
                     w(&log, &format!("stdout: {}", line.chars().take(500).collect::<String>()));
                     continue;
                 };
-                w(&log, &log_line(&v, &line));
+                w(&log, &log_line(&v, &line, &mut browser_ids));
                 if v["type"] == "result" {
                     result_text = v["result"].as_str().unwrap_or("").to_string();
                     last = Some(final_state(&result_text, v["is_error"].as_bool().unwrap_or(false)));
