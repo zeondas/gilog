@@ -44,7 +44,7 @@ import {
   PC_FOLD,
   isSpecial,
 } from "./files";
-import { Conflict, FastStatus, Found, MenuResult, TreeDir, fsApi, fsErrorText, onFsChanged, onFsProgress } from "./filesApi";
+import { Conflict, FastStatus, Found, MenuResult, Step, TreeDir, fsApi, fsErrorText, onFsChanged, onFsProgress } from "./filesApi";
 import { parseDate } from "./journal";
 import { DEFAULT_FILES_SETTINGS, FilesSettings, loadSettings, saveSettings } from "./settingsStore";
 
@@ -158,6 +158,7 @@ export default function FilesScreen() {
   const [xfer, setXfer] = useState<{ pane: number; op: "copy" | "move"; items: Row[]; dest: string } | null>(null);
   const [renameRows, setRenameRows] = useState<{ pane: number; rows: (FsEntry & { parentName: string; folder: string })[]; where: string } | null>(null);
   const [undo, setUndo] = useState<{ path: string; name: string }[] | null>(null);
+  const batchHist = useRef<{ label: string } | null>(null);
   const [nameAsk, setNameAsk] = useState<{ title: string; value: string; ok: (v: string) => void } | null>(null);
   const [toast, setToast] = useState("");
   const [busy, setBusy] = useState<{ done: number; total: number; name: string } | null>(null);
@@ -399,6 +400,66 @@ export default function FilesScreen() {
     else if (/^[A-Za-z]:\\$/.test(t.path) && !cfg.hiddenDrives.includes(PC)) go(pane, PC, t.path);
   };
 
+  // ---------- 되돌리기·다시 하기(Ctrl+Z·Y, 호환 A1 – 2026-10-20) ----------
+  // 이 앱에서 한 옮기기·복사·이름 바꾸기·휴지통 지우기·새 폴더만(완전 지우기·덮어쓴 파일·윈도우 메뉴로 한 일은 빼요).
+  // 앱을 끄면 잊어요. 한 일마다 거꾸로 할 걸음(undo)과 다시 할 걸음(redo)을 함께 둬요.
+  type Act = { steps: Step[] } | { renames: { path: string; name: string }[] };
+  type Hist = { label: string; undo: Act; redo: Act };
+  const hist = useRef<{ undo: Hist[]; redo: Hist[] }>({ undo: [], redo: [] });
+  const record = (h: Hist) => {
+    const H = hist.current;
+    H.undo.push(h);
+    if (H.undo.length > 50) H.undo.shift();
+    H.redo = [];
+    return h;
+  };
+  const nowSec = () => Math.floor(Date.now() / 1000);
+  const undoRedo = async (redo: boolean) => {
+    const H = hist.current;
+    const h = (redo ? H.redo : H.undo).pop();
+    if (!h) return flash(redo ? "다시 할 것이 없어요" : "되돌릴 것이 없어요");
+    const act = redo ? h.redo : h.undo;
+    const word = redo ? "다시 했어요" : "되돌렸어요";
+    try {
+      if ("renames" in act) {
+        const back = await fsApi.renameMany(act.renames);
+        if (redo) h.undo = { renames: back };
+        else h.redo = { renames: back };
+      } else {
+        const t = nowSec();
+        const sum = await fsApi.undo(act.steps);
+        // 휴지통으로 보낸 걸음이면 꺼낼 때 그 뒤에 지운 것을 찾아요
+        const other = redo ? h.undo : h.redo;
+        if (act.steps.some((x) => x.k === "trash") && "steps" in other) other.steps.forEach((x) => x.k === "restore" && (x.since = t));
+        if (sum.errors.length) {
+          // 일부만 됐으면 기록에서 빼요(다시 맞추기 어려워요)
+          refreshAll();
+          return flash(`${word}: ${h.label} – 못 한 것 ${sum.errors.length}개 – ${fsErrorText(sum.errors[0][1])}`);
+        }
+      }
+      (redo ? H.undo : H.redo).push(h);
+      flash(`${word}: ${h.label}`);
+    } catch (e) {
+      flash(fsErrorText(e));
+    }
+    refreshAll();
+  };
+  /** 새 폴더를 만들고 바로 이름을 적은 것은 한 번에 되돌려요(윈도우처럼 "새 폴더" 이름 칸까지 한 일) */
+  const newDirRef = useRef<{ path: string; h: Hist } | null>(null);
+  const recordRename = (from: string, to: string) => {
+    const nd = newDirRef.current;
+    newDirRef.current = null;
+    const H = hist.current;
+    if (nd && nd.path === from && H.undo[H.undo.length - 1] === nd.h) {
+      nd.h.label = `새 폴더 '${baseName(to)}'`;
+      nd.h.undo = { steps: [{ k: "trash", paths: [to] }] };
+      nd.h.redo = { steps: [{ k: "mkdir", path: to }] };
+      return;
+    }
+    record({ label: `이름 바꾸기 '${baseName(from)}' → '${baseName(to)}'`, undo: { steps: [{ k: "move", from: to, to: from }] }, redo: { steps: [{ k: "move", from, to }] } });
+  };
+  const recordMkdir = (p: string) => record({ label: `새 폴더 '${baseName(p)}'`, undo: { steps: [{ k: "trash", paths: [p] }] }, redo: { steps: [{ k: "mkdir", path: p }] } });
+
   /** 같은 이름을 한 파일씩 물어요. 취소하면 null */
   const askConflicts = (list: Conflict[], op: "copy" | "move") =>
     new Promise<Record<string, string> | null>((resolve) => {
@@ -449,6 +510,13 @@ export default function FilesScreen() {
       const sum = await fsApi.transfer(op, sources, dest, dec);
       setBusy(null);
       const verb = op === "copy" ? "복사" : "옮기기";
+      const pairs = sum.pairs ?? [];
+      if (pairs.length)
+        record({
+          label: `${verb} ${pairs.length}개${sum.overwritten ? ` (덮어쓴 ${sum.overwritten}개 빼고)` : ""}`,
+          undo: { steps: op === "copy" ? [{ k: "trash", paths: pairs.map(([, t]) => t) }] : [...pairs].reverse().map(([f, t]) => ({ k: "move" as const, from: t, to: f })) },
+          redo: { steps: pairs.map(([f, t]) => ({ k: op, from: f, to: t })) },
+        });
       flash(sum.errors.length ? `${verb} ${sum.done}개 · 못 한 것 ${sum.errors.length}개 – ${fsErrorText(sum.errors[0][1])}` : `${verb} ${sum.done}개${sum.skipped ? ` · 건너뜀 ${sum.skipped}개` : ""}`);
       refreshAll();
       return !sum.errors.length;
@@ -523,7 +591,10 @@ export default function FilesScreen() {
   const doDelete = async (pane: number, items: FsEntry[], permanent: boolean) => {
     setDel(null);
     try {
-      await fsApi.remove(items.map((i) => i.path), permanent);
+      const t = nowSec();
+      const paths = items.map((i) => i.path);
+      await fsApi.remove(paths, permanent);
+      if (!permanent) record({ label: `지우기 ${paths.length}개`, undo: { steps: [{ k: "restore", paths, since: t }] }, redo: { steps: [{ k: "trash", paths }] } });
       if (st && activeTab(st.panes[pane]).find) {
         const gone = new Set(items.map((i) => i.path));
         updPane(pane, (p) => ({ ...p, tabs: p.tabs.map((t, i) => (i === p.active && t.find ? { ...t, find: { ...t.find, results: t.find.results.filter((r) => !gone.has(r.path)) } } : t)) }));
@@ -546,9 +617,10 @@ export default function FilesScreen() {
     if (!inline) return;
     const it = inline;
     setInline(null);
-    if (it.value.trim() === baseName(it.path) || !it.value.trim()) return;
+    if (it.value.trim() === baseName(it.path) || !it.value.trim()) return void (newDirRef.current = null);
     try {
       const to = await fsApi.rename(it.path, it.value.trim());
+      recordRename(it.path, to);
       if (st && activeTab(st.panes[it.pane]).find) {
         updPane(it.pane, (p) => ({
           ...p,
@@ -573,6 +645,7 @@ export default function FilesScreen() {
     const name = taken.has("새 폴더") ? bothName("새 폴더", (n) => taken.has(n.toLowerCase())) : "새 폴더";
     try {
       const p = await fsApi.mkdir(t.path, name);
+      newDirRef.current = { path: p, h: recordMkdir(p) };
       await load(pane, t.path, true);
       setSel(pane, { paths: new Set([p]), cursor: p, anchor: p });
       setInline({ pane, path: p, value: name });
@@ -591,7 +664,7 @@ export default function FilesScreen() {
         const name = v.trim();
         if (!name || name === baseName(path)) return;
         try {
-          await fsApi.rename(path, name);
+          recordRename(path, await fsApi.rename(path, name));
           refreshAll();
         } catch (e) {
           flash(fsErrorText(e));
@@ -608,7 +681,7 @@ export default function FilesScreen() {
         const name = v.trim();
         if (!name) return;
         try {
-          await fsApi.mkdir(dir, name);
+          recordMkdir(await fsApi.mkdir(dir, name));
           refreshAll();
         } catch (e) {
           flash(fsErrorText(e));
@@ -645,6 +718,7 @@ export default function FilesScreen() {
     try {
       const back = await fsApi.renameMany(items);
       setUndo(back);
+      batchHist.current = record({ label: `이름 바꾸기 ${back.length}개`, undo: { renames: back }, redo: { renames: items } });
       refreshAll();
       if (renameRows) {
         const moved = new Map(back.map((b) => [joinPath(parentOf(b.path) ?? "", b.name), b.path]));
@@ -661,6 +735,10 @@ export default function FilesScreen() {
     if (!undo) return;
     try {
       const back = await fsApi.renameMany(undo);
+      // 창 안 [되돌리기]로 한 것은 Ctrl+Z 기록에서도 빼요(두 번 되돌리지 않게)
+      const H = hist.current;
+      if (batchHist.current && H.undo[H.undo.length - 1] === batchHist.current) H.undo.pop();
+      batchHist.current = null;
       if (renameRows) {
         const moved = new Map(back.map((b) => [joinPath(parentOf(b.path) ?? "", b.name), b.path]));
         setRenameRows({ ...renameRows, rows: renameRows.rows.map((r) => (moved.has(r.path) ? { ...r, path: moved.get(r.path)!, name: baseName(moved.get(r.path)!) } : r)) });
@@ -835,6 +913,11 @@ export default function FilesScreen() {
       return;
     }
     if (typing(e.target)) return;
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.code === "KeyZ" || e.code === "KeyY")) {
+      e.preventDefault();
+      if (!busy) void undoRedo(e.code === "KeyY" || e.shiftKey);
+      return;
+    }
     const pane = st.active;
     const rows = rowsOf(pane);
     const s = sels[pane];

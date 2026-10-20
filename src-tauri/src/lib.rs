@@ -772,6 +772,7 @@ pub fn run() {
             files::fs_conflicts,
             files::fs_transfer,
             files::fs_cancel,
+            files::fs_undo,
             files::fs_clip_set,
             files::fs_clip_get,
             files::fs_fast_status,
