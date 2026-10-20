@@ -10831,14 +10831,15 @@ body.ew-dragging * {
 .bs .bd-bar.rowbar > span { background: var(--bd-bar-fill); }
 .bs .bd-pct.rowp { font-weight: 400; color: var(--ink); }
 
-/* 민원대장 줄 위쪽 맞춤(2026-10-19 사용자 "굿", 시안 topcmp): 모든 칸의 첫 줄을 내용·조치내용 머릿기호 첫 줄(줄 위 17.5px)에 맞춰요.
-   한 줄 칸 위 9px·여러 줄 칸 8px, 높이가 다른 것(복사 단추 22·상태 배지 22·메모 단추 28)은 그만큼 위로 */
-.cm-view > .cm-c { align-items: flex-start; padding-top: 9px; padding-bottom: 8px; }
-.cm-view > .cm-multi { padding-top: 8px; }
+/* 민원대장 줄 위쪽 맞춤(2026-10-19 사용자 "굿") + 한 줄짜리 줄은 가운데(2026-10-20 사용자 — 첫 줄이 위로 2.5px 떠 보였어요):
+   모든 칸의 첫 줄 가운데를 줄 위 20px(= 한 줄짜리 줄 높이 40의 가운데)에 맞춰요. 한 줄 칸 위아래 11px, 여러 줄 칸 10px,
+   높이가 다른 것(복사 단추 22·상태 배지 22·메모 단추 28)은 위아래를 같은 만큼 당겨 줄 높이를 늘리지 않아요. */
+.cm-view > .cm-c { align-items: flex-start; padding-top: 11px; padding-bottom: 11px; }
+.cm-view > .cm-multi { padding-top: 10px; padding-bottom: 10px; }
 .cm-view > .cm-due { align-content: start; align-items: start; }
-.cm-view .cm-copy { margin-top: -2px; }
-.cm-view .cm-spick { margin-top: -3px; }
-.cm-view .cm-memo { margin-top: -5px; }
+.cm-view .cm-copy { margin-top: -2px; margin-bottom: -2px; }
+.cm-view .cm-spick { margin-top: -2px; margin-bottom: -2px; }
+.cm-view > .cm-center > span { display: flex; margin: -5px 0; }
 
 /* 민원대장 고치는 줄 정리(2026-10-19 사용자, 시안 editcmp3 1안 + 저장 단추): 칸은 보기 줄과 같은 열 그대로, 입력 칸 높이 28,
    아래 띠는 점선 위 — 왼쪽 "× 이 민원 지우기"(×를 연번 숫자 왼쪽 끝에 맞춤, 재서 넣어요), 오른쪽 짧은 안내·취소·저장 */
