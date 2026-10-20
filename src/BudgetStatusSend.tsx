@@ -137,8 +137,7 @@ export function BudgetStatusSend({
     addEventListener("mouseup", up);
   };
   const grid = `minmax(140px, 1fr) ${cols.cmt}px repeat(${s.sources.length}, ${cols.src}px) ${cols.rest}px`;
-  const grid1 = `minmax(120px, 1fr) 160px 72px 130px`;
-
+  
   // ---------- 값 ----------
   const curOf = (src: string) => s.rows[`${year}:${src}`]?.cur ?? 0;
   const setCur = (src: string, v: number) => {
@@ -356,44 +355,55 @@ export function BudgetStatusSend({
           ))}
         </span>
         <span className="bss2-sum">
-          {badCount > 0 && <span className="bss2-badtag">맞지 않는 곳 {badCount}</span>}
-          {project ? (
-            <>
-              집행현황 예산 <b>{won(mainBudget)}</b> · 집행액 <b>{won(mainExp)}</b>
-            </>
-          ) : projs ? (
-            <>{year}년 집행현황에 없는 사업 — 재원별 예산만 적어요</>
-          ) : (
-            <>읽는 중…</>
-          )}
+          {badCount > 0 ? <span className="bss2-badtag">맞지 않는 곳 {badCount}</span> : project && curSum > 0 && rows.length > 0 ? <span className="bss2-oktag">모두 맞아요</span> : null}
+          {!project && (projs ? <>{year}년 집행현황에 없는 사업 — 재원별 예산만 적어요</> : <>읽는 중…</>)}
         </span>
       </div>
 
+      {/* 재원별 예산 — 공사별 재원 표와 같은 열 틀(재원이 열): 항목 · 합계 · 재원… · 차이 */}
       <div className="bss2-tb" role="table" aria-label="재원별 예산">
-        <div className="bss2-tr h" style={{ gridTemplateColumns: grid1 }}>
+        <div className="bss2-tr h" style={{ gridTemplateColumns: grid }}>
           <span>재원별 예산</span>
-          <span>예산</span>
-          <span>비율</span>
-          <span>집행액(자동)</span>
+          <span className="bss2-th">
+            합계
+            <span className="bd-grip" title="끌어서 너비" onMouseDown={(e) => startDrag(e, "cmt")} />
+          </span>
+          {s.sources.map((x) => (
+            <span key={x} className="bss2-th">
+              {x}
+              <span className="bd-grip" title="끌어서 너비" onMouseDown={(e) => startDrag(e, "src")} />
+            </span>
+          ))}
+          <span className="bss2-th">
+            차이
+            <span className="bd-grip" title="끌어서 너비" onMouseDown={(e) => startDrag(e, "rest")} />
+          </span>
         </div>
-        {s.sources.map((x) => (
-          <div key={x} className="bss2-tr" style={{ gridTemplateColumns: grid1 }}>
-            <span>{x}</span>
-            <span className="n">
+        <div className="bss2-tr" style={{ gridTemplateColumns: grid }}>
+          <span className="nm">예산<span className="bss2-kind">직접</span></span>
+          <span className={"n" + (curDiff ? " bad" : " m")} title="집행현황 예산">{project ? won(mainBudget) : dash(curSum)}</span>
+          {s.sources.map((x) => (
+            <span key={x} className="n">
               <Amt value={curOf(x)} onChange={(v) => setCur(x, v)} label={x + " 예산"} bad={project != null && curDiff !== 0 && curOf(x) !== 0} />
             </span>
-            <span className="n m">{curSum ? Math.round((curOf(x) / curSum) * 100) + "%" : "-"}</span>
-            <span className="n m">{project ? dash(expBySrc[x]) : "-"}</span>
-          </div>
-        ))}
-        <div className="bss2-tr sum" style={{ gridTemplateColumns: grid1 }}>
-          <span>합계</span>
-          <span className={"n" + (curDiff ? " bad" : "")}>
-            {won(curSum)}
-            {project && !curDiff && curSum > 0 && <span className="bss2-ok"> ✓</span>}
-          </span>
-          <span className="n">{curDiff !== 0 && <span className="bss2-badtag">{(curDiff > 0 ? "+" : "−") + won(Math.abs(curDiff))}</span>}</span>
-          <span className="n">{project ? won(mainExp) : "-"}</span>
+          ))}
+          <span className={"n" + (curDiff ? " bad" : " m")}>{!project ? "-" : curDiff === 0 ? (curSum > 0 ? <span className="bss2-ok">✓</span> : "-") : (curDiff < 0 ? "−" : "+") + won(Math.abs(curDiff))}</span>
+        </div>
+        <div className="bss2-tr exp" style={{ gridTemplateColumns: grid }}>
+          <span className="m">비율</span>
+          <span className="n m">{curSum ? "100%" : "-"}</span>
+          {s.sources.map((x) => (
+            <span key={x} className="n m">{curSum ? Math.round((curOf(x) / curSum) * 100) + "%" : "-"}</span>
+          ))}
+          <span />
+        </div>
+        <div className="bss2-tr exp" style={{ gridTemplateColumns: grid }}>
+          <span className="m">집행액(공사별 재원대로)</span>
+          <span className="n m">{project ? dash(mainExp) : "-"}</span>
+          {s.sources.map((x) => (
+            <span key={x} className="n m">{project ? dash(expBySrc[x]) : "-"}</span>
+          ))}
+          <span />
         </div>
       </div>
 
@@ -459,14 +469,6 @@ export function BudgetStatusSend({
                 <span key={x} className="n">{dash(cmtBySrc[x])}</span>
               ))}
               <span className={"n" + (badRows ? " bad" : " m")}>{restSum === 0 ? "-" : (restSum < 0 ? "−" : "") + won(Math.abs(restSum))}</span>
-            </div>
-            <div className="bss2-tr exp" style={{ gridTemplateColumns: grid }}>
-              <span className="m">집행액(비율대로)</span>
-              <span className="n m">{won(mainExp)}</span>
-              {s.sources.map((x) => (
-                <span key={x} className="n m">{dash(expBySrc[x])}</span>
-              ))}
-              <span />
             </div>
           </>
         )}

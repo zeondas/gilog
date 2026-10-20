@@ -11046,3 +11046,7 @@ body.ew-dragging .pjm-colgrip:active::after {
 .bss2-amt::placeholder { color: var(--line); }
 .bss2-ok { color: var(--st-done-fg); font-weight: 700; }
 .bss2-badtag { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 5px; background: var(--danger-wash); color: var(--danger); font-size: 11px; font-weight: 600; white-space: nowrap; }
+.bss2-oktag { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 5px; background: var(--st-done-bg); color: var(--st-done-fg); font-size: 11px; font-weight: 600; }
+.bss2-tr > span:first-child { font-weight: 500; }
+.bss2-tr.h > span:first-child, .bss2-tr.exp > span:first-child { font-weight: inherit; }
+.bss2-tr.sum > span:first-child { font-weight: 600; }
