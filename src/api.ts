@@ -345,7 +345,7 @@ export type Order = {
 export type CasePatch = Partial<Pick<Case, "work" | "area" | "place" | "road" | "note" | "short" | "seq" | "stage" | "complaint" | "folder" | "orderFile" | "orderJpg" | "outboxFile" | "sentAt">>;
 export type ProcessData = { works: Work[]; cases: Case[]; orders: Order[] };
 export type InboxResult = { added: Case[]; skipped: number; failed: string[]; missingFiles: string[] };
-export type RunStatus = { state: "idle" | "running" | "done" | "login" | "stopped" | "error"; total: number | null; done: number | null; message: string; log: string };
+export type RunStatus = { state: "idle" | "running" | "done" | "login" | "stopped" | "error"; total: number | null; done: number | null; message: string; log: string; skipped: string[] };
 export type OrderResult = { order: Order; cases: Case[]; works: Work[]; missing: string[] };
 
 export const inApp = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -376,7 +376,7 @@ const fake = {
   inbox: [] as Partial<Case>[],
   /** 미리 보기: Claude가 차례로 놓을 보기 민원과 진행 */
   runQueue: [] as Partial<Case>[],
-  run: { state: "idle", total: null, done: null, message: "", log: "" } as RunStatus,
+  run: { state: "idle", total: null, done: null, message: "", log: "", skipped: [] } as RunStatus,
   /** 미리 보기: 지시부 메일 보내기 남은 걸음(메일쓰기 → 칸 채우기 → 첨부 → 보내기) */
   mailSteps: 0,
   taskLists: [
@@ -1096,11 +1096,11 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
       if (String((a.req as { guide?: string })?.guide ?? "").startsWith("# 기록 지시부 메일")) {
         // 미리 보기: 메일쓰기 → 받는 사람·제목·본문 → 첨부 → 보내기, 네 걸음을 차례로 보여요.
         fake.mailSteps = 4;
-        fake.run = { state: "running", total: 4, done: 0, message: "", log: "D:\\민원처리\\보낼편지함\\메일\\_claude.log" };
+        fake.run = { state: "running", total: 4, done: 0, message: "", log: "D:\\민원처리\\보낼편지함\\메일\\_claude.log", skipped: [] };
         return null;
       }
       // 미리 보기: 보기 민원을 몇 번에 나눠 가져올 폴더에 넣는 것처럼 보여요.
-      fake.run = { state: "running", total: fake.runQueue.length, done: 0, message: "", log: "D:\\민원처리\\받은편지함\\_claude.log" };
+      fake.run = { state: "running", total: fake.runQueue.length, done: 0, message: "", log: "D:\\민원처리\\받은편지함\\_claude.log", skipped: [] };
       return null;
     case "stop_claude":
       if (fake.run.state === "running") fake.run.state = "stopped";
@@ -1424,7 +1424,7 @@ export const api = {
   openPath: (path: string) => call<null>("open_path", { path }),
   showInFolder: (path: string) => call<null>("show_in_folder", { path }),
   openPortal: (url: string) => call<null>("open_portal", { url }),
-  runClaude: (req: { exe: string; inbox: string; downloads: string; guide: string }) => call<null>("run_claude", { req }),
+  runClaude: (req: { exe: string; inbox: string; downloads: string; guide: string; model: string }) => call<null>("run_claude", { req }),
   stopClaude: () => call<null>("stop_claude"),
   claudeStatus: (inbox: string) => call<RunStatus>("claude_status", { inbox }),
   /** 엑셀에서 읽은 줄을 그대로 넣고 넣은 수를 돌려줘요. */

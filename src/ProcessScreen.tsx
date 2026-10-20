@@ -32,6 +32,9 @@ const phoneOf = (c: Contact | undefined) => (c ? c.mobile || c.tel : "");
 const FETCHED_KEY = "process.fetched";
 // 2026-10-20 표 줄 정리(시안 ProcessRows)로 처음 폭이 바뀌어 새 키 – 예전에 끈 폭(지시부 320)은 버려요
 const COLS_KEY = "process.colWidths2";
+/** 전에 본 접수번호(가져온 것·지운 것·기록에 있어 건너뛴 것) – 목록만 보고 걸러 다시 열지 않아요(2026-10-20 속도). 최근 1000개 */
+const SEEN_KEY = "process.seen";
+const SEEN_MAX = 1000;
 
 /** 열 제목과 처음 폭. null은 남는 폭을 쓰는 열(민원 요약)이에요. 끌어서 바꾼 폭은 COLS_KEY에 저장해요. */
 const COLUMNS: { label: string; w: number | null; center?: boolean; fixed?: boolean }[] = [
@@ -110,13 +113,20 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   const [sendMenu, setSendMenu] = useState<{ id: number; rect: DOMRect } | null>(null);
   const [mailAsk, setMailAsk] = useState<MailDraft | null>(null);
   const [mailRun, setMailRun] = useState<{ id: number; label: string; n: number } | null>(null);
+  const seenRef = useRef<string[]>([]);
 
   const today = todayStr();
 
   useEffect(() => {
     (async () => {
-      const [pd, cl, cdata, st, f, cw] = await Promise.all([api.processData(), api.complaints(), api.contactsData(), loadSettings(), api.get(FETCHED_KEY), api.get(COLS_KEY)]);
+      const [pd, cl, cdata, st, f, cw, seen] = await Promise.all([api.processData(), api.complaints(), api.contactsData(), loadSettings(), api.get(FETCHED_KEY), api.get(COLS_KEY), api.get(SEEN_KEY)]);
       setWidths(readWidths(cw));
+      try {
+        const arr = seen ? (JSON.parse(seen) as unknown) : [];
+        seenRef.current = Array.isArray(arr) ? arr.filter((x): x is string => typeof x === "string") : [];
+      } catch {
+        seenRef.current = [];
+      }
       setCases(pd.cases);
       setOrders(pd.orders);
       setComplaints(cl);
@@ -253,10 +263,11 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   const rows = showDone ? [...open, ...done] : open;
 
   // ---------- 민원 불러오기: Claude가 신문고를 읽어 가져올 폴더에 놓고, 2초마다 표에 넣어요 ----------
-  async function pullInbox(acc: { n: number; failed: Set<string>; missing: number }) {
+  async function pullInbox(acc: { n: number; failed: Set<string>; missing: number; added: string[] }) {
     const r = await api.readInbox(ps.inbox, ps.downloads, ps.root);
     if (r.added.length) setCases((l) => [...l, ...r.added.filter((a) => !l.some((x) => x.no === a.no))]);
     acc.n += r.added.length;
+    acc.added.push(...r.added.map((a) => a.no));
     r.failed.forEach((f) => acc.failed.add(f));
     acc.missing += r.missingFiles.length;
   }
@@ -268,30 +279,31 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     // 이미 있는 기록: 이 표의 접수번호 + 민원대장(최근 90일 접수, 민원인 정보는 빼요)
     const since = todayStr(new Date(Date.now() - 90 * 86400000));
     const known = {
-      nos: cases.map((c) => c.no),
+      nos: [...new Set([...cases.map((c) => c.no), ...seenRef.current])],
       records: complaints
         .filter((m) => m.received >= since)
         .map((m) => `${m.received} · ${[m.area, m.place].filter(Boolean).join(" ") || "위치 없음"} · ${bodyText(m.body).slice(0, 80)}`),
     };
     if (!inApp) previewInbox(SAMPLES.map(({ guess, ...c }) => ({ ...c, work: guess ? works.find((w) => w.name.startsWith(guess))?.id ?? null : null })));
     try {
-      await api.runClaude({ exe: ps.claude, inbox: ps.inbox, downloads: ps.downloads, guide: aiGuide(ps, works, known) });
+      await api.runClaude({ exe: ps.claude, inbox: ps.inbox, downloads: ps.downloads, guide: aiGuide(ps, works, known), model: ps.claudeModel ?? "sonnet" });
     } catch (e) {
       setNote(errText(e));
       return;
     }
     setRun({ n: 0, total: null });
-    const acc = { n: 0, failed: new Set<string>(), missing: 0 };
+    const acc = { n: 0, failed: new Set<string>(), missing: 0, added: [] as string[] };
     let st: RunStatus;
     for (;;) {
       await new Promise((r) => setTimeout(r, inApp ? 2000 : 700));
-      st = await api.claudeStatus(ps.inbox).catch(() => ({ state: "error", total: null, done: null, message: "", log: "" }) as RunStatus);
+      st = await api.claudeStatus(ps.inbox).catch(() => ({ state: "error", total: null, done: null, message: "", log: "", skipped: [] }) as RunStatus);
       await pullInbox(acc).catch(() => {});
       setRun({ n: st.done ?? acc.n, total: st.total });
       if (st.state !== "running") break;
     }
     await pullInbox(acc).catch(() => {});
     setRun(null);
+    await rememberSeen([...acc.added, ...(st.skipped ?? [])]);
     const tail = [acc.failed.size ? `못 읽은 파일 ${[...acc.failed].join(", ")}` : "", acc.missing ? `못 찾은 사진 ${acc.missing}개` : ""].filter(Boolean);
     const head =
       st.state === "login"
@@ -306,6 +318,15 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     const f = `${stamp()} · 새 민원 ${acc.n}건`;
     setFetched(f);
     await api.set(FETCHED_KEY, f);
+  }
+
+  /** 본 접수번호에 더해 저장해요(최근 SEEN_MAX개). */
+  async function rememberSeen(nos: string[]) {
+    const add = nos.map((n) => n.trim()).filter(Boolean);
+    if (!add.length) return;
+    const next = [...new Set([...seenRef.current, ...add])].slice(-SEEN_MAX);
+    seenRef.current = next;
+    await api.set(SEEN_KEY, JSON.stringify(next)).catch(() => {});
   }
 
   async function stopFetch() {
@@ -342,7 +363,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     const dir = `${ps.outbox}\\메일`;
     const files = [o.file, ...o.jpgs];
     try {
-      await api.runClaude({ exe: ps.claude, inbox: dir, downloads: ps.downloads, guide: mailGuide({ dir, to: m.to, toName: m.toName, subject: m.subject, body: m.body, files }) });
+      await api.runClaude({ exe: ps.claude, inbox: dir, downloads: ps.downloads, guide: mailGuide({ dir, to: m.to, toName: m.toName, subject: m.subject, body: m.body, files }), model: ps.claudeModel ?? "sonnet" });
     } catch (e) {
       setNote(errText(e));
       return;
@@ -351,7 +372,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     let st: RunStatus;
     for (;;) {
       await new Promise((r) => setTimeout(r, inApp ? 2000 : 900));
-      st = await api.claudeStatus(dir).catch(() => ({ state: "error", total: null, done: null, message: "", log: "" }) as RunStatus);
+      st = await api.claudeStatus(dir).catch(() => ({ state: "error", total: null, done: null, message: "", log: "", skipped: [] }) as RunStatus);
       setMailRun({ id: o.id, label: m.label, n: st.done ?? 0 });
       if (st.state !== "running") break;
     }
@@ -506,6 +527,11 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     try {
       await api.deleteCase(no);
       setCases((l) => l.filter((x) => x.no !== no));
+      // 지운 건은 다음 불러오기 때 다시 와요(기획) – 본 번호에서 빼요.
+      if (seenRef.current.includes(no)) {
+        seenRef.current = seenRef.current.filter((n) => n !== no);
+        await api.set(SEEN_KEY, JSON.stringify(seenRef.current)).catch(() => {});
+      }
       if (c?.order != null) {
         const pd = await api.processData();
         setCases(pd.cases);

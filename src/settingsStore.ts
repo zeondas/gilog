@@ -21,6 +21,8 @@ export type ProcessSettings = {
   outbox: string;
   /** Claude Code 실행 파일(경로를 비우면 "claude") */
   claude: string;
+  /** [민원 불러오기] 모델 – sonnet(빠름, 처음 값)·opus(꼼꼼)·haiku(가장 빠름). 2026-10-20 속도 */
+  claudeModel: "sonnet" | "opus" | "haiku";
   /** 표준 지시부 양식(hwpx). 비우면 앱에 들어 있는 양식(2026-10-19) */
   tpl: string;
   /** 지시부 메일 제목 틀 – {축약 공사명}·{연번} 같은 자리를 그 지시부 값으로 바꿔요(2026-10-20 사용자 1안) */
@@ -43,6 +45,7 @@ export const DEFAULT_PROCESS: ProcessSettings = {
   downloads: "D:\\",
   outbox: "D:\\민원처리\\보내기",
   claude: "claude",
+  claudeModel: "sonnet",
   tpl: "",
   mailSubject: DEFAULT_MAIL_SUBJECT,
   mailBody: DEFAULT_MAIL_BODY,
