@@ -51,7 +51,7 @@ import { DEFAULT_FILES_SETTINGS, FilesSettings, loadSettings, saveSettings } fro
 const STATE_KEY = "files.state";
 
 type FindRun = { form: FindForm; results: Found[]; running: boolean; /** 펼쳐보기(하위 폴더 파일까지 한 목록) */ flat?: boolean };
-/** back·fwd: 이 탭에서 다녀온 폴더(뒤로·앞으로 — 마우스 옆 단추·Alt+←/→). 저장하지 않아요. */
+/** back·fwd: 이 탭에서 다녀온 폴더(뒤로·앞으로 – 마우스 옆 단추·Alt+←/→). 저장하지 않아요. */
 type RTab = FsTab & { find?: FindRun; id: number; back?: string[]; fwd?: string[] };
 type RPane = Omit<FsPane, "tabs"> & { tabs: RTab[] };
 type RState = Omit<FilesState, "panes"> & { panes: RPane[] };
@@ -90,7 +90,7 @@ export default function FilesScreen() {
   stRef.current = st;
   const [home, setHome] = useState("");
   const [cfg, setCfg] = useState<FilesSettings>(DEFAULT_FILES_SETTINGS);
-  /** 파일 형식 이름(".xlsx" → "Microsoft Excel 워크시트") — 확장자마다 한 번만 윈도우에 물어요 */
+  /** 파일 형식 이름(".xlsx" → "Microsoft Excel 워크시트") – 확장자마다 한 번만 윈도우에 물어요 */
   const [types, setTypes] = useState<Record<string, string>>({});
   const typesAsked = useRef(new Set<string>());
   const [drives, setDrives] = useState<FsDrive[]>([]);
@@ -108,7 +108,7 @@ export default function FilesScreen() {
     fsApi.types(keys).then((got) => setTypes((T) => ({ ...T, ...got })), () => {});
   }, [lists, st, cfg.cols.type]);
   const listsRef = useRef(lists);
-  /** 즐겨찾기 목록(load가 읽어요 — 바뀌면 즐겨찾기를 보는 창을 다시 읽어요) */
+  /** 즐겨찾기 목록(load가 읽어요 – 바뀌면 즐겨찾기를 보는 창을 다시 읽어요) */
   const favRef = useRef<string[]>([]);
   favRef.current = st?.favorites ?? [];
   listsRef.current = lists;
@@ -395,7 +395,7 @@ export default function FilesScreen() {
       const sum = await fsApi.transfer(op, sources, dest, dec);
       setBusy(null);
       const verb = op === "copy" ? "복사" : "옮기기";
-      flash(sum.errors.length ? `${verb} ${sum.done}개 · 못 한 것 ${sum.errors.length}개 — ${fsErrorText(sum.errors[0][1])}` : `${verb} ${sum.done}개${sum.skipped ? ` · 건너뜀 ${sum.skipped}개` : ""}`);
+      flash(sum.errors.length ? `${verb} ${sum.done}개 · 못 한 것 ${sum.errors.length}개 – ${fsErrorText(sum.errors[0][1])}` : `${verb} ${sum.done}개${sum.skipped ? ` · 건너뜀 ${sum.skipped}개` : ""}`);
       refreshAll();
       return !sum.errors.length;
     } catch (e) {
@@ -406,7 +406,7 @@ export default function FilesScreen() {
     return false;
   };
 
-  // ---------- 클립보드(Ctrl+C·X·V) — 윈도우 클립보드와 같이 써요 ----------
+  // ---------- 클립보드(Ctrl+C·X·V) – 윈도우 클립보드와 같이 써요 ----------
   const [cut, setCut] = useState<Set<string>>(new Set());
   const clipPut = async (pane: number, isCut: boolean) => {
     if (!st) return;
@@ -942,7 +942,7 @@ export default function FilesScreen() {
     else if (r.hasKids) toggleOpen(r.path);
   };
 
-  // 트리 맨 위 묶음: 즐겨찾기(★로 지정한 폴더, 처음 접힘 — 예전 "홈" 자리, 2026-10-19 사용자)·내 PC(드라이브, 처음 펼침) — 접기는 tree.open에 HOME·"::pc:fold"
+  // 트리 맨 위 묶음: 즐겨찾기(★로 지정한 폴더, 처음 접힘 – 예전 "홈" 자리, 2026-10-19 사용자)·내 PC(드라이브, 처음 펼침) – 접기는 tree.open에 HOME·"::pc:fold"
   const showHome = !treeHidden.includes(HOME);
   const showPc = !treeHidden.includes(PC);
   const homeOpen = !!st?.tree.open.includes(HOME);
@@ -995,7 +995,7 @@ export default function FilesScreen() {
   // 트리 폭 끌기
   const dragW = useRef<{ x: number; w: number } | null>(null);
   const panesRef = useRef<HTMLDivElement>(null);
-  /** 머리 줄 단추(2026-10-19 사용자 1안): 기준 크기(1600×900)에 맞춘 90px 고정 — 넓어져도 늘리지 않고 남는 폭은 오른쪽 빈 곳.
+  /** 머리 줄 단추(2026-10-19 사용자 1안): 기준 크기(1600×900)에 맞춘 90px 고정 – 넓어져도 늘리지 않고 남는 폭은 오른쪽 빈 곳.
       90px 단추가 다 안 들어가면 글자를 빼고 34×34 정사각형(고정)으로, 앞에서부터 차례로. 마우스를 올리면 이름이 떠요. */
   const toolsRef = useRef<HTMLDivElement>(null);
   const TOOL_W = 90;
@@ -1270,7 +1270,7 @@ export default function FilesScreen() {
           </button>
         </div>
         <div className="fx-row1">
-          {/* 드라이브 줄: [내 PC] C: D: F: [홈] — 모두 같은 정사각형(2026-10-18 사용자, 시안 FilesDrives) */}
+          {/* 드라이브 줄: [내 PC] C: D: F: [홈] – 모두 같은 정사각형(2026-10-18 사용자, 시안 FilesDrives) */}
           {!cfg.hiddenDrives.includes(PC) && (
             <button type="button" className="fx-drv" data-on={t.path === PC ? "1" : "0"} title="내 PC" aria-label="내 PC" onClick={() => go(pane, PC)}>
               <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

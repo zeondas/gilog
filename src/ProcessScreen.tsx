@@ -7,7 +7,7 @@
 //   지시부에 든 건의 공사·주소·고려사항을 고치면 그 지시부를 다시 만들어요(같은 연번·같은 파일).
 // - [폰 전송] = 지시부의 JPG를 보낼 폴더에 복사 → "보내는 중". Claude가 대화에 올리고 "보냄" 폴더에 써 두면 ✓ 전송 완료(사용자 2안).
 // - 대상이 아닌 건은 줄 끝 ×(작은 묻기 창). 지운 건은 다음 불러오기 때 다시 와요.
-// - 공사 관리 창: 현장대리인은 업무연락처에서 골라요(같은 연락처 하나 — 쌍방향), 공사명은 업무연락처 프로젝트로도 등록돼요.
+// - 공사 관리 창: 현장대리인은 업무연락처에서 골라요(같은 연락처 하나 – 쌍방향), 공사명은 업무연락처 프로젝트로도 등록돼요.
 import { createPortal } from "react-dom";
 import { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, Case, Complaint, Contact, ContactsData, errorText, inApp, Order, OrderResult, previewInbox, RunStatus, Work, WorkInput } from "./api";
@@ -294,7 +294,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
         : st.state === "stopped"
           ? `멈췄어요 · 새 민원 ${acc.n}건`
           : st.state === "error"
-            ? `Claude가 멈췄어요${st.message ? ` — ${st.message}` : ""} · 새 민원 ${acc.n}건`
+            ? `Claude가 멈췄어요${st.message ? ` – ${st.message}` : ""} · 새 민원 ${acc.n}건`
             : `새 민원 ${acc.n}건`;
     setNote([head, ...tail].join(" · "));
     if (st.state === "error" || st.state === "stopped") setNoteLog(st.log);
@@ -317,7 +317,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
       putOrder(o);
       return o;
     } catch (e) {
-      setNote(`JPG를 만들지 못했어요 — ${errText(e)}`);
+      setNote(`JPG를 만들지 못했어요 – ${errText(e)}`);
       return null;
     } finally {
       setBusyOf(String(id), null);
@@ -659,7 +659,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                       setPick(pick?.no === c.no ? null : { no: c.no, rect: e.currentTarget.getBoundingClientRect() });
                     }}
                   >
-                    {w ? w.name : "— 공사 고르기"}
+                    {w ? w.name : "– 공사 고르기"}
                   </button>
                 </div>
                 <div onClick={(e) => e.stopPropagation()}>
@@ -672,7 +672,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                       {orderLabel(ow?.name ?? "", o.seq, c.item)}
                     </span>
                   ) : (
-                    <span className="pr-chip none">—</span>
+                    <span className="pr-chip none">–</span>
                   )}
                   {!o ? (
                     <span className="pr-next-gap" />
@@ -819,7 +819,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   );
 }
 
-// ---------- 열 제목 줄 (끌어서 열 너비, 우클릭 열 너비 초기화 — 민원대장과 같아요) ----------
+// ---------- 열 제목 줄 (끌어서 열 너비, 우클릭 열 너비 초기화 – 민원대장과 같아요) ----------
 
 function HeadRow({
   widths,
@@ -875,7 +875,7 @@ function HeadRow({
       {COLUMNS.map((col, i) => (
         <div role="columnheader" key={col.label} className={col.center ? "pr-c" : undefined}>
           {col.label}
-          {/* 남는 폭을 쓰는 열(민원 요약)은 끌지 않아요 — 옆 열을 끌면 따라 바뀌어요. */}
+          {/* 남는 폭을 쓰는 열(민원 요약)은 끌지 않아요 – 옆 열을 끌면 따라 바뀌어요. */}
           {i < COLUMNS.length - 1 && col.w !== null && !col.fixed && <span className="cm-grip" aria-hidden="true" title="끌어서 열 너비 바꾸기" onMouseDown={(e) => start(e, i)} />}
         </div>
       ))}
@@ -900,7 +900,7 @@ function HeadRow({
   );
 }
 
-// ---------- 위치 칸: 그 자리에서 고쳐요(법정리·동 + 지번, 리·동을 고르면 지역이 채워져요 — 민원대장 위치 칸과 같은 부품) ----------
+// ---------- 위치 칸: 그 자리에서 고쳐요(법정리·동 + 지번, 리·동을 고르면 지역이 채워져요 – 민원대장 위치 칸과 같은 부품) ----------
 
 function PlaceCell({ c, disabled, onSave }: { c: Case; disabled: boolean; onSave: (area: string, place: string, road: string) => void }) {
   const start = c.place === UNKNOWN ? "" : c.place;
@@ -1046,7 +1046,7 @@ function Floating({ rect, align, onClose, children }: { rect: DOMRect; align: "l
       window.removeEventListener("mousedown", down);
     };
   }, [onClose]);
-  // 화면 맨 위(body)에 띄워요 — 가운데 뜨는 창(.overlay) 안에 두면 창 자리 맞추기(snap.ts)가 이 상자까지 옮겨 화면 밖으로 밀려났어요(2026-10-19 공사 지우기 버그).
+  // 화면 맨 위(body)에 띄워요 – 가운데 뜨는 창(.overlay) 안에 두면 창 자리 맞추기(snap.ts)가 이 상자까지 옮겨 화면 밖으로 밀려났어요(2026-10-19 공사 지우기 버그).
   return createPortal(
     <div ref={ref} className="pr-float" style={pos} onClick={(e) => e.stopPropagation()}>
       {children}
@@ -1238,7 +1238,7 @@ function WorksDialog({
                   <span className="pr-dot" style={{ background: `var(--pj-${k}-line)` }} />
                   <span className="pr-ell">{w.full || w.name}</span>
                 </span>
-                <span className="pr-ell">{w.full && w.full !== w.name ? w.name : <span className="pr-sub">—</span>}</span>
+                <span className="pr-ell">{w.full && w.full !== w.name ? w.name : <span className="pr-sub">–</span>}</span>
                 <span className="pr-ell">{w.co}</span>
                 <span className="pr-agent" title="업무연락처와 같은 연락처예요. 어느 쪽에서 고쳐도 함께 바뀌어요">
                   {c ? (
@@ -1247,7 +1247,7 @@ function WorksDialog({
                       {c.name}
                     </span>
                   ) : (
-                    <span className="pr-sub">—</span>
+                    <span className="pr-sub">–</span>
                   )}
                 </span>
                 <span className="pr-scope">{w.scope}</span>

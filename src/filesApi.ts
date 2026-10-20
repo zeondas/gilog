@@ -291,9 +291,9 @@ export const fsApi = {
   transfer: (op: "copy" | "move", sources: string[], dest: string, decisions: Record<string, string>) =>
     call<Summary>("fs_transfer", { op, sources, dest, decisions }),
   cancel: () => call<null>("fs_cancel"),
-  /** Ctrl+C·X — 윈도우 클립보드에 파일을 넣어요(빈 목록이면 비우기) */
+  /** Ctrl+C·X – 윈도우 클립보드에 파일을 넣어요(빈 목록이면 비우기) */
   clipSet: (paths: string[], cut: boolean) => call<null>("fs_clip_set", { paths, cut }),
-  /** Ctrl+V — 윈도우 클립보드의 파일 목록 */
+  /** Ctrl+V – 윈도우 클립보드의 파일 목록 */
   clipGet: () => call<{ paths: string[]; cut: boolean }>("fs_clip_get"),
   remove: (paths: string[], permanent: boolean) => call<null>("fs_delete", { paths, permanent }),
   open: (path: string) => (inApp ? call<null>("fs_open", { path }) : Promise.resolve(null)),
@@ -302,7 +302,7 @@ export const fsApi = {
   /** 파일 형식 이름(윈도우 것): 키는 ".xlsx"·"<dir>" */
   types: (keys: string[]) => (inApp ? call<Record<string, string>>("fs_types", { keys }) : Promise.resolve({} as Record<string, string>)),
   contextMenu: (dir: string, names: string[], x: number, y: number) => call<MenuResult>("fs_context_menu", { dir, names, x, y }),
-  /** 윈도우 탐색기로 넘기기(보안 해제) — dir을 열어 names를 골라 두고 우클릭 메뉴를 띄워요 */
+  /** 윈도우 탐색기로 넘기기(보안 해제) – dir을 열어 names를 골라 두고 우클릭 메뉴를 띄워요 */
   reveal: (dir: string, names: string[]) => (inApp ? call<null>("fs_reveal", { dir, names, popup: true }) : Promise.resolve(null)),
   find: (spec: FindSpec) => call<Found[]>("fs_find", { spec }),
   watch: (dirs: string[]) => (inApp ? call<null>("fs_watch", { dirs }) : Promise.resolve(null)),

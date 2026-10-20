@@ -1,7 +1,7 @@
 // 앱을 처음 켰을 때 비밀번호를 정하는 화면과, 잠긴 앱을 여는 화면이에요.
 // 배치(2026-10-18 사용자 확정, 캔버스 Lock 판): 로고 → 44px → 비밀번호 칸(가운데 글자) → 12px → 열기 → "PIN으로 풀기".
 // 경고는 카드 밖 아래 띠로 띄워 카드와 단추가 움직이지 않아요.
-// 윈도우 PIN 풀기를 켠 PC에서는 잠금 화면이 뜨면 Hello 창이 저절로 떠요(앱을 켤 때·자동 잠금 뒤 모두 — 2026-10-18 사용자).
+// 윈도우 PIN 풀기를 켠 PC에서는 잠금 화면이 뜨면 Hello 창이 저절로 떠요(앱을 켤 때·자동 잠금 뒤 모두 – 2026-10-18 사용자).
 // 창이 앞에 있을 때만 띄우고(트레이에 숨어 있거나 다른 창을 보고 있으면 돌아왔을 때), 한 번만 띄워요.
 // 취소·실패하면 비밀번호 칸으로 돌아오고, 아래 "PIN으로 풀기"로 다시 띄워요. 꺼진 PC는 비밀번호 칸만이에요.
 import { FormEvent, useEffect, useState } from "react";
@@ -9,7 +9,7 @@ import { api, errorText } from "./api";
 import Logo, { AppIcon } from "./Logo";
 
 type Props = { mode: "setup" | "unlock"; folder: string; onOpen: () => void };
-/** 띠 모양: 잘못(붉은 띠, 칸 테두리도 붉게) · 알림(회색 띠 — PIN 취소처럼 잘못이 아닌 것) */
+/** 띠 모양: 잘못(붉은 띠, 칸 테두리도 붉게) · 알림(회색 띠 – PIN 취소처럼 잘못이 아닌 것) */
 type Note = { text: string; tone: "error" | "info"; field?: boolean } | null;
 
 export default function Gate({ mode, folder, onOpen }: Props) {

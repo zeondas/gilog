@@ -1,4 +1,4 @@
-// 업무일지 인쇄 (2026-10-17 사용자 — 시안 JournalPrint.dc.html 기간 창, JournalPdf.dc.html 종이 모양)
+// 업무일지 인쇄 (2026-10-17 사용자 – 시안 JournalPrint.dc.html 기간 창, JournalPdf.dc.html 종이 모양)
 // - 검색창 옆 "인쇄" → 기간 창(빠른 선택 · 시작일~끝일 칸 · 두 달 달력, 늘 6주) → 엣지 인쇄 창(window.print).
 //   엣지 인쇄 창에서 프린터를 고르거나 목록의 "PDF로 저장"으로 PDF를 만들어요.
 // - 종이: A4 가로, 여백은 종이 안쪽(위 5 · 아래 15 · 왼쪽 25 · 오른쪽 5mm). @page 여백이 0이라 엣지가 머리·바닥에 날짜·주소를 찍지 않아요.
@@ -158,7 +158,7 @@ export function PrintDialog({
     const cells: Cell[] = [];
     for (let j = 0; j < first; j++) cells.push(null);
     for (let d = 1; d <= len; d++) cells.push({ k: key(y, m, d), d, dow: new Date(y, m, d).getDay() });
-    // 달력은 늘 6주(42칸) — 달을 넘겨도 창 크기가 바뀌지 않아요.
+    // 달력은 늘 6주(42칸) – 달을 넘겨도 창 크기가 바뀌지 않아요.
     while (cells.length < 42) cells.push(null);
     return { title: `${y}년 ${m + 1}월`, cells };
   });

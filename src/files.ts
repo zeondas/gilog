@@ -18,7 +18,7 @@ export type FsEntry = {
   group?: string;
 };
 
-/** 폴더가 아닌 자리: 내 PC(드라이브 목록)·즐겨찾기(★로 지정한 폴더만 — 2026-10-19 사용자 1안, 예전 "홈" 자리) */
+/** 폴더가 아닌 자리: 내 PC(드라이브 목록)·즐겨찾기(★로 지정한 폴더만 – 2026-10-19 사용자 1안, 예전 "홈" 자리) */
 export const PC = "::pc";
 export const HOME = "::home";
 /** 트리의 내 PC 묶음을 접었는지(tree.open에 들어 있으면 접힘) */
@@ -38,7 +38,7 @@ export const VIEWS: { id: ViewMode; name: string; key: string }[] = [
   { id: "thumb", name: "썸네일", key: "Ctrl+Shift+4" },
 ];
 
-/** 설정 "탐색기" 카드의 날짜 형식(FreeCommander처럼 고르기 목록, 연-월-일 순서만 — 2026-10-18 사용자). */
+/** 설정 "탐색기" 카드의 날짜 형식(FreeCommander처럼 고르기 목록, 연-월-일 순서만 – 2026-10-18 사용자). */
 export const DATE_FORMATS = ["yyyy-mm-dd hh:nn:ss", "yyyy-mm-dd hh:nn", "yy-mm-dd hh:nn", "yyyymmdd_hhnnss", "yyyy-mm-dd", "yyyymmdd", "yymmdd"];
 export const DEFAULT_DATE_FORMAT = "yy-mm-dd hh:nn";
 // 예전 저장값(번호: 0 10-16 17:40 · 1 2026-10-16 17:40 · 2 2026. 10. 16. · 3 상대 · 4 26-10-16 17:40)을 새 형식으로.
@@ -193,7 +193,7 @@ export const baseName = (path: string) => {
   return c.length ? c[c.length - 1].name : path;
 };
 
-/** 드라이브 이름(C:) — 드라이브 단추 고르기 */
+/** 드라이브 이름(C:) – 드라이브 단추 고르기 */
 export const driveOf = (path: string) => (/^[A-Za-z]:/.test(path) ? path.slice(0, 2).toUpperCase() : "/");
 
 /** 경로 칸에 적은 글자를 다듬어요: 따옴표 빼기, C: → C:\, 끝 \ 빼기 */
@@ -209,7 +209,7 @@ export const isComplaintName = (name: string) => /^\d{6}_.+_.+/.test(name);
 
 // ---------- 같은 이름 ----------
 
-/** "이름 (2).확장자" — 둘 다 두기 미리 보기용(실제 번호는 Rust가 빈 번호를 찾아요) */
+/** "이름 (2).확장자" – 둘 다 두기 미리 보기용(실제 번호는 Rust가 빈 번호를 찾아요) */
 export function bothName(name: string, taken: (n: string) => boolean = () => false): string {
   const dot = name.lastIndexOf(".");
   const stem = dot > 0 ? name.slice(0, dot) : name;

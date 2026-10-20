@@ -2,7 +2,7 @@
 //!
 //! - 가져올 폴더: AI가 민원 한 건마다 JSON 파일 하나를 놓아요(사양서 "민원처리" 흐름 2).
 //!   사진·위치도 파일 이름은 가져올 폴더 → 다운로드 폴더 순으로 찾고, 민원 폴더(설정, 기본 D:\민원처리) 한 곳에
-//!   `접수일_위치_보수내용_사진1.jpg`처럼 이름을 붙여 옮겨요(시안 Process·Files 판 — 파일함이 이 이름으로 찾아요).
+//!   `접수일_위치_보수내용_사진1.jpg`처럼 이름을 붙여 옮겨요(시안 Process·Files 판 – 파일함이 이 이름으로 찾아요).
 //!   읽은 JSON은 가져올 폴더의 "읽음" 폴더로 옮겨요(이미 있는 접수번호도). 못 읽은 파일은 그대로 두고 이름을 알려 줘요.
 //! - 지시부(2026-10-19 표준 지시부): 같은 공사 민원 여러 건을 표준 hwpx 양식 한 파일(`지시일_축약 공사명-연번.hwpx`)로
 //!   민원 폴더에 써요(`make_order`). JPG는 한글로 쪽마다 따로 만들어요(`order_jpg`, 몇 초 걸려 따로 돌려요).
@@ -81,7 +81,7 @@ fn free_path(dir: &Path, name: &str) -> PathBuf {
     (2..).map(|n| dir.join(format!("{stem} ({n}){ext}"))).find(|p| !p.exists()).unwrap()
 }
 
-/// 파일을 옮겨요(드라이브가 달라도 — 복사하고 지워요).
+/// 파일을 옮겨요(드라이브가 달라도 – 복사하고 지워요).
 fn move_file(from: &Path, to: &Path) -> std::io::Result<()> {
     if fs::rename(from, to).is_ok() {
         return Ok(());
@@ -158,7 +158,7 @@ pub fn read_inbox(state: State<AppState>, inbox: String, downloads: String, root
     for file in files {
         let fname = file.file_name().and_then(|n| n.to_str()).unwrap_or("").to_string();
         let Some(list) = fs::read_to_string(&file).ok().and_then(|t| parse_inbox_file(&t)) else {
-            // Claude가 아직 쓰는 중일 수 있어요 — 막 바뀐 파일은 다음에 다시 읽어요.
+            // Claude가 아직 쓰는 중일 수 있어요 – 막 바뀐 파일은 다음에 다시 읽어요.
             let fresh = fs::metadata(&file).and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok()).is_some_and(|d| d.as_secs() < 10);
             if !fresh {
                 res.failed.push(fname);
@@ -175,7 +175,7 @@ pub fn read_inbox(state: State<AppState>, inbox: String, downloads: String, root
             let folder = root.clone();
             fs::create_dir_all(&folder).map_err(io)?;
             let stem = case_stem(&c.received, &c.place, &c.short);
-            // 크롬 처음 값(내 폴더\Downloads)도 봐요 — 설정의 다운로드 폴더를 안 고쳐도 사진을 찾게(2026-10-19 1안).
+            // 크롬 처음 값(내 폴더\Downloads)도 봐요 – 설정의 다운로드 폴더를 안 고쳐도 사진을 찾게(2026-10-19 1안).
             let user_dl = std::env::var_os("USERPROFILE").map(|h| PathBuf::from(h).join("Downloads"));
             let mut dirs = vec![inbox.as_path(), downloads.as_path()];
             if let Some(d) = user_dl.as_deref() {
@@ -536,7 +536,7 @@ fn chrome_exe() -> Option<PathBuf> {
     ["ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"].iter().filter_map(std::env::var_os).map(|base| rel.iter().fold(PathBuf::from(base), |p, s| p.join(s))).find(|p| p.is_file())
 }
 
-/// 신문고(업무처리포털)를 **크롬**으로 열어요(2026-10-19 사용자 1안 — 회사 정책이 엣지에서 신문고를 IE 모드로 열어
+/// 신문고(업무처리포털)를 **크롬**으로 열어요(2026-10-19 사용자 1안 – 회사 정책이 엣지에서 신문고를 IE 모드로 열어
 /// Claude 확장이 읽지 못해요). 크롬이 없으면 "nochrome". 이 주소만 받아요.
 #[tauri::command]
 pub fn open_portal(url: String) -> Result<(), String> {
@@ -662,7 +662,7 @@ mod tests {
 // Claude는 멈추는 말이 LOGIN_REQUIRED뿐이라 "로그인 풀림"으로 끝났어요. 그래서 지침에 PAGE_UNREADABLE을 더했어요.
 // 화면은 2초마다 `claude_status`와 `read_inbox`로 진행과 새 줄을 가져와요.
 // 진행 수는 Claude가 가져올 폴더에 쓰는 `_진행.json`({"total":N,"done":k})에서 읽어요.
-// 신문고 로그인이 풀려 있으면 Claude는 아무것도 쓰지 않고 마지막 답을 `LOGIN_REQUIRED`로 끝내요(사용자 1안 — 멈추고 알림).
+// 신문고 로그인이 풀려 있으면 Claude는 아무것도 쓰지 않고 마지막 답을 `LOGIN_REQUIRED`로 끝내요(사용자 1안 – 멈추고 알림).
 
 #[derive(Default)]
 pub struct ClaudeRun {
@@ -690,7 +690,7 @@ pub struct RunStatus {
 
 /// 진행 파일 이름(read_inbox는 `_`로 시작하는 파일을 읽지 않아요)
 pub const PROGRESS_FILE: &str = "_진행.json";
-/// 실행 기록 — 명령줄·Claude가 보낸 stream-json 요약·stderr·종료 코드(돌릴 때마다 덮어씀).
+/// 실행 기록 – 명령줄·Claude가 보낸 stream-json 요약·stderr·종료 코드(돌릴 때마다 덮어씀).
 /// 신문고 본문·민원인 정보가 섞이지 않게 도구 결과·Claude 글은 넣지 않고 종류·도구 이름·주소·파일 경로만 남겨요.
 pub const LOG_FILE: &str = "_claude.log";
 
@@ -698,7 +698,7 @@ pub const LOG_FILE: &str = "_claude.log";
 fn log_line(v: &serde_json::Value, raw: &str) -> String {
     let t = v["type"].as_str().unwrap_or("");
     match t {
-        // 시작 정보(버전·도구·MCP 서버 상태)·마지막 답은 그대로 — 민원 글이 들어가지 않아요
+        // 시작 정보(버전·도구·MCP 서버 상태)·마지막 답은 그대로 – 민원 글이 들어가지 않아요
         "system" | "result" => raw.chars().take(4000).collect(),
         "assistant" => {
             let mut parts = Vec::new();
@@ -746,15 +746,15 @@ fn explain(stderr: &str, result: &str, code: Option<i32>) -> String {
     let low = all.to_lowercase();
     let first = all.lines().find(|l| !l.trim().is_empty()).unwrap_or("").chars().take(160).collect::<String>();
     if low.contains("unknown option") || low.contains("unknown argument") || low.contains("invalid argument") || low.contains("too many arguments") {
-        format!("Claude Code 버전이 달라 옵션이 안 맞아요 — {first}")
+        format!("Claude Code 버전이 달라 옵션이 안 맞아요 – {first}")
     } else if low.contains("not logged in") || low.contains("please run /login") || low.contains("invalid api key") || low.contains("authentication") || low.contains("oauth") {
-        "Claude Code 로그인이 필요해요 — 터미널에서 `claude`를 열어 로그인해 주세요".into()
+        "Claude Code 로그인이 필요해요 – 터미널에서 `claude`를 열어 로그인해 주세요".into()
     } else if low.contains("chrome") || low.contains("extension") || low.contains("browser") {
-        format!("크롬의 Claude 확장과 이어지지 않았어요 — 크롬이 켜져 있고 확장에 로그인돼 있는지 봐 주세요 ({first})")
+        format!("크롬의 Claude 확장과 이어지지 않았어요 – 크롬이 켜져 있고 확장에 로그인돼 있는지 봐 주세요 ({first})")
     } else if low.contains("enotfound") || low.contains("econnrefused") || low.contains("etimedout") || low.contains("fetch failed") || low.contains("certificate") || low.contains("proxy") || low.contains("network") {
-        format!("인터넷 연결이 막혔어요(회사 프록시·보안 프로그램) — {first}")
+        format!("인터넷 연결이 막혔어요(회사 프록시·보안 프로그램) – {first}")
     } else if low.contains("rate limit") || low.contains("usage limit") || low.contains("overloaded") {
-        "Claude 사용 한도에 걸렸어요 — 잠시 뒤 다시 눌러 주세요".into()
+        "Claude 사용 한도에 걸렸어요 – 잠시 뒤 다시 눌러 주세요".into()
     } else if !first.is_empty() {
         first
     } else {
@@ -771,14 +771,14 @@ pub struct RunRequest {
     pub inbox: String,
     /// 크롬 다운로드 폴더
     pub downloads: String,
-    /// 지침 전체(화면이 만들어 넘겨요 — 공사 처리 범위·이미 있는 기록 포함)
+    /// 지침 전체(화면이 만들어 넘겨요 – 공사 처리 범위·이미 있는 기록 포함)
     pub guide: String,
 }
 
 /// 마지막 답에서 상태를 읽어요. 지침대로 LOGIN_REQUIRED가 아니어도 "로그인" 얘기로 끝나면 로그인 풀림으로 봐요(원인 ⑤).
 fn final_state(result: &str, is_error: bool) -> (String, String) {
     if result.contains("PAGE_UNREADABLE") {
-        ("error".into(), "Claude가 신문고 화면을 읽지 못했어요 — 크롬에 Claude 확장이 켜져 있고 엣지 확장은 꺼져 있는지 봐 주세요(엣지는 IE 모드라 못 읽어요)".into())
+        ("error".into(), "Claude가 신문고 화면을 읽지 못했어요 – 크롬에 Claude 확장이 켜져 있고 엣지 확장은 꺼져 있는지 봐 주세요(엣지는 IE 모드라 못 읽어요)".into())
     } else if result.contains("LOGIN_REQUIRED") || (!is_error && result.contains("로그인") && !result.contains("새 민원")) {
         ("login".into(), String::new())
     } else if is_error {
@@ -827,7 +827,7 @@ pub fn run_claude(run: State<ClaudeRun>, req: RunRequest) -> Result<(), String> 
     .map(|s| s.to_string())
     .collect();
 
-    // 실행 기록 — 돌릴 때마다 새로 써요. 지침 본문은 넣지 않아요(민원대장 기록 발췌가 들어 있어요).
+    // 실행 기록 – 돌릴 때마다 새로 써요. 지침 본문은 넣지 않아요(민원대장 기록 발췌가 들어 있어요).
     let log_path = inbox.join(LOG_FILE);
     let log = std::sync::Arc::new(std::sync::Mutex::new(fs::File::create(&log_path).map_err(io)?));
     let w = |log: &std::sync::Arc<std::sync::Mutex<fs::File>>, s: &str| {
@@ -835,7 +835,7 @@ pub fn run_claude(run: State<ClaudeRun>, req: RunRequest) -> Result<(), String> 
             let _ = writeln!(f, "{s}");
         }
     };
-    w(&log, "# 기록 민원 불러오기 실행 기록(돌릴 때마다 덮어씀 — 시각은 파일 수정 시각)");
+    w(&log, "# 기록 민원 불러오기 실행 기록(돌릴 때마다 덮어씀 – 시각은 파일 수정 시각)");
     w(&log, &format!("exe: {}", exe.display()));
     w(&log, &format!("cwd: {}", inbox.display()));
     w(&log, &format!("args: {}", args.iter().map(|a| if a.contains(' ') { format!("\"{a}\"") } else { a.clone() }).collect::<Vec<_>>().join(" ")));
@@ -871,7 +871,7 @@ pub fn run_claude(run: State<ClaudeRun>, req: RunRequest) -> Result<(), String> 
     g.status = RunStatus { state: "running".into(), log: log_path.to_string_lossy().into_owned(), ..Default::default() };
     drop(g);
 
-    // 사용자가 멈추면 child가 없어져요 — 읽는 쪽은 그때 "stopped"를 덮어쓰지 않아요.
+    // 사용자가 멈추면 child가 없어져요 – 읽는 쪽은 그때 "stopped"를 덮어쓰지 않아요.
     let inner = run.inner.clone();
     let err_text = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
     if let Some(e) = stderr {
@@ -920,7 +920,7 @@ pub fn run_claude(run: State<ClaudeRun>, req: RunRequest) -> Result<(), String> 
             None if code == Some(0) => ("done".into(), String::new()),
             None => ("error".into(), explain(&stderr_all, &result_text, code)),
         };
-        w(&log, &format!("state: {state}{}", if message.is_empty() { String::new() } else { format!(" — {message}") }));
+        w(&log, &format!("state: {state}{}", if message.is_empty() { String::new() } else { format!(" – {message}") }));
         g.status.state = state;
         g.status.message = message;
         g.child = None;

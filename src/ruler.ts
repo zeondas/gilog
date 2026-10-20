@@ -1,5 +1,5 @@
-// 기준선 자 — 주소 끝에 ?ruler 를 붙이면 켜지는 숨은 검사 모드(2026-10-18 UI 통일, 공통 결정 로그 21:42).
-// 입력칸·자리글·머릿기호 칸·배지마다 글자 상자(잉크가 아니라 글꼴의 위·아래 — 입력칸은 커서 상자)를 재서
+// 기준선 자 – 주소 끝에 ?ruler 를 붙이면 켜지는 숨은 검사 모드(2026-10-18 UI 통일, 공통 결정 로그 21:42).
+// 입력칸·자리글·머릿기호 칸·배지마다 글자 상자(잉크가 아니라 글꼴의 위·아래 – 입력칸은 커서 상자)를 재서
 //   d = 글자 상자 가운데 y − 칸 가운데 y (CSS px), 기준선 y 를 빨간 선으로 덧그리고 콘솔에 표를 찍어요.
 //   devFrac = 기준선이 물리 픽셀에서 걸린 소수 자리(0이 아니면 그 배율에서 반올림이 갈릴 수 있어요).
 // 같은 줄(가운데 y가 8px 안)에 놓인 칸끼리 기준선이 0.5px 이상 다르면 노랑으로 칠해요(100%에서 0.5px은 1px로 보여요).
@@ -215,6 +215,6 @@ export function installRuler() {
   }).observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
   addEventListener("scroll", later, true);
   addEventListener("resize", later);
-  console.info("기준선 자 켜짐 — 콘솔에서 __ruler() 로 표를 찍어요.");
+  console.info("기준선 자 켜짐 – 콘솔에서 __ruler() 로 표를 찍어요.");
   later();
 }

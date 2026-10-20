@@ -52,7 +52,7 @@ export function PlaceInput({
   autoFocus,
 }: {
   value: string;
-  /** 빈 칸에 보이는 글 (민원처리는 "주소불명 — 리·동 지번") */
+  /** 빈 칸에 보이는 글 (민원처리는 "주소불명 – 리·동 지번") */
   placeholder?: string;
   /** 칸에 더할 모양 이름 */
   className?: string;

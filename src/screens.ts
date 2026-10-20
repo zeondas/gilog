@@ -17,7 +17,7 @@ export const SETTINGS = { id: "settings", name: "설정", side: "설정", step: 
 
 export type ScreenId = (typeof SCREENS)[number]["id"] | typeof SETTINGS.id;
 
-// ---------- 모듈 켜고 끄기 (2026-10-18 설정 세션, 사용자 확정 — 시안 Settings) ----------
+// ---------- 모듈 켜고 끄기 (2026-10-18 설정 세션, 사용자 확정 – 시안 Settings) ----------
 // 끄기는 "메뉴 숨기기"예요(사용자 1안): 사이드바에서 빠지고 설정의 그 모듈 카드가 접힐 뿐, 자료와 다른 모듈의 연동은 그대로예요.
 
 export type ModuleId = (typeof SCREENS)[number]["id"];

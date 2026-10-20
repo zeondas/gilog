@@ -30,7 +30,7 @@ export function complaintTitle(c: Complaint): string {
 
 /**
  * 민원 카드에 보일 민원: 마감일(법정 답변기한)이 있는 것.
- * 답변이 끝난 것(답변·완료·보류·장기 — `isAnswered`)은 체크된 채 "완료됨"에, 마감이 30일 안쪽이거나 이번에 체크한 것만 남겨요.
+ * 답변이 끝난 것(답변·완료·보류·장기 – `isAnswered`)은 체크된 채 "완료됨"에, 마감이 30일 안쪽이거나 이번에 체크한 것만 남겨요.
  */
 export function complaintItems(list: Complaint[], today: string, keep: Set<number>): Item[] {
   return list

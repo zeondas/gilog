@@ -114,9 +114,9 @@ export default function JournalScreen({
   const [note, setNote] = useState("");
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [tasks, setTasks] = useState<TasksData>({ lists: [], tasks: [] });
-  /** 기록을 등록·고치기·지울 때마다 하나씩 늘어요 — 카드 두 단을 다시 나누는 신호 */
+  /** 기록을 등록·고치기·지울 때마다 하나씩 늘어요 – 카드 두 단을 다시 나누는 신호 */
   const [tick, setTick] = useState(0);
-  /** 공휴일(캘린더가 받아 둔 것) — 달력의 빨간 날 */
+  /** 공휴일(캘린더가 받아 둔 것) – 달력의 빨간 날 */
   const [holidays, setHolidays] = useState<Set<string>>(new Set());
   /** 인쇄 기간 창 */
   const [printOpen, setPrintOpen] = useState(false);
@@ -397,7 +397,7 @@ export default function JournalScreen({
         )}
       </div>
 
-      {/* 오른쪽 열(2026-10-19 사용자 — 시안 JournalRight.dc.html 1안, 폭 260): 위 월 달력, 아래 챙길 일 */}
+      {/* 오른쪽 열(2026-10-19 사용자 – 시안 JournalRight.dc.html 1안, 폭 260): 위 월 달력, 아래 챙길 일 */}
       <div className="jn-left">
         <JournalCalendar
           day={day}
@@ -431,10 +431,10 @@ export default function JournalScreen({
 // ---------- 카드 두 단 ----------
 
 /**
- * 카드를 두 단에 나눠요(최근 기록이 맨 앞, 순서는 한 번만 꺾여요 — 왼쪽 단 위→아래, 그다음 오른쪽 단 위→아래).
+ * 카드를 두 단에 나눠요(최근 기록이 맨 앞, 순서는 한 번만 꺾여요 – 왼쪽 단 위→아래, 그다음 오른쪽 단 위→아래).
  * mode "screen"(그날 일지, 2026-10-16 사용자):
  *   기준 높이 = 카드가 시작하는 곳부터 일지 화면 맨 아래(아래 여백만 빼고)까지, 지금 창 크기로 재요.
- *   ① 모두 왼쪽 단에 들어가면 전부 왼쪽. ② 왼쪽 단을 기준 높이까지 채우고 넘치는 것부터 오른쪽 — 오른쪽도 들어가면 끝.
+ *   ① 모두 왼쪽 단에 들어가면 전부 왼쪽. ② 왼쪽 단을 기준 높이까지 채우고 넘치는 것부터 오른쪽 – 오른쪽도 들어가면 끝.
  *   ③ 그래도 넘치면 화면 기준은 버리고 두 단 높이가 가장 비슷해지는 곳에서 나눠요(화면 전체가 스크롤돼요).
  *   카드 한 장이 기준 높이보다 길면 그 카드만 왼쪽 단 맨 위, 다음 카드부터 오른쪽이에요.
  * mode "balance"(검색 결과의 날짜 묶음): ③만 써요.
@@ -588,7 +588,7 @@ const ymd = (y: number, m: number, d: number) => `${y}-${String(m).padStart(2, "
 /**
  * 왼쪽 열 위의 월 달력. 칸을 누르면 그날 일지(기록 없는 날도 열리고 그 날로 등록돼요).
  * 머리 "2026년 10월 ▾"를 누르면 12달 고르기(달마다 기록 수, ‹ ›는 해 이동). 날짜 우클릭 = 이 날 열기·이 날 일지 지우기.
- * 기록이 있는 날은 날짜 아래 작은 점이에요(숫자는 날짜와 헷갈려서 빼요 — 2026-10-17 사용자).
+ * 기록이 있는 날은 날짜 아래 작은 점이에요(숫자는 날짜와 헷갈려서 빼요 – 2026-10-17 사용자).
  */
 function JournalCalendar({
   day,

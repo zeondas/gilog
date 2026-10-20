@@ -1,12 +1,12 @@
 //! 탐색기의 윈도우 전용 부분: 드라이브 목록, 기본 프로그램으로 열기, 윈도우 아이콘, 윈도우 우클릭 메뉴.
 //!
 //! - 우클릭 메뉴(2026-10-18 사용자 2안): 윈도우 탐색기와 같은 메뉴를 그대로 띄워요(윈도우 11의 짧은 메뉴가 아니라
-//!   "더 많은 옵션 표시"의 전체 메뉴). 회사 보안 프로그램이 넣은 보안 해제 항목도 여기 나와야 해요 —
+//!   "더 많은 옵션 표시"의 전체 메뉴). 회사 보안 프로그램이 넣은 보안 해제 항목도 여기 나와야 해요 –
 //!   보안 프로그램이 윈도우 탐색기에서만 보이게 막았다면 안 나올 수 있어요(회사 PC DrmMenuCheck로 확인).
 //!   "보내기"처럼 하위 메뉴를 늦게 채우는 항목을 위해 메뉴가 떠 있는 동안 창 메시지를 메뉴에 넘겨요.
 //!   "이름 바꾸기"는 윈도우가 기록 화면 안에서 할 수 없어 화면에 F2로 넘겨요.
 //! - 아이콘: 윈도우가 그 확장자(폴더)에 쓰는 아이콘을 받아 PNG로 바꿔 화면에 넘겨요(확장자마다 한 번).
-//! 리눅스 작업 공간에서는 시험할 수 없어요 — 윈도우에서 확인할 것(시험 항목).
+//! 리눅스 작업 공간에서는 시험할 수 없어요 – 윈도우에서 확인할 것(시험 항목).
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -70,7 +70,7 @@ pub fn drives() -> Vec<Drive> {
             _ => "other",
         };
         let mut label = [0u16; 261];
-        // 빈 DVD 등은 읽지 못해요 — 이름 없이 두어요.
+        // 빈 DVD 등은 읽지 못해요 – 이름 없이 두어요.
         let _ = unsafe { GetVolumeInformationW(PCWSTR(w.as_ptr()), Some(&mut label), None, None, None, None) };
         let (mut free, mut total) = (0u64, 0u64);
         let _ = unsafe { GetDiskFreeSpaceExW(PCWSTR(w.as_ptr()), Some(&mut free), Some(&mut total), None) };
@@ -99,7 +99,7 @@ pub fn shell_open(path: &str) -> Result<(), String> {
 ///
 /// 실제 경로는 윈도우 탐색기처럼 **그 파일에 붙은 아이콘**을 받아요(한컴·보안 프로그램이 파일에 심은 아이콘,
 /// 특수 폴더·바로가기 화살표·보안 자물쇠 오버레이까지). 받아 두는 열쇠는 "확장자"가 아니라
-/// **시스템 아이콘 번호 + 오버레이 번호**예요 — 윈도우도 이렇게 같은 그림을 나눠 써서, 파일 2,000개여도
+/// **시스템 아이콘 번호 + 오버레이 번호**예요 – 윈도우도 이렇게 같은 그림을 나눠 써서, 파일 2,000개여도
 /// 번호 조회만 파일마다, PNG 변환은 번호 조합마다 한 번이에요(2026-10-19 탐색기 아이콘 세션).
 pub fn icons(keys: &[String], size: u32) -> HashMap<String, String> {
     use base64::Engine;
@@ -417,7 +417,7 @@ pub fn context_menu(hwnd_raw: isize, origin: (i32, i32), scale: f64, dir: &str, 
 
 /// 윈도우 탐색기 창을 열어 dir 안의 names를 골라 두고, 그 창이 앞에 오면 우클릭 메뉴(메뉴 키)를 대신 눌러 줘요.
 /// 회사 보안 프로그램(소프트캠프 문서보안)은 윈도우 탐색기에서만 메뉴를 보여 줘서 이렇게 넘겨요(2026-10-18 사용자 1안).
-/// 메뉴 키는 탐색기 창이 3초 안에 앞에 올 때만 눌러요 — 안 오면 창만 열려 있고 우클릭은 사용자가 해요.
+/// 메뉴 키는 탐색기 창이 3초 안에 앞에 올 때만 눌러요 – 안 오면 창만 열려 있고 우클릭은 사용자가 해요.
 pub fn reveal(dir: &str, names: &[String], popup: bool) -> Result<(), String> {
     unsafe {
         let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);

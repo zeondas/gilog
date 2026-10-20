@@ -1,4 +1,4 @@
-// 예산현황(13단계) 화면 — 집행현황과 같은 표 부품(bd-*)으로, 세부사업 › 연도 › 재원 세 겹.
+// 예산현황(13단계) 화면 – 집행현황과 같은 표 부품(bd-*)으로, 세부사업 › 연도 › 재원 세 겹.
 // 시안: 캔버스 BudgetStatus(요약)·BudgetStatusDetail(자세히), 2026-10-19 사용자 결정(설정 단추는 작은 네모 하나, 숫자는 모두 오른쪽, 추경 열은 빼지 않음, 엑셀 열 비율 참고).
 // - 세부사업은 집행현황에서 자동으로 와요(이월 세부사업은 이어 붙이는 쪽). 사업명 옆 ⚙ 단추 → 단년도/다년도(기간)·재원·이월 사업.
 // - 재원 줄 두 번 누르기 = 고치는 줄(직접 적는 칸만 열려요), 바깥 누르기 = 저장, Esc = 취소. 규칙은 budgetStatus.ts.
@@ -77,7 +77,7 @@ export default function BudgetStatusScreen() {
   const [detail, setDetail] = useState(false);
   // 보는 해(집행현황처럼 ◀ 2026년 ▶): 단년도 사업은 이 해 것만 한 줄, 다년도 사업은 기간에 이 해가 들면 모든 해를 펼쳐요(2026-10-19 사용자)
   const [year, setYear] = useState(Number(todayStr().slice(0, 4)));
-  // 줄 순서(우클릭 위로·아래로): 세부사업 이름 목록, kv bstatus.order — 목록에 없는 것은 집행현황 순서대로 뒤에
+  // 줄 순서(우클릭 위로·아래로): 세부사업 이름 목록, kv bstatus.order – 목록에 없는 것은 집행현황 순서대로 뒤에
   const [order, setOrder] = useState<string[]>([]);
   const [q, setQ] = useState("");
   const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -89,7 +89,7 @@ export default function BudgetStatusScreen() {
   const formRow = useRef<HTMLDivElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
   const [popPos, setPopPos] = useState<{ left: number; top: number } | null>(null);
-  // 열 폭(집행현황과 같은 배치최적화·끌기·두 번 누르기·우클릭 처음대로) — 요약·자세히 따로, kv bstatus.cols
+  // 열 폭(집행현황과 같은 배치최적화·끌기·두 번 누르기·우클릭 처음대로) – 요약·자세히 따로, kv bstatus.cols
   const [W, setW] = useState<Record<string, Record<string, number>>>({});
   const [boxW, setBoxW] = useState(0);
   const [sbw, setSbw] = useState(0);
@@ -263,7 +263,7 @@ export default function BudgetStatusScreen() {
   const base = detail ? DET_COLS : SUM_COLS;
   const wv = W[view] ?? {};
   const widthOf = (c: Col) => (FIXED.has(c.id) ? c.w : wv[c.id] ?? c.w);
-  // 구분 열도 다른 열과 같은 규칙(2026-10-19 사용자 — 집행현황의 "남는 폭 채우기"는 여기선 안 써요)
+  // 구분 열도 다른 열과 같은 규칙(2026-10-19 사용자 – 집행현황의 "남는 폭 채우기"는 여기선 안 써요)
   const cols = base.map((c) => ({ ...c, w: widthOf(c) }));
   const tmpl = cols.map((c) => c.w + "px").join(" ");
   const colSum = cols.reduce((a, c) => a + c.w, 0);
@@ -344,9 +344,9 @@ export default function BudgetStatusScreen() {
       {v}
     </div>
   );
-  // 숫자 글자: 0은 "-"(짧은 하이픈), 음수도 하이픈(2026-10-19 사용자 — 긴 줄표는 쓰지 않아요)
+  // 숫자 글자: 0은 "-"(짧은 하이픈), 음수도 하이픈(2026-10-19 사용자 – 긴 줄표는 쓰지 않아요)
   const fz = (v: number) => (v === 0 ? "-" : fmt(v, unit).replace("−", "-"));
-  // 직접 적는 칸(bs-ed)은 입력칸 모양 테두리 상자로 보여요(2026-10-20 사용자 — 살색 바탕 대신)
+  // 직접 적는 칸(bs-ed)은 입력칸 모양 테두리 상자로 보여요(2026-10-20 사용자 – 살색 바탕 대신)
   const num = (v: number | null | undefined, cls = "", title?: string) => {
     const t = v == null ? "" : fz(v);
     return cls.includes("bs-ed") ? cell(<span className={"bs-fld" + (cls.includes(" red") ? " red" : "")}>{t}</span>, " n" + cls, title) : cell(t, " n" + cls, title);
@@ -369,7 +369,7 @@ export default function BudgetStatusScreen() {
   /** 집행현황에서 오는 칸: 보통 본예산·집행 당해, 잇지 않은 이월 세부사업은 명시/사고 쪽 */
   const lockOf = (name: string) => (/^\(명시이월\)/.test(name) ? ["pm", "em"] : /^\(사고이월\)/.test(name) ? ["ps", "es"] : ["cur", "en"]);
   // lock: 집행현황에서 오는 칸(재원 하나 + 그 해 집행현황 있음 → 본예산·집행 당해)은 고치는 줄에서도 값만 보여요
-  // canEdit: 이 줄을 두 번 눌러 고칠 수 있는 줄(재원 줄, 재원 하나면 연도 줄, 단년도+재원 하나면 사업 줄) — 직접 적는 칸을 살색으로 표시해요(2026-10-20 사용자)
+  // canEdit: 이 줄을 두 번 눌러 고칠 수 있는 줄(재원 줄, 재원 하나면 연도 줄, 단년도+재원 하나면 사업 줄) – 직접 적는 칸을 살색으로 표시해요(2026-10-20 사용자)
   const numCells = (l: Line, kind: "pj" | "it" | "gun", editing: Form | null, year?: number, first = false, lock: string[] = [], canEdit = false) => {
     const out: ReactNode[] = [];
     /** 이 열이 직접 적는 칸인지(요약은 당해예산→본예산, 전년도 이월→명시(첫 해), 집행액→당해, 다음연도 이월→명시) */
@@ -713,7 +713,7 @@ export default function BudgetStatusScreen() {
       const yk = p.name + ":" + b.year;
       const yOpen = openY[yk] !== false;
       const first = yi === 0;
-      // 재원이 하나면 재원 줄은 연도 줄과 값이 같아 그리지 않아요(2026-10-19 사용자) — 연도 줄을 두 번 누르면 바로 고쳐요
+      // 재원이 하나면 재원 줄은 연도 줄과 값이 같아 그리지 않아요(2026-10-19 사용자) – 연도 줄을 두 번 누르면 바로 고쳐요
       const one = s.sources.length === 1;
       const oneSrc = s.sources[0];
       const yEditing = one && form && form.name === p.name && form.year === b.year && form.src === oneSrc ? form : null;
@@ -853,7 +853,7 @@ export default function BudgetStatusScreen() {
           </div>
         </div>
         <div className="bs-guide">
-          <span className="bs-guide-sw" aria-hidden="true">-</span> 테두리 칸은 직접 적는 칸 — 줄을 두 번 누르면 고쳐요(불용액·다음연도 이월·추경 등) · 나머지는 집행현황에서 와요
+          <span className="bs-guide-sw" aria-hidden="true">-</span> 테두리 칸은 직접 적는 칸 – 줄을 두 번 누르면 고쳐요(불용액·다음연도 이월·추경 등) · 나머지는 집행현황에서 와요
         </div>
       </div>
       {send && (() => {

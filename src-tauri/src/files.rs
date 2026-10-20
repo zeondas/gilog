@@ -93,7 +93,7 @@ fn is_hidden(path: &Path, _meta: &fs::Metadata) -> bool {
 }
 
 /// 회사 보안 프로그램이 잠근 파일인지 머리 부분으로 짐작해요.
-/// 어떤 보안 프로그램인지 아직 몰라요(사용자가 회사에서 확인 예정) — 흔한 국산 DRM 표시만 봐요.
+/// 어떤 보안 프로그램인지 아직 몰라요(사용자가 회사에서 확인 예정) – 흔한 국산 DRM 표시만 봐요.
 /// 틀려도 배지 하나라 해가 없어요. 회사 PC에서 맞는지 확인할 것(시험 항목).
 fn looks_locked(path: &Path) -> bool {
     const MARKS: [&[u8]; 6] = [b"SCDSA00", b"<!-- FasooSecureContainer", b"DRMONE", b"MarkAny", b"<DOCUMENT SAFER", b"DSCSFTCF"];
@@ -452,7 +452,7 @@ pub(crate) fn conflicts(sources: &[PathBuf], dest: &Path) -> Vec<Conflict> {
         .collect()
 }
 
-/// "이름 (2).확장자" — 없는 번호를 찾아요.
+/// "이름 (2).확장자" – 없는 번호를 찾아요.
 pub(crate) fn unique_path(p: &Path) -> PathBuf {
     if !p.exists() {
         return p.to_path_buf();
@@ -621,7 +621,7 @@ fn copy_empty_dirs(src: &Path, dst: &Path) {
     }
 }
 
-/// 옮기고 남은 빈 폴더들을 지워요(파일이 남아 있으면 그 폴더는 두어요 — 건너뛴 파일).
+/// 옮기고 남은 빈 폴더들을 지워요(파일이 남아 있으면 그 폴더는 두어요 – 건너뛴 파일).
 fn remove_if_empty_tree(p: &Path) -> bool {
     if let Ok(it) = fs::read_dir(p) {
         let mut empty = true;

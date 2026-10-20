@@ -1,7 +1,7 @@
 // 집행현황 엑셀 가져오기(12단계). 시트의 칸 글자를 읽어 세부사업 → 부기사업 → 공사로 나눠요.
 // 두 모양을 받아요:
-//   1) 기록이 내보낸 파일 — 3행 열 제목(세부사업·구분·업체(하도)·예산…), 숨긴 M열 "줄"이 겹을 알려 줘요. 2행 "단위 천원"이면 천원.
-//   2) 예전에 쓰던 집행현황 시트(사용자 "2026" 시트 모양) — 열 제목 "예산세목·공사명/예산액·구분·원인행위…", 금액은 천원(소수 있음).
+//   1) 기록이 내보낸 파일 – 3행 열 제목(세부사업·구분·업체(하도)·예산…), 숨긴 M열 "줄"이 겹을 알려 줘요. 2행 "단위 천원"이면 천원.
+//   2) 예전에 쓰던 집행현황 시트(사용자 "2026" 시트 모양) – 열 제목 "예산세목·공사명/예산액·구분·원인행위…", 금액은 천원(소수 있음).
 //      A칸에 세부사업 이름 + B칸 예산 숫자 = 세부사업 줄, A칸 "이름 (예산)" + B칸 공사명 = 부기사업이 시작되는 줄,
 //      A칸이 비고 B칸 공사명 = 공사 줄. 부기사업 없이 공사가 오면 세부사업 이름으로 부기사업을 하나 만들어요(예산 없음).
 //      추진중 → 추진, 미착수 → 준비. 착공일·준공일은 공사 메모에 적어요. 연락처 칸은 가져오지 않아요(개인정보).
@@ -129,7 +129,7 @@ function fromLegacy(s: GridSheet, hi: number): BudgetImport | null {
     if (!out.length) out.push({ name: "세부사업", budget: null, carry: false, memo: "", items: [] });
     const p = out[out.length - 1];
     if (a) {
-      // 부기사업 시작: "이름 (예산)" — 한 칸에 괄호 예산이 둘 이상이면 나누지 않고 확인 필요로 남겨요.
+      // 부기사업 시작: "이름 (예산)" – 한 칸에 괄호 예산이 둘 이상이면 나누지 않고 확인 필요로 남겨요.
       const money = [...a.matchAll(/\(([\d,]+)\)/g)];
       let name = line(a);
       let budget: number | null = null;
@@ -138,7 +138,7 @@ function fromLegacy(s: GridSheet, hi: number): BudgetImport | null {
         name = line(a.replace(/\(([\d,]+)\)\s*$/, "")) || name;
         budget = toWon(money[0][1], unit);
       } else if (money.length > 1) {
-        memo = textToMemo("확인 필요: 한 칸에 부기사업이 여럿이에요 — 나눠 주세요\n" + a.replace(/\s*\n\s*/g, " / "));
+        memo = textToMemo("확인 필요: 한 칸에 부기사업이 여럿이에요 – 나눠 주세요\n" + a.replace(/\s*\n\s*/g, " / "));
         checks.push(`${i + 1}행: "${line(a).slice(0, 24)}…" 한 칸에 부기사업이 여럿이라 하나로 넣었어요(메모에 적어 둠)`);
       }
       p.items.push({ name, budget, memo, rows: [] });
@@ -185,7 +185,7 @@ export function parseBudgetBook(sheets: GridSheet[], year: number): BudgetImport
 }
 
 /**
- * 가져오기 전에 세어 보기(2026-10-19 사용자 1안 — 같은 이름은 덮어쓰기). 저장 쪽(core budget.rs import_budget)과 같은 맞추기:
+ * 가져오기 전에 세어 보기(2026-10-19 사용자 1안 – 같은 이름은 덮어쓰기). 저장 쪽(core budget.rs import_budget)과 같은 맞추기:
  * 그 해 안에서 세부사업 → 부기사업 → 공사를 이름으로(같은 이름이 여럿이면 앞에서부터 하나씩) 맞춰요.
  */
 export function planImport(have: { id: number; name: string; items: { id: number; name: string; rows: { id: number; name: string }[] }[] }[], list: ImportProject[]) {

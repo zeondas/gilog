@@ -50,7 +50,7 @@ export function processError(e: unknown): string | null {
  *  AI가 가져올 폴더에 놓는 결과 파일과 같은 칸이에요(work는 공사 이름 앞 글자로 찾아요). */
 export const SAMPLES: (Partial<Case> & { guess: string })[] = [
   { no: "1AA-2610-0312207", received: "2026-10-17", due: "2026-10-24", area: "조리읍", place: "등원리 230-1", short: "포트홀 보수", summary: "\"보수해주세요\" + 사진 2장", reason: "사진: 차로 가장자리 지름 약 40cm 파임 1곳", photos: ["a.jpg", "b.jpg"], map: "m.png", guess: "도로시설물" },
-  { no: "1AA-2610-0311980", received: "2026-10-17", due: "2026-10-23", area: "문산읍", place: "선유리 455", short: "균열 보수", summary: "도로 갈라짐과 침하, 차량 흔들림", reason: "사진: 거북등 균열이 차로 절반, 여러 군데 — 포장 범위", photos: ["a.jpg"], guess: "도로포장" },
+  { no: "1AA-2610-0311980", received: "2026-10-17", due: "2026-10-23", area: "문산읍", place: "선유리 455", short: "균열 보수", summary: "도로 갈라짐과 침하, 차량 흔들림", reason: "사진: 거북등 균열이 차로 절반, 여러 군데 – 포장 범위", photos: ["a.jpg"], guess: "도로포장" },
   { no: "1AA-2610-0311402", received: "2026-10-16", due: "2026-10-23", area: "탄현면", place: "주소불명", short: "물고임 정비", summary: "비 오면 물이 고여 통행 불편", reason: "원문·사진에 주소가 없어요. 우수받이 막힘인지 확인 필요", guess: "" },
   { no: "1AA-2610-0309895", received: "2026-10-15", due: "2026-10-19", area: "조리읍", place: "봉일천리 209-10", short: "포트홀 보수", summary: "횡단보도 앞 도로 파임", reason: "사진: 횡단보도 정지선 앞 포트홀 1곳", photos: ["a.jpg"], map: "m.png", guess: "도로시설물" },
   { no: "1AA-2610-0309120", received: "2026-10-15", due: "2026-10-22", area: "파주읍", place: "연풍리 18", short: "가드레일 정비", summary: "가드레일 찌그러짐, 지주 기울어짐", reason: "사진: 가드레일 2경간 파손", photos: ["a.jpg"], guess: "가드레일" },
@@ -63,12 +63,12 @@ export const SAMPLE_WORKS = [
   { name: "가드레일·맨홀 정비", full: "가드레일·맨홀·도로부속시설 정비공사", co: "□□건설(주)", agent: "김도윤", phone: "010-0000-0188", scope: "가드레일 파손, 맨홀 단차·뚜껑 파손", nextSeq: 2, tpl: "" },
 ];
 
-/** 이미 있는 기록(Claude가 같은 민원을 다시 가져오지 않게) — 민원인 이름·연락처는 넣지 않아요. */
+/** 이미 있는 기록(Claude가 같은 민원을 다시 가져오지 않게) – 민원인 이름·연락처는 넣지 않아요. */
 export type Known = { nos: string[]; records: string[] };
 
 /** Claude에게 줄 지침. [민원 불러오기]가 Claude에게 넘기고, 설정의 [지침 복사]로도 복사해요. */
 export function aiGuide(p: { inbox: string; downloads: string; outbox: string }, works: { id: number; name: string; scope: string }[], known: Known = { nos: [], records: [] }): string {
-  const list = works.length ? works.map((w) => `  - ${w.id}: ${w.name} — ${w.scope || "(처리 범위 없음)"}`).join("\n") : "  - (등록된 공사가 없어요 — work는 null)";
+  const list = works.length ? works.map((w) => `  - ${w.id}: ${w.name} – ${w.scope || "(처리 범위 없음)"}`).join("\n") : "  - (등록된 공사가 없어요 – work는 null)";
   const nos = known.nos.length ? known.nos.join(", ") : "(없음)";
   const recs = known.records.length ? known.records.map((r) => `  - ${r}`).join("\n") : "  - (없음)";
   return `# 기록 민원처리 지침
@@ -90,7 +90,7 @@ export function aiGuide(p: { inbox: string; downloads: string; outbox: string },
 ${recs}
 
 ## 2. 한 건마다
-1. 본문을 읽고 첨부 사진은 [일괄다운로드]로 받아요(크롬이 받는 폴더 — 보통 ${p.downloads} 또는 내 폴더의 Downloads). 받은 파일 이름을 확인해요.
+1. 본문을 읽고 첨부 사진은 [일괄다운로드]로 받아요(크롬이 받는 폴더 – 보통 ${p.downloads} 또는 내 폴더의 Downloads). 받은 파일 이름을 확인해요.
 2. 위치는 주소(리·동 + 지번)만 적어요. "앞", "버스정류장 뒤" 같은 말은 빼요. 본문·사진에 주소가 분명하지 않으면 "주소불명".
 3. 아래 공사의 처리 범위를 보고 공사 번호를 골라요. 애매하거나 공사 대상이 아니면 null.
 ${list}
@@ -108,7 +108,7 @@ ${list}
   "photos": ["받은 사진 파일 이름.jpg"],
   "map": "위치도 파일 이름.png"
 }
-- received·due는 접수일·처리기한(YYYY-MM-DD), area는 읍면동, short는 공사내용이에요 — 지시부 제목 줄 "1. 공사내용 (주소)"와 파일 이름에 써요. 간결하게 두세 낱말(예: 포트홀 보수, 반사경 교체, 가드레일 정비).
+- received·due는 접수일·처리기한(YYYY-MM-DD), area는 읍면동, short는 공사내용이에요 – 지시부 제목 줄 "1. 공사내용 (주소)"와 파일 이름에 써요. 간결하게 두세 낱말(예: 포트홀 보수, 반사경 교체, 가드레일 정비).
 - summary는 민원 요약 한 줄, reason은 판단 이유 한 줄이에요. 민원인 이름·연락처는 쓰지 않아요.
 - photos·map은 다운로드 폴더에 있는 파일 이름이에요. 없으면 [] 와 "".
 
@@ -131,7 +131,7 @@ export function phoneGuide(p: { outbox: string }): string {
 3. 올린 파일마다 같은 이름으로 "${p.outbox}\\보냄\\파일이름.jpg"에 써 둬요. 그래야 기록이 전송 완료로 바꾸고 원본을 지워요.
 4. 보낼 것이 없으면 "보낼 지시부가 없어요" 한 줄만.
 
-PC에 이어져 있지 않으면 "PC 연결이 끊겨 있어요 — 데스크톱 앱을 켜 주세요" 한 줄로 알려 줘요.
+PC에 이어져 있지 않으면 "PC 연결이 끊겨 있어요 – 데스크톱 앱을 켜 주세요" 한 줄로 알려 줘요.
 `;
 }
 

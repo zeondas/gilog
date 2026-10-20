@@ -1,7 +1,7 @@
 //! 윈도우 시작할 때 자동 실행(설정 → 일반, 2026-10-19 사용자).
 //!
 //! - 켜면 현재 사용자 시작 프로그램(HKCU\Software\Microsoft\Windows\CurrentVersion\Run)에
-//!   이름 "giLog"(식별자 — 보이는 글자 "기록"이 아님) = `"실행 파일" --autostart`로 등록하고, 끄면 지워요.
+//!   이름 "giLog"(식별자 – 보이는 글자 "기록"이 아님) = `"실행 파일" --autostart`로 등록하고, 끄면 지워요.
 //!   등록·삭제·읽기는 tauri-plugin-autostart(auto-launch)가 해요.
 //! - 윈도우 설정 → 앱 → 시작 프로그램(작업 관리자 시작 앱)에서 끈 것(`Explorer\StartupApproved\Run`)도
 //!   auto-launch가 꺼진 것으로 읽고, 앱에서 다시 켜면 그 표시를 "켜짐"으로 바꿔요.

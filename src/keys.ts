@@ -1,12 +1,12 @@
-// 엔터규칙 (2026-10-17 사용자 — CLAUDE.md "엔터규칙", 시안 KeySettings.dc.html)
+// 엔터규칙 (2026-10-17 사용자 – CLAUDE.md "엔터규칙", 시안 KeySettings.dc.html)
 //
 // 모든 화면이 같은 키 규칙을 써요. 화면은 keyAction(e, 쓰는 곳)이 돌려주는 동작 이름만 보고 움직여요.
 // 키는 설정 "키 설정"에서 동작마다 바꿀 수 있어요(암호화 파일 settings의 keys). 고를 수 있는 키는
 // Enter·Tab·Esc와 Shift·Ctrl·왼쪽 Alt 조합뿐이에요. 오른쪽 Alt는 한/영 키라 쓰지 않아요.
 //
 // 쓰는 곳(묶음)
-//   common 공통 — 다음 칸(마지막 칸이면 저장·등록) · 앞 칸 · 취소
-//   multi  여러 줄 칸 — 민원 내용·조치내용, 메모 창, 할 일 세부정보, 일정 설명, 메모 편집기 글머리 목록
+//   common 공통 – 다음 칸(마지막 칸이면 저장·등록) · 앞 칸 · 취소
+//   multi  여러 줄 칸 – 민원 내용·조치내용, 메모 창, 할 일 세부정보, 일정 설명, 메모 편집기 글머리 목록
 //   talk   업무일지 말 줄
 //   single 한 줄 칸
 //   table  메모 편집기 표
@@ -112,7 +112,7 @@ export function diffKeys(m: KeyMap): Partial<KeyMap> {
   return out;
 }
 
-/** 겹치는 동작들 — 같은 묶음 + 공통 안에서 같은 키 */
+/** 겹치는 동작들 – 같은 묶음 + 공통 안에서 같은 키 */
 export function conflicts(m: KeyMap): Set<Action> {
   const bad = new Set<Action>();
   const common = KEY_GROUPS[0].rows.map((r) => r[0]);
@@ -288,7 +288,7 @@ export function moveField(row: HTMLElement, from: Element, dir: 1 | -1): boolean
 /**
  * 입력 줄(신규·고치는 줄, 창)의 키. 다음 칸(공통 Tab·한 줄 칸 Enter) → 다음 칸, 마지막 칸이면 submit.
  * 앞 칸(Shift+Tab) → 앞 칸. 다룬 키면 true.
- * 칸이 이미 처리한 키(후보 목록 확정 등 — defaultPrevented)는 보지 않아요.
+ * 칸이 이미 처리한 키(후보 목록 확정 등 – defaultPrevented)는 보지 않아요.
  */
 export function rowKeys(e: RKeyboardEvent, row: HTMLElement | null, submit: () => void): boolean {
   if (!row || e.defaultPrevented) return false;

@@ -46,7 +46,7 @@ function clean(node: Node, out: Node, doc: Document) {
       const w = (el as HTMLElement).style?.width ?? "";
       if (/^\d+(\.\d+)?%$/.test(w)) copy.setAttribute("style", `width: ${w}`);
     }
-    // 글머리 목록 줄의 머릿기호 종류(k-sq □, k-da 작대기, nb 지움 — 없으면 ●)와 지운 줄의 단계(lv1·lv2)
+    // 글머리 목록 줄의 머릿기호 종류(k-sq □, k-da 작대기, nb 지움 – 없으면 ●)와 지운 줄의 단계(lv1·lv2)
     if (tag === "li") {
       const keep = LI_CLASSES.filter((c) => el.classList.contains(c));
       if (keep.length) copy.className = [copy.className, ...keep].filter(Boolean).join(" ");
@@ -75,7 +75,7 @@ function liKind(li: Element): BKind {
 
 const liLv = (li: Element) => (li.classList.contains("lv2") ? 2 : li.classList.contains("lv1") ? 1 : 0);
 
-/** 목록 줄의 글자(아래에 든 번호 목록 글자는 빼지 않아요 — 줄의 내용이에요) */
+/** 목록 줄의 글자(아래에 든 번호 목록 글자는 빼지 않아요 – 줄의 내용이에요) */
 const liText = (li: Element) => (li.textContent ?? "").replace(/\u00a0/g, " ").trim();
 
 /** 목록 줄의 기호 종류를 바꿔요. 지울 때(none)는 지금 단계를 남겨요. */
@@ -331,7 +331,7 @@ export function MemoEditor({
   onCancel: () => void;
   placeholder: string;
   editorRef?: React.MutableRefObject<HTMLDivElement | null>;
-  /** 표·제목·인용 단추 없이(집행현황 메모 — 2026-10-18 사용자: 표 빼고) */
+  /** 표·제목·인용 단추 없이(집행현황 메모 – 2026-10-18 사용자: 표 빼고) */
   lite?: boolean;
 }) {
   const area = useRef<HTMLDivElement | null>(null);
@@ -599,7 +599,7 @@ export function MemoEditor({
   }
 
   /**
-   * 글머리 목록 줄을 한 위계 아래·위로(들여쓰기·내어쓰기 단추 — 엔터규칙 뒤로 Tab 키는 쓰지 않아요). 규칙은 bullets.ts의 tabKind(시안 BulletRule.dc.html).
+   * 글머리 목록 줄을 한 위계 아래·위로(들여쓰기·내어쓰기 단추 – 엔터규칙 뒤로 Tab 키는 쓰지 않아요). 규칙은 bullets.ts의 tabKind(시안 BulletRule.dc.html).
    * 글머리 목록 줄이 아니면 false예요. 바꿀 수 없는 줄이어도 목록 줄이면 키는 먹어요(커서가 다음 칸으로 나가지 않게).
    */
   function bulletTab(back: boolean): boolean {

@@ -193,7 +193,7 @@ export default function ContactsScreen() {
             await importProjects(r.projects);
             await api.importContacts(r.contacts);
             setData(await api.contactsData());
-            // "N건을 가져왔어요" — 묻는 창의 N건과 같게(이미 있는 사람에게 프로젝트만 붙인 것도 셈)
+            // "N건을 가져왔어요" – 묻는 창의 N건과 같게(이미 있는 사람에게 프로젝트만 붙인 것도 셈)
             return r.contacts.length;
           }}
         />
@@ -1460,7 +1460,7 @@ function ProjectDialog({
       })(),
     );
     if (ok) {
-      // 그룹은 남겨 둬요 — 같은 그룹에 이어서 넣기 쉽게.
+      // 그룹은 남겨 둬요 – 같은 그룹에 이어서 넣기 쉽게.
       setDraft("");
       setDraftShort("");
       setPq("");
@@ -1653,7 +1653,7 @@ function ProjectDialog({
                   )}
                 </div>
                 {open && sec.rows.map(rowOf)}
-                {open && sec.rows.length === 0 && <p className="muted small pjm-grp-empty">비어 있어요 — 사업 줄을 우클릭해 "그룹 변경"으로 넣어요.</p>}
+                {open && sec.rows.length === 0 && <p className="muted small pjm-grp-empty">비어 있어요 – 사업 줄을 우클릭해 "그룹 변경"으로 넣어요.</p>}
                 {groupMenu?.id === sec.id && (
                   <CtxMenu
                     x={groupMenu.x}
@@ -1721,7 +1721,7 @@ function ProjectDialog({
             <span className="pjm-full" title={pjFull(p)}>
               {pjFull(p)}
             </span>
-            <span className={"pjm-short" + (p.alias ? "" : " pjm-same")} title={pjLabel(p)}>{p.alias || "—"}</span>
+            <span className={"pjm-short" + (p.alias ? "" : " pjm-same")} title={pjLabel(p)}>{p.alias || "–"}</span>
           </>
         )}
         <span className={"pjm-n" + (users ? "" : " pjm-zero")}>{users}명</span>
@@ -2064,7 +2064,7 @@ function ColorPick({ name, current, auto, onPick }: { name: string; current: num
         className="cal-cbtn"
         aria-haspopup="true"
         aria-expanded={open}
-        aria-label={`${name} 색: ${auto ? "자동" : COLOR_NAMES[current]} — 눌러서 바꾸기`}
+        aria-label={`${name} 색: ${auto ? "자동" : COLOR_NAMES[current]} – 눌러서 바꾸기`}
         title={auto ? `${COLOR_NAMES[current]} (자동)` : COLOR_NAMES[current]}
         style={{ background: `var(--pj-${current}-line)` }}
         onClick={() => setOpen(!open)}
@@ -2123,7 +2123,7 @@ function Arrow({ up }: { up?: boolean }) {
 
 /**
  * 엑셀 숨긴 열(그룹·축약 공사명·색)로 읽은 프로젝트를 넣어요. 같은 프로젝트(공사명·축약 공사명이 맞는 것)가 있으면
- * 비어 있는 것만 채우고(축약 공사명·그룹·색 — 적어 둔 것은 그대로), 없으면 새로 만들어요.
+ * 비어 있는 것만 채우고(축약 공사명·그룹·색 – 적어 둔 것은 그대로), 없으면 새로 만들어요.
  */
 async function importProjects(list: ProjectImport[]) {
   if (!list.length) return;

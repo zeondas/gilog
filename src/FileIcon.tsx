@@ -5,7 +5,7 @@ import { extOf } from "./files";
 import { fsApi } from "./filesApi";
 
 export const iconKey = (name: string, path: string, dir: boolean) => {
-  // 파일·폴더 모두 실제 경로로 받아요 — 윈도우 탐색기처럼 그 파일에 붙은 아이콘(한컴·보안 자물쇠·특수 폴더·
+  // 파일·폴더 모두 실제 경로로 받아요 – 윈도우 탐색기처럼 그 파일에 붙은 아이콘(한컴·보안 자물쇠·특수 폴더·
   // 바로가기 화살표)이 나와요. 같은 모양은 Rust가 한 번만 그려 나눠 써요(2026-10-19).
   // 경로가 없을 때(브라우저 미리 보기)만 확장자·<dir>로 떨어져 자리 표시 아이콘을 받게 해요.
   if (path) return path;
@@ -14,7 +14,7 @@ export const iconKey = (name: string, path: string, dir: boolean) => {
   return "." + (e || "_");
 };
 
-// 캐시 열쇠(ck)는 "크기|경로|수정표" — 파일이 바뀌면 열쇠가 달라져 다시 받아요.
+// 캐시 열쇠(ck)는 "크기|경로|수정표" – 파일이 바뀌면 열쇠가 달라져 다시 받아요.
 // 윈도우에 물을 때 쓰는 열쇠(key)는 경로만이에요.
 const cache = new Map<string, string>();
 const waiting = new Map<string, Set<() => void>>();
@@ -92,7 +92,7 @@ function FileShape({ size, name }: { size: number; name: string }) {
 }
 
 // rev: 파일이 바뀌면(보안 해제 등으로 수정 시각·크기가 달라지면) 아이콘을 다시 받게 하는 표
-// — 윈도우 탐색기처럼 자물쇠가 사라지거나 종류 아이콘이 바뀌어도 따라가요(2026-10-19).
+// – 윈도우 탐색기처럼 자물쇠가 사라지거나 종류 아이콘이 바뀌어도 따라가요(2026-10-19).
 export function FileIcon({ name, path, dir, size, rev }: { name: string; path: string; dir: boolean; size: number; rev?: string | number }) {
   // 보이는 크기보다 한 단계 큰 그림을 받아 줄여 그려요(윈도우 탐색기처럼 또렷하게).
   // 16px 목록도 32를 받아 2배로 선명, 44 그리드는 48, 64 썸네일 자리는 256(점보)로.

@@ -3,7 +3,7 @@
 // - 매칭: 재원이 둘 이상이면 이 세부사업의 부기사업마다 재원을 골라요 → 재원 줄 예산·집행액이 그 부기사업에서 자동으로 와요.
 //   부기사업이 하나뿐이면 재원별로 나눌 수 없어 직접 적어요(안내).
 // - (명시이월)/(사고이월) 세부사업은 "새 사업으로" 또는 "기존 사업에 이월로 잇기"를 골라요.
-// - 보낸 사업만 예산현황에 보여요(사용자 2안 — 안 보낸 것은 어디에도 표시하지 않아요). "예산현황에서 빼기"로 되돌려요.
+// - 보낸 사업만 예산현황에 보여요(사용자 2안 – 안 보낸 것은 어디에도 표시하지 않아요). "예산현황에서 빼기"로 되돌려요.
 import { useState } from "react";
 import { BudgetProject } from "./budget";
 import { defaultSetup, isCarryName, Setup, SOURCES } from "./budgetStatus";
@@ -17,7 +17,7 @@ const ICON = (d: string, s = 14, w = 2) => (
 
 export type SendTarget = {
   name: string;
-  /** 이 해의 집행현황 세부사업(부기사업 목록을 보여 주려고) — 없으면 매칭 칸을 안 그려요 */
+  /** 이 해의 집행현황 세부사업(부기사업 목록을 보여 주려고) – 없으면 매칭 칸을 안 그려요 */
   project: BudgetProject | null;
   /** 집행현황에 이 세부사업이 있는 해들 */
   years: number[];
@@ -54,7 +54,7 @@ export function BudgetStatusSend({
   const parentSetup = target.parents.find((p) => p.name === parent)?.setup;
   const [parentSrc, setParentSrc] = useState("");
 
-  // 연도 칸: 치는 동안은 글자 그대로 두고(지우다 세 자리가 되면 바로 막혀 "안 고쳐지는" 문제 — 2026-10-20 사용자), 떠날 때 네 자리면 반영
+  // 연도 칸: 치는 동안은 글자 그대로 두고(지우다 세 자리가 되면 바로 막혀 "안 고쳐지는" 문제 – 2026-10-20 사용자), 떠날 때 네 자리면 반영
   const [yrText, setYrText] = useState<{ from: string; to: string }>({ from: String(s.from), to: String(s.to) });
   const yr = (k: "from" | "to") => {
     const commit = () => {
@@ -125,7 +125,7 @@ export function BudgetStatusSend({
               <div className="bs-row">
                 <span className="bs-lab">잇는 사업</span>
                 <select className="fld bd-in bs-sel" aria-label="이을 사업" value={parent} onChange={(e) => setParent(e.target.value)}>
-                  {!target.parents.length && <option value="">보낸 사업이 없어요 — 먼저 원래 사업을 보내 주세요</option>}
+                  {!target.parents.length && <option value="">보낸 사업이 없어요 – 먼저 원래 사업을 보내 주세요</option>}
                   {target.parents.map((p) => (
                     <option key={p.name} value={p.name}>{p.name}</option>
                   ))}
@@ -217,7 +217,7 @@ export function BudgetStatusSend({
                   {!multi ? (
                     <div className="bs-hint bss-note">재원이 하나라 집행현황의 예산·집행액이 그대로 {s.sources[0]} 줄에 들어가요.</div>
                   ) : items.length <= 1 ? (
-                    <div className="bs-hint bss-note">부기사업이 {items.length ? "하나뿐이라" : "없어서"} 재원별로 나눌 수 없어요 — 예산현황에서 재원 줄의 예산·집행액을 직접 적어요. 집행현황에서 부기사업을 재원별로 나누면 저절로 들어가요.</div>
+                    <div className="bs-hint bss-note">부기사업이 {items.length ? "하나뿐이라" : "없어서"} 재원별로 나눌 수 없어요 – 예산현황에서 재원 줄의 예산·집행액을 직접 적어요. 집행현황에서 부기사업을 재원별로 나누면 저절로 들어가요.</div>
                   ) : (
                     <>
                       <div className="bs-hint bss-note">부기사업마다 재원을 고르면 그 예산·집행액이 재원 줄에 저절로 들어가요.</div>

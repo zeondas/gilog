@@ -63,7 +63,7 @@ const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode
 const COLS_KEY = "complaints.colWidths";
 /** 상태 필터만 마지막 것을 기억해요(2026-10-17 사용자 2안 + 상태 예외). 다른 열 필터는 앱을 끄면 풀려요. */
 const STATUS_FILTER_KEY = "complaints.statusFilter";
-/** 조치완료일 열 접기(2026-10-19 사용자) — 접으면 걸린 날 "Nd"만 보여요. */
+/** 조치완료일 열 접기(2026-10-19 사용자) – 접으면 걸린 날 "Nd"만 보여요. */
 const DONE_FOLD_KEY = "complaints.doneFolded";
 const DONE_FOLD_W = 48;
 
@@ -1214,7 +1214,7 @@ function EditRow({
   const latest = useRef({ save, asking });
   latest.current = { save, asking };
 
-  // "× 이 민원 지우기"의 × 왼쪽 끝을 연번 숫자 왼쪽 끝에 맞춰요(2026-10-19 사용자 — 숫자 자릿수마다 달라 재서 맞춰요).
+  // "× 이 민원 지우기"의 × 왼쪽 끝을 연번 숫자 왼쪽 끝에 맞춰요(2026-10-19 사용자 – 숫자 자릿수마다 달라 재서 맞춰요).
   useLayoutEffect(() => {
     const row = ref.current;
     const foot = row?.querySelector<HTMLElement>(".cm-edit-foot");
@@ -1571,7 +1571,7 @@ function StatusPick({
 }
 
 /**
- * 걸린 날 "4d"를 누르면 조치완료일을 고치는 작은 칸(2026-10-19 사용자 — 열을 접어 둔 채로도 고쳐요).
+ * 걸린 날 "4d"를 누르면 조치완료일을 고치는 작은 칸(2026-10-19 사용자 – 열을 접어 둔 채로도 고쳐요).
  * Enter·바깥 누르기 저장, Esc 그대로. 날짜 칸 규칙(parseDate)과 같고, 읽을 수 없거나 접수일보다 앞이면 빨간 테두리.
  */
 function TakenPick({ c, taken, onSave }: { c: Complaint; taken: number; onSave: (done: string) => void }) {
@@ -1614,7 +1614,7 @@ function TakenPick({ c, taken, onSave }: { c: Complaint; taken: number; onSave: 
       <button
         type="button"
         className="cm-dday cm-taken cm-taken-btn"
-        title={`조치완료일 ${c.done} · 접수부터 ${taken}일 — 눌러서 고치기`}
+        title={`조치완료일 ${c.done} · 접수부터 ${taken}일 – 눌러서 고치기`}
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => {
