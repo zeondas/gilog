@@ -1,0 +1,31 @@
+[package]
+name = "gilog-search"
+version = "1.0.0"
+description = "기록 빠른 찾기 도우미 — NTFS 파일 목록을 들고 이름으로 바로 찾아 줘요"
+edition = "2021"
+
+[[bin]]
+name = "gilog-search"
+path = "src/main.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[target.'cfg(windows)'.dependencies]
+windows-service = "0.7"
+windows-sys = { version = "0.59", features = [
+  "Win32_Foundation",
+  "Win32_Storage_FileSystem",
+  "Win32_System_IO",
+  "Win32_System_Ioctl",
+  "Win32_System_Pipes",
+  "Win32_Security",
+  "Win32_Security_Authorization",
+  "Win32_System_Registry",
+] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

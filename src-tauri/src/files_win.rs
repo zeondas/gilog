@@ -29,7 +29,7 @@ use windows::Win32::UI::Controls::{IImageList, ILD_TRANSPARENT};
 use windows::Win32::UI::Shell::Common::ITEMIDLIST;
 use windows::Win32::UI::Shell::{
     DefSubclassProc, ILFree, IContextMenu, IContextMenu2, IContextMenu3, IShellFolder, RemoveWindowSubclass, SHBindToObject,
-    SHGetFileInfoW, SHGetImageList, SHOpenFolderAndSelectItems, SHParseDisplayName, SetWindowSubclass, ShellExecuteW, CMF_EXPLORE, CMF_EXTENDEDVERBS, CMF_NORMAL, CMIC_MASK_PTINVOKE,
+    SHGetFileInfoW, SHGetImageList, SHOpenFolderAndSelectItems, SHParseDisplayName, SetWindowSubclass, ShellExecuteW, CMF_CANRENAME, CMF_EXPLORE, CMF_EXTENDEDVERBS, CMF_NORMAL, CMIC_MASK_PTINVOKE,
     CMINVOKECOMMANDINFO, CMINVOKECOMMANDINFOEX, GCS_VERBW, SHFILEINFOW, SHGFI_ICON, SHGFI_LARGEICON, SHGFI_OVERLAYINDEX, SHGFI_SMALLICON,
     SHGFI_SYSICONINDEX, SHGFI_TYPENAME, SHGFI_USEFILEATTRIBUTES, SHIL_EXTRALARGE, SHIL_JUMBO, SHIL_LARGE, SHIL_SMALL,
 };
@@ -322,7 +322,7 @@ fn parse(path: &str) -> Result<Pidl, String> {
 const ID_REVEAL: u32 = 0x7F00;
 
 /// 윈도우 우클릭 메뉴를 띄우고 고른 것을 실행해요.
-/// 돌려주는 값: "" 아무것도 안 고름 · "done" 실행함 · "rename" 화면이 이름 바꾸기를 시작해야 해요
+/// 돌려주는 값: "" 아무것도 안 고름 · "done" 실행함 · "rename" 화면이 이름 바꾸기를 시작해야 해요 · "newfolder" 화면이 새 폴더를 만들고 이름 칸을 열어요
 /// · "reveal" 화면이 윈도우 탐색기로 넘겨야 해요(회사 보안 프로그램 메뉴는 윈도우 탐색기에서만 나와요, 2026-10-18).
 /// hwnd는 앱 창, (x, y)는 화면 안 CSS 픽셀(음수면 마우스 자리), scale은 화면 배율.
 pub fn context_menu(hwnd_raw: isize, origin: (i32, i32), scale: f64, dir: &str, names: &[String], x: f64, y: f64) -> Result<String, String> {
@@ -351,7 +351,8 @@ pub fn context_menu(hwnd_raw: isize, origin: (i32, i32), scale: f64, dir: &str, 
             cm
         };
         let menu = CreatePopupMenu().map_err(|e| format!("menu:{e}"))?;
-        let mut flags = CMF_NORMAL | CMF_EXPLORE;
+        // CMF_CANRENAME: "이름 바꾸기"를 메뉴에 넣어 달라는 표시(2026-10-20 사용자 — 없으면 윈도우가 그 줄을 빼요). 고르면 화면의 F2로 넘겨요.
+        let mut flags = CMF_NORMAL | CMF_EXPLORE | CMF_CANRENAME;
         if GetKeyState(VK_SHIFT.0 as i32) < 0 {
             flags |= CMF_EXTENDEDVERBS;
         }
@@ -393,6 +394,11 @@ pub fn context_menu(hwnd_raw: isize, origin: (i32, i32), scale: f64, dir: &str, 
         if verb == "rename" {
             let _ = DestroyMenu(menu);
             return Ok("rename".into());
+        }
+        // 새로 만들기 → 폴더: 윈도우에 맡기면 "새 폴더"만 덜렁 생겨요 — 화면이 만들고 바로 이름 칸을 열어요(2026-10-20 사용자)
+        if verb == "newfolder" {
+            let _ = DestroyMenu(menu);
+            return Ok("newfolder".into());
         }
         let dir_w = wide(dir);
         let info = CMINVOKECOMMANDINFOEX {
@@ -629,4 +635,42 @@ pub fn clip_get() -> Result<(Vec<String>, bool), String> {
         let _ = CloseClipboard();
         Ok((paths, effect & 2 != 0 && effect & 1 == 0))
     }
+}
+
+// ── 빠른 찾기 도우미 설치(관리자 허용 묻기) ─────────────────────────────
+// 설정 → 탐색기 [설치]: 설치 폴더의 gilog-search.exe install을 관리자로 돌리고 끝날 때까지 기다려요.
+// 사용자가 "아니요"를 누르면 "canceled".
+pub fn run_elevated(exe: &std::path::Path, args: &str) -> Result<u32, String> {
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::System::Threading::{GetExitCodeProcess, WaitForSingleObject};
+    use windows::Win32::UI::Shell::{ShellExecuteExW, SEE_MASK_NOASYNC, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW};
+    let verb = wide("runas");
+    let file = wide(&exe.to_string_lossy());
+    let params = wide(args);
+    let mut info = SHELLEXECUTEINFOW {
+        cbSize: std::mem::size_of::<SHELLEXECUTEINFOW>() as u32,
+        fMask: SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC,
+        lpVerb: PCWSTR(verb.as_ptr()),
+        lpFile: PCWSTR(file.as_ptr()),
+        lpParameters: PCWSTR(params.as_ptr()),
+        nShow: 0, // 창 없이
+        ..Default::default()
+    };
+    if let Err(e) = unsafe { ShellExecuteExW(&mut info) } {
+        // ERROR_CANCELLED(1223) = 관리자 허용 창에서 "아니요"
+        return Err(if e.code().0 as u32 == 0x8007_04C7 { "canceled".into() } else { format!("runas:{e}") });
+    }
+    if info.hProcess.is_invalid() {
+        return Err("no_process".into());
+    }
+    let mut code = 1u32;
+    unsafe {
+        let w = WaitForSingleObject(info.hProcess, 120_000);
+        let _ = GetExitCodeProcess(info.hProcess, &mut code);
+        let _ = CloseHandle(info.hProcess);
+        if w.0 != 0 {
+            return Err("timeout".into()); // 2분 안에 끝나지 않았어요
+        }
+    }
+    Ok(code)
 }

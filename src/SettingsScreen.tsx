@@ -6,7 +6,7 @@ import { aiGuide, phoneGuide } from "./process";
 import { isOn, MODULE_DESC, ModuleId, Modules, onScreens, SCREENS, firstOn } from "./screens";
 import { NavIcon, NavIconName } from "./Icons";
 import { DATE_FORMATS, FsDrive, HOME, PC } from "./files";
-import { fsApi } from "./filesApi";
+import { FastStatus, fsApi } from "./filesApi";
 import Logo, { AppIcon } from "./Logo";
 import { VERSION } from "./version";
 import { Action, conflicts, DEFAULT_KEYS, diffKeys, isRightAlt, KEY_GROUPS, KeyMap, mergeKeys, setKeyMap } from "./keys";
@@ -878,6 +878,34 @@ function DriveRow({ label, desc, list, drives, onSet }: { label: string; desc: s
   );
 }
 
+/** 빠른 찾기(2026-10-20 사용자): 도우미가 설치돼 있으면 켜고 끄는 스위치, 없으면(설치 때 관리자 허용을 거절) [설치] */
+function FastRow({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+  const [f, setF] = useState<FastStatus | null | undefined>(undefined);
+  const [busy, setBusy] = useState("");
+  const ask = () => void fsApi.fastStatus().then(setF, () => setF(null));
+  useEffect(ask, []);
+  const desc = "모든 드라이브에서 이름을 바로 찾아요. 드라이브의 파일 목록을 미리 저장해 두는 방식이라 설치할 때 관리자 허용이 필요해요.";
+  if (f?.installed)
+    return <Toggle label="빠른 찾기" desc={desc} k="에브리띵 everything 모든 드라이브" on={on} onChange={onChange} />;
+  const install = async () => {
+    setBusy("설치하는 중…");
+    try {
+      await fsApi.fastSetup("install");
+      setBusy("");
+    } catch {
+      setBusy("관리자 허용을 받지 못했어요.");
+    }
+    ask();
+  };
+  return (
+    <Row label="빠른 찾기" desc={busy || "모든 드라이브에서 이름을 바로 찾아요. 드라이브의 파일 목록을 미리 저장해 두는 방식이라 관리자 허용이 필요한데, 설치할 때 받지 못해 설치되지 않았어요. [설치]를 누르면 한 번 더 물어요."} k="에브리띵 everything 모든 드라이브">
+      <button type="button" className="btn btn-ctrl" disabled={f === undefined || !!busy && busy.endsWith("…")} onClick={() => void install()}>
+        설치
+      </button>
+    </Row>
+  );
+}
+
 function FilesRows({ value, onChange }: { value: FilesSettings; onChange: (v: FilesSettings) => void }) {
   const [drives, setDrives] = useState<FsDrive[]>([]);
   const [dir, setDir] = useState(value.newTabDir);
@@ -905,6 +933,7 @@ function FilesRows({ value, onChange }: { value: FilesSettings; onChange: (v: Fi
       </Row>
       <DriveRow label="드라이브 단추" desc="위쪽 드라이브 단추 줄에 보일 것이에요." list={value.hiddenDrives} drives={drives} onSet={(l) => set({ hiddenDrives: l })} />
       <DriveRow label="폴더 트리" desc="왼쪽 폴더 트리에 보일 것이에요." list={value.treeHidden} drives={drives} onSet={(l) => set({ treeHidden: l })} />
+      <FastRow on={value.fast} onChange={(fast) => set({ fast })} />
       <Row label="보이는 열" desc="자세히 보기의 열이에요. 이름은 늘 보여요.">
         <span className="fx-set-drives">
           {(

@@ -769,6 +769,8 @@ pub fn run() {
             files::fs_cancel,
             files::fs_clip_set,
             files::fs_clip_get,
+            files::fs_fast_status,
+            files::fs_fast_setup,
             files::fs_delete,
             files::fs_open,
             files::fs_explorer,

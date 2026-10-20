@@ -60,6 +60,8 @@ export type FilesSettings = {
   hiddenDrives: string[];
   /** 폴더 트리에서 숨긴 것 — 단추 줄과 따로 골라요(2026-10-19 사용자 2안). 예전 자료는 hiddenDrives를 이어받아요 */
   treeHidden: string[];
+  /** 빠른 찾기(도우미가 깔려 있을 때 모든 드라이브를 바로 찾기) 켜짐 */
+  fast: boolean;
   showHidden: boolean;
   /** 새 탭이 여는 폴더. 비우면 문서 */
   newTabDir: string;
@@ -69,7 +71,7 @@ export type FilesSettings = {
   cols: { size: boolean; modified: boolean; type: boolean };
 };
 
-export const DEFAULT_FILES_SETTINGS: FilesSettings = { dateFmt: DEFAULT_DATE_FORMAT, hiddenDrives: [], treeHidden: [], showHidden: false, newTabDir: "", askDelete: true, cols: { size: true, modified: true, type: true } };
+export const DEFAULT_FILES_SETTINGS: FilesSettings = { dateFmt: DEFAULT_DATE_FORMAT, hiddenDrives: [], treeHidden: [], fast: true, showHidden: false, newTabDir: "", askDelete: true, cols: { size: true, modified: true, type: true } };
 
 export const DEFAULT_SETTINGS: Settings = {
   // 2026-10-19 사용자: 상태는 고정 7개예요(설정·분류 관리에서 바꾸지 않아요) — STATUSES

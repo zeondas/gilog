@@ -11054,3 +11054,10 @@ body.ew-dragging .pjm-colgrip:active::after {
 .bss2-other { flex: 1; min-width: 0; }
 .bss2-add { height: 28px; padding: 0 10px; flex: none; }
 .bss2-help + .bss2-help { margin-top: -4px; }
+/* 찾기 "자세히" 상자: 찾기 칸 왼쪽 끝에 맞춰 열어요(오른쪽 맞춤이면 좁은 찾기 칸에서 화면 왼쪽 밖으로 나갔어요) */
+.fx-top > .fx-findbox > .fx-findpanel { left: 0; right: auto; }
+.fx-findpanel .fx-hrow .btn { white-space: nowrap; flex: none; }
+/* 자세히 상자 안 칸이 상자 밖으로 넘치지 않게(칸 최소 폭 0) — 어디서 줄에 "모든 드라이브" 단추가 들어가 폭 520 */
+.fx-top > .fx-findbox > .fx-findpanel { width: 520px; box-sizing: border-box; }
+.fx-findpanel .fx-fgrid > * { min-width: 0; }
+.fx-findpanel .fx-hrow > .fx-grow { flex: 1 1 0; min-width: 0; }

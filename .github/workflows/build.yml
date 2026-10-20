@@ -31,11 +31,21 @@ jobs:
           workspaces: |
             src-tauri
             src-tauri/core
+            src-tauri/fastfind
 
       - run: npm ci
 
       - name: 저장·암호화 시험
         run: cargo test --manifest-path src-tauri/core/Cargo.toml
+
+      # 탐색기 빠른 찾기 도우미(gilog-search.exe, 2026-10-20)를 먼저 만들어 설치 파일에 넣어요(tauri.windows.conf.json의 resources).
+      - name: 빠른 찾기 도우미 만들기
+        shell: bash
+        run: |
+          cargo test --manifest-path src-tauri/fastfind/Cargo.toml
+          cargo build --release --manifest-path src-tauri/fastfind/Cargo.toml
+          mkdir -p src-tauri/bin
+          cp src-tauri/fastfind/target/release/gilog-search.exe src-tauri/bin/
 
       # bash 칸에서는 Git에 딸린 perl이 먼저 잡히는데, 2026-10 러너부터 OpenSSL 설정에 필요한 모듈이 빠져 실패해요.
       # 그래서 윈도우용 Strawberry Perl을 쓰게 해요(openssl-src는 PERL 값을 먼저 봐요).
