@@ -346,7 +346,11 @@ export default function BudgetStatusScreen() {
   );
   // 숫자 글자: 0은 "-"(짧은 하이픈), 음수도 하이픈(2026-10-19 사용자 — 긴 줄표는 쓰지 않아요)
   const fz = (v: number) => (v === 0 ? "-" : fmt(v, unit).replace("−", "-"));
-  const num = (v: number | null | undefined, cls = "", title?: string) => cell(v == null ? "" : fz(v), " n" + cls, title);
+  // 직접 적는 칸(bs-ed)은 입력칸 모양 테두리 상자로 보여요(2026-10-20 사용자 — 살색 바탕 대신)
+  const num = (v: number | null | undefined, cls = "", title?: string) => {
+    const t = v == null ? "" : fz(v);
+    return cls.includes("bs-ed") ? cell(<span className={"bs-fld" + (cls.includes(" red") ? " red" : "")}>{t}</span>, " n" + cls, title) : cell(t, " n" + cls, title);
+  };
   const bar = (rate: number | null, sm: boolean, row: boolean) =>
     rate == null ? (
       ""
@@ -414,7 +418,7 @@ export default function BudgetStatusScreen() {
         continue;
       }
       if (first && ["prev", "pm", "ps"].includes(id) && !(l as unknown as Record<string, number>)[id]) {
-        out.push(cell("", " n" + ed));
+        out.push(ed ? cell(<span className="bs-fld" />, " n" + ed) : cell("", " n"));
         continue;
       }
       if (id === "next") {
@@ -848,7 +852,7 @@ export default function BudgetStatusScreen() {
           </div>
         </div>
         <div className="bs-guide">
-          <span className="bs-guide-sw" aria-hidden="true" /> 직접 적는 칸 — 줄을 두 번 누르면 고쳐요(불용액·다음연도 이월·추경 등) · 나머지는 집행현황에서 와요
+          <span className="bs-guide-sw" aria-hidden="true">-</span> 테두리 칸은 직접 적는 칸 — 줄을 두 번 누르면 고쳐요(불용액·다음연도 이월·추경 등) · 나머지는 집행현황에서 와요
         </div>
       </div>
       {send && (() => {

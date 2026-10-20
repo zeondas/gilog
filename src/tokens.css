@@ -57,7 +57,6 @@
   --saturday: #2F55C8;
   /* 캘린더 쉬는 날(토·일·공휴일) 칸 바탕과 주 보기 머리 줄 (설정에서 끄고 켜요) */
   --rest-wash: #FDF0EE;
-  --input-wash: #FFF4E3; /* 직접 적는 칸(예산현황 — 엑셀의 살색 칸) */
   --rest-band: #F9E1DD;
   /* 삭제를 한 번 더 묻는 띠의 바탕. 글자는 danger. */
   --danger-wash: #FBE4EC;
@@ -214,7 +213,6 @@
     --search-line: #5A4E22;
     --saturday: #8AB4F8;
     --rest-wash: #261A1C;
-    --input-wash: #2E2619;
     --rest-band: #33201F;
     --row-alt: #1B1A21;
     --flash: #3A3416;
