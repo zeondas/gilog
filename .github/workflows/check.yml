@@ -1,0 +1,76 @@
+# wip/* 가지에 올릴 때마다 윈도우에서 "검사만" 해요(2026-10-20 사용자 결정 — 공통 결정 로그 21:18).
+# 설치 파일·Releases는 만들지 않아요. 기능 세션은 이 검사가 통과한 뒤 현황판을 "끝"으로 바꿔요.
+name: 검사만 하기
+
+on:
+  push:
+    branches: ['wip/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # 암호화 저장(SQLCipher)에 들어가는 OpenSSL을 만들 때 필요해요.
+      - uses: ilammy/setup-nasm@v1
+
+      # build.yml과 같은 이름표(shared-key)로 캐시를 나눠 써요. wip 가지는 main이 남긴 캐시를 받아 써요.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: gilog-win
+          workspaces: |
+            src-tauri
+            src-tauri/core
+            src-tauri/fastfind
+
+      # bash 칸에서는 Git에 딸린 perl이 먼저 잡혀 OpenSSL 만들기가 실패해요(build.yml과 같은 이유) — Strawberry Perl을 앞에 둬요.
+      - name: Perl 길 맞추기
+        shell: bash
+        run: |
+          echo 'C:\Strawberry\perl\bin' >> "$GITHUB_PATH"
+          echo 'PERL=C:\Strawberry\perl\bin\perl.exe' >> "$GITHUB_ENV"
+
+      - run: npm ci
+
+      - name: 화면 만들기(글자 검사 포함)
+        shell: bash
+        run: npm run build 2>&1 | tee -a check.log; exit ${PIPESTATUS[0]}
+
+      - name: 저장·암호화 시험
+        shell: bash
+        run: cargo test --manifest-path src-tauri/core/Cargo.toml 2>&1 | tee -a check.log; exit ${PIPESTATUS[0]}
+
+      # 앱 틀 검사. 빠른 찾기 도우미 exe는 설치 파일 단계에서만 만들어서, 검사 때는 빈 자리 파일을 둬요(없으면 tauri가 멈춰요).
+      # --release는 build.yml이 남긴 캐시(OpenSSL 등 미리 만든 것)를 그대로 쓰려고 붙여요.
+      - name: 앱 틀 검사
+        shell: bash
+        run: |
+          mkdir -p src-tauri/bin && touch src-tauri/bin/gilog-search.exe
+          cargo check --release --manifest-path src-tauri/Cargo.toml 2>&1 | tee -a check.log; exit ${PIPESTATUS[0]}
+
+      - name: 빠른 찾기 도우미 검사
+        shell: bash
+        run: cargo check --manifest-path src-tauri/fastfind/Cargo.toml 2>&1 | tee -a check.log; exit ${PIPESTATUS[0]}
+
+      # 실패하면 오류 줄을 커밋 댓글로 남겨요(build.yml과 같은 방식).
+      - name: 실패 내용 남기기
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          touch check.log
+          { echo '검사 실패 로그 (오류 부분)'; echo '```'; grep -nE "error(\[|:)|Error|npm ERR|panicked|failed|FAILED" check.log | head -80; echo '---- 끝부분 ----'; tail -60 check.log; echo '```'; } > body.md
+          gh api repos/${{ github.repository }}/commits/${{ github.sha }}/comments -f body="$(cat body.md)" >/dev/null || true

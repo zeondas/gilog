@@ -26,8 +26,10 @@ jobs:
       - uses: ilammy/setup-nasm@v1
 
       # 저장·암호화 시험(src-tauri/core)은 따로 떨어진 프로젝트라 캐시에 함께 넣어요(빠지면 시험 단계만 20분 넘게 걸려요).
+      # check.yml(검사만)과 같은 이름표로 캐시를 나눠 써요(2026-10-20 정리 세션).
       - uses: Swatinem/rust-cache@v2
         with:
+          shared-key: gilog-win
           workspaces: |
             src-tauri
             src-tauri/core
