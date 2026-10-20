@@ -25,9 +25,6 @@ const CAL_SCOPE = "https://www.googleapis.com/auth/calendar.app.created";
  * 그래서 설정의 "구글 할 일로 보내기"를 켠 사람만 받아요(사용자 2026-10-17 1안). */
 const TASKS_SCOPE = "https://www.googleapis.com/auth/tasks";
 const TASKS_API = "https://tasks.googleapis.com/tasks/v1";
-/** 집행현황 팀 공유: 앱이 만들었거나 "파일 고르기" 창에서 고른 파일만 보는 권한(민감하지 않음 — 2026-10-20 사용자 1안). */
-export const DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file";
-const DRIVE_API = "https://www.googleapis.com/drive/v3";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const API = "https://www.googleapis.com/calendar/v3";
 const TZ = "Asia/Seoul";
@@ -277,7 +274,7 @@ async function challengeOf(verifier: string): Promise<string> {
  * 기본 브라우저로 구글 로그인 창을 띄우고, 끝나면 로그인 정보를 저장한 뒤 전체를 내보내요.
  * 실패하면 화면에 보일 글을 던져요.
  */
-export async function connectGoogle(withTasks?: boolean, extraScopes: string[] = []): Promise<void> {
+export async function connectGoogle(withTasks?: boolean): Promise<void> {
   if (!inApp) throw new Error("앱에서만 연결할 수 있어요.");
   const wantTasks = withTasks ?? (await loadOpts()).gtasks;
   const c = await getClient();
@@ -292,7 +289,7 @@ export async function connectGoogle(withTasks?: boolean, extraScopes: string[] =
       client_id: c.id,
       redirect_uri: redirect,
       response_type: "code",
-      scope: [CAL_SCOPE, ...(wantTasks ? [TASKS_SCOPE] : []), ...extraScopes].join(" "),
+      scope: wantTasks ? `${CAL_SCOPE} ${TASKS_SCOPE}` : CAL_SCOPE,
       include_granted_scopes: "true",
       code_challenge: await challengeOf(verifier),
       code_challenge_method: "S256",
@@ -315,34 +312,11 @@ export async function connectGoogle(withTasks?: boolean, extraScopes: string[] =
     throw new Error(e instanceof Error && e.message === "offline" ? "구글에 연결하지 못했어요(인터넷 연결을 확인해 주세요)." : `로그인 정보를 받지 못했어요(${e instanceof Error ? e.message : e}).`);
   }
   if (!j.refresh_token) throw new Error("로그인 정보를 받지 못했어요. 다시 시도해 주세요.");
-  await putJson(K_TOKEN, { refresh: String(j.refresh_token), access: String(j.access_token ?? ""), exp: Date.now() + Number(j.expires_in ?? 3600) * 1000, scope: String(j.scope ?? [CAL_SCOPE, ...(wantTasks ? [TASKS_SCOPE] : []), ...extraScopes].join(" ")) });
+  await putJson(K_TOKEN, { refresh: String(j.refresh_token), access: String(j.access_token ?? ""), exp: Date.now() + Number(j.expires_in ?? 3600) * 1000, scope: String(j.scope ?? (wantTasks ? `${CAL_SCOPE} ${TASKS_SCOPE}` : CAL_SCOPE)) });
   const s = await loadState();
   await putJson(K_STATE, { ...s, full: true, lastError: "" });
   publish({ connected: true, lastError: "" });
   await syncGoogle();
-}
-
-// ---------- 집행현황 팀 공유에서 쓰는 것 ----------
-
-/** 지금 로그인이 그 권한을 받았는지(받은 권한 목록에 있는지). */
-export async function hasGoogleScope(scope: string): Promise<boolean> {
-  const t = await getJson<GToken>(K_TOKEN);
-  return !!t?.refresh && !!t.scope?.includes(scope);
-}
-
-/** 쓸 수 있는 접근 열쇠(파일 고르기 창에 넘겨요). */
-export const googleAccessToken = (): Promise<string> => accessToken();
-
-/** 구글 프로젝트 번호 = 클라이언트 id의 "-" 앞(파일 고르기 창의 appId). */
-export async function googleAppId(): Promise<string> {
-  const c = await getClient();
-  return c ? c.id.split("-")[0] : "";
-}
-
-/** 고른 파일을 이 앱이 읽을 수 있는지(drive.file 권한이 그 파일에 붙었는지) — 이름을 돌려줘요, 못 읽으면 null. */
-export async function driveFileName(id: string): Promise<string | null> {
-  const r = await gapi("GET", `/files/${encodeURIComponent(id)}?fields=name&supportsAllDrives=true`, undefined, DRIVE_API);
-  return r.status === 200 ? String(r.json.name ?? "") : null;
 }
 
 /**

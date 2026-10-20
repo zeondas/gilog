@@ -11002,6 +11002,3 @@ body.ew-dragging .pjm-colgrip:active::after {
 .fx-gcell[data-extdrop="1"],
 .fx-brow[data-extdrop="1"],
 .fx-tr[data-extdrop="1"] { background: var(--accent-tint); box-shadow: inset 0 0 0 1px var(--accent-line); }
-
-/* 임시 — 설정 구글 카드 파일 고르기 창 시험 줄(집행현황 팀 공유 준비) */
-.pk-key { width: 280px; }
