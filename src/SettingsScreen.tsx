@@ -27,7 +27,13 @@ import {
   whenText,
   BUILTIN_CLIENT,
   needsTasksLogin,
+  DRIVE_FILE_SCOPE,
+  driveFileName,
+  googleAccessToken,
+  googleAppId,
+  hasGoogleScope,
 } from "./google";
+import { pickSheet } from "./picker";
 
 type Props = {
   prefs: Prefs;
@@ -849,11 +855,54 @@ function GoogleCard() {
           {msg}
         </p>
       )}
+      {g.connected && <PickerTest gtasks={opts.gtasks} />}
       {G_TOGGLES.map(([k, label, desc]) => (
         <Toggle key={k} label={label} desc={desc} on={opts[k]} onChange={() => toggle(k)} />
       ))}
       <p className="g-foot small">민원인 이름과 연락처는 어떤 경우에도 구글로 내보내지 않아요. 내보낸 일정은 시청 밖 구글 서버에 저장돼요.</p>
     </section>
+  );
+}
+
+/**
+ * 임시 — 집행현황 팀 공유 전에 구글 "파일 고르기" 창이 기록 앱 안에서 뜨는지 보는 시험 줄(2026-10-20 사용자 1안 "시험 빌드").
+ * 시험이 끝나면 팀 공유 화면이 pickSheet를 쓰고 이 줄은 지워요.
+ */
+function PickerTest({ gtasks }: { gtasks: boolean }) {
+  const [key, setKey] = useState("");
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    api.get("google.apiKey").then((v) => setKey(v || "")).catch(() => {});
+  }, []);
+  async function run() {
+    const k = key.trim();
+    if (!k) return setMsg("구글 콘솔에서 만든 API 키를 먼저 넣어 주세요.");
+    setBusy(true);
+    try {
+      await api.set("google.apiKey", k);
+      if (!(await hasGoogleScope(DRIVE_FILE_SCOPE))) {
+        setMsg("브라우저에서 구글 드라이브 권한(이 앱이 고른 파일만)을 허용해 주세요.");
+        await connectGoogle(gtasks, [DRIVE_FILE_SCOPE]);
+      }
+      setMsg("파일 고르기 창을 띄웠어요. 시트를 하나 골라 주세요.");
+      const got = await pickSheet({ token: await googleAccessToken(), apiKey: k, appId: await googleAppId() });
+      if (!got) return setMsg("창은 떴고 닫았어요(고른 파일 없음). 시트를 골라 한 번 더 해 주세요.");
+      const name = await driveFileName(got.id);
+      setMsg(name !== null ? `됐어요 – 고른 시트 "${name}"를 앱이 읽을 수 있어요.` : `시트 "${got.name}"를 골랐지만 앱이 읽지 못했어요.`);
+    } catch (err) {
+      setMsg(`안 됐어요 – ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Row label="파일 고르기 창 시험(임시)" desc={msg || "집행현황 팀 공유 준비 – 구글 시트 고르기 창이 이 앱 안에서 뜨는지 봐요."}>
+      <input className="input pk-key" data-ime="en" placeholder="API 키" value={key} onChange={(e) => setKey(e.target.value)} />
+      <button type="button" className="btn" disabled={busy || !inApp} onClick={run}>
+        {busy ? "시험 중…" : "시험"}
+      </button>
+    </Row>
   );
 }
 
