@@ -520,10 +520,22 @@ pub fn send_order(state: State<AppState>, id: i64, outbox: String) -> Result<Ord
     with_store(&state, |s| s.update_order(id, &OrderPatch { stage: Some("queued".into()), outbox: Some(sent.clone()), ..Default::default() }))
 }
 
-/// 지시부를 메일(korea.kr)로 보냈다고 적어요 – Claude가 보낸 메일함에서 확인한 뒤 화면이 불러요(2026-10-20).
+/// 지시부를 메일(korea.kr)로 보냈다고 적어요 – Claude가 끝낸 뒤 화면이 불러요(2026-10-20).
+/// `ok`: 보낸메일함에서 같은 제목을 찾았는지(못 찾았으면 "확인 필요", 사람이 [보냈어요로 표시]하면 true) · `subject`: 보낸 제목(보낸 증거 카드)
 #[tauri::command]
-pub fn order_mailed(state: State<AppState>, id: i64, to: String, at: String) -> Result<Order, String> {
-    with_store(&state, |s| s.update_order(id, &OrderPatch { mail_to: Some(to.trim().to_string()), mailed_at: Some(at.trim().to_string()), ..Default::default() }))
+pub fn order_mailed(state: State<AppState>, id: i64, to: String, at: String, subject: Option<String>, ok: Option<bool>) -> Result<Order, String> {
+    with_store(&state, |s| {
+        s.update_order(
+            id,
+            &OrderPatch {
+                mail_to: Some(to.trim().to_string()),
+                mailed_at: Some(at.trim().to_string()),
+                mail_subject: subject.map(|v| v.trim().to_string()),
+                mail_ok: Some(ok.unwrap_or(true)),
+                ..Default::default()
+            },
+        )
+    })
 }
 
 /// 보내는 중인 지시부를 살펴요: JPG가 모두 "보냄" 폴더에 있으면 전송 완료(보낼 폴더의 원본은 지워요),
@@ -586,7 +598,9 @@ fn chrome_exe() -> Option<PathBuf> {
 /// Claude 확장이 읽지 못해요). 크롬이 없으면 "nochrome". 이 주소만 받아요.
 #[tauri::command]
 pub fn open_portal(url: String) -> Result<(), String> {
-    if !(url == "https://gov.epeople.go.kr" || url.starts_with("https://gov.epeople.go.kr/")) {
+    // 신문고 + 공직자 통합메일(보낸 증거 카드의 [보낸메일함 열기], 2026-10-20)
+    let ok = ["https://gov.epeople.go.kr", "https://mail.korea.kr"].iter().any(|h| url == *h || url.starts_with(&format!("{h}/")));
+    if !ok {
         return Err("invalid".into());
     }
     #[cfg(windows)]
@@ -656,6 +670,7 @@ mod tests {
         assert!(final_state("PAGE_UNREADABLE", false).1.contains("IE 모드"));
         // 지시부 메일(2026-10-20)
         assert_eq!(final_state("MAIL_SENT", false).0, "done");
+        assert_eq!(final_state("MAIL_UNCONFIRMED", false), ("done".into(), "unconfirmed".into()));
         assert_eq!(final_state("ATTACH_FAILED 파일 입력란을 못 찾았어요", false), ("error".into(), "첨부를 붙이지 못했어요 – 파일 입력란을 못 찾았어요".into()));
         assert_eq!(final_state("MAIL_FAILED", false).1, "메일을 보내지 못했어요");
     }
@@ -775,6 +790,8 @@ pub struct RunStatus {
     /// Claude가 열어 보고 "기록에 이미 있음"으로 건너뛴 접수번호(`_건너뜀.json`) – 화면이 "본 번호"에 더해 다음부터 열지 않아요
     #[serde(default)]
     pub skipped: Vec<String>,
+    /// 목록에서 "이미 있는 접수번호"라 뺀 수(`_진행.json`의 skipped) – 아래 줄 "건너뜀 N건"(2026-10-20 진행 막대)
+    pub skip_count: Option<u32>,
 }
 
 /// 진행 파일 이름(read_inbox는 `_`로 시작하는 파일을 읽지 않아요)
@@ -916,6 +933,10 @@ fn final_state(result: &str, is_error: bool) -> (String, String) {
     if result.contains("MAIL_FAILED") {
         let why = after("MAIL_FAILED");
         return ("error".into(), if why.is_empty() { "메일을 보내지 못했어요".into() } else { format!("메일을 보내지 못했어요 – {why}") });
+    }
+    // 보내기는 눌렀는데 보낸메일함에서 같은 제목을 못 찾음 → 보냄 + "확인 필요"(2026-10-20 진행 막대)
+    if result.contains("MAIL_UNCONFIRMED") {
+        return ("done".into(), "unconfirmed".into());
     }
     if result.contains("MAIL_SENT") {
         return ("done".into(), String::new());
@@ -1118,6 +1139,7 @@ pub fn claude_status(run: State<ClaudeRun>, inbox: String) -> Result<RunStatus, 
         if let Ok(v) = serde_json::from_str::<serde_json::Value>(t.trim_start_matches('\u{feff}')) {
             s.total = v["total"].as_u64().map(|n| n as u32);
             s.done = v["done"].as_u64().map(|n| n as u32);
+            s.skip_count = v["skipped"].as_u64().map(|n| n as u32);
         }
     }
     Ok(s)

@@ -11447,3 +11447,305 @@ body.ew-dragging .pjm-colgrip:active::after {
 .fx-band { position: fixed; z-index: 50; pointer-events: none; background: var(--accent-tint); border: 1px solid var(--accent-line); border-radius: 2px; }
 .fx-crumb-go { cursor: pointer; border-radius: 4px; }
 .fx-crumb-go:hover { color: var(--accent); text-decoration: underline; }
+
+/* ---------- 민원처리 진행 막대 · 한 줄 행 (2026-10-20 20:42 사용자 1안, 시안 캔버스 ProcessStatus) ----------
+   줄 높이 44 한 줄(글자·칸·막대 모두 가운데), 번호 7자리·점선 밑줄, 판단 공사 칩 140 고정(가운데, 긴 이름 …),
+   진행 = 게이지 150×22(글자 12.5·700, 아이콘 12) + ⋯ 22, 끝난 줄은 "완료 N건" 띠 아래 흐리게. 모서리는 전역 스퀴클. */
+.pr-body > .pr-row {
+  height: 44px;
+  min-height: 44px;
+  align-items: center;
+}
+
+.pr-body > .pr-row > div,
+.pr-body > .pr-row > div.pr-check,
+.pr-body > .pr-row > div.pr-acts,
+.pr-body > .pr-row > div:has(> .cell-input) {
+  padding: 0 10px !important;
+}
+
+.pr-body > .pr-row > div.pr-check {
+  padding: 0 0 0 4px !important;
+}
+
+.pr-body > .pr-row[data-done="1"] {
+  opacity: 0.55;
+}
+
+.pr-no-link {
+  text-decoration: underline dotted var(--line);
+  text-decoration-thickness: 1px;
+}
+
+.pr-no-link:hover {
+  text-decoration: underline dotted var(--accent);
+}
+
+.pr-body .pr-date.pr-due {
+  padding-top: 0;
+}
+
+.pr-strike {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.pr-body .pr-sum {
+  display: block;
+  min-width: 0;
+}
+
+.pr-body .pr-sum-t {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pr-sum-t.has-tip:hover {
+  text-decoration: underline dotted var(--muted);
+  text-underline-offset: 3px;
+}
+
+/* 판단 이유 말풍선 – 표가 스크롤돼도 잘리지 않게 화면 기준 */
+.pr-tip {
+  position: fixed;
+  z-index: 40;
+  max-width: 520px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-pop);
+  color: var(--ink);
+  font-size: var(--fs-sm);
+  line-height: 18px;
+  pointer-events: none;
+}
+
+.pr-tip-k {
+  color: var(--muted);
+}
+
+/* 판단 공사 칩: 폭 140 고정, 가운데, 한 줄 */
+.pr-row .pr-work {
+  width: 140px;
+  height: 28px;
+  margin: 0;
+  padding: 0 9px;
+  line-height: 26px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 진행 칸: 게이지 + ⋯ */
+.pr-body .pr-prog {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pr-gauge {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  width: 150px;
+  height: 22px;
+  padding: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--pg-track);
+  color: var(--pg-fg);
+  font: inherit;
+  text-align: left;
+}
+
+.pr-gauge.strong {
+  color: var(--pg-fg-strong);
+}
+
+.pr-gauge.go {
+  cursor: pointer;
+}
+
+.pr-gauge.go:hover {
+  filter: brightness(1.06);
+}
+
+.pr-gauge.go:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.pr-gauge-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+}
+
+.pr-gauge.hatch .pr-gauge-fill {
+  background-image: repeating-linear-gradient(135deg, var(--pg-hatch) 0 6px, transparent 6px 12px);
+}
+
+.pr-gauge.warn {
+  color: var(--pg-warn-fg);
+}
+
+.pr-gauge.warn .pr-gauge-fill {
+  background: var(--pg-warn);
+  background-image: repeating-linear-gradient(135deg, var(--pg-warn-hatch) 0 6px, transparent 6px 12px);
+}
+
+.pr-gauge-t {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  line-height: 22px;
+  white-space: nowrap;
+}
+
+.pr-gauge-t > svg {
+  flex: none;
+}
+
+.pr-more {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.pr-more:hover,
+.pr-more.on {
+  background: var(--surface-band);
+  color: var(--ink);
+}
+
+/* ⋯ 메뉴: 아이콘 + 글자 */
+.pr-float > .dmenu.pr-rowmenu {
+  position: static;
+  min-width: 200px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-pop);
+}
+
+.pr-rowmenu .dmenu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  font-size: var(--fs);
+}
+
+.pr-rowmenu .dmenu-item > svg {
+  flex: none;
+  color: var(--muted);
+}
+
+.pr-rowmenu .dmenu-item.danger > svg {
+  color: var(--danger);
+}
+
+.pr-rowmenu .dmenu-item:disabled > svg {
+  opacity: 0.5;
+}
+
+/* 완료 띠: 끝난 줄은 아래로 모이고 처음엔 접혀요 */
+.pr-doneband {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 14px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--line-row);
+  background: var(--surface-side);
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+
+.pr-doneband-t {
+  font-weight: 700;
+}
+
+/* 아래 줄: 마지막 불러오기 결과 */
+.pr-lastrun {
+  color: var(--share-ok);
+  font-weight: 700;
+}
+
+/* 보낸 증거 카드 */
+.pr-proof {
+  width: 440px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-pop);
+  color: var(--ink);
+}
+
+.pr-proof-h {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 800;
+  color: var(--share-ok);
+}
+
+.pr-proof.warn .pr-proof-h {
+  color: var(--share-wait);
+}
+
+.pr-proof-r {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 10px;
+  font-size: var(--fs-sm);
+  line-height: 18px;
+}
+
+.pr-proof-k {
+  color: var(--muted);
+}
+
+.pr-proof-v {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pr-proof-b {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.pr-proof-b > button {
+  padding: 0 10px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}

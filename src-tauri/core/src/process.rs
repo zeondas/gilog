@@ -124,6 +124,10 @@ pub struct Order {
     pub mail_to: String,
     /// 메일로 보낸 때 "YYYY-MM-DD HH:MM"
     pub mailed_at: String,
+    /// 보낸 메일 제목(보낸 증거 카드, 2026-10-20 진행 막대)
+    pub mail_subject: String,
+    /// 보낸메일함에서 같은 제목을 찾았는지 – false면 "확인 필요"(예전에 보낸 것은 true)
+    pub mail_ok: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -137,6 +141,8 @@ pub struct OrderPatch {
     pub dirty: Option<bool>,
     pub mail_to: Option<String>,
     pub mailed_at: Option<String>,
+    pub mail_subject: Option<String>,
+    pub mail_ok: Option<bool>,
 }
 
 /// 줄에서 고치는 칸이에요. None은 그대로 둬요.
@@ -194,7 +200,9 @@ pub(crate) const SCHEMA: &str = "
         sent_at  TEXT NOT NULL DEFAULT '',
         dirty    INTEGER NOT NULL DEFAULT 0,
         mail_to   TEXT NOT NULL DEFAULT '',
-        mailed_at TEXT NOT NULL DEFAULT ''
+        mailed_at TEXT NOT NULL DEFAULT '',
+        mail_subject TEXT NOT NULL DEFAULT '',
+        mail_ok   INTEGER NOT NULL DEFAULT 1
     );
     CREATE TABLE IF NOT EXISTS cases (
         no         TEXT PRIMARY KEY,
@@ -235,6 +243,10 @@ pub(crate) fn upgrade(conn: &rusqlite::Connection) -> Result<()> {
     if has_col(conn, "orders", "id")? && !has_col(conn, "orders", "mail_to")? {
         conn.execute_batch("ALTER TABLE orders ADD COLUMN mail_to TEXT NOT NULL DEFAULT ''; ALTER TABLE orders ADD COLUMN mailed_at TEXT NOT NULL DEFAULT '';")?;
     }
+    // 보낸 증거 카드(2026-10-20 진행 막대): 보낸 제목·보낸메일함 확인
+    if has_col(conn, "orders", "id")? && !has_col(conn, "orders", "mail_ok")? {
+        conn.execute_batch("ALTER TABLE orders ADD COLUMN mail_subject TEXT NOT NULL DEFAULT ''; ALTER TABLE orders ADD COLUMN mail_ok INTEGER NOT NULL DEFAULT 1;")?;
+    }
     if !has_col(conn, "cases", "road")? {
         conn.execute_batch("ALTER TABLE cases ADD COLUMN road TEXT NOT NULL DEFAULT '';")?;
     }
@@ -263,7 +275,7 @@ pub(crate) fn upgrade(conn: &rusqlite::Connection) -> Result<()> {
 pub const UNKNOWN_PLACE: &str = "주소불명";
 
 const WORK_COLS: &str = "id, name, co, contact, project, scope, next_seq, tpl, full";
-const ORDER_COLS: &str = "id, work, seq, date, file, jpgs, stage, outbox, sent_at, dirty, mail_to, mailed_at";
+const ORDER_COLS: &str = "id, work, seq, date, file, jpgs, stage, outbox, sent_at, dirty, mail_to, mailed_at, mail_subject, mail_ok";
 const CASE_COLS: &str = "no, received, due, area, place, summary, short, reason, work, note, seq, stage, complaint, photos, map, folder, order_file, order_jpg, outbox_file, sent_at, road, order_id, item";
 
 fn bad(msg: &str) -> Error {
@@ -303,6 +315,8 @@ fn order_row(r: &Row) -> rusqlite::Result<Order> {
         dirty: r.get(9)?,
         mail_to: r.get(10)?,
         mailed_at: r.get(11)?,
+        mail_subject: r.get(12)?,
+        mail_ok: r.get(13)?,
     })
 }
 
@@ -668,10 +682,16 @@ impl Store {
         if let Some(v) = &p.mailed_at {
             o.mailed_at = v.clone();
         }
+        if let Some(v) = &p.mail_subject {
+            o.mail_subject = v.clone();
+        }
+        if let Some(v) = p.mail_ok {
+            o.mail_ok = v;
+        }
         let js = |v: &Vec<String>| serde_json::to_string(v).unwrap_or_else(|_| "[]".into());
         self.conn.execute(
-            "UPDATE orders SET file = ?2, jpgs = ?3, stage = ?4, outbox = ?5, sent_at = ?6, dirty = ?7, mail_to = ?8, mailed_at = ?9 WHERE id = ?1",
-            params![id, o.file, js(&o.jpgs), o.stage, js(&o.outbox), o.sent_at, o.dirty, o.mail_to, o.mailed_at],
+            "UPDATE orders SET file = ?2, jpgs = ?3, stage = ?4, outbox = ?5, sent_at = ?6, dirty = ?7, mail_to = ?8, mailed_at = ?9, mail_subject = ?10, mail_ok = ?11 WHERE id = ?1",
+            params![id, o.file, js(&o.jpgs), o.stage, js(&o.outbox), o.sent_at, o.dirty, o.mail_to, o.mailed_at, o.mail_subject, o.mail_ok],
         )?;
         self.conn.execute(
             "UPDATE cases SET stage = ?2, order_file = ?3, order_jpg = ?4, sent_at = ?5 WHERE order_id = ?1",
@@ -866,5 +886,9 @@ mod mail_tests {
         let o = s.update_order(id, &OrderPatch { mail_to: Some("a@b.kr".into()), mailed_at: Some("2026-10-20 12:31".into()), ..Default::default() }).unwrap();
         assert_eq!(o.mail_to, "a@b.kr");
         assert_eq!(s.order(id).unwrap().mailed_at, "2026-10-20 12:31");
+        assert!(o.mail_ok);
+        let o = s.update_order(id, &OrderPatch { mail_subject: Some("작업지시 07호".into()), mail_ok: Some(false), ..Default::default() }).unwrap();
+        assert_eq!((o.mail_subject.as_str(), o.mail_ok), ("작업지시 07호", false));
+        assert!(!s.order(id).unwrap().mail_ok);
     }
 }
