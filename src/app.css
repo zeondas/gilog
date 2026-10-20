@@ -11009,3 +11009,6 @@ body.ew-dragging .pjm-colgrip:active::after {
 .fx-top > .fx-findbox > .fx-findpanel { width: 520px; box-sizing: border-box; }
 .fx-findpanel .fx-fgrid > * { min-width: 0; }
 .fx-findpanel .fx-hrow > .fx-grow { flex: 1 1 0; min-width: 0; }
+/* 설정 탐색기 "새 탭이 여는 폴더": [고르기]를 옆 입력칸과 같은 28(모서리 6)로 — 줄 안 작은 단추 규칙(2026-10-20 사용자) */
+.fx-set-dir { align-items: center; }
+.fx-set-dir .btn { height: 28px; border-radius: var(--radius-sm); padding: 0 12px; }
