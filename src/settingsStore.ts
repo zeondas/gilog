@@ -32,7 +32,8 @@ export type ProcessSettings = {
 /** 지시부 메일 틀에 쓰는 자리 */
 export const MAIL_FIELDS = ["공사명", "축약 공사명", "연번", "건수", "현장대리인", "시공사", "지시자", "연락처"] as const;
 export const DEFAULT_MAIL_SUBJECT = "[파주시 도로관리과] {축약 공사명} 작업지시 {연번}호";
-export const DEFAULT_MAIL_BODY = ["{현장대리인} 현장대리인님, {지시자}입니다.", "{축약 공사명} 작업지시 {연번}호(민원 {건수}건)를 보내드립니다.", "첨부를 확인하시고 조치 바랍니다.", "문의 {연락처}"].join("\n");
+// "문의 {연락처}" 줄은 뺐어요 — korea.kr 계정 기본 서명이 연락처를 붙여 두 번 나와요(2026-10-20 사용자 1안). {연락처} 자리는 그대로 쓸 수 있어요.
+export const DEFAULT_MAIL_BODY = ["{현장대리인} 현장대리인님, {지시자}입니다.", "{축약 공사명} 작업지시 {연번}호(민원 {건수}건)를 보내드립니다.", "첨부를 확인하시고 조치 바랍니다."].join("\n");
 
 export const DEFAULT_PROCESS: ProcessSettings = {
   signer: "도로관리과 전훈민",
