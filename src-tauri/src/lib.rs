@@ -767,6 +767,8 @@ pub fn run() {
             files::fs_conflicts,
             files::fs_transfer,
             files::fs_cancel,
+            files::fs_clip_set,
+            files::fs_clip_get,
             files::fs_delete,
             files::fs_open,
             files::fs_explorer,

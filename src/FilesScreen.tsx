@@ -375,33 +375,85 @@ export default function FilesScreen() {
     } else setConflict({ ...conflict, i: to, dec });
   };
 
-  const transfer = async (pane: number, op: "copy" | "move", items?: Row[], destDir?: string) => {
-    if (!st) return;
+  const transfer = async (pane: number, op: "copy" | "move", items?: Row[], destDir?: string): Promise<boolean> => {
+    if (!st) return false;
     const src = items ?? selected(pane);
-    if (!src.length) return;
+    if (!src.length) return false;
     const dest = destDir ?? (() => {
       const tp = st.panes[targetOf(pane)];
       const t = activeTab(tp);
       return t.find ? "" : t.path;
     })();
-    if (!dest) return flash("대상 창이 찾기 결과예요. 폴더를 연 창으로 보내 주세요.");
-    if (isSpecial(dest)) return flash("대상 창이 내 PC·홈이에요. 폴더를 연 창으로 보내 주세요.");
+    if (!dest) return flash("대상 창이 찾기 결과예요. 폴더를 연 창으로 보내 주세요."), false;
+    if (isSpecial(dest)) return flash("대상 창이 내 PC·즐겨찾기예요. 폴더를 연 창으로 보내 주세요."), false;
     const sources = src.map((e) => e.path);
     try {
       const list = await fsApi.conflicts(sources, dest);
       const dec = await askConflicts(list, op);
-      if (!dec) return;
+      if (!dec) return false;
       setBusy({ done: 0, total: sources.length, name: "" });
       const sum = await fsApi.transfer(op, sources, dest, dec);
       setBusy(null);
       const verb = op === "copy" ? "복사" : "옮기기";
       flash(sum.errors.length ? `${verb} ${sum.done}개 · 못 한 것 ${sum.errors.length}개 — ${fsErrorText(sum.errors[0][1])}` : `${verb} ${sum.done}개${sum.skipped ? ` · 건너뜀 ${sum.skipped}개` : ""}`);
+      refreshAll();
+      return !sum.errors.length;
     } catch (e) {
       setBusy(null);
       flash(fsErrorText(e));
     }
     refreshAll();
+    return false;
   };
+
+  // ---------- 클립보드(Ctrl+C·X·V) — 윈도우 클립보드와 같이 써요 ----------
+  const [cut, setCut] = useState<Set<string>>(new Set());
+  const clipPut = async (pane: number, isCut: boolean) => {
+    if (!st) return;
+    const t = activeTab(st.panes[pane]);
+    if (!t.find && t.path === PC) return flash("드라이브는 복사할 수 없어요.");
+    const items = selected(pane);
+    if (!items.length) return;
+    const paths = items.map((r) => r.path);
+    try {
+      await fsApi.clipSet(paths, isCut);
+      setCut(isCut ? new Set(paths) : new Set());
+      flash(`${paths.length}개 ${isCut ? "잘라냈어요" : "복사했어요"}`);
+    } catch (e) {
+      flash(fsErrorText(e));
+    }
+  };
+  const clipPaste = async (pane: number) => {
+    if (!st) return;
+    const t = activeTab(st.panes[pane]);
+    if (t.find || isSpecial(t.path)) return flash("폴더를 연 창에서 붙여 주세요.");
+    let c: { paths: string[]; cut: boolean };
+    try {
+      c = await fsApi.clipGet();
+    } catch (e) {
+      return flash(fsErrorText(e));
+    }
+    if (!c.paths.length) return flash("붙여 넣을 파일이 없어요.");
+    const ok = await transfer(pane, c.cut ? "move" : "copy", c.paths.map((path) => ({ path }) as Row), t.path);
+    // 잘라낸 것을 다 옮겼으면 윈도우처럼 클립보드를 비워요(한 번만 붙여요).
+    if (ok && c.cut) {
+      setCut(new Set());
+      void fsApi.clipSet([], false).catch(() => {});
+    }
+  };
+  // 다른 프로그램에서 복사·잘라내기를 했을 수 있어 창으로 돌아올 때 흐린 표시를 맞춰요.
+  useEffect(() => {
+    const sync = () =>
+      void fsApi
+        .clipGet()
+        .then((c) => setCut((old) => {
+          const next = c.cut ? new Set(c.paths) : new Set<string>();
+          return next.size === old.size && [...next].every((p) => old.has(p)) ? old : next;
+        }))
+        .catch(() => {});
+    window.addEventListener("focus", sync);
+    return () => window.removeEventListener("focus", sync);
+  }, []);
 
   const refreshAll = () => listsRef.current.forEach((l, i) => l.path && void load(i, l.path, true));
 
@@ -702,6 +754,8 @@ export default function FilesScreen() {
       return handled();
     }
     if (ctrl && e.shiftKey && e.code === "KeyC") return handled(), copyPath(pane);
+    if (ctrl && !e.shiftKey && !e.altKey && (e.code === "KeyC" || e.code === "KeyX")) return handled(), void clipPut(pane, e.code === "KeyX");
+    if (ctrl && !e.shiftKey && !e.altKey && e.code === "KeyV") return handled(), void clipPaste(pane);
     if (ctrl && !e.shiftKey && e.code === "KeyE") {
       const t = activeTab(st.panes[pane]);
       const r = rows[idx];
@@ -1480,7 +1534,7 @@ export default function FilesScreen() {
               id: `fx-row-${pane}-${i}`,
               "data-sel": isSel ? "1" : "0",
               "data-cur": s.cursor === r.path && on ? "1" : "0",
-              "data-hid": r.hidden ? "1" : "0",
+              "data-hid": r.hidden || cut.has(r.path) ? "1" : "0",
               "data-dir": r.dir ? r.path : undefined,
               "data-extdrop": r.dir && extHover?.dir === r.path ? "1" : "0",
               draggable: !inline,
@@ -1933,6 +1987,7 @@ export default function FilesScreen() {
         <span className="fx-fk"><b>F6</b> 옮기기 → 대상</span>
         <span className="fx-fk"><b>F7</b> 새 폴더</span>
         <span className="fx-fk"><b>F8</b> 지우기</span>
+        <span className="fx-fk"><b>Ctrl+C·X·V</b> 복사·잘라내기·붙이기</span>
         <span className="fx-fk"><b>Space</b> 고르기</span>
         <span className="fx-fk"><b>Tab</b> {st.four ? "다음 창" : "반대 창"}</span>
         {st.four && <span className="fx-fk"><b>Ctrl+1~4</b> 창 고르기</span>}

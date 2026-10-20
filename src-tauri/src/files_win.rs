@@ -539,3 +539,94 @@ pub fn quick_items() -> Vec<(String, String)> {
     }
     out
 }
+
+// ── 윈도우 클립보드(파일) ─────────────────────────────────────────────
+// Ctrl+C·X·V(2026-10-20 사용자 1안): 윈도우 탐색기와 같은 꼴(CF_HDROP + "Preferred DropEffect")로 넣고 읽어요.
+// 그래서 윈도우 탐색기·바탕 화면·메일 첨부와 서로 붙여 넣을 수 있어요. 잘라내기는 DropEffect 2(옮기기), 복사는 5.
+
+const CF_HDROP: u32 = 15;
+
+/// 다른 프로그램이 잠깐 잡고 있으면 몇 번 다시 열어요.
+unsafe fn clip_open() -> Result<(), String> {
+    use windows::Win32::System::DataExchange::OpenClipboard;
+    let mut last = String::new();
+    for _ in 0..10 {
+        match OpenClipboard(None) {
+            Ok(()) => return Ok(()),
+            Err(e) => last = e.to_string(),
+        }
+        std::thread::sleep(std::time::Duration::from_millis(25));
+    }
+    Err(format!("clipboard_busy:{last}"))
+}
+
+unsafe fn clip_put(fmt: u32, bytes: &[u8]) -> Result<(), String> {
+    use windows::Win32::Foundation::{GlobalFree, HANDLE};
+    use windows::Win32::System::DataExchange::SetClipboardData;
+    use windows::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE};
+    let h = GlobalAlloc(GMEM_MOVEABLE, bytes.len().max(1)).map_err(|e| e.to_string())?;
+    let p = GlobalLock(h) as *mut u8;
+    if p.is_null() {
+        let _ = GlobalFree(Some(h));
+        return Err("clipboard_lock".into());
+    }
+    std::ptr::copy_nonoverlapping(bytes.as_ptr(), p, bytes.len());
+    let _ = GlobalUnlock(h);
+    if let Err(e) = SetClipboardData(fmt, Some(HANDLE(h.0))) {
+        let _ = GlobalFree(Some(h));
+        return Err(e.to_string());
+    }
+    Ok(())
+}
+
+unsafe fn clip_read(fmt: u32) -> Option<Vec<u8>> {
+    use windows::Win32::Foundation::HGLOBAL;
+    use windows::Win32::System::DataExchange::{GetClipboardData, IsClipboardFormatAvailable};
+    use windows::Win32::System::Memory::{GlobalLock, GlobalSize, GlobalUnlock};
+    IsClipboardFormatAvailable(fmt).ok()?;
+    let h = GetClipboardData(fmt).ok()?;
+    let g = HGLOBAL(h.0);
+    let size = GlobalSize(g);
+    let p = GlobalLock(g) as *const u8;
+    if p.is_null() {
+        return None;
+    }
+    let v = std::slice::from_raw_parts(p, size).to_vec();
+    let _ = GlobalUnlock(g);
+    Some(v)
+}
+
+fn effect_format() -> u32 {
+    use windows::Win32::System::DataExchange::RegisterClipboardFormatW;
+    unsafe { RegisterClipboardFormatW(windows::core::w!("Preferred DropEffect")) }
+}
+
+/// 파일 목록을 클립보드에. 빈 목록이면 클립보드를 비워요(잘라낸 것을 붙인 뒤).
+pub fn clip_set(paths: &[String], cut: bool) -> Result<(), String> {
+    use windows::Win32::System::DataExchange::{CloseClipboard, EmptyClipboard};
+    unsafe {
+        clip_open()?;
+        let r = (|| -> Result<(), String> {
+            EmptyClipboard().map_err(|e| e.to_string())?;
+            if paths.is_empty() {
+                return Ok(());
+            }
+            clip_put(CF_HDROP, &crate::files::drop_files_bytes(paths))?;
+            clip_put(effect_format(), &(if cut { 2u32 } else { 5u32 }).to_le_bytes())
+        })();
+        let _ = CloseClipboard();
+        r
+    }
+}
+
+/// 클립보드의 파일 목록과 잘라내기인지. 파일이 없으면 빈 목록.
+pub fn clip_get() -> Result<(Vec<String>, bool), String> {
+    use windows::Win32::System::DataExchange::CloseClipboard;
+    unsafe {
+        clip_open()?;
+        let paths = clip_read(CF_HDROP).map(|b| crate::files::parse_drop_files(&b)).unwrap_or_default();
+        let effect = clip_read(effect_format()).filter(|b| b.len() >= 4).map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]])).unwrap_or(5);
+        let _ = CloseClipboard();
+        Ok((paths, effect & 2 != 0 && effect & 1 == 0))
+    }
+}
