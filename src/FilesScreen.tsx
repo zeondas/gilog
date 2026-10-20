@@ -163,6 +163,7 @@ export default function FilesScreen() {
   const [busy, setBusy] = useState<{ done: number; total: number; name: string } | null>(null);
   const [tree, setTree] = useState<Map<string, TreeDir[]>>(new Map());
   const quickRef = useRef<HTMLInputElement>(null);
+  const findNameRef = useRef<HTMLInputElement>(null);
   const filterRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // ---------- 처음 읽기 ----------
@@ -821,8 +822,11 @@ export default function FilesScreen() {
   keyRef.current = (e: KeyboardEvent) => {
     if (!st || conflict || del || renameRows || nameAsk || xfer) return;
     if (e.ctrlKey && !e.shiftKey && e.code === "KeyF") {
+      // 2026-10-20 사용자: Ctrl+F = 상세 찾기 창(이름 칸에 커서)
       e.preventDefault();
-      quickRef.current?.focus();
+      if (!findOpen) setForm({ ...form, name: form.name || quickFind, where: form.where || curPath });
+      setFindOpen(true);
+      setTimeout(() => findNameRef.current?.select(), 0);
       return;
     }
     if (e.ctrlKey && !e.shiftKey && !e.altKey && e.code === "KeyR") {
@@ -1937,7 +1941,7 @@ export default function FilesScreen() {
             <div className="fx-menu fx-findpanel" onKeyDown={(e) => e.key === "Escape" && setFindOpen(false)}>
               <div className="fx-fgrid">
                 <span className="fx-dim">이름</span>
-                <input className="input" value={form.name} placeholder="*.jpg;*.png 또는 이름 일부" onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                <input ref={findNameRef} className="input" value={form.name} placeholder="*.jpg;*.png 또는 이름 일부" onChange={(e) => setForm({ ...form, name: e.target.value })} />
                 <span className="fx-dim">안의 글자</span>
                 <input className="input" value={form.text} placeholder="한글·오피스·PDF" onChange={(e) => setForm({ ...form, text: e.target.value })} />
                 <span className="fx-dim">어디서</span>
