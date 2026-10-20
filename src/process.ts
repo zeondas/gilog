@@ -69,7 +69,7 @@ export type Known = { nos: string[]; records: string[] };
 
 /** Claude에게 줄 지침. [민원 불러오기]가 Claude에게 넘기고, 설정의 [지침 복사]로도 복사해요.
  *  2026-10-20 속도: 화면 생김새와 걸음을 미리 적어 Claude가 매번 화면을 보고 생각하지 않게 해요(사용자 캡처 세 장 기준).
- *  known.nos는 표에 있는 번호 + 전에 본 번호(지운 것·건너뛴 것 포함) — 목록만 보고 걸러 열지 않아요. */
+ *  known.nos는 표에 있는 번호 + 전에 본 번호(지운 것·건너뛴 것 포함) – 목록만 보고 걸러 열지 않아요. */
 export function aiGuide(p: { inbox: string; downloads: string; outbox: string }, works: { id: number; name: string; scope: string }[], known: Known = { nos: [], records: [] }): string {
   const list = works.length ? works.map((w) => `  - ${w.id}: ${w.name} – ${w.scope || "(처리 범위 없음)"}`).join("\n") : "  - (등록된 공사가 없어요 – work는 null)";
   const nos = known.nos.length ? known.nos.join(", ") : "(없음)";

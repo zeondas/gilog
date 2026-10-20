@@ -793,7 +793,7 @@ pub fn fs_context_menu(window: tauri::WebviewWindow, dir: String, names: Vec<Str
     }
 }
 
-/// 기록에서 윈도우 탐색기·바탕 화면으로 끌어 내기 — 줄을 끌기 시작하면 화면이 불러요(놓을 때까지 기다려요)
+/// 기록에서 윈도우 탐색기·바탕 화면으로 끌어 내기 – 줄을 끌기 시작하면 화면이 불러요(놓을 때까지 기다려요)
 #[tauri::command]
 pub fn fs_start_drag(window: tauri::WebviewWindow, paths: Vec<String>) -> Result<String, String> {
     #[cfg(windows)]
@@ -822,7 +822,7 @@ pub fn fs_properties(paths: Vec<String>) -> Result<(), String> {
     }
 }
 
-/// 바로가기(.lnk)가 가리키는 곳 — 없거나 못 읽으면 None
+/// 바로가기(.lnk)가 가리키는 곳 – 없거나 못 읽으면 None
 #[tauri::command]
 pub fn fs_lnk_target(path: String) -> Option<String> {
     #[cfg(windows)]

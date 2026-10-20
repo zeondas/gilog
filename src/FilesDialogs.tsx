@@ -149,7 +149,7 @@ export function DeleteDialog({ items, permanent, onYes, onNo }: { items: FsEntry
   );
 }
 
-/** F5·F6 확인(2026-10-20 사용자 1안 — 새로 고침하려다 복사되는 일 막기). Enter 확인 · Esc 취소 */
+/** F5·F6 확인(2026-10-20 사용자 1안 – 새로 고침하려다 복사되는 일 막기). Enter 확인 · Esc 취소 */
 export function TransferAsk({ items, op, dest, onYes, onNo }: { items: { name: string }[]; op: "copy" | "move"; dest: string; onYes: () => void; onNo: () => void }) {
   const yes = useRef<HTMLButtonElement>(null);
   useEffect(() => yes.current?.focus(), []);

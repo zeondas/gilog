@@ -206,7 +206,7 @@ pub fn read_inbox(state: State<AppState>, inbox: String, downloads: String, root
             if let Some(d) = user_dl.as_deref() {
                 dirs.push(d);
             }
-            // zip 첨부(신문고가 가끔 묶어 줘요)는 풀어서 안의 그림 파일을 사진으로 — 2026-10-20 사용자: 보통은 낱개, 가끔 zip
+            // zip 첨부(신문고가 가끔 묶어 줘요)는 풀어서 안의 그림 파일을 사진으로 – 2026-10-20 사용자: 보통은 낱개, 가끔 zip
             let mut photos: Vec<String> = Vec::new();
             for n in &c.photos {
                 if n.trim().to_ascii_lowercase().ends_with(".zip") {
@@ -757,7 +757,7 @@ pub struct RunStatus {
     pub message: String,
     /// 이번 실행의 `_claude.log` 경로(끝난 뒤, 화면의 [로그 열기])
     pub log: String,
-    /// Claude가 열어 보고 "기록에 이미 있음"으로 건너뛴 접수번호(`_건너뜀.json`) — 화면이 "본 번호"에 더해 다음부터 열지 않아요
+    /// Claude가 열어 보고 "기록에 이미 있음"으로 건너뛴 접수번호(`_건너뜀.json`) – 화면이 "본 번호"에 더해 다음부터 열지 않아요
     #[serde(default)]
     pub skipped: Vec<String>,
 }
@@ -849,7 +849,7 @@ pub struct RunRequest {
     pub downloads: String,
     /// 지침 전체(화면이 만들어 넘겨요 – 공사 처리 범위·이미 있는 기록 포함)
     pub guide: String,
-    /// 모델(sonnet·opus·haiku, 비우면 Claude Code 기본값) — 2026-10-20 속도: 처음 값 sonnet
+    /// 모델(sonnet·opus·haiku, 비우면 Claude Code 기본값) – 2026-10-20 속도: 처음 값 sonnet
     #[serde(default)]
     pub model: String,
 }
@@ -928,7 +928,7 @@ pub fn run_claude(run: State<ClaudeRun>, req: RunRequest) -> Result<(), String> 
     // 실행 기록 – 돌릴 때마다 새로 써요. 지침 본문은 넣지 않아요(민원대장 기록 발췌가 들어 있어요).
     let log_path = inbox.join(LOG_FILE);
     let log = std::sync::Arc::new(std::sync::Mutex::new(fs::File::create(&log_path).map_err(io)?));
-    // 줄마다 시작부터 지난 시간 `[+12.3s]` — 어느 걸음이 느린지 재요(2026-10-20)
+    // 줄마다 시작부터 지난 시간 `[+12.3s]` – 어느 걸음이 느린지 재요(2026-10-20)
     let t0 = std::time::Instant::now();
     let w = move |log: &std::sync::Arc<std::sync::Mutex<fs::File>>, s: &str| {
         if let Ok(mut f) = log.lock() {

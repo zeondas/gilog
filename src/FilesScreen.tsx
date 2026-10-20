@@ -1172,7 +1172,7 @@ export default function FilesScreen() {
 
   // ---------- 끌어다 놓기(창 사이, 윈도우 탐색기에서) ----------
   const dragSrc = useRef<{ pane: number; rows: Row[] } | null>(null);
-  // USB를 꽂거나 빼면 드라이브 줄에 바로(호환 A12) — 3초마다 드라이브 목록을 다시 읽어 바뀌었을 때만 고쳐요
+  // USB를 꽂거나 빼면 드라이브 줄에 바로(호환 A12) – 3초마다 드라이브 목록을 다시 읽어 바뀌었을 때만 고쳐요
   useEffect(() => {
     if (!inApp) return;
     const t = window.setInterval(() => {
@@ -1619,7 +1619,7 @@ export default function FilesScreen() {
                       className={i === crumbs.length - 1 ? "fx-crumb fx-strong" : "fx-crumb fx-crumb-go"}
                       title={i === crumbs.length - 1 ? undefined : `${c.name}(으)로`}
                       onClick={(ev) => {
-                        // 조각을 누르면 그 폴더로(호환 A8) — 빈 곳은 지금처럼 경로 칸
+                        // 조각을 누르면 그 폴더로(호환 A8) – 빈 곳은 지금처럼 경로 칸
                         if (i === crumbs.length - 1) return;
                         ev.stopPropagation();
                         go(pane, c.path);
@@ -1737,7 +1737,7 @@ export default function FilesScreen() {
           }}
           onMouseDown={(e) => {
             if (e.target !== e.currentTarget || e.button !== 0) return;
-            // 빈 곳에서 끌면 고무줄로 여러 개 고르기(호환 A6) — Ctrl을 누르고 시작하면 고른 것에 더해요
+            // 빈 곳에서 끌면 고무줄로 여러 개 고르기(호환 A6) – Ctrl을 누르고 시작하면 고른 것에 더해요
             const base = e.ctrlKey ? new Set(sels[pane].paths) : new Set<string>();
             if (!e.ctrlKey) setSel(pane, EMPTY_SEL);
             setBand({ pane, x0: e.clientX, y0: e.clientY, x1: e.clientX, y1: e.clientY, base });
@@ -1796,7 +1796,7 @@ export default function FilesScreen() {
               "data-hid": r.hidden || cut.has(r.path) ? "1" : "0",
               "data-dir": r.dir ? r.path : undefined,
               "data-extdrop": r.dir && extHover?.dir === r.path ? "1" : "0",
-              // 앱에서는 윈도우 끌기를 써요(윈도우 탐색기·바탕 화면에 놓을 수 있게) — 화면 안 끌기는 미리 보기에서만
+              // 앱에서는 윈도우 끌기를 써요(윈도우 탐색기·바탕 화면에 놓을 수 있게) – 화면 안 끌기는 미리 보기에서만
               draggable: !inline && !inApp,
               onMouseDown: (e: React.MouseEvent) => {
                 if (e.button !== 0) return;
