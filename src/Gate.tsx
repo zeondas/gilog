@@ -76,6 +76,8 @@ export default function Gate({ mode, folder, onOpen }: Props) {
     if (busy) return;
     setBusy(true);
     setNote(null);
+    // 비밀번호 칸에 커서가 남아 있으면 PIN 창이 떠도 키보드가 이 칸으로 가요(2026-10-20 사용자 신고) — 커서를 빼 둬요.
+    (document.activeElement as HTMLElement | null)?.blur();
     try {
       await api.pinUnlock();
       onOpen();
