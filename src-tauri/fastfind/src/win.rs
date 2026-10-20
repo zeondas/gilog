@@ -34,6 +34,8 @@ pub const PIPE_NAME: &str = r"\\.\pipe\gilog-search";
 const EXE_NAME: &str = "gilog-search.exe";
 
 const GENERIC_READ: u32 = 0x8000_0000;
+const GENERIC_WRITE: u32 = 0x4000_0000;
+const PIPE_REJECT_REMOTE_CLIENTS: u32 = 0x8;
 const FILE_SHARE_RW: u32 = 0x1 | 0x2;
 const OPEN_EXISTING: u32 = 3;
 const DRIVE_FIXED: u32 = 3;
@@ -48,9 +50,21 @@ fn wide(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(std::iter::once(0)).collect()
 }
 
-/// Program Files\giLog Search — 서비스 실행 파일·기록이 사는 곳(관리자만 고칠 수 있는 폴더)
+/// Program Files\giLog Search — 서비스 실행 파일·기록이 사는 곳(관리자만 고칠 수 있는 폴더).
+/// 환경 변수는 사용자가 바꿀 수 있어 레지스트리(HKLM)에서 읽어요.
 fn install_dir() -> PathBuf {
-    let pf = std::env::var_os("ProgramFiles").map(PathBuf::from).unwrap_or_else(|| PathBuf::from(r"C:\Program Files"));
+    use windows_sys::Win32::System::Registry::{RegGetValueW, HKEY_LOCAL_MACHINE, RRF_RT_REG_SZ};
+    let key = wide(r"SOFTWARE\Microsoft\Windows\CurrentVersion");
+    let val = wide("ProgramFilesDir");
+    let mut buf = [0u16; 520];
+    let mut size = (buf.len() * 2) as u32;
+    let r = unsafe { RegGetValueW(HKEY_LOCAL_MACHINE, key.as_ptr(), val.as_ptr(), RRF_RT_REG_SZ, null_mut(), buf.as_mut_ptr() as *mut c_void, &mut size) };
+    let pf = if r == 0 {
+        let end = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+        PathBuf::from(String::from_utf16_lossy(&buf[..end]))
+    } else {
+        PathBuf::from(r"C:\Program Files")
+    };
     pf.join("giLog Search")
 }
 
@@ -123,7 +137,7 @@ impl Drop for Handle {
 
 fn open_volume(drive: &str) -> Result<Handle, u32> {
     let p = wide(&format!(r"\\.\{drive}"));
-    let h = unsafe { CreateFileW(p.as_ptr(), GENERIC_READ, FILE_SHARE_RW, null(), OPEN_EXISTING, 0, null_mut()) };
+    let h = unsafe { CreateFileW(p.as_ptr(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_RW, null(), OPEN_EXISTING, 0, null_mut()) };
     if h == INVALID_HANDLE_VALUE {
         Err(unsafe { GetLastError() })
     } else {
@@ -150,7 +164,7 @@ fn query_journal(h: HANDLE) -> Result<(u64, i64), u32> {
     Ok((id, next))
 }
 
-/// 변경 기록이 꺼진 드라이브(D: 등)는 켜요(32MB)
+/// 변경 기록이 꺼진 드라이브(D: 등)는 켜요(32MB) — 켜려면 쓰기 권한으로 연 손잡이가 필요해 open_volume은 읽기·쓰기로 열어요
 fn ensure_journal(h: HANDLE) -> Result<(u64, i64), u32> {
     match query_journal(h) {
         Err(ERROR_JOURNAL_NOT_ACTIVE) => {
@@ -267,8 +281,8 @@ fn volume_worker(i: usize, drive: String, shared: Arc<Shared>, stop: Arc<AtomicB
 // ---------- 이름 통로 ----------
 
 fn pipe_server(shared: Arc<Shared>, stop: Arc<AtomicBool>) {
-    // 시스템·관리자는 모두, 로그인한 사용자는 읽고 쓰기(묻고 답 받기)만
-    let sddl = wide("D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GRGW;;;IU)");
+    // 시스템·관리자는 모두, 로그인한 사용자는 읽고 쓰기(묻고 답 받기)만 — 통로를 더 만들 권한(FILE_CREATE_PIPE_INSTANCE)은 빼요(가짜 답 막기)
+    let sddl = wide("D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;0x12019b;;;IU)");
     let mut psd: *mut c_void = null_mut();
     let ok = unsafe { ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl.as_ptr(), 1, &mut psd, null_mut()) };
     if ok == 0 {
@@ -277,27 +291,32 @@ fn pipe_server(shared: Arc<Shared>, stop: Arc<AtomicBool>) {
     }
     let sa = SECURITY_ATTRIBUTES { nLength: std::mem::size_of::<SECURITY_ATTRIBUTES>() as u32, lpSecurityDescriptor: psd, bInheritHandle: 0 };
     let name = wide(PIPE_NAME);
-    let mut first = true;
-    while !stop.load(Ordering::SeqCst) {
-        // 처음 하나는 "첫 통로"로 — 다른 프로그램이 이름을 먼저 차지했으면 만들지 않아요
-        let mode = PIPE_ACCESS_DUPLEX | if first { FILE_FLAG_FIRST_PIPE_INSTANCE } else { 0 };
-        let h = unsafe { CreateNamedPipeW(name.as_ptr(), mode, 0, 255, 1 << 16, 1 << 16, 0, &sa) };
-        if h == INVALID_HANDLE_VALUE {
-            if first {
-                log(&format!("통로 만들기 실패 {}", unsafe { GetLastError() }));
+    // 늘 기다리는 통로 하나를 먼저 만들어 두고 넘겨요(이름이 비는 틈이 없게)
+    let make = |first: bool| -> HANDLE {
+        loop {
+            // 처음 하나는 "첫 통로"로 — 다른 프로그램이 이름을 먼저 차지했으면 만들지 않아요. 원격 연결은 받지 않아요.
+            let mode = PIPE_ACCESS_DUPLEX | if first { FILE_FLAG_FIRST_PIPE_INSTANCE } else { 0 };
+            let h = unsafe { CreateNamedPipeW(name.as_ptr(), mode, PIPE_REJECT_REMOTE_CLIENTS, 255, 1 << 16, 1 << 16, 0, &sa) };
+            if h != INVALID_HANDLE_VALUE {
+                return h;
             }
+            log(&format!("통로 만들기 실패 {}", unsafe { GetLastError() }));
             thread::sleep(Duration::from_secs(2));
-            continue;
         }
-        first = false;
+    };
+    let mut h = make(true);
+    while !stop.load(Ordering::SeqCst) {
         let ok = unsafe { ConnectNamedPipe(h, null_mut()) };
-        if ok == 0 && unsafe { GetLastError() } != ERROR_PIPE_CONNECTED {
+        let connected = ok != 0 || unsafe { GetLastError() } == ERROR_PIPE_CONNECTED;
+        let next = make(false);
+        if connected {
+            let hh = h as usize;
+            let sh = shared.clone();
+            thread::spawn(move || client(hh as HANDLE, &sh));
+        } else {
             unsafe { CloseHandle(h) };
-            continue;
         }
-        let hh = h as usize;
-        let sh = shared.clone();
-        thread::spawn(move || client(hh as HANDLE, &sh));
+        h = next;
     }
     unsafe { LocalFree(psd) };
 }
@@ -411,7 +430,8 @@ fn run_service() -> windows_service::Result<()> {
 /// 설치할 때 적어 둔 기록 앱 쪽 도우미 파일이 없어졌는지
 fn source_gone() -> bool {
     match fs::read_to_string(install_dir().join("source.txt")) {
-        Ok(p) if !p.trim().is_empty() => !PathBuf::from(p.trim()).exists(),
+        // 없다고 확실할 때만(읽을 권한이 없는 곳이면 지우지 않아요)
+        Ok(p) if !p.trim().is_empty() => matches!(fs::metadata(p.trim()), Err(e) if e.kind() == std::io::ErrorKind::NotFound),
         _ => false,
     }
 }
@@ -425,7 +445,8 @@ fn remove_self() {
     // 이 프로그램이 끝난 뒤 폴더를 지워요
     use std::os::windows::process::CommandExt;
     let dir = install_dir();
-    let _ = std::process::Command::new("cmd")
+    let cmd = std::env::var_os("SystemRoot").map(|r| PathBuf::from(r).join(r"System32\cmd.exe")).unwrap_or_else(|| PathBuf::from(r"C:\Windows\System32\cmd.exe"));
+    let _ = std::process::Command::new(cmd)
         .args(["/c", "ping", "127.0.0.1", "-n", "6", ">nul", "&", "rmdir", "/s", "/q"])
         .arg(&dir)
         .creation_flags(CREATE_NO_WINDOW)

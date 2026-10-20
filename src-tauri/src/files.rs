@@ -878,8 +878,8 @@ fn fast_ask(req: &serde_json::Value) -> Option<serde_json::Value> {
                 pipe = Some(f);
                 break;
             }
-            // ERROR_PIPE_BUSY: 다른 물음에 답하는 중
-            Err(e) if e.raw_os_error() == Some(231) => std::thread::sleep(std::time::Duration::from_millis(50)),
+            // ERROR_PIPE_BUSY(다른 물음에 답하는 중)·ERROR_FILE_NOT_FOUND(통로를 바꿔 끼우는 틈) — 잠깐 뒤 다시
+            Err(e) if matches!(e.raw_os_error(), Some(231) | Some(2)) => std::thread::sleep(std::time::Duration::from_millis(50)),
             Err(_) => return None,
         }
     }

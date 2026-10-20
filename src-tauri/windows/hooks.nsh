@@ -7,6 +7,8 @@
 
 !macro NSIS_HOOK_POSTINSTALL
   ${If} ${FileExists} "$INSTDIR\gilog-search.exe"
+    StrCpy $0 1
+    ClearErrors
     ExecWait '"$INSTDIR\gilog-search.exe" check' $0
     ${If} $0 != 0
       ExecShellWait "runas" "$INSTDIR\gilog-search.exe" "install" SW_HIDE

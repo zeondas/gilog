@@ -41,7 +41,8 @@ impl Shared {
             },
             Request::Find(mut q) => {
                 q.limit = q.limit.clamp(1, MAX_LIMIT);
-                if q.name.len() > 1000 {
+                // 긴 무늬가 수많은 이름에 걸리면 오래 걸려요 — 글자 260자, ; 묶음 16개까지
+                if q.name.chars().count() > 260 || q.name.split(';').count() > 16 || q.roots.len() > 64 {
                     return Response::Error { error: "too_long".into() };
                 }
                 let roots = norm_roots(&q.roots);

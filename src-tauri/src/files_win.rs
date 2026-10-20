@@ -659,9 +659,12 @@ pub fn run_elevated(exe: &std::path::Path, args: &str) -> Result<u32, String> {
     }
     let mut code = 1u32;
     unsafe {
-        WaitForSingleObject(info.hProcess, 120_000);
+        let w = WaitForSingleObject(info.hProcess, 120_000);
         let _ = GetExitCodeProcess(info.hProcess, &mut code);
         let _ = CloseHandle(info.hProcess);
+        if w.0 != 0 {
+            return Err("timeout".into()); // 2분 안에 끝나지 않았어요
+        }
     }
     Ok(code)
 }
