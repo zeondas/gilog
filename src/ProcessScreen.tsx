@@ -16,7 +16,7 @@ import { projectColor } from "./ContactsScreen";
 import { DelIcon } from "./Icons";
 import { koIndex, todayStr } from "./journal";
 import { PlaceInput } from "./PlaceInputs";
-import { actionLine, aiGuide, fileName, md, orderLabel, orderTag, PORTAL_URL, processError, SAMPLE_WORKS, SAMPLES } from "./process";
+import { actionLine, aiGuide, fileName, mailDraft, mailGuide, md, orderLabel, orderTag, PORTAL_URL, processError, SAMPLE_WORKS, SAMPLES } from "./process";
 import { DEFAULT_PROCESS, isClosed, loadSettings, ProcessSettings } from "./settingsStore";
 
 type Props = { urgentDays: number; onOpenComplaint: (id: number) => void };
@@ -42,7 +42,7 @@ const COLUMNS: { label: string; w: number | null; center?: boolean; fixed?: bool
   { label: "민원 요약 · 판단 이유", w: null },
   { label: "판단 공사", w: 160 },
   { label: "고려사항", w: 140 },
-  { label: "지시부", w: 312 },
+  { label: "지시부", w: 320 },
 ];
 const defaultWidths = () => COLUMNS.map((c) => c.w);
 
@@ -105,6 +105,10 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   // 뜨는 목록(공사 고르기)과 지우기 묻기 창
   const [pick, setPick] = useState<{ no: string; rect: DOMRect } | null>(null);
   const [ask, setAsk] = useState<{ no: string; rect: DOMRect } | null>(null);
+  // [보내기 ▾] 메뉴 · 메일 확인 창 · 메일 보내는 중(2026-10-20 지시부 메일)
+  const [sendMenu, setSendMenu] = useState<{ id: number; rect: DOMRect } | null>(null);
+  const [mailAsk, setMailAsk] = useState<MailDraft | null>(null);
+  const [mailRun, setMailRun] = useState<{ id: number; label: string; n: number } | null>(null);
 
   const today = todayStr();
 
@@ -305,6 +309,70 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
 
   async function stopFetch() {
     await api.stopClaude().catch(() => {});
+  }
+
+  // ---------- 지시부 메일 보내기 (korea.kr, 2026-10-20 사용자 2안·2안 — Claude가 [보내기]까지) ----------
+
+  /** 지시부의 받는 사람: 공사 관리의 현장대리인 → 업무연락처 메일 주소 */
+  const recipientOf = (o: Order) => {
+    const w = (works ?? []).find((x) => x.id === o.work);
+    const c = w?.contact != null ? cd?.contacts.find((x) => x.id === w.contact) : undefined;
+    return { work: w, name: c?.name ?? "", org: c?.org ?? "", email: (c?.email ?? "").trim() };
+  };
+
+  function openMail(o: Order) {
+    setSendMenu(null);
+    const r = recipientOf(o);
+    if (!r.work || !r.email) return;
+    const n = cases.filter((c) => c.order === o.id).length;
+    const d = mailDraft(ps, r.work.name, o.seq, n, r.name);
+    setMailAsk({ id: o.id, to: r.email, toName: r.name, org: r.org, subject: d.subject, body: d.body, label: orderTag(r.work.name, o.seq) });
+  }
+
+  async function mailOrder(m: MailDraft) {
+    if (run || mailRun) return;
+    setMailAsk(null);
+    setNote("");
+    setNoteLog("");
+    const o0 = orders.find((x) => x.id === m.id);
+    if (!o0) return;
+    const o = o0.jpgs.length ? o0 : await makeJpg(o0.id);
+    if (!o?.jpgs.length) return;
+    const dir = `${ps.outbox}\\메일`;
+    const files = [o.file, ...o.jpgs];
+    try {
+      await api.runClaude({ exe: ps.claude, inbox: dir, downloads: ps.downloads, guide: mailGuide({ dir, to: m.to, toName: m.toName, subject: m.subject, body: m.body, files }) });
+    } catch (e) {
+      setNote(errText(e));
+      return;
+    }
+    setMailRun({ id: o.id, label: m.label, n: 0 });
+    let st: RunStatus;
+    for (;;) {
+      await new Promise((r) => setTimeout(r, inApp ? 2000 : 900));
+      st = await api.claudeStatus(dir).catch(() => ({ state: "error", total: null, done: null, message: "", log: "" }) as RunStatus);
+      setMailRun({ id: o.id, label: m.label, n: st.done ?? 0 });
+      if (st.state !== "running") break;
+    }
+    setMailRun(null);
+    if (st.state === "done") {
+      const at = `${todayStr()} ${stamp().slice(6)}`;
+      try {
+        putOrder(await api.orderMailed(o.id, m.to, at));
+        setNote(`${m.label}을 ${m.toName || m.to} 현장대리인에게 메일로 보냈어요 · ${at.slice(11)}`);
+      } catch (e) {
+        setNote(errText(e));
+      }
+      return;
+    }
+    setNote(
+      st.state === "login"
+        ? "korea.kr 로그인이 풀려 못 보냈어요 — 크롬에서 로그인한 뒤 다시 [보내기 ▾ → 메일]을 눌러 주세요"
+        : st.state === "stopped"
+          ? "메일 보내기를 멈췄어요 — 크롬의 메일쓰기 탭을 확인해 주세요"
+          : `메일을 못 보냈어요${st.message ? ` — ${st.message}` : ""}`,
+    );
+    setNoteLog(st.log);
   }
 
   // ---------- 지시부 만들기 · 폰으로 보내기 (지시부째) ----------
@@ -557,6 +625,22 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
         </div>
       )}
 
+      {mailRun && (
+        <div className="pr-run" role="status">
+          <span className="pr-run-dot" aria-hidden="true" />
+          <span>
+            <b>{mailRun.label}</b> 메일 보내는 중 · {MAIL_STEPS[Math.min(mailRun.n, MAIL_STEPS.length - 1)]} ({Math.min(mailRun.n + 1, 4)}/4)
+          </span>
+          <span className="pr-sub">Claude가 크롬 korea.kr 탭에서 하고 있어요 — 그 탭은 건드리지 말아 주세요</span>
+          <span className="pr-run-bar">
+            <span style={{ width: `${(Math.min(mailRun.n, 4) / 4) * 100}%` }} />
+          </span>
+          <button type="button" className="btn btn-xs" onClick={stopFetch}>
+            멈추기
+          </button>
+        </div>
+      )}
+
       {chosen.length > 0 && chosenWork && (
         <div className="pr-pickbar" role="status">
           <span
@@ -684,12 +768,39 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                     <button type="button" className="pr-next go" disabled={isD} title="든 민원을 고쳤어요. 같은 연번·같은 파일로 다시 만들어요" onClick={() => remakeOrder(o.id)}>
                       다시 만들기
                     </button>
+                  ) : mailRun?.id === o.id ? (
+                    <span className="pr-sent pr-queued" title="Claude가 korea.kr 메일로 보내고 있어요">
+                      <MailIcon />
+                      보내는 중
+                    </span>
                   ) : o.stage === "made" ? (
-                    <button type="button" className="pr-next go" disabled={isD} title="이 지시부의 JPG(쪽마다)를 보낼 폴더에 넣어요. Claude 앱 “민원처리” 대화에 “보내”라고 하면 폰으로 올려 줘요" onClick={() => send(o)}>
-                      폰 전송
+                    <button
+                      type="button"
+                      className={o.mailedAt ? "pr-sent pr-sent-btn" : "pr-next go pr-send"}
+                      disabled={isD}
+                      aria-haspopup="menu"
+                      aria-expanded={sendMenu?.id === o.id}
+                      title={o.mailedAt ? `메일 보냄 · ${o.mailedAt.slice(5)} · ${o.mailTo}\n눌러서 다시 보내기` : "메일(현장대리인) 또는 폰으로 보내요"}
+                      onClick={(e) => {
+                        setPick(null);
+                        setAsk(null);
+                        setSendMenu(sendMenu?.id === o.id ? null : { id: o.id, rect: e.currentTarget.getBoundingClientRect() });
+                      }}
+                    >
+                      {o.mailedAt ? (
+                        <>
+                          <CheckIcon />
+                          메일 보냄
+                        </>
+                      ) : (
+                        <>
+                          보내기<span className="pr-caret" aria-hidden="true">▾</span>
+                        </>
+                      )}
                     </button>
                   ) : o.stage === "queued" ? (
-                    <span className="pr-sent pr-queued" title="보낼 폴더에 있어요. Claude 앱 “민원처리” 대화에 “보내”라고 하면 올려 주고 전송 완료로 바뀌어요">
+                    <span className="pr-sent pr-queued" title="보낼 폴더에 있어요. Claude 앱 “민원처리” 대화에 “보내”라고 하면 내 폰으로 올려 주고 전송 완료로 바뀌어요">
+                      <PhoneIcon />
                       보내는 중
                     </span>
                   ) : (
@@ -812,6 +923,58 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
             </div>
           </div>
         </Floating>
+      )}
+
+      {sendMenu &&
+        (() => {
+          const o = orders.find((x) => x.id === sendMenu.id);
+          if (!o) return null;
+          const r = recipientOf(o);
+          const why = !r.work?.contact ? "공사 관리에서 현장대리인을 골라 주세요" : !r.email ? "현장대리인 메일 주소가 없어요 — 업무연락처에서 넣어 주세요" : run || mailRun ? "Claude가 다른 일을 하고 있어요" : "";
+          return (
+            <Floating rect={sendMenu.rect} align="left" onClose={() => setSendMenu(null)}>
+              <div className="pr-menu pr-sendmenu" role="menu" aria-label="지시부 보내기">
+                <button type="button" role="menuitem" className="pr-sopt" disabled={!!why} onClick={() => openMail(o)}>
+                  <MailIcon />
+                  <span>
+                    <span className="pr-sopt-t">{o.mailedAt ? "메일로 다시 보내기" : "메일로 보내기"}</span>
+                    <span className={"pr-sopt-s" + (why ? " warn" : "")}>{why || `${r.name} 현장대리인 · ${r.email}`}</span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="pr-sopt"
+                  onClick={() => {
+                    setSendMenu(null);
+                    send(o);
+                  }}
+                >
+                  <PhoneIcon />
+                  <span>
+                    <span className="pr-sopt-t">내 폰으로 보내기</span>
+                    <span className="pr-sopt-s">JPG를 Claude 앱 대화로 — 카톡으로 다시 보내요</span>
+                  </span>
+                </button>
+              </div>
+            </Floating>
+          );
+        })()}
+
+      {mailAsk && (
+        <MailDialog
+          draft={mailAsk}
+          files={(() => {
+            const o = orders.find((x) => x.id === mailAsk.id);
+            if (!o) return [];
+            const jp = o.jpgs.length ? o.jpgs : [o.file.replace(/\.hwpx$/i, ".jpg")];
+            return [o.file, ...jp];
+          })()}
+          from={ps.signer}
+          onChange={setMailAsk}
+          onSend={() => mailOrder(mailAsk)}
+          onClose={() => setMailAsk(null)}
+        />
       )}
 
       {worksOpen && cd && <WorksDialog works={works} cd={cd} onSave={saveWork} onDelete={deleteWork} onContacts={setCd} onClose={() => setWorksOpen(false)} />}
@@ -1463,5 +1626,95 @@ function PersonIcon() {
       <circle cx="12" cy="8" r="4" />
       <path d="M4 21c0-4 4-6 8-6s8 2 8 6" />
     </svg>
+  );
+}
+
+// ---------- 지시부 메일 (2026-10-20) ----------
+
+type MailDraft = { id: number; to: string; toName: string; org: string; subject: string; body: string; label: string };
+
+const MAIL_STEPS = ["메일쓰기 여는 중", "받는 사람·제목·본문 채우는 중", "첨부 붙이는 중", "보내고 보낸 메일함 확인하는 중"];
+
+function MailIcon() {
+  return (
+    <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 5h18v14H3z M3 6l9 7 9-7" />
+    </svg>
+  );
+}
+
+function PhoneIcon() {
+  return (
+    <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 3h10v18H7z M11 18h2" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 12l5 5 9-10" />
+    </svg>
+  );
+}
+
+/** 메일로 보낼까요? — 받는 사람·제목·본문(고칠 수 있어요)·첨부. [보내기]를 누르면 Claude가 korea.kr에서 보내기까지 해요(사용자 2안). */
+function MailDialog({ draft, files, from, onChange, onSend, onClose }: { draft: MailDraft; files: string[]; from: string; onChange: (d: MailDraft) => void; onSend: () => void; onClose: () => void }) {
+  const subjectRef = useRef<HTMLInputElement>(null);
+  useEffect(() => subjectRef.current?.focus(), []);
+  const ok = draft.subject.trim() !== "" && draft.to !== "";
+  return (
+    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div
+        className="dialog pr-mail"
+        role="dialog"
+        aria-modal="true"
+        aria-label="메일로 보내기"
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            onClose();
+          } else if (e.key === "Enter" && !(e.target instanceof HTMLTextAreaElement) && !e.nativeEvent.isComposing && ok) {
+            e.preventDefault();
+            onSend();
+          }
+        }}
+      >
+        <div className="dialog-head">
+          <span className="dialog-title">메일로 보낼까요?</span>
+        </div>
+        <div className="pr-mail-grid">
+          <span className="pr-mail-k">받는 사람</span>
+          <span>
+            <b>{draft.toName}</b> 현장대리인{draft.org ? ` · ${draft.org}` : ""} · {draft.to}
+          </span>
+          <span className="pr-mail-k">보내는 곳</span>
+          <span>korea.kr 메일 · {from} (크롬에 로그인해 둔 계정)</span>
+          <span className="pr-mail-k">제목</span>
+          <input ref={subjectRef} className="input" aria-label="메일 제목" value={draft.subject} onChange={(e) => onChange({ ...draft, subject: e.target.value })} />
+          <span className="pr-mail-k top">본문</span>
+          <textarea className="input pr-mail-body" aria-label="메일 본문" rows={4} value={draft.body} onChange={(e) => onChange({ ...draft, body: e.target.value })} />
+          <span className="pr-mail-k top">첨부 {files.length}개</span>
+          <div className="pr-mail-files">
+            {files.map((f) => (
+              <span key={f} className="pr-mail-file" title={f}>
+                {fileName(f)}
+              </span>
+            ))}
+          </div>
+        </div>
+        <p className="pr-mail-hint">[보내기]를 누르면 Claude가 크롬 korea.kr 탭에서 메일을 써서 바로 보내요.</p>
+        <div className="dialog-foot pr-mail-foot">
+          <button type="button" className="btn btn-ctrl btn-text" onClick={onClose}>
+            취소
+          </button>
+          <button type="button" className="btn-primary btn-ctrl pr-mail-send" disabled={!ok} onClick={onSend}>
+            <MailIcon />
+            보내기
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

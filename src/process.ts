@@ -135,3 +135,57 @@ PC에 이어져 있지 않으면 "PC 연결이 끊겨 있어요 — 데스크톱
 `;
 }
 
+
+/** 지시부 메일(korea.kr)의 제목·본문 처음 값(2026-10-20 — 확인 창에서 고칠 수 있어요). 지시자 "도로관리과 전훈민"을 부서·이름으로 나눠 써요. */
+export function mailDraft(p: { signer: string; signerPhone: string }, workName: string, seq: number, count: number, agent: string) {
+  const parts = p.signer.trim().split(/\s+/);
+  const name = parts.length > 1 ? parts[parts.length - 1] : p.signer.trim();
+  const dept = parts.length > 1 ? parts.slice(0, -1).join(" ") : "";
+  const no = String(seq).padStart(2, "0");
+  const subject = `[파주시${dept ? ` ${dept}` : ""}] ${workName} 작업지시 ${no}호`;
+  const body = [
+    `${agent ? `${agent} ` : ""}현장대리인님, ${dept ? `${dept} ` : ""}${name}입니다.`,
+    `${workName} 작업지시 ${no}호(민원 ${count}건)를 보내드립니다.`,
+    "첨부를 확인하시고 조치 바랍니다.",
+    p.signerPhone ? `문의 ${p.signerPhone}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+  return { subject, body };
+}
+
+/**
+ * 지시부를 공직자 통합메일(korea.kr)로 보내는 지침이에요(2026-10-20 사용자 2안 — Claude가 [보내기]까지 눌러요).
+ * 진행은 dir의 "_진행.json"(신문고 불러오기와 같은 모양), 마지막 답은 MAIL_SENT · LOGIN_REQUIRED · PAGE_UNREADABLE · ATTACH_FAILED · MAIL_FAILED 중 하나.
+ */
+export function mailGuide(m: { dir: string; to: string; toName: string; subject: string; body: string; files: string[] }): string {
+  return `# 기록 지시부 메일
+
+공사 지시부를 현장대리인에게 공직자 통합메일(korea.kr)로 보내요. 이 지침에 적힌 것만 해요.
+
+## 0. 시작
+- 크롬(Claude 확장)으로 일해요. 새 탭에서 https://mail.korea.kr 을 열어요(담당자가 로그인해 둔 상태).
+- 로그인 화면이 나오면 아무것도 쓰지 말고 마지막 답을 정확히 LOGIN_REQUIRED 한 줄로 끝내요. 비밀번호·인증서는 넣지 않아요.
+- 탭이 열렸는데 화면을 읽을 수 없으면 마지막 답을 정확히 PAGE_UNREADABLE 한 줄로 끝내요.
+- 진행 폴더(${m.dir})에 "_진행.json"을 {"total": 4, "done": 0} 으로 쓰고, 아래 걸음을 하나 끝낼 때마다 done을 올려요.
+
+## 1. 메일쓰기
+1. 왼쪽 [메일쓰기]를 눌러 메일쓰기 화면을 열어요.
+2. 받는 사람: ${m.to} (${m.toName}) — 이 주소 하나만. 참조·숨은참조는 비워요.
+3. 제목: ${m.subject}
+4. 본문 맨 위에 아래 글을 그대로 넣어요(서명은 그대로 둬요):
+${m.body
+  .split("\n")
+  .map((l) => `   ${l}`)
+  .join("\n")}
+5. 첨부파일 칸의 파일 입력란에 아래 파일을 모두 붙여요. 첨부 목록에 ${m.files.length}개가 다 보이는지 확인해요. 하나라도 안 붙으면 보내지 말고 마지막 답을 ATTACH_FAILED 와 이유 한 줄로 끝내요.
+${m.files.map((f) => `   - ${f}`).join("\n")}
+
+## 2. 보내기
+1. 받는 사람·제목·첨부 수를 한 번 더 확인하고 [보내기]를 눌러요.
+2. 보낸 메일함에 같은 제목이 있으면 마지막 답을 정확히 MAIL_SENT 한 줄로 끝내요.
+3. 보내기가 안 되면 MAIL_FAILED 와 이유 한 줄로 끝내요.
+
+다른 메일을 열거나 지우지 않아요. 민원인 이름·연락처는 쓰지 않아요.
+`;
+}

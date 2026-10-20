@@ -6818,7 +6818,7 @@ body.col-dragging * {
 
 .pr-row {
   display: grid;
-  grid-template-columns: var(--pr-cols, 36px 140px 60px 100px 180px minmax(140px, 1fr) 160px 140px 312px);
+  grid-template-columns: var(--pr-cols, 36px 140px 60px 100px 180px minmax(140px, 1fr) 160px 140px 320px);
   align-items: start;
   min-height: 44px;
   border-bottom: 1px solid var(--line-row);
@@ -7113,7 +7113,7 @@ body.col-dragging * {
 
 .pr-next-gap {
   flex: none;
-  width: 76px;
+  width: 84px;
 }
 
 .pr-pickbar {
@@ -7133,7 +7133,7 @@ body.col-dragging * {
 }
 
 .pr-next {
-  width: 76px;
+  width: 84px;
   height: 28px;
   padding: 0;
   border: 1px solid var(--line);
@@ -7165,7 +7165,7 @@ body.col-dragging * {
 }
 
 .pr-sent {
-  width: 76px;
+  width: 84px;
   height: 28px;
   box-sizing: border-box;
   display: inline-flex;
@@ -11002,3 +11002,147 @@ body.ew-dragging .pjm-colgrip:active::after {
 .fx-gcell[data-extdrop="1"],
 .fx-brow[data-extdrop="1"],
 .fx-tr[data-extdrop="1"] { background: var(--accent-tint); box-shadow: inset 0 0 0 1px var(--accent-line); }
+
+/* 지시부 보내기(2026-10-20): [보내기 ▾] 메뉴 · 메일 확인 창 — 시안 캔버스 ProcessMail */
+.pr-next.pr-send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+}
+
+.pr-caret {
+  font-size: 10px;
+}
+
+.pr-sent-btn {
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+}
+
+.pr-sent-btn:hover {
+  filter: brightness(0.97);
+}
+
+.pr-sendmenu {
+  width: 300px;
+}
+
+.pr-sopt {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  text-align: left;
+}
+
+.pr-sopt > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.pr-sopt > svg {
+  flex: none;
+  margin-top: 3px;
+}
+
+.pr-sopt:hover:not(:disabled) {
+  background: var(--surface-band);
+  color: var(--accent);
+}
+
+.pr-sopt:disabled {
+  cursor: default;
+}
+
+.pr-sopt:disabled .pr-sopt-t {
+  color: var(--muted);
+}
+
+.pr-sopt-t {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.pr-sopt-s {
+  font-size: 12px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.pr-sopt-s.warn {
+  color: var(--st-work-fg);
+  font-weight: 600;
+}
+
+.dialog.pr-mail {
+  width: 600px;
+}
+
+.pr-mail-grid {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 10px 12px;
+  align-items: center;
+  padding: 4px 24px 0;
+}
+
+.pr-mail-k {
+  color: var(--muted);
+}
+
+.pr-mail-k.top {
+  align-self: start;
+  padding-top: 5px;
+}
+
+.pr-mail-body {
+  height: auto;
+  min-height: 92px;
+  padding: 6px 8px;
+  line-height: 20px;
+  resize: vertical;
+  font: inherit;
+}
+
+.pr-mail-files {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pr-mail-file {
+  display: block;
+  height: 28px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  line-height: 26px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pr-mail-hint {
+  margin: 12px 24px 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.pr-mail-foot {
+  gap: var(--space-2);
+}
+
+.pr-mail-send {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
