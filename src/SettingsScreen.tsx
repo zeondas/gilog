@@ -884,7 +884,7 @@ function FastRow({ on, onChange }: { on: boolean; onChange: (v: boolean) => void
   const [busy, setBusy] = useState("");
   const ask = () => void fsApi.fastStatus().then(setF, () => setF(null));
   useEffect(ask, []);
-  const desc = "모든 드라이브에서 이름을 바로 찾아요.";
+  const desc = "모든 드라이브에서 이름을 바로 찾아요. 드라이브의 파일 목록을 미리 저장해 두는 방식이라 설치할 때 관리자 허용이 필요해요.";
   if (f?.installed)
     return <Toggle label="빠른 찾기" desc={desc} k="에브리띵 everything 모든 드라이브" on={on} onChange={onChange} />;
   const install = async () => {
@@ -898,7 +898,7 @@ function FastRow({ on, onChange }: { on: boolean; onChange: (v: boolean) => void
     ask();
   };
   return (
-    <Row label="빠른 찾기" desc={busy || "설치할 때 관리자 허용을 받지 못해 깔리지 않았어요. 깔 때 한 번 더 물어요."} k="에브리띵 everything 모든 드라이브">
+    <Row label="빠른 찾기" desc={busy || "모든 드라이브에서 이름을 바로 찾아요. 드라이브의 파일 목록을 미리 저장해 두는 방식이라 관리자 허용이 필요한데, 설치할 때 받지 못해 깔리지 않았어요. [깔기]를 누르면 한 번 더 물어요."} k="에브리띵 everything 모든 드라이브">
       <button type="button" className="btn btn-ctrl" disabled={f === undefined || !!busy && busy.endsWith("…")} onClick={() => void install()}>
         깔기
       </button>
