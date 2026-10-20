@@ -34,6 +34,8 @@ export type Setup = {
   carrySrc: string; // 이월 사업 값이 들어갈 재원(재원이 둘 이상일 때), 없으면 첫 재원
   rows: Record<string, Manual>; // "2025:시비" → 직접 적은 값
   memo?: string; // 메모(메모 편집기 HTML)
+  sent?: boolean; // 집행현황에서 "예산현황으로 보내기"를 한 사업만 예산현황에 보여요(2026-10-20 사용자 2안)
+  match?: Record<string, string>; // 부기사업 이름 → 재원(재원이 둘 이상일 때 매칭) — 그 부기사업의 예산·공사 집행액이 그 재원 줄로
 };
 
 export const defaultSetup = (years: number[]): Setup => ({ multi: false, from: Math.min(...years), to: Math.max(...years), sources: ["시비"], carry: "", carrySrc: "", rows: {} });
@@ -45,6 +47,18 @@ export function linkedOf(projects: BudgetProject[], name: string): Linked | null
   if (!p) return null;
   const exp = p.items.flatMap((i) => i.rows).reduce((s, r) => s + r.exp, 0);
   return { budget: p.budget ?? 0, exp };
+}
+/** 재원 매칭: 그 재원에 매칭된 부기사업들의 예산·집행액 합(매칭 안 한 부기사업은 첫 재원으로). 부기사업이 둘 미만이면 null(직접 적어요) */
+export function matchedOf(projects: BudgetProject[], name: string, setup: Setup, src: string): Linked | null {
+  const p = projects.find((x) => x.name === name);
+  if (!p || p.items.length < 2) return null;
+  let budget = 0, exp = 0;
+  for (const it of p.items) {
+    if ((setup.match?.[it.name] ?? setup.sources[0]) !== src) continue;
+    budget += it.budget ?? 0;
+    exp += it.rows.reduce((s, r) => s + r.exp, 0);
+  }
+  return { budget, exp };
 }
 
 /** 한 줄(연도×재원 또는 합계)의 계산 결과 */
@@ -84,7 +98,8 @@ export function compute(name: string, setup: Setup, byYear: Record<number, Budge
     for (const s of setup.sources) {
       const m = setup.rows[`${y}:${s}`] ?? {};
       // 재원이 하나면 집행현황 값이 곧 그 줄, 둘 이상이면 직접 적은 값
-      const auto = one && main && !selfCarry ? main : null;
+      // 재원이 둘 이상이면 부기사업 매칭으로 그 재원 몫이 와요(부기사업이 둘 미만이면 직접 적은 값)
+      const auto = one && main && !selfCarry ? main : !one && main && !selfCarry ? matchedOf(projs, name, setup, s) : null;
       const autoM = one && main && selfCarry === "m" ? main : null;
       const autoS = one && main && selfCarry === "s" ? main : null;
       const cur = auto ? auto.budget : z(m.cur);
@@ -112,9 +127,19 @@ export function compute(name: string, setup: Setup, byYear: Record<number, Budge
       prevLeft[s] = setup.multi ? { nm, ns } : null;
     }
     const total = sumLines(Object.values(bySrc));
-    if (!one && main && !selfCarry && (total.curSum !== main.budget || total.en !== main.exp)) {
-      // 재원 줄 합이 집행현황과 다르면 합계 줄은 집행현황 값으로 보여 주고 붉게
-      total.diffSum = true;
+    if (!one && main && !selfCarry) {
+      // 재원이 둘 이상이면 합계 줄(연도·사업 줄)은 집행현황의 예산·집행액을 그대로 보여 주고(2026-10-20 사용자: 재원을 나눠 적기 전에도 예산이 보여야 해요),
+      // 재원 줄을 적기 시작했는데 합이 집행현황과 다르면 붉게
+      const sumCur = total.curSum, sumEn = total.en;
+      const adds = total.a1 + total.a2 + total.a3 + total.a4;
+      total.curSum = main.budget;
+      total.cur = main.budget - adds;
+      total.en = main.exp;
+      total.ex = total.en + total.em + total.es;
+      total.act = total.curSum + total.prev;
+      total.rate = total.act ? (total.ex / total.act) * 100 : null;
+      total.left = total.act - total.ex - total.nm - total.ns - total.un;
+      if ((sumCur !== 0 && sumCur !== main.budget) || (sumEn !== 0 && sumEn !== main.exp)) total.diffSum = true;
     }
     blocks.push({ year: y, linked, hasMain: main != null, total, bySrc });
   }

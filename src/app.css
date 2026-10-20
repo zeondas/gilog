@@ -10337,7 +10337,6 @@ select.input.fx-set-date { width: 190px; }
 .pjm-find {
   /* 찾기 칸 = 아래 줄 축약 공사명 칸 + 사이 + 추가 단추 폭(좌우 끝을 맞춰요) */
   width: calc(var(--pjm-short) + var(--space-2) + var(--pjm-btn));
-  margin-left: auto;
 }
 
 .mgr.pjm {
@@ -10366,7 +10365,7 @@ select.input.fx-set-date { width: 190px; }
 
 .pjm-row {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) 220px 56px 28px 28px;
+  grid-template-columns: 22px minmax(0, 1fr) var(--pjm-short) 56px 28px;
   align-items: center;
   column-gap: 10px;
   min-height: 32px;
@@ -10458,7 +10457,7 @@ select.input.fx-set-date { width: 190px; }
 
 .pjm-edit .mgr-names {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 220px;
+  grid-template-columns: minmax(0, 1fr) var(--pjm-short);
   gap: 10px;
 }
 
@@ -10608,7 +10607,7 @@ body.ew-dragging * {
 }
 
 .pjm-edit-g .mgr-names {
-  grid-template-columns: 150px minmax(0, 1fr) 220px;
+  grid-template-columns: 150px minmax(0, 1fr) var(--pjm-short);
 }
 
 .grp-in .input {
@@ -10786,6 +10785,29 @@ body.ew-dragging * {
 .bs .bd-hd.bs-hd2 .bd-h.bs-span { align-items: flex-start; line-height: 28px; } /* 두 줄 걸친 머리(구분·예산현액…)는 윗줄 높이에 */
 .bs .bd-rw > .bd-c.n.bs-rate { justify-content: center; } /* 집행률 막대·숫자는 가운데 */
 .bs .bd-bar { width: 44px; }
+/* 직접 적는 칸은 입력칸 모양 테두리 상자(고치는 줄의 bd-in과 같은 자리·크기). 아래 안내 줄 */
+.bs-fld { display: inline-flex; align-items: center; justify-content: flex-end; width: 100%; height: 28px; padding: 0 6px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); font-variant-numeric: tabular-nums; }
+.bs-fld:empty::before { content: "-"; color: var(--bd-ghost); }
+.bs-fld.red { color: var(--danger); }
+.bs .bd-rw.pj .bs-fld { font-weight: 700; }
+.bs-guide { display: flex; align-items: center; gap: 6px; flex: none; height: 28px; padding: 0 12px; border-top: 1px solid var(--line-soft); font-size: 11.5px; color: var(--muted); }
+/* 예산현황으로 보내기 창(집행현황·예산현황 공용) */
+.dialog.bss { width: 560px; }
+.bss-sub { font-size: 13px; color: var(--muted); }
+.bss-body { gap: 10px; padding-bottom: 16px; }
+.bss-sec { display: flex; align-items: flex-start; gap: 8px; }
+.bss-sec > .bs-lab { padding-top: 6px; }
+.bss-match { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.bss-note { padding-top: 0; border-top: 0; }
+.bss-item { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--surface); }
+.bss-item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.bss-item-num { flex: none; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.bss-pick { height: 28px; padding: 2px; }
+.bss-pick button { height: 22px; padding: 0 8px; font-size: 12px; }
+.bss-foot { justify-content: space-between; align-items: center; }
+.bss-btns { display: flex; gap: 8px; }
+.bss-remove { color: var(--danger); }
+.bs-guide-sw { display: inline-flex; align-items: center; justify-content: flex-end; width: 28px; height: 18px; padding: 0 4px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--bd-ghost); font-size: 11px; }
 .bs .bd-h.bs-hn { justify-content: flex-start; }
 .bs .bd-hd.bs-hd2 { height: 56px; grid-template-rows: 28px 28px; }
 .bs .bd-hd.bs-hd2 .bd-h.bs-grp { border-bottom: 1px solid var(--line-soft); }
@@ -10844,3 +10866,137 @@ body.ew-dragging * {
 .fx-tree-list { padding-top: 8px; }
 .fx-tr { margin: 0 8px; }
 .fx-pane .fx-row1 { align-items: flex-start; padding: 8px 8px 5px; }
+
+/* ---------- 사업 관리 창 (2026-10-20 사용자): 열 제목 경계 끌기 · 줄 우클릭 메뉴 ---------- */
+.pjm-thc {
+  position: relative;
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  min-width: 0;
+}
+
+/* 경계 손잡이: 열 사이 10px 간격 가운데에 2px 선 */
+.pjm-colgrip {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  right: -10px;
+  width: 10px;
+  cursor: ew-resize;
+  z-index: 1;
+}
+
+.pjm-colgrip::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 4px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--line);
+}
+
+.pjm-colgrip:hover::after,
+body.ew-dragging .pjm-colgrip:active::after {
+  background: var(--accent);
+}
+
+.pjm-row[aria-selected="true"] {
+  background: var(--surface-band);
+}
+
+.pjm-menu {
+  min-width: 160px;
+}
+
+.pjm-menu-sub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pjm-menu-sub.on {
+  background: var(--surface-band);
+}
+
+.pjm-submenu {
+  position: absolute;
+  top: 36px;
+  left: calc(100% + 4px);
+  min-width: 180px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.pjm-submenu-l {
+  left: auto;
+  right: calc(100% + 4px);
+}
+
+.pjm-gopt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pjm-gopt:disabled {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.pjm-gcheck {
+  flex: none;
+  width: 14px;
+  color: var(--accent);
+}
+
+.pjm-gnone {
+  color: var(--muted);
+}
+
+.dmenu-sep {
+  height: 1px;
+  margin: 2px 6px;
+  background: var(--line-soft);
+}
+
+/* [그룹 추가](2026-10-20 사용자): 찾기 칸 왼쪽, 새 그룹 이름 줄은 목록 맨 위 */
+.pjm-grp-add {
+  margin-left: auto;
+}
+
+.pjm-grp-new {
+  gap: 8px;
+  background: var(--accent-wash);
+}
+
+.pjm-grp-new .grp-arrow {
+  margin-left: 4px;
+}
+
+.pjm-grp-tip {
+  margin-left: 4px;
+}
+
+/* ---------- 머리 줄 칸 폭 고정 (상단 정리, 2026-10-20 사용자 확정 — 시안 TopBar.dc.html) ----------
+   민원대장·민원처리·업무연락처·집행현황·예산현황 다섯 화면만(.tb5). 오른쪽 묶음 순서:
+   토글 → 배치최적화 → 입력창 단추 → 검색 → 엑셀(맨 오른쪽). 없는 칸은 같은 폭을 비워 다른 화면과 자리를 맞춰요.
+   폭은 모두 정수라 100%·125%에서 반 픽셀에 걸리지 않아요. 간격 8은 .ct-head·.bd-top 그대로. */
+.tb5 .xl-btn,
+.tb5 .tb-pop,
+.tb5 .tb-fit { flex: none; justify-content: center; padding: 0; white-space: nowrap; }
+.tb5 .xl-btn { width: 76px; }
+.tb5 .tb-pop { width: 80px; }
+.tb5 .tb-fit { width: 102px; }
+.tb5 .search { width: 260px; flex: none; }
+.pr .ct-head.tb5 .search { margin-left: 0; }  /* 민원처리: 오른쪽으로 미는 건 공사 관리(.pr-push)가 맡아요 */
+.tb5 .tb-seg-l,
+.tb5 .tb-seg-s { flex: none; box-sizing: border-box; }
+.tb5 .tb-seg-l { width: 116px; }
+.tb5 .tb-seg-s { width: 84px; }
+.tb5 .tb-seg-l > button,
+.tb5 .tb-seg-s > button { flex: 1 1 0; min-width: 0; padding: 0; }
+.tb5 .tb-hole-pop { flex: none; width: 80px; }  /* 예산현황: 집행현황 "사업 추가" 자리 */
+.tb5 .tb-hole-xl { flex: none; width: 76px; }   /* 민원처리: 다른 화면 "엑셀" 자리 */

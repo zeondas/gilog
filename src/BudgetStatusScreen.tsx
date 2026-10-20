@@ -5,7 +5,8 @@
 import React, { KeyboardEvent as RKeyboardEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Fragment } from "react";
 import { api, errorText, inApp } from "./api";
 import { BudgetProject, fmt, okWon, parseWon, typing, Unit } from "./budget";
-import { BStatusLine, compute, defaultSetup, Line, lineOf, linkedOf, Manual, parseBStatusSheet, projectNames, Setup, SOURCES } from "./budgetStatus";
+import { BStatusLine, compute, defaultSetup, Line, lineOf, linkedOf, Manual, parseBStatusSheet, projectNames, Setup } from "./budgetStatus";
+import { BudgetStatusSend, SendTarget } from "./BudgetStatusSend";
 import { dirOf, DIR_KEY, joinPath, lastDir } from "./ExcelMenu";
 import { isEmptyMemo, MemoEditor, sanitize } from "./RichMemo";
 import { memoToText } from "./budget";
@@ -17,7 +18,7 @@ const ICON = (d: string, s = 14, w = 2) => (
     <path d={d} />
   </svg>
 );
-const CD = "M6 9l6 6 6-6", CR = "M9 6l6 6-6 6", GEAR = "M4 6h16 M4 12h16 M4 18h16 M9 4v4 M15 10v4 M7 16v4", X = "M6 6l12 12M18 6L6 18";
+const CD = "M6 9l6 6 6-6", CR = "M9 6l6 6-6 6", GEAR = "M4 6h16 M4 12h16 M4 18h16 M9 4v4 M15 10v4 M7 16v4";
 const UNIT_KEY = "bstatus.unit", VIEW_KEY = "bstatus.view", YEAR_KEY = "bstatus.year", ORDER_KEY = "bstatus.order";
 
 type Col = { id: string; label: string; sub?: string; w: number; num?: boolean };
@@ -65,7 +66,7 @@ const DET_COLS: Col[] = [
 /** 직접 적을 수 있는 칸(재원 줄) */
 const EDIT_FIELDS: (keyof Manual)[] = ["cur", "a1", "a2", "a3", "a4", "pm", "ps", "en", "em", "es", "nm", "ns", "un"];
 
-type Pop = { t: "setup"; name: string; x: number; y: number } | { t: "src"; name: string; x: number; y: number } | { t: "menu"; name: string; x: number; y: number } | { t: "memo"; name: string; x: number; y: number } | { t: "excel"; x: number; y: number };
+type Pop = { t: "menu"; name: string; x: number; y: number } | { t: "memo"; name: string; x: number; y: number } | { t: "excel"; x: number; y: number };
 type Ask = { path: string; cells: { name: string; year: number; src: string; m: Manual }[]; skipped: number };
 type Form = { name: string; year: number; src: string; text: Record<string, string> };
 
@@ -85,7 +86,6 @@ export default function BudgetStatusScreen() {
   const [form, setForm] = useState<Form | null>(null);
   const [bad, setBad] = useState<string | null>(null);
   const [pop, setPop] = useState<Pop | null>(null);
-  const [newSrc, setNewSrc] = useState("");
   const formRow = useRef<HTMLDivElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
   const [popPos, setPopPos] = useState<{ left: number; top: number } | null>(null);
@@ -95,6 +95,8 @@ export default function BudgetStatusScreen() {
   const [sbw, setSbw] = useState(0);
   const [toast, setToast] = useState("");
   const [ask, setAsk] = useState<Ask | null>(null);
+  /** 보내기/설정 창(집행현황 우클릭과 같은 창) */
+  const [send, setSend] = useState<string | null>(null);
   const memoHtml = useRef("");
   const scroller = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -163,13 +165,12 @@ export default function BudgetStatusScreen() {
   }, []);
 
   const names = useMemo(() => {
-    // 이월 세부사업은 어느 사업에 이어져 있으면 빼고, 잇지 않은 것은 그대로 한 줄(집행현황의 모든 세부사업이 보이게 — 2026-10-19 사용자)
+    // 집행현황에서 "예산현황으로 보내기"를 한 사업만(2026-10-20 사용자 2안). 어느 사업에 이어진 이월 세부사업은 그 사업 안으로
     const linked = new Set(Object.values(setups).map((s) => s.carry).filter(Boolean));
-    const all = projectNames(byYear).filter((p) => !p.carry || !linked.has(p.name));
+    const all = projectNames(byYear).filter((p) => setups[p.name]?.sent && !linked.has(p.name));
     const pos = new Map(order.map((n, i) => [n, i]));
     return [...all].sort((a, b) => (pos.get(a.name) ?? 1e9) - (pos.get(b.name) ?? 1e9));
   }, [byYear, order, setups]);
-  const carryNames = useMemo(() => projectNames(byYear).filter((p) => p.carry), [byYear]);
   const shown = names.filter((p) => {
     if (q && !p.name.includes(q)) return false;
     const s = setups[p.name];
@@ -345,7 +346,11 @@ export default function BudgetStatusScreen() {
   );
   // 숫자 글자: 0은 "-"(짧은 하이픈), 음수도 하이픈(2026-10-19 사용자 — 긴 줄표는 쓰지 않아요)
   const fz = (v: number) => (v === 0 ? "-" : fmt(v, unit).replace("−", "-"));
-  const num = (v: number | null | undefined, cls = "", title?: string) => cell(v == null ? "" : fz(v), " n" + cls, title);
+  // 직접 적는 칸(bs-ed)은 입력칸 모양 테두리 상자로 보여요(2026-10-20 사용자 — 살색 바탕 대신)
+  const num = (v: number | null | undefined, cls = "", title?: string) => {
+    const t = v == null ? "" : fz(v);
+    return cls.includes("bs-ed") ? cell(<span className={"bs-fld" + (cls.includes(" red") ? " red" : "")}>{t}</span>, " n" + cls, title) : cell(t, " n" + cls, title);
+  };
   const bar = (rate: number | null, sm: boolean, row: boolean) =>
     rate == null ? (
       ""
@@ -359,11 +364,25 @@ export default function BudgetStatusScreen() {
     );
 
   /** 숫자 칸들(구분·메모 사이) */
+  /** 그 해 집행현황에 부기사업이 둘 이상이면 재원 줄 예산·집행액은 매칭으로 와요(직접 적지 않음) */
+  const matchedYear = (name: string, y: number) => ((byYear[y] ?? []).find((x) => x.name === name)?.items.length ?? 0) >= 2;
   /** 집행현황에서 오는 칸: 보통 본예산·집행 당해, 잇지 않은 이월 세부사업은 명시/사고 쪽 */
   const lockOf = (name: string) => (/^\(명시이월\)/.test(name) ? ["pm", "em"] : /^\(사고이월\)/.test(name) ? ["ps", "es"] : ["cur", "en"]);
   // lock: 집행현황에서 오는 칸(재원 하나 + 그 해 집행현황 있음 → 본예산·집행 당해)은 고치는 줄에서도 값만 보여요
-  const numCells = (l: Line, kind: "pj" | "it" | "gun", editing: Form | null, year?: number, first = false, lock: string[] = []) => {
+  // canEdit: 이 줄을 두 번 눌러 고칠 수 있는 줄(재원 줄, 재원 하나면 연도 줄, 단년도+재원 하나면 사업 줄) — 직접 적는 칸을 살색으로 표시해요(2026-10-20 사용자)
+  const numCells = (l: Line, kind: "pj" | "it" | "gun", editing: Form | null, year?: number, first = false, lock: string[] = [], canEdit = false) => {
     const out: ReactNode[] = [];
+    /** 이 열이 직접 적는 칸인지(요약은 당해예산→본예산, 전년도 이월→명시(첫 해), 집행액→당해, 다음연도 이월→명시) */
+    const manualOf = (id: string): string | null => {
+      if (!detail) {
+        if (id === "curSum") return "cur";
+        if (id === "prev") return first ? "pm" : null;
+        if (id === "ex") return "en";
+        if (id === "next") return "nm";
+      }
+      if ((EDIT_FIELDS as string[]).includes(id)) return (id === "pm" || id === "ps") && !first ? null : id;
+      return null;
+    };
     const edit = (k: keyof Manual, label: string) => (
       <div className="bd-c n" role="cell" key={k}>
         <input
@@ -381,6 +400,8 @@ export default function BudgetStatusScreen() {
     for (const c of cols) {
       if (c.id === "name" || c.id === "memo" || c.id === "yrs") continue;
       const id = c.id;
+      const mf = canEdit ? manualOf(id) : null;
+      const ed = mf && !lock.includes(mf) ? " bs-ed" : "";
       if (editing && (EDIT_FIELDS as string[]).includes(id) && !lock.includes(id) && !((id === "pm" || id === "ps") && !first)) {
         out.push(edit(id as keyof Manual, c.sub || c.label));
         continue;
@@ -397,27 +418,27 @@ export default function BudgetStatusScreen() {
         continue;
       }
       if (first && ["prev", "pm", "ps"].includes(id) && !(l as unknown as Record<string, number>)[id]) {
-        out.push(cell("", " n"));
+        out.push(ed ? cell(<span className="bs-fld" />, " n" + ed) : cell("", " n"));
         continue;
       }
       if (id === "next") {
-        out.push(num(l.next, "", l.left ? `남은 돈 ${fz(l.left)}(현액 − 집행 − 이월 − 불용)` : undefined));
+        out.push(num(l.next, ed, l.left ? `남은 돈 ${fz(l.left)}(현액 − 집행 − 이월 − 불용)` : undefined));
         continue;
       }
       if (id === "nm" || id === "ns") {
-        out.push(num(id === "nm" ? l.nm : l.ns));
+        out.push(num(id === "nm" ? l.nm : l.ns, ed));
         continue;
       }
       if (id === "prev" || id === "pm") {
         const v = (l as unknown as Record<string, number>)[id];
-        out.push(num(v, l.mismatch ? " red" : "", l.mismatch && year ? `${year - 1}년 다음연도 이월과 달라요` : undefined));
+        out.push(num(v, (l.mismatch ? " red" : "") + ed, l.mismatch && year ? `${year - 1}년 다음연도 이월과 달라요` : undefined));
         continue;
       }
       if (kind === "it" && l.diffSum && (id === "curSum" || id === "cur" || id === "ex" || id === "en")) {
-        out.push(num((l as unknown as Record<string, number>)[id], " red", "재원 줄을 더한 값이 집행현황과 달라요"));
+        out.push(num((l as unknown as Record<string, number>)[id], " red" + ed, "재원 줄을 더한 값이 집행현황과 달라요"));
         continue;
       }
-      out.push(num((l as unknown as Record<string, number>)[id]));
+      out.push(num((l as unknown as Record<string, number>)[id], ed));
     }
     return out;
   };
@@ -572,105 +593,6 @@ export default function BudgetStatusScreen() {
     setAsk(null);
   };
 
-  // ---------- 설정 상자 ----------
-  const setupBody = (name: string) => {
-    const s = setups[name];
-    if (!s) return null;
-    const yr = (k: "from" | "to") => (
-      <input
-        className="fld bd-in bs-yr"
-        aria-label={k === "from" ? "시작 연도" : "끝 연도"}
-        value={s[k]}
-        onChange={(e) => {
-          const v = Number(e.target.value.replace(/\D/g, "").slice(0, 4));
-          if (v >= 2000 && v <= 2100) saveSetup(name, { ...s, [k]: v });
-        }}
-      />
-    );
-    return (
-      <div className="bs-setup" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="bs-row">
-          <span className="bs-lab">사업</span>
-          <span className="bd-unit bs-kind" role="group" aria-label="단년도 · 다년도">
-            <button type="button" className={"btn" + (!s.multi ? " on" : "")} aria-pressed={!s.multi} onClick={() => saveSetup(name, { ...s, multi: false })}>단년도</button>
-            <button type="button" className={"btn" + (s.multi ? " on" : "")} aria-pressed={s.multi} onClick={() => saveSetup(name, { ...s, multi: true })}>다년도</button>
-          </span>
-          {s.multi && (
-            <>
-              <span className="bs-lab bs-lab2">기간</span>
-              {yr("from")}
-              <span className="bs-tilde">~</span>
-              {yr("to")}
-            </>
-          )}
-        </div>
-        <div className="bs-row">
-          <span className="bs-lab">재원</span>
-          <span className="bs-srcs">
-            {SOURCES.filter((x) => x !== "기타").map((x) => {
-              const on = s.sources.includes(x);
-              const last = on && s.sources.length === 1;
-              return (
-                <button
-                  key={x}
-                  type="button"
-                  className={"bs-src" + (on ? " on" : "")}
-                  aria-pressed={on}
-                  title={last ? "재원은 하나 이상 있어야 해요" : undefined}
-                  onClick={() => { if (last) return; saveSetup(name, { ...s, sources: on ? s.sources.filter((y) => y !== x) : [...s.sources, x] }); }}
-                >
-                  {x}
-                </button>
-              );
-            })}
-            {s.sources.filter((x) => !(SOURCES as readonly string[]).includes(x)).map((x) => (
-              <span key={x} className="bs-src on bs-src-x">
-                {x}
-                <button type="button" className="chip-x" aria-label={x + " 빼기"} disabled={s.sources.length === 1} onClick={() => saveSetup(name, { ...s, sources: s.sources.filter((y) => y !== x) })}>
-                  {ICON(X, 11)}
-                </button>
-              </span>
-            ))}
-            <input
-              className="fld bd-in bs-other"
-              placeholder="기타 재원 · Enter"
-              aria-label="기타 재원 이름"
-              value={newSrc}
-              onChange={(e) => setNewSrc(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.nativeEvent.isComposing && newSrc.trim()) {
-                  if (!s.sources.includes(newSrc.trim())) saveSetup(name, { ...s, sources: [...s.sources, newSrc.trim()] });
-                  setNewSrc("");
-                }
-              }}
-            />
-          </span>
-        </div>
-        <div className="bs-row">
-          <span className="bs-lab">이월 사업</span>
-          <select className="fld bd-in bs-sel" aria-label="이어 붙일 이월 세부사업" value={s.carry} onChange={(e) => saveSetup(name, { ...s, carry: e.target.value })}>
-            <option value="">없음</option>
-            {carryNames.filter((c) => c.name !== name).map((c) => (
-              <option key={c.name} value={c.name}>
-                {c.name} · {c.years.join("·")}
-              </option>
-            ))}
-          </select>
-          {s.carry && s.sources.length > 1 && (
-            <select className="fld bd-in bs-sel2" aria-label="이월 사업 값이 들어갈 재원" value={s.carrySrc || s.sources[0]} onChange={(e) => saveSetup(name, { ...s, carrySrc: e.target.value })}>
-              {s.sources.map((x) => (
-                <option key={x} value={x}>
-                  {x}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-        <div className="bs-hint">단년도는 집행현황에 있는 해마다 따로, 다년도는 남은 돈이 다음 해 전년도 이월로 이어져요. 이월 세부사업을 이으면 예산은 전년도 이월, 집행액은 집행(명시)로.</div>
-      </div>
-    );
-  };
-
   const mi = (t: string, onClick: (() => void) | null) => (
     <div className={"bd-mi bs-mi" + (!onClick ? " off" : "")} role="menuitem" aria-disabled={!onClick} onClick={(e) => { e.stopPropagation(); onClick?.(); }}>
       <span className="bd-mi-t">{t}</span>
@@ -681,7 +603,7 @@ export default function BudgetStatusScreen() {
     const i = list.indexOf(name);
     return (
       <>
-        {mi("설정", () => { const r = document.querySelector<HTMLElement>(`.bs .bd-rw.pj.sel .bs-gear`)?.getBoundingClientRect(); setPop(r ? { t: "setup", name, x: r.left, y: r.bottom + 4 } : null); })}
+        {mi("예산현황 설정", () => { setPop(null); setSend(name); })}
         <div className="bd-mdiv" />
         {mi("위로 옮기기", i > 0 ? () => moveRow(name, -1) : null)}
         {mi("아래로 옮기기", i >= 0 && i < list.length - 1 ? () => moveRow(name, 1) : null)}
@@ -729,14 +651,13 @@ export default function BudgetStatusScreen() {
           <span className="bs-years" title={`${s.multi ? `다년도 ${s.from}~${s.to}` : "단년도"} · 재원 ${s.sources.join("·")}`}>{srcLabel}</span>
           <button
             type="button"
-            className={"bs-gear" + (pop?.t === "setup" && pop.name === p.name ? " on" : "")}
-            aria-label="사업 기간·재원·이월 사업 설정"
-            title="단년도/다년도 · 재원 · 이월 사업"
+            className={"bs-gear" + (send === p.name ? " on" : "")}
+            aria-label="예산현황 설정"
+            title="단년도/다년도 · 재원 · 이월 사업 · 재원 매칭"
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
-              const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-              setPop(pop?.t === "setup" && pop.name === p.name ? null : { t: "setup", name: p.name, x: r.left, y: r.bottom + 4 });
+              setSend(p.name);
             }}
           >
             {ICON(GEAR, 12)}
@@ -753,7 +674,7 @@ export default function BudgetStatusScreen() {
           )}
           <span className="bd-nm" title={p.name}>{p.name}</span>
         </div>
-        {single && one && yb ? numCells(yb.bySrc[oneSrc], "pj", pjEditing, year, true, yb.hasMain ? lockOf(p.name) : []) : numCells(book.total, "pj", null)}
+        {single && one && yb ? numCells(yb.bySrc[oneSrc], "pj", pjEditing, year, true, yb.hasMain ? lockOf(p.name) : [], true) : numCells(book.total, "pj", null)}
         {memoBtn(p.name)}
       </div>,
     );
@@ -780,7 +701,7 @@ export default function BudgetStatusScreen() {
               <span className="bd-cr ind1 bs-noexp" aria-hidden="true" />
               <span className="bd-nm">{src}</span>
             </div>
-            {numCells(l, "gun", editing, year, true)}
+            {numCells(l, "gun", editing, year, true, matchedYear(p.name, year) ? ["cur", "en"] : [], true)}
             {memoCell}
           </div>,
         );
@@ -820,7 +741,7 @@ export default function BudgetStatusScreen() {
             <span className="bd-nm">{b.year}년</span>
             <span className="bs-note">{b.linked ? "집행현황" : "직접 입력"}</span>
           </div>
-          {one ? numCells(b.bySrc[oneSrc], "it", yEditing, b.year, first, b.hasMain ? lockOf(p.name) : []) : numCells(b.total, "it", null, b.year, first)}
+          {one ? numCells(b.bySrc[oneSrc], "it", yEditing, b.year, first, b.hasMain ? lockOf(p.name) : [], true) : numCells(b.total, "it", null, b.year, first)}
           {memoCell}
         </div>,
       );
@@ -845,7 +766,7 @@ export default function BudgetStatusScreen() {
               <span className="bd-tl h2" />
               <span className="bd-nm bd-gpad">{src}</span>
             </div>
-            {numCells(l, "gun", editing, b.year, first)}
+            {numCells(l, "gun", editing, b.year, first, matchedYear(p.name, b.year) ? ["cur", "en"] : [], true)}
             {memoCell}
           </div>,
         );
@@ -853,8 +774,8 @@ export default function BudgetStatusScreen() {
     });
   }
 
-  const seg = (a: string, b: string, on: 0 | 1, pick: (i: 0 | 1) => void, label: string) => (
-    <span className="bd-unit" role="group" aria-label={label}>
+  const seg = (a: string, b: string, on: 0 | 1, pick: (i: 0 | 1) => void, label: string, cls = "") => (
+    <span className={"bd-unit" + cls} role="group" aria-label={label}>
       <button type="button" className={on === 0 ? "on" : ""} aria-pressed={on === 0} onClick={() => pick(0)}>{a}</button>
       <button type="button" className={on === 1 ? "on" : ""} aria-pressed={on === 1} onClick={() => pick(1)}>{b}</button>
     </span>
@@ -862,7 +783,7 @@ export default function BudgetStatusScreen() {
 
   return (
     <div ref={rootRef} className={"bd bs" + (packed ? " bd-packed" : "")}>
-      <div className="bd-top" style={packed ? { width: colSum + 1 } : undefined}>
+      <div className="bd-top tb5" style={packed ? { width: colSum + 1 } : undefined}>
         <h1 className="title">예산현황</h1>
         <span className="bd-year">
           <button type="button" aria-label="이전 해" onClick={() => changeYear(year - 1)}>
@@ -874,14 +795,15 @@ export default function BudgetStatusScreen() {
           </button>
         </span>
         <span className="bd-sp" />
-        <button type="button" className="btn btn-ctrl bd-tool" title="열 간격을 보이는 내용 폭에 맞춰요 · 열 제목 우클릭으로 처음대로" onClick={fitAll}>
+        {seg("요약", "자세히", detail ? 1 : 0, (i) => { setDetail(i === 1); api.set(VIEW_KEY, i === 1 ? "detail" : "summary").catch(() => {}); }, "보기", " tb-seg-l")}
+        {seg("원", "천원", unit === 1 ? 0 : 1, (i) => { setUnit(i ? 1000 : 1); api.set(UNIT_KEY, i ? "1000" : "1").catch(() => {}); }, "금액 단위", " tb-seg-s")}
+        <button type="button" className="btn btn-ctrl bd-tool tb-fit" title="열 간격을 보이는 내용 폭에 맞춰요 · 열 제목 우클릭으로 처음대로" onClick={fitAll}>
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M3 5v14M21 5v14M3 12h6M21 12h-6M6 9l3 3-3 3M18 9l-3 3 3 3" />
           </svg>
           배치최적화
         </button>
-        {seg("요약", "자세히", detail ? 1 : 0, (i) => { setDetail(i === 1); api.set(VIEW_KEY, i === 1 ? "detail" : "summary").catch(() => {}); }, "보기")}
-        {seg("원", "천원", unit === 1 ? 0 : 1, (i) => { setUnit(i ? 1000 : 1); api.set(UNIT_KEY, i ? "1000" : "1").catch(() => {}); }, "금액 단위")}
+        <span className="tb-hole-pop" aria-hidden="true" />
         <label className="search bd-search">
           {ICON("M11 4a7 7 0 1 1 0 14a7 7 0 1 1 0-14z M20 20l-3.5-3.5", 16)}
           <input type="text" aria-label="세부사업 검색" placeholder="세부사업 검색" value={q} onChange={(e) => setQ(e.target.value)} autoComplete="off" />
@@ -897,7 +819,7 @@ export default function BudgetStatusScreen() {
             setPop(pop?.t === "excel" ? null : { t: "excel", x: r.right - 200, y: r.bottom + 4 });
           }}
         >
-          엑셀{ICON(CD, 13)}
+          엑셀{ICON(CD, 16, 2.4)}
         </button>
       </div>
       <div className="bd-tbl" style={{ ["--bd-cols" as string]: tmpl, ...(packed ? { width: colSum + 2 + sbw } : {}) }}>
@@ -930,7 +852,39 @@ export default function BudgetStatusScreen() {
             {!rows.length && <div className="bd-empty"><p className="bd-empty-bs">{year}년에 보여 줄 세부사업이 없어요</p></div>}
           </div>
         </div>
+        <div className="bs-guide">
+          <span className="bs-guide-sw" aria-hidden="true">-</span> 테두리 칸은 직접 적는 칸 — 줄을 두 번 누르면 고쳐요(불용액·다음연도 이월·추경 등) · 나머지는 집행현황에서 와요
+        </div>
       </div>
+      {send && (() => {
+        const all = projectNames(byYear);
+        const me = all.find((x) => x.name === send);
+        const ys = me?.years ?? [];
+        const yAt = ys.includes(year) ? year : ys[ys.length - 1];
+        const target: SendTarget = {
+          name: send,
+          project: (byYear[yAt] ?? []).find((x) => x.name === send) ?? null,
+          years: ys,
+          parents: all.filter((x) => !x.carry && setups[x.name]?.sent && x.name !== send).map((x) => ({ name: x.name, setup: setups[x.name] })),
+          carries: all.filter((x) => x.carry && x.name !== send),
+        };
+        const cur = setups[send];
+        return (
+          <BudgetStatusSend
+            target={target}
+            setup={cur?.sent ? cur : null}
+            onSave={(ns) => { saveSetup(send, ns); setSend(null); }}
+            onAttach={(parent, src) => {
+              const ps = setups[parent];
+              if (ps) saveSetup(parent, { ...ps, carry: send, carrySrc: src });
+              if (cur) saveSetup(send, { ...cur, sent: false });
+              setSend(null);
+            }}
+            onRemove={cur?.sent ? () => { saveSetup(send, { ...cur, sent: false }); setSend(null); } : null}
+            onClose={() => setSend(null)}
+          />
+        );
+      })()}
       {ask && (
         <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && setAsk(null)}>
           <div className="dialog xl-ask" role="dialog" aria-modal="true" aria-label="엑셀 가져오기">
@@ -957,8 +911,7 @@ export default function BudgetStatusScreen() {
         </div>
       )}
       {pop && (
-        <div ref={popRef} className="bd-pop" role={pop.t === "menu" ? "menu" : "dialog"} aria-label={pop.t === "menu" ? "세부사업 메뉴" : "사업 설정"} style={popPos ?? { left: pop.x, top: pop.y, visibility: "hidden" }} onMouseDown={(e) => e.stopPropagation()}>
-          {pop.t === "setup" && setupBody(pop.name)}
+        <div ref={popRef} className="bd-pop" role={pop.t === "menu" ? "menu" : "dialog"} aria-label={pop.t === "menu" ? "세부사업 메뉴" : pop.t === "memo" ? "메모" : "엑셀"} style={popPos ?? { left: pop.x, top: pop.y, visibility: "hidden" }} onMouseDown={(e) => e.stopPropagation()}>
           {pop.t === "menu" && menuBody(pop.name)}
           {pop.t === "excel" && (
             <div style={{ width: 200 }}>
