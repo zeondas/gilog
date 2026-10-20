@@ -781,6 +781,8 @@ pub fn run() {
             files::fs_properties,
             files::fs_lnk_target,
             files::fs_mods,
+            files::fs_make_links,
+            files::fs_resolve,
             files::fs_delete,
             files::fs_open,
             files::fs_explorer,

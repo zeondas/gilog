@@ -121,7 +121,8 @@ export function typeName(e: { name: string; dir: boolean }, known: Record<string
 export function sortEntries<T extends FsEntry & { folder?: string }>(list: T[], key: SortKey, asc: boolean, types: Record<string, string> = {}): T[] {
   const dir = asc ? 1 : -1;
   return [...list].sort((a, b) => {
-    if (a.dir !== b.dir) return a.dir ? -1 : 1;
+    // 폴더가 먼저 – 내림차순이면 윈도우처럼 폴더가 아래로(호환 B)
+    if (a.dir !== b.dir) return (a.dir ? -1 : 1) * dir;
     let c = 0;
     if (key === "size") c = a.size - b.size;
     else if (key === "modified") c = a.modified - b.modified;
@@ -203,6 +204,16 @@ export function cleanPath(input: string): string {
   if (p.length > 3 && /[\\/]$/.test(p)) p = p.slice(0, -1);
   return p;
 }
+
+/** 이름 다듬기(윈도우처럼): 앞뒤 칸과 끝의 점·칸을 저절로 지워요 */
+export const tidyName = (name: string) => name.trim().replace(/[. ]+$/, "");
+
+/** 윈도우가 장치 이름으로 쓰는 이름(CON·PRN·AUX·NUL·COM1~9·LPT1~9) – 확장자가 붙어도 못 써요 */
+export const isReservedName = (name: string) => /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(name.split(".")[0].trimEnd());
+
+/** 바로가기(.lnk)는 윈도우처럼 확장자를 늘 숨겨요 */
+export const isLnk = (e: { name: string; dir: boolean }) => !e.dir && /\.lnk$/i.test(e.name);
+export const shownName = (e: { name: string; dir: boolean }) => (isLnk(e) ? e.name.slice(0, -4) : e.name);
 
 /** 민원처리 이름 규칙: 접수일6자리_위치_보수내용 */
 export const isComplaintName = (name: string) => /^\d{6}_.+_.+/.test(name);
