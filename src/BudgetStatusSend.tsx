@@ -19,6 +19,8 @@ const ICON = (d: string, s = 14, w = 2) => (
   </svg>
 );
 const COLS_KEY = "bstatus.sendCols";
+/** 고정 칩(국비·도비·시비) — "기타"는 이름을 직접 적는 재원이라 칩 목록에 없어요(2026-10-20 사용자: "기타"라고 적어도 칩이 생겨야 해요) */
+const FIXED = SOURCES.filter((x) => x !== "기타") as readonly string[];
 const won = (v: number) => v.toLocaleString("ko-KR");
 const fmtWon = (v: number) => (v ? won(v) : "");
 const dash = (v: number) => (v ? won(v) : "-");
@@ -292,7 +294,7 @@ export function BudgetStatusSend({
       <div className="bss2-fl">
         <span className="bss2-lab">재원</span>
         <span className="bs-srcs">
-          {SOURCES.filter((x) => x !== "기타").map((x) => {
+          {FIXED.map((x) => {
             const on = s.sources.includes(x);
             return (
               <button key={x} type="button" className={"bs-src" + (on ? " on" : "")} aria-pressed={on} onClick={() => toggleSrc(x)}>
@@ -300,7 +302,7 @@ export function BudgetStatusSend({
               </button>
             );
           })}
-          {s.sources.filter((x) => !(SOURCES as readonly string[]).includes(x)).map((x) => (
+          {s.sources.filter((x) => !FIXED.includes(x)).map((x) => (
             <span key={x} className="bs-src on bs-src-x">
               {x}
               <button type="button" className="chip-x" aria-label={x + " 빼기"} disabled={s.sources.length === 1} onClick={() => toggleSrc(x)}>
