@@ -10783,6 +10783,22 @@ body.ew-dragging * {
 /* 직접 적는 칸은 살색(--input-wash), 사업 줄 보라 바탕 위에서도 살색이 이겨요. 아래 안내 줄 */
 .bs .bd-rw > .bd-c.bs-ed, .bs .bd-rw.pj > .bd-c.bs-ed, .bs .bd-rw.alt > .bd-c.bs-ed { background: var(--input-wash); }
 .bs-guide { display: flex; align-items: center; gap: 6px; flex: none; height: 28px; padding: 0 12px; border-top: 1px solid var(--line-soft); font-size: 11.5px; color: var(--muted); }
+/* 예산현황으로 보내기 창(집행현황·예산현황 공용) */
+.dialog.bss { width: 560px; }
+.bss-sub { font-size: 13px; color: var(--muted); }
+.bss-body { gap: 10px; padding-bottom: 16px; }
+.bss-sec { display: flex; align-items: flex-start; gap: 8px; }
+.bss-sec > .bs-lab { padding-top: 6px; }
+.bss-match { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.bss-note { padding-top: 0; border-top: 0; }
+.bss-item { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--surface); }
+.bss-item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.bss-item-num { flex: none; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.bss-pick { height: 28px; padding: 2px; }
+.bss-pick button { height: 22px; padding: 0 8px; font-size: 12px; }
+.bss-foot { justify-content: space-between; align-items: center; }
+.bss-btns { display: flex; gap: 8px; }
+.bss-remove { color: var(--danger); }
 .bs-guide-sw { display: inline-block; width: 14px; height: 14px; border: 1px solid var(--line); border-radius: 3px; background: var(--input-wash); }
 .bs .bd-h.bs-hn { justify-content: flex-start; }
 .bs .bd-hd.bs-hd2 { height: 56px; grid-template-rows: 28px 28px; }

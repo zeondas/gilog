@@ -34,6 +34,8 @@ export type Setup = {
   carrySrc: string; // 이월 사업 값이 들어갈 재원(재원이 둘 이상일 때), 없으면 첫 재원
   rows: Record<string, Manual>; // "2025:시비" → 직접 적은 값
   memo?: string; // 메모(메모 편집기 HTML)
+  sent?: boolean; // 집행현황에서 "예산현황으로 보내기"를 한 사업만 예산현황에 보여요(2026-10-20 사용자 2안)
+  match?: Record<string, string>; // 부기사업 이름 → 재원(재원이 둘 이상일 때 매칭) — 그 부기사업의 예산·공사 집행액이 그 재원 줄로
 };
 
 export const defaultSetup = (years: number[]): Setup => ({ multi: false, from: Math.min(...years), to: Math.max(...years), sources: ["시비"], carry: "", carrySrc: "", rows: {} });
@@ -45,6 +47,18 @@ export function linkedOf(projects: BudgetProject[], name: string): Linked | null
   if (!p) return null;
   const exp = p.items.flatMap((i) => i.rows).reduce((s, r) => s + r.exp, 0);
   return { budget: p.budget ?? 0, exp };
+}
+/** 재원 매칭: 그 재원에 매칭된 부기사업들의 예산·집행액 합(매칭 안 한 부기사업은 첫 재원으로). 부기사업이 둘 미만이면 null(직접 적어요) */
+export function matchedOf(projects: BudgetProject[], name: string, setup: Setup, src: string): Linked | null {
+  const p = projects.find((x) => x.name === name);
+  if (!p || p.items.length < 2) return null;
+  let budget = 0, exp = 0;
+  for (const it of p.items) {
+    if ((setup.match?.[it.name] ?? setup.sources[0]) !== src) continue;
+    budget += it.budget ?? 0;
+    exp += it.rows.reduce((s, r) => s + r.exp, 0);
+  }
+  return { budget, exp };
 }
 
 /** 한 줄(연도×재원 또는 합계)의 계산 결과 */
@@ -84,7 +98,8 @@ export function compute(name: string, setup: Setup, byYear: Record<number, Budge
     for (const s of setup.sources) {
       const m = setup.rows[`${y}:${s}`] ?? {};
       // 재원이 하나면 집행현황 값이 곧 그 줄, 둘 이상이면 직접 적은 값
-      const auto = one && main && !selfCarry ? main : null;
+      // 재원이 둘 이상이면 부기사업 매칭으로 그 재원 몫이 와요(부기사업이 둘 미만이면 직접 적은 값)
+      const auto = one && main && !selfCarry ? main : !one && main && !selfCarry ? matchedOf(projs, name, setup, s) : null;
       const autoM = one && main && selfCarry === "m" ? main : null;
       const autoS = one && main && selfCarry === "s" ? main : null;
       const cur = auto ? auto.budget : z(m.cur);

@@ -31,6 +31,8 @@ import {
 } from "./budget";
 import { BudgetImport, parseBudgetBook, planImport } from "./budgetExcel";
 import { dirOf, DIR_KEY, joinPath, lastDir } from "./ExcelMenu";
+import { BudgetStatusSend, SendTarget } from "./BudgetStatusSend";
+import { Setup } from "./budgetStatus";
 import { todayStr } from "./journal";
 import { keyAction, rowKeys } from "./keys";
 import { isEmptyMemo, MemoEditor, sanitize } from "./RichMemo";
@@ -118,6 +120,28 @@ export default function BudgetScreen() {
   const [colHl, setColHl] = useState<number | null>(null);
   const [W, setW] = useState<Record<ColId, number>>(START_W);
   const [nameFixed, setNameFixed] = useState(false);
+  // 예산현황으로 보내기(2026-10-20 사용자): 세부사업 우클릭 → 예산현황과 같은 창. 보낸 사업 이름은 표 bstatus(sent)에서 읽어요
+  const [bsSetups, setBsSetups] = useState<Record<string, Setup>>({});
+  const [bsSend, setBsSend] = useState<string | null>(null);
+  const bsSent = useMemo(() => new Set(Object.entries(bsSetups).filter(([, s]) => s.sent).map(([n]) => n)), [bsSetups]);
+  const loadBs = async () => {
+    try {
+      const st: Record<string, Setup> = {};
+      for (const r of await api.bstatusList()) st[r.name] = JSON.parse(r.setup) as Setup;
+      setBsSetups(st);
+      return st;
+    } catch {
+      return {};
+    }
+  };
+  const openSend = async (name: string) => {
+    await loadBs();
+    setBsSend(name);
+  };
+  const saveBs = (name: string, s: Setup) => {
+    setBsSetups((o) => ({ ...o, [name]: s }));
+    api.bstatusSet(name, JSON.stringify(s)).catch(() => {});
+  };
   const [avail, setAvail] = useState(1200);
   const [ask, setAsk] = useState<(BudgetImport & { path: string }) | null>(null);
   const formRow = useRef<HTMLDivElement>(null);
@@ -142,6 +166,7 @@ export default function BudgetScreen() {
   }, []);
   useEffect(() => {
     void load(year);
+    void loadBs();
   }, [year, load]);
   useEffect(() => {
     api.get(UNIT_KEY).then((v) => setUnitState(v === "1000" ? 1000 : 1), () => {});
@@ -1138,6 +1163,8 @@ export default function BudgetScreen() {
           {mi("위로 옮기기", up)}
           {mi("아래로 옮기기", down)}
           {MD}
+          {mi(bsSent.has(p.name) ? "예산현황 설정" : "예산현황으로 보내기", () => { setPop(null); void openSend(p.name); })}
+          {MD}
           {mi("세부사업 지우기", del, { cls: "dg", k: `부기사업 ${p.items.length} · 공사 ${allRows(p).length}` })}
         </>
       );
@@ -1588,6 +1615,32 @@ export default function BudgetScreen() {
         </div>
       )}
 
+      {bsSend && (() => {
+        const target: SendTarget = {
+          name: bsSend,
+          project: list.find((x) => x.name === bsSend) ?? null,
+          years: [year],
+          parents: list.filter((x) => !x.carry && bsSetups[x.name]?.sent && x.name !== bsSend).map((x) => ({ name: x.name, setup: bsSetups[x.name] })),
+          carries: list.filter((x) => x.carry && x.name !== bsSend).map((x) => ({ name: x.name, years: [year] })),
+        };
+        const cur = bsSetups[bsSend];
+        return (
+          <BudgetStatusSend
+            target={target}
+            setup={cur?.sent ? cur : null}
+            onSave={(ns) => { saveBs(bsSend, ns); setBsSend(null); setToast(cur?.sent ? "예산현황 설정을 저장했어요" : "예산현황으로 보냈어요"); }}
+            onAttach={(parent, src) => {
+              const ps = bsSetups[parent];
+              if (ps) saveBs(parent, { ...ps, carry: bsSend, carrySrc: src });
+              if (cur) saveBs(bsSend, { ...cur, sent: false });
+              setBsSend(null);
+              setToast(`${parent}에 이월로 이었어요`);
+            }}
+            onRemove={cur?.sent ? () => { saveBs(bsSend, { ...cur, sent: false }); setBsSend(null); setToast("예산현황에서 뺐어요"); } : null}
+            onClose={() => setBsSend(null)}
+          />
+        );
+      })()}
       {ask && (
         <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && setAsk(null)}>
           <div className="dialog xl-ask" role="dialog" aria-modal="true" aria-label="엑셀 가져오기">
