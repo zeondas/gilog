@@ -640,11 +640,26 @@ export default function FilesScreen() {
       dir = parentOf(first.path) ?? dir;
     }
     if (!dir || isSpecial(dir)) return;
+    // 빈 곳 메뉴의 "새로 만들기"(텍스트 문서 등)로 생긴 것을 찾아 이름 칸을 열려고 지금 목록을 기억해요
+    const before = !names.length && !t.find ? new Set(lists[pane].entries.map((x) => x.path)) : null;
     try {
       const r: MenuResult = await fsApi.contextMenu(dir, names, e ? e.clientX : -1, e ? e.clientY : -1);
       if (r === "rename") startRename(pane);
+      else if (r === "newfolder") void newFolder(pane);
       else if (r === "reveal") void revealRows(rowsForMenu);
-      else if (r === "done") window.setTimeout(refreshAll, 300);
+      else if (r === "done" && before) {
+        // 새로 생긴 것이 하나면 윈도우 탐색기처럼 바로 이름을 고치게 해요
+        window.setTimeout(async () => {
+          const now = await fsApi.list(dir, cfg.showHidden).catch(() => null);
+          refreshAll();
+          const added = now?.filter((x) => !before.has(x.path)) ?? [];
+          if (added.length !== 1) return;
+          const p = added[0].path;
+          await load(pane, dir, true);
+          setSel(pane, { paths: new Set([p]), cursor: p, anchor: p });
+          setInline({ pane, path: p, value: added[0].name });
+        }, 400);
+      } else if (r === "done") window.setTimeout(refreshAll, 300);
     } catch (er) {
       if (String(er) === "windows_only") flash("우클릭 메뉴는 윈도우에서 떠요(미리 보기에서는 안 돼요)");
       else flash("윈도우 메뉴를 띄우지 못했어요");

@@ -34,7 +34,7 @@ export type FastStatus = {
   drives: { drive: string; count: number; ready: boolean }[];
 };
 /** 우클릭 메뉴 결과: "" 안 고름 · "done" 실행함 · "rename" 이름 바꾸기 시작 */
-export type MenuResult = "" | "done" | "rename" | "reveal";
+export type MenuResult = "" | "done" | "rename" | "reveal" | "newfolder";
 
 // ---------- 브라우저 흉내 ----------
 

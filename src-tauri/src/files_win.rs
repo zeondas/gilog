@@ -29,7 +29,7 @@ use windows::Win32::UI::Controls::{IImageList, ILD_TRANSPARENT};
 use windows::Win32::UI::Shell::Common::ITEMIDLIST;
 use windows::Win32::UI::Shell::{
     DefSubclassProc, ILFree, IContextMenu, IContextMenu2, IContextMenu3, IShellFolder, RemoveWindowSubclass, SHBindToObject,
-    SHGetFileInfoW, SHGetImageList, SHOpenFolderAndSelectItems, SHParseDisplayName, SetWindowSubclass, ShellExecuteW, CMF_EXPLORE, CMF_EXTENDEDVERBS, CMF_NORMAL, CMIC_MASK_PTINVOKE,
+    SHGetFileInfoW, SHGetImageList, SHOpenFolderAndSelectItems, SHParseDisplayName, SetWindowSubclass, ShellExecuteW, CMF_CANRENAME, CMF_EXPLORE, CMF_EXTENDEDVERBS, CMF_NORMAL, CMIC_MASK_PTINVOKE,
     CMINVOKECOMMANDINFO, CMINVOKECOMMANDINFOEX, GCS_VERBW, SHFILEINFOW, SHGFI_ICON, SHGFI_LARGEICON, SHGFI_OVERLAYINDEX, SHGFI_SMALLICON,
     SHGFI_SYSICONINDEX, SHGFI_TYPENAME, SHGFI_USEFILEATTRIBUTES, SHIL_EXTRALARGE, SHIL_JUMBO, SHIL_LARGE, SHIL_SMALL,
 };
@@ -322,7 +322,7 @@ fn parse(path: &str) -> Result<Pidl, String> {
 const ID_REVEAL: u32 = 0x7F00;
 
 /// 윈도우 우클릭 메뉴를 띄우고 고른 것을 실행해요.
-/// 돌려주는 값: "" 아무것도 안 고름 · "done" 실행함 · "rename" 화면이 이름 바꾸기를 시작해야 해요
+/// 돌려주는 값: "" 아무것도 안 고름 · "done" 실행함 · "rename" 화면이 이름 바꾸기를 시작해야 해요 · "newfolder" 화면이 새 폴더를 만들고 이름 칸을 열어요
 /// · "reveal" 화면이 윈도우 탐색기로 넘겨야 해요(회사 보안 프로그램 메뉴는 윈도우 탐색기에서만 나와요, 2026-10-18).
 /// hwnd는 앱 창, (x, y)는 화면 안 CSS 픽셀(음수면 마우스 자리), scale은 화면 배율.
 pub fn context_menu(hwnd_raw: isize, origin: (i32, i32), scale: f64, dir: &str, names: &[String], x: f64, y: f64) -> Result<String, String> {
@@ -351,7 +351,8 @@ pub fn context_menu(hwnd_raw: isize, origin: (i32, i32), scale: f64, dir: &str, 
             cm
         };
         let menu = CreatePopupMenu().map_err(|e| format!("menu:{e}"))?;
-        let mut flags = CMF_NORMAL | CMF_EXPLORE;
+        // CMF_CANRENAME: "이름 바꾸기"를 메뉴에 넣어 달라는 표시(2026-10-20 사용자 — 없으면 윈도우가 그 줄을 빼요). 고르면 화면의 F2로 넘겨요.
+        let mut flags = CMF_NORMAL | CMF_EXPLORE | CMF_CANRENAME;
         if GetKeyState(VK_SHIFT.0 as i32) < 0 {
             flags |= CMF_EXTENDEDVERBS;
         }
@@ -393,6 +394,11 @@ pub fn context_menu(hwnd_raw: isize, origin: (i32, i32), scale: f64, dir: &str, 
         if verb == "rename" {
             let _ = DestroyMenu(menu);
             return Ok("rename".into());
+        }
+        // 새로 만들기 → 폴더: 윈도우에 맡기면 "새 폴더"만 덜렁 생겨요 — 화면이 만들고 바로 이름 칸을 열어요(2026-10-20 사용자)
+        if verb == "newfolder" {
+            let _ = DestroyMenu(menu);
+            return Ok("newfolder".into());
         }
         let dir_w = wide(dir);
         let info = CMINVOKECOMMANDINFOEX {
