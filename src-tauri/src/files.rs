@@ -793,6 +793,62 @@ pub fn fs_context_menu(window: tauri::WebviewWindow, dir: String, names: Vec<Str
     }
 }
 
+/// 기록에서 윈도우 탐색기·바탕 화면으로 끌어 내기 — 줄을 끌기 시작하면 화면이 불러요(놓을 때까지 기다려요)
+#[tauri::command]
+pub fn fs_start_drag(window: tauri::WebviewWindow, paths: Vec<String>) -> Result<String, String> {
+    #[cfg(windows)]
+    {
+        let hwnd = window.hwnd().map_err(|e| e.to_string())?;
+        crate::files_win::start_drag(hwnd.0 as isize, &paths)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (window, paths);
+        Err("windows_only".into())
+    }
+}
+
+/// Alt+Enter 속성 창
+#[tauri::command]
+pub fn fs_properties(paths: Vec<String>) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        crate::files_win::properties(&paths)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = paths;
+        Err("windows_only".into())
+    }
+}
+
+/// 바로가기(.lnk)가 가리키는 곳 — 없거나 못 읽으면 None
+#[tauri::command]
+pub fn fs_lnk_target(path: String) -> Option<String> {
+    #[cfg(windows)]
+    {
+        crate::files_win::lnk_target(&path)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = path;
+        None
+    }
+}
+
+/// 지금 누르고 있는 Ctrl·Shift(기록 창 안에 놓을 때)
+#[tauri::command]
+pub fn fs_mods() -> (bool, bool) {
+    #[cfg(windows)]
+    {
+        crate::files_win::modifiers()
+    }
+    #[cfg(not(windows))]
+    {
+        (false, false)
+    }
+}
+
 // ---------- 찾기 ----------
 
 #[derive(Deserialize, Clone, Debug, Default)]

@@ -6,7 +6,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, inApp } from "./api";
 import { FileIcon } from "./FileIcon";
-import { ConflictDialog, Decision, DeleteDialog, NameDialog, RenameDialog } from "./FilesDialogs";
+import { ConflictDialog, Decision, DeleteDialog, NameDialog, RenameDialog, TransferAsk } from "./FilesDialogs";
 import {
   CLOCKWISE,
   EMPTY_FIND,
@@ -152,6 +152,10 @@ export default function FilesScreen() {
   const [formBad, setFormBad] = useState({ from: false, to: false });
   const [conflict, setConflict] = useState<{ list: Conflict[]; i: number; op: "copy" | "move"; resolve: (d: Record<string, string> | null) => void; dec: Record<string, string> } | null>(null);
   const [del, setDel] = useState<{ items: FsEntry[]; permanent: boolean; pane: number } | null>(null);
+  // 고무줄 고르기(빈 곳에서 끌기)
+  const [band, setBand] = useState<{ pane: number; x0: number; y0: number; x1: number; y1: number; base: Set<string> } | null>(null);
+  // F5·F6 확인 창
+  const [xfer, setXfer] = useState<{ pane: number; op: "copy" | "move"; items: Row[]; dest: string } | null>(null);
   const [renameRows, setRenameRows] = useState<{ pane: number; rows: (FsEntry & { parentName: string; folder: string })[]; where: string } | null>(null);
   const [undo, setUndo] = useState<{ path: string; name: string }[] | null>(null);
   const [nameAsk, setNameAsk] = useState<{ title: string; value: string; ok: (v: string) => void } | null>(null);
@@ -159,6 +163,7 @@ export default function FilesScreen() {
   const [busy, setBusy] = useState<{ done: number; total: number; name: string } | null>(null);
   const [tree, setTree] = useState<Map<string, TreeDir[]>>(new Map());
   const quickRef = useRef<HTMLInputElement>(null);
+  const findNameRef = useRef<HTMLInputElement>(null);
   const filterRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // ---------- 처음 읽기 ----------
@@ -368,7 +373,20 @@ export default function FilesScreen() {
     if (e.dir) {
       if (newTabIfFolder) newTab(pane, e.path);
       else go(pane, e.path);
-    } else void fsApi.open(e.path).catch((er) => flash(fsErrorText(er)));
+      return;
+    }
+    // 폴더 바로가기(.lnk)는 기록 안에서 그 폴더로(호환 A11)
+    if (/\.lnk$/i.test(e.name)) {
+      void (async () => {
+        const target = await fsApi.lnkTarget(e.path).catch(() => null);
+        if (target && (await fsApi.isDir(target).catch(() => false))) {
+          if (newTabIfFolder) newTab(pane, target);
+          else go(pane, target);
+        } else void fsApi.open(e.path).catch((er) => flash(fsErrorText(er)));
+      })();
+      return;
+    }
+    void fsApi.open(e.path).catch((er) => flash(fsErrorText(er)));
   };
 
   const up = (pane: number) => {
@@ -398,6 +416,17 @@ export default function FilesScreen() {
       conflict.resolve(dec);
       setConflict(null);
     } else setConflict({ ...conflict, i: to, dec });
+  };
+
+  /** F5·F6: 고른 것과 대상 폴더를 보여 주고 확인을 받아요(2026-10-20 사용자 1안) */
+  const askTransfer = (pane: number, op: "copy" | "move") => {
+    if (!st) return;
+    const items = selected(pane);
+    if (!items.length) return;
+    const t = activeTab(st.panes[targetOf(pane)]);
+    if (t.find) return flash("대상 창이 찾기 결과예요. 폴더를 연 창으로 보내 주세요.");
+    if (isSpecial(t.path)) return flash("대상 창이 내 PC·즐겨찾기예요. 폴더를 연 창으로 보내 주세요.");
+    setXfer({ pane, op, items, dest: t.path });
   };
 
   const transfer = async (pane: number, op: "copy" | "move", items?: Row[], destDir?: string): Promise<boolean> => {
@@ -480,7 +509,9 @@ export default function FilesScreen() {
     return () => window.removeEventListener("focus", sync);
   }, []);
 
+  const refreshRef = useRef<() => void>(() => {});
   const refreshAll = () => listsRef.current.forEach((l, i) => l.path && void load(i, l.path, true));
+  refreshRef.current = refreshAll;
 
   const askDelete = (pane: number, permanent: boolean) => {
     const items = selected(pane);
@@ -529,6 +560,8 @@ export default function FilesScreen() {
       setSel(it.pane, { paths: new Set([to]), cursor: to, anchor: to });
     } catch (e) {
       flash(fsErrorText(e));
+      // 실패해도 이름 칸을 닫지 않고 고칠 수 있게(호환 A10)
+      setInline(it);
     }
   };
 
@@ -547,6 +580,41 @@ export default function FilesScreen() {
       flash(fsErrorText(e));
     }
   };
+
+  /** 트리 줄 이름 바꾸기(트리에는 이름 칸이 없어 작은 창으로) */
+  const treeRename = (path: string) =>
+    setNameAsk({
+      title: "폴더 이름 바꾸기",
+      value: baseName(path),
+      ok: async (v) => {
+        setNameAsk(null);
+        const name = v.trim();
+        if (!name || name === baseName(path)) return;
+        try {
+          await fsApi.rename(path, name);
+          refreshAll();
+        } catch (e) {
+          flash(fsErrorText(e));
+        }
+      },
+    });
+  /** 트리 줄 안에 새 폴더(이름을 먼저 물어요) */
+  const treeNewFolder = (dir: string) =>
+    setNameAsk({
+      title: "새 폴더",
+      value: "새 폴더",
+      ok: async (v) => {
+        setNameAsk(null);
+        const name = v.trim();
+        if (!name) return;
+        try {
+          await fsApi.mkdir(dir, name);
+          refreshAll();
+        } catch (e) {
+          flash(fsErrorText(e));
+        }
+      },
+    });
 
   const openBatch = async (pane: number) => {
     if (!st) return;
@@ -752,10 +820,13 @@ export default function FilesScreen() {
   // ---------- 키 ----------
   const keyRef = useRef<(e: KeyboardEvent) => void>(() => {});
   keyRef.current = (e: KeyboardEvent) => {
-    if (!st || conflict || del || renameRows || nameAsk) return;
+    if (!st || conflict || del || renameRows || nameAsk || xfer) return;
     if (e.ctrlKey && !e.shiftKey && e.code === "KeyF") {
+      // 2026-10-20 사용자: Ctrl+F = 상세 찾기 창(이름 칸에 커서)
       e.preventDefault();
-      quickRef.current?.focus();
+      if (!findOpen) setForm({ ...form, name: form.name || quickFind, where: form.where || curPath });
+      setFindOpen(true);
+      setTimeout(() => findNameRef.current?.select(), 0);
       return;
     }
     if (e.ctrlKey && !e.shiftKey && !e.altKey && e.code === "KeyR") {
@@ -796,9 +867,26 @@ export default function FilesScreen() {
       }
       return handled();
     }
-    if (k === "F5") return handled(), void transfer(pane, "copy");
-    if (k === "F6") return handled(), void transfer(pane, "move");
+    if (k === "F5") return handled(), askTransfer(pane, "copy");
+    if (k === "F6") return handled(), askTransfer(pane, "move");
     if (k === "F7") return handled(), void newFolder(pane);
+    // 윈도우 탐색기 키(호환 A2·A3·A4·A5, 2026-10-20 사용자 1안)
+    if (e.altKey && k === "ArrowUp") return handled(), up(pane);
+    if (e.altKey && k === "Enter") {
+      handled();
+      const items = selected(pane);
+      const t = activeTab(st.panes[pane]);
+      const paths = items.length ? items.map((r) => r.path) : t.find || isSpecial(t.path) ? [] : [t.path];
+      if (paths.length) void fsApi.properties(paths).catch((er) => flash(String(er) === "windows_only" ? "속성 창은 윈도우에서 떠요" : fsErrorText(er)));
+      return;
+    }
+    if (ctrl && e.shiftKey && e.code === "KeyN") return handled(), void newFolder(pane);
+    if ((ctrl && !e.shiftKey && e.code === "KeyL") || (e.altKey && e.code === "KeyD") || k === "F4") {
+      handled();
+      const t = activeTab(st.panes[pane]);
+      if (!t.find) setEditPath({ pane, value: t.path });
+      return;
+    }
     if (k === "F8" || k === "Delete") return handled(), askDelete(pane, e.shiftKey);
     if (k === "Backspace") return handled(), up(pane);
     if (e.altKey && (k === "ArrowLeft" || k === "ArrowRight")) return handled(), stepHistory(pane, k === "ArrowLeft" ? -1 : 1);
@@ -1084,6 +1172,85 @@ export default function FilesScreen() {
 
   // ---------- 끌어다 놓기(창 사이, 윈도우 탐색기에서) ----------
   const dragSrc = useRef<{ pane: number; rows: Row[] } | null>(null);
+  // USB를 꽂거나 빼면 드라이브 줄에 바로(호환 A12) — 3초마다 드라이브 목록을 다시 읽어 바뀌었을 때만 고쳐요
+  useEffect(() => {
+    if (!inApp) return;
+    const t = window.setInterval(() => {
+      if (document.hidden) return;
+      void fsApi
+        .drives()
+        .then((dv) => setDrives((old) => (JSON.stringify(old) === JSON.stringify(dv) ? old : dv)))
+        .catch(() => {});
+    }, 3000);
+    return () => window.clearInterval(t);
+  }, []);
+
+  // 고무줄 고르기: 움직이는 동안 사각형에 닿는 줄을 골라요
+  const bandRef = useRef(band);
+  bandRef.current = band;
+  useEffect(() => {
+    if (!band) return;
+    const move = (e: MouseEvent) => {
+      const b = bandRef.current;
+      if (!b) return;
+      if (!(e.buttons & 1)) return setBand(null);
+      const nb = { ...b, x1: e.clientX, y1: e.clientY };
+      setBand(nb);
+      const [l, r] = [Math.min(nb.x0, nb.x1), Math.max(nb.x0, nb.x1)];
+      const [t, bt] = [Math.min(nb.y0, nb.y1), Math.max(nb.y0, nb.y1)];
+      if (r - l < 3 && bt - t < 3) return;
+      const rows = rowsOf(nb.pane);
+      const paths = new Set(nb.base);
+      let last: string | null = null;
+      rows.forEach((row, i) => {
+        const el = document.getElementById(`fx-row-${nb.pane}-${i}`);
+        if (!el) return;
+        const rc = el.getBoundingClientRect();
+        if (rc.right >= l && rc.left <= r && rc.bottom >= t && rc.top <= bt) {
+          paths.add(row.path);
+          last = row.path;
+        }
+      });
+      setSel(nb.pane, { paths, cursor: last ?? sels[nb.pane].cursor, anchor: last ?? sels[nb.pane].anchor });
+    };
+    const up = () => setBand(null);
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+    return () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!band]);
+
+  // 윈도우 끌기(2026-10-20 사용자: 기록 → 윈도우 탐색기로 끌어 내기): 줄을 누른 채 6px 넘게 움직이면 시작
+  const nativeDrag = useRef<{ x: number; y: number; paths: string[] } | null>(null);
+  useEffect(() => {
+    if (!inApp) return;
+    const move = (e: MouseEvent) => {
+      const d = nativeDrag.current;
+      if (!d) return;
+      if (!(e.buttons & 1)) {
+        nativeDrag.current = null;
+        return;
+      }
+      if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) < 6) return;
+      nativeDrag.current = null;
+      void fsApi
+        .startDrag(d.paths)
+        .then((r) => r && window.setTimeout(() => refreshRef.current(), 300))
+        .catch(() => {});
+    };
+    const up = () => {
+      nativeDrag.current = null;
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+    return () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    };
+  }, []);
   const dropTo = (pane: number, e: React.DragEvent, dir?: string) => {
     e.preventDefault();
     const src = dragSrc.current;
@@ -1128,8 +1295,12 @@ export default function FilesScreen() {
     if (!dest || isSpecial(dest)) return flash("폴더를 연 창에 놓아 주세요.");
     const srcs = paths.filter((p) => p !== dest);
     if (!srcs.length || srcs.every((p) => parentOf(p) === dest)) return;
-    const op = driveOf(srcs[0]) === driveOf(dest) ? "move" : "copy";
-    void transfer(pane, op, srcs.map((path) => ({ path }) as Row), dest);
+    const d = dest;
+    // 놓을 때 Ctrl = 복사 · Shift = 옮기기, 아니면 같은 드라이브 옮기기·다른 드라이브 복사(호환 A7, 윈도우와 같게)
+    void fsApi.mods().then(([c, sh]) => {
+      const op = c ? "copy" : sh ? "move" : driveOf(srcs[0]) === driveOf(d) ? "move" : "copy";
+      void transfer(pane, op, srcs.map((path) => ({ path }) as Row), d);
+    });
   };
   useEffect(() => {
     // 브라우저 미리 보기 시험용: window.__fxExtDrop(경로들, x, y)
@@ -1214,7 +1385,13 @@ export default function FilesScreen() {
           className="input fx-inline"
           autoFocus
           value={inline.value}
-          onChange={(e) => setInline({ ...inline, value: e.target.value })}
+          onChange={(e) => {
+            // 이름에 못 쓰는 글자는 치는 순간 막아요(호환 A10)
+            const v = e.target.value;
+            const clean = v.replace(/[\\/:*?"<>|]/g, "");
+            if (clean !== v) flash('이름에 \\ / : * ? " < > | 는 쓸 수 없어요');
+            setInline({ ...inline, value: clean });
+          }}
           onFocus={(e) => {
             const dot = r.dir ? -1 : inline.value.lastIndexOf(".");
             e.currentTarget.setSelectionRange(0, dot > 0 ? dot : inline.value.length);
@@ -1438,7 +1615,18 @@ export default function FilesScreen() {
               ) : (
                 crumbs.map((c, i) => (
                   <Fragment key={c.path}>
-                    <span className={i === crumbs.length - 1 ? "fx-crumb fx-strong" : "fx-crumb"}>{c.name}</span>
+                    <span
+                      className={i === crumbs.length - 1 ? "fx-crumb fx-strong" : "fx-crumb fx-crumb-go"}
+                      title={i === crumbs.length - 1 ? undefined : `${c.name}(으)로`}
+                      onClick={(ev) => {
+                        // 조각을 누르면 그 폴더로(호환 A8) — 빈 곳은 지금처럼 경로 칸
+                        if (i === crumbs.length - 1) return;
+                        ev.stopPropagation();
+                        go(pane, c.path);
+                      }}
+                    >
+                      {c.name}
+                    </span>
                     {i < crumbs.length - 1 && <span className="fx-crumb-sep">›</span>}
                   </Fragment>
                 ))
@@ -1548,7 +1736,11 @@ export default function FilesScreen() {
             if (e.target === e.currentTarget) up(pane);
           }}
           onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setSel(pane, EMPTY_SEL);
+            if (e.target !== e.currentTarget || e.button !== 0) return;
+            // 빈 곳에서 끌면 고무줄로 여러 개 고르기(호환 A6) — Ctrl을 누르고 시작하면 고른 것에 더해요
+            const base = e.ctrlKey ? new Set(sels[pane].paths) : new Set<string>();
+            if (!e.ctrlKey) setSel(pane, EMPTY_SEL);
+            setBand({ pane, x0: e.clientX, y0: e.clientY, x1: e.clientX, y1: e.clientY, base });
           }}
           onContextMenu={(e) => {
             if (e.target !== e.currentTarget) return;
@@ -1604,8 +1796,16 @@ export default function FilesScreen() {
               "data-hid": r.hidden || cut.has(r.path) ? "1" : "0",
               "data-dir": r.dir ? r.path : undefined,
               "data-extdrop": r.dir && extHover?.dir === r.path ? "1" : "0",
-              draggable: !inline,
-              onMouseDown: (e: React.MouseEvent) => e.button === 0 && pick(r, e),
+              // 앱에서는 윈도우 끌기를 써요(윈도우 탐색기·바탕 화면에 놓을 수 있게) — 화면 안 끌기는 미리 보기에서만
+              draggable: !inline && !inApp,
+              onMouseDown: (e: React.MouseEvent) => {
+                if (e.button !== 0) return;
+                if (inApp && !inline && !e.shiftKey && !e.ctrlKey) {
+                  const items = s.paths.has(r.path) ? rows.filter((x) => s.paths.has(x.path)) : [r];
+                  nativeDrag.current = { x: e.clientX, y: e.clientY, paths: items.map((x) => x.path) };
+                }
+                pick(r, e);
+              },
               onDoubleClick: () => openEntry(pane, r),
               onContextMenu: (e: React.MouseEvent) => rowCtx(r, e),
               onDragStart: (e: React.DragEvent) => {
@@ -1741,7 +1941,7 @@ export default function FilesScreen() {
             <div className="fx-menu fx-findpanel" onKeyDown={(e) => e.key === "Escape" && setFindOpen(false)}>
               <div className="fx-fgrid">
                 <span className="fx-dim">이름</span>
-                <input className="input" value={form.name} placeholder="*.jpg;*.png 또는 이름 일부" onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                <input ref={findNameRef} className="input" value={form.name} placeholder="*.jpg;*.png 또는 이름 일부" onChange={(e) => setForm({ ...form, name: e.target.value })} />
                 <span className="fx-dim">안의 글자</span>
                 <input className="input" value={form.text} placeholder="한글·오피스·PDF" onChange={(e) => setForm({ ...form, text: e.target.value })} />
                 <span className="fx-dim">어디서</span>
@@ -1929,6 +2129,10 @@ export default function FilesScreen() {
                             try {
                               const res = await fsApi.contextMenu(par ?? r.path, par ? [r.name] : [], e.clientX, e.clientY);
                               if (res === "done") window.setTimeout(refreshAll, 300);
+                              // 트리에서 고른 이름 바꾸기·새 폴더·보안해제도 하기(호환 A9)
+                              else if (res === "rename") treeRename(r.path);
+                              else if (res === "newfolder") treeNewFolder(r.path);
+                              else if (res === "reveal") void fsApi.reveal(par ?? r.path, par ? [r.name] : []);
                             } catch (er) {
                               if (String(er) === "windows_only") flash("우클릭 메뉴는 윈도우에서 떠요(미리 보기에서는 안 돼요)");
                             }
@@ -2115,6 +2319,25 @@ export default function FilesScreen() {
           onCancel={() => {
             conflict.resolve(null);
             setConflict(null);
+          }}
+        />
+      )}
+      {band && (Math.abs(band.x1 - band.x0) > 2 || Math.abs(band.y1 - band.y0) > 2) && (
+        <div
+          className="fx-band"
+          style={{ left: Math.min(band.x0, band.x1), top: Math.min(band.y0, band.y1), width: Math.abs(band.x1 - band.x0), height: Math.abs(band.y1 - band.y0) }}
+        />
+      )}
+      {xfer && (
+        <TransferAsk
+          items={xfer.items}
+          op={xfer.op}
+          dest={xfer.dest}
+          onNo={() => setXfer(null)}
+          onYes={() => {
+            const x = xfer;
+            setXfer(null);
+            void transfer(x.pane, x.op, x.items, x.dest);
           }}
         />
       )}
