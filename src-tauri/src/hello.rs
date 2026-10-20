@@ -145,12 +145,13 @@ pub(crate) async fn pin_rekey(app: AppHandle, window: WebviewWindow, password: S
 mod os {
     use std::ffi::c_void;
 
-    use windows::core::{factory, HSTRING};
+    use windows::core::{factory, HSTRING, PCWSTR};
     use windows_future::IAsyncOperation;
     use windows::Security::Credentials::UI::{UserConsentVerificationResult, UserConsentVerifier, UserConsentVerifierAvailability};
     use windows::Win32::Foundation::{LocalFree, HLOCAL, HWND};
     use windows::Win32::Security::Cryptography::{CryptProtectData, CryptUnprotectData, CRYPTPROTECT_UI_FORBIDDEN, CRYPT_INTEGER_BLOB};
     use windows::Win32::System::WinRT::IUserConsentVerifierInterop;
+    use windows::Win32::UI::WindowsAndMessaging::{FindWindowW, IsWindowVisible, SetForegroundWindow};
 
     /// 보관한 것을 다른 앱이 같은 계정으로 꺼내기 조금 더 어렵게 섞는 값이에요.
     const ENTROPY: &[u8] = b"kr.gilog.app/pin-unlock";
@@ -175,6 +176,10 @@ mod os {
         let op: IAsyncOperation<UserConsentVerificationResult> =
             unsafe { interop.RequestVerificationForWindowAsync(HWND(hwnd as *mut c_void), &HSTRING::from(message)) }
                 .map_err(|_| "hello_failed".to_string())?;
+        // Hello 창은 다른 프로그램(CredentialUIBroker)이 띄워서, 그냥 두면 키보드가 기록 창에 남아요
+        // (2026-10-20 사용자: PIN 칸을 눌러야 입력됨). 창이 뜨면 앞으로 가져와 PIN 칸에 바로 입력되게 해요.
+        // 기록 창이 앞에 있는 동안에만 다른 창을 앞으로 보낼 수 있어서, 창이 뜨자마자(최대 5초) 한 번 해요.
+        std::thread::spawn(focus_prompt);
         match op.get() {
             Ok(UserConsentVerificationResult::Verified) => Ok(()),
             Ok(UserConsentVerificationResult::Canceled) => Err("hello_canceled".into()),
@@ -182,6 +187,24 @@ mod os {
             | Ok(UserConsentVerificationResult::NotConfiguredForUser)
             | Ok(UserConsentVerificationResult::DisabledByPolicy) => Err("hello_unavailable".into()),
             _ => Err("hello_failed".into()),
+        }
+    }
+
+    /// Hello 창(창 이름표 "Credential Dialog Xaml Host")을 찾아 앞으로 가져와요.
+    fn focus_prompt() {
+        let class = HSTRING::from("Credential Dialog Xaml Host");
+        for _ in 0..100 {
+            if let Ok(h) = unsafe { FindWindowW(&class, PCWSTR::null()) } {
+                if !h.0.is_null() && unsafe { IsWindowVisible(h) }.as_bool() {
+                    // 뜬 직후에는 안의 PIN 칸이 아직 준비 전일 수 있어 조금 기다렸다 두 번 해요.
+                    std::thread::sleep(std::time::Duration::from_millis(150));
+                    let _ = unsafe { SetForegroundWindow(h) };
+                    std::thread::sleep(std::time::Duration::from_millis(250));
+                    let _ = unsafe { SetForegroundWindow(h) };
+                    return;
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
         }
     }
 
