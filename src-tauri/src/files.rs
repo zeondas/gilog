@@ -967,6 +967,14 @@ pub async fn fs_fast_setup(app: AppHandle, op: String) -> Result<(), String> {
     .map_err(|e| e.to_string())?
 }
 
+/// 빠른 찾기 도우미가 목록에서 빼는 곳 — 도우미(fastfind/src/index.rs `is_skipped_path`)와 같은 규칙
+fn fast_skipped_path(path: &str) -> bool {
+    const SKIP_TOP: [&str; 9] = ["windows", "windows.old", "program files", "program files (x86)", "programdata", "$recycle.bin", "system volume information", "recovery", "perflogs"];
+    let p = path.replace('/', "\\").to_lowercase();
+    let parts: Vec<&str> = p.split('\\').filter(|x| !x.is_empty()).collect();
+    (parts.len() >= 2 && SKIP_TOP.contains(&parts[1])) || (parts.len() >= 4 && parts[1] == "users" && parts[3] == "appdata")
+}
+
 /// 경로의 드라이브("C:")
 fn drive_of(p: &str) -> Option<String> {
     let b = p.as_bytes();
@@ -986,6 +994,10 @@ pub(crate) fn find_fast(spec: &FindSpec, ask: &dyn Fn(&serde_json::Value) -> Opt
     }
     let ready: HashSet<String> = st.drives.iter().filter(|d| d.ready).map(|d| d.drive.to_ascii_uppercase()).collect();
     if ready.is_empty() {
+        return None;
+    }
+    // 어디서가 도우미 목록에서 뺀 폴더(Windows·Program Files·AppData 등) 아래면 뒤지는 찾기로
+    if spec.roots.iter().any(|r| fast_skipped_path(r)) {
         return None;
     }
     // 어디서가 목록이 없는 드라이브(네트워크·USB 등)면 뒤지는 찾기로
@@ -1294,6 +1306,8 @@ mod tests {
         assert_eq!(r.iter().map(|f| f.entry.name.as_str()).collect::<Vec<_>>(), vec!["포트홀 메모.txt"]);
         // 목록 없는 드라이브·도우미 없음·이름 없이 폴더만이면 뒤지는 찾기로
         assert!(find_fast(&FindSpec { roots: vec!["Z:\\x".into()], ..base.clone() }, &ask, &|_, _| {}).is_none());
+        assert!(find_fast(&FindSpec { roots: vec!["C:\\Windows".into()], ..base.clone() }, &ask, &|_, _| {}).is_none());
+        assert!(find_fast(&FindSpec { roots: vec!["C:\\Users\\a\\AppData\\Local".into()], ..base.clone() }, &ask, &|_, _| {}).is_none());
         assert!(find_fast(&FindSpec { roots: vec!["C:\\x".into()], name: String::new(), ..base.clone() }, &ask, &|_, _| {}).is_none());
         assert!(find_fast(&base, &|_| None, &|_, _| {}).is_none());
         assert!(!fast_status_with(&|_| None).running);

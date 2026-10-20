@@ -2,7 +2,7 @@
 //! 윈도우가 디스크에 갖고 있는 변경 기록(USN)을 읽어 채우고, 그 뒤 바뀐 기록으로 맞춰요.
 //! 이 파일은 윈도우가 아니어도 돌아가요(시험은 리눅스에서).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
@@ -196,16 +196,31 @@ fn glob(p: &[char], s: &[char]) -> bool {
     i == p.len()
 }
 
+/// 목록에서 빼는 드라이브 맨 위 폴더(2026-10-20 사용자 2안 — 업무 파일이 없는 시스템 폴더, 메모리 줄이기)
+pub const SKIP_TOP: [&str; 9] = ["windows", "windows.old", "program files", "program files (x86)", "programdata", "$recycle.bin", "system volume information", "recovery", "perflogs"];
+
+/// 경로가 목록에서 뺀 곳 아래인지("C:\\Windows\\…", "D:\\Users\\홍길동\\AppData\\…") — 앱도 같은 규칙으로 예전 찾기로 돌려요
+pub fn is_skipped_path(path: &str) -> bool {
+    let p = path.replace('/', "\\").to_lowercase();
+    let parts: Vec<&str> = p.split('\\').filter(|x| !x.is_empty()).collect();
+    if parts.len() >= 2 && SKIP_TOP.contains(&parts[1]) {
+        return true;
+    }
+    parts.len() >= 4 && parts[1] == "users" && parts[3] == "appdata"
+}
+
 /// 드라이브 하나의 목록
 pub struct Volume {
     /// "C:"
     pub drive: String,
     nodes: HashMap<u64, Node>,
+    /// 목록에서 뺀 폴더(그 아래로 새로 생기는 것도 넣지 않아요)
+    skip: HashSet<u64>,
 }
 
 impl Volume {
     pub fn new(drive: &str) -> Self {
-        Volume { drive: drive.to_string(), nodes: HashMap::new() }
+        Volume { drive: drive.to_string(), nodes: HashMap::new(), skip: HashSet::new() }
     }
     pub fn len(&self) -> usize {
         self.nodes.len()
@@ -219,6 +234,7 @@ impl Volume {
         let frn = r.frn & FRN_MASK;
         if r.reason & REASON_FILE_DELETE != 0 {
             self.nodes.remove(&frn);
+            self.skip.remove(&frn);
             return;
         }
         // 이름 바꾸기의 옛 이름 기록은 새 이름 기록이 곧 와요
@@ -228,7 +244,78 @@ impl Volume {
         if frn == ROOT_FRN {
             return;
         }
-        self.nodes.insert(frn, Node { parent: r.parent & FRN_MASK, attrs: r.attrs, name: r.name.as_str().into() });
+        let parent = r.parent & FRN_MASK;
+        let dir = r.attrs & ATTR_DIRECTORY != 0;
+        // 뺀 폴더 아래(또는 뺄 폴더 자신)는 넣지 않아요 — 폴더면 기억해 그 아래도 빼요
+        if self.skip.contains(&parent) || (dir && self.is_skip_dir(parent, &r.name)) {
+            self.nodes.remove(&frn);
+            if dir {
+                self.skip.insert(frn);
+            }
+            return;
+        }
+        self.skip.remove(&frn);
+        self.nodes.insert(frn, Node { parent, attrs: r.attrs, name: r.name.as_str().into() });
+    }
+
+    /// parent 아래 name 폴더가 뺄 폴더인지(드라이브 맨 위 시스템 폴더, 사용자\\…\\AppData)
+    fn is_skip_dir(&self, parent: u64, name: &str) -> bool {
+        let l = name.to_lowercase();
+        if parent == ROOT_FRN {
+            return SKIP_TOP.contains(&l.as_str());
+        }
+        if l != "appdata" {
+            return false;
+        }
+        let Some(user) = self.nodes.get(&parent) else { return false };
+        let Some(users) = self.nodes.get(&user.parent) else { return false };
+        users.parent == ROOT_FRN && users.name.eq_ignore_ascii_case("users")
+    }
+
+    /// 처음 읽은 뒤 한 번: 뺄 폴더와 그 아래를 목록에서 덜어 내요(메모리 줄이기)
+    pub fn prune(&mut self) {
+        let mut memo: HashMap<u64, bool> = HashMap::new();
+        let keys: Vec<u64> = self.nodes.keys().copied().collect();
+        for k in &keys {
+            self.skipped(*k, &mut memo);
+        }
+        for (k, out) in memo {
+            if out {
+                if let Some(n) = self.nodes.remove(&k) {
+                    if n.attrs & ATTR_DIRECTORY != 0 {
+                        self.skip.insert(k);
+                    }
+                }
+            }
+        }
+        self.nodes.shrink_to_fit();
+    }
+
+    /// 이 항목이 뺄 곳에 있는지(자신이 뺄 폴더이거나 그 아래)
+    fn skipped(&self, frn: u64, memo: &mut HashMap<u64, bool>) -> bool {
+        let mut chain = Vec::new();
+        let mut cur = frn;
+        let mut res = false;
+        for _ in 0..512 {
+            if let Some(&m) = memo.get(&cur) {
+                res = m;
+                break;
+            }
+            let Some(n) = self.nodes.get(&cur) else { break };
+            chain.push(cur);
+            if self.skip.contains(&n.parent) || (n.attrs & ATTR_DIRECTORY != 0 && self.is_skip_dir(n.parent, &n.name)) {
+                res = true;
+                break;
+            }
+            if n.parent == ROOT_FRN {
+                break;
+            }
+            cur = n.parent;
+        }
+        for c in chain {
+            memo.insert(c, res);
+        }
+        res
     }
 
     /// 폴더 하나의 전체 경로와 그 위에 숨김 폴더가 있는지(알 수 없는 부모면 None — 드라이브 관리용 파일 등)
@@ -443,6 +530,44 @@ mod tests {
         // 폴더 이름이 바뀌면 안의 파일 경로도 따라가요
         v.apply(&UsnRec { frn: 100, parent: ROOT_FRN, reason: REASON_RENAME_NEW_NAME, attrs: ATTR_DIRECTORY, name: "민원".into() });
         assert_eq!(find(&v, q("새 이름", &[], true)), vec!["D:\\민원\\새 이름.pptx"]);
+    }
+
+    #[test]
+    fn system_folders_left_out() {
+        let mut v = Volume::new("C:");
+        let d = ATTR_DIRECTORY;
+        for (frn, parent, attrs, name) in [
+            (10, ROOT_FRN, d, "Windows"),
+            (11, 10, d, "System32"),
+            (12, 11, 0x20, "포트홀.dll"),
+            (20, ROOT_FRN, d, "Users"),
+            (21, 20, d, "홍길동"),
+            (22, 21, d, "AppData"),
+            (23, 22, 0x20, "포트홀 캐시.tmp"),
+            (24, 21, d, "Documents"),
+            (25, 24, 0x20, "포트홀 보고.hwp"),
+        ]
+        .into_iter()
+        .rev()
+        {
+            // 처음 읽기는 순서가 뒤섞여 와요 — 아래 것이 먼저 오면 그때는 못 빼고 prune이 덜어 내요
+            v.apply(&UsnRec { frn, parent, reason: 0, attrs, name: name.into() });
+        }
+        assert!(v.len() > 4);
+        v.prune();
+        assert_eq!(find(&v, Query { name: "포트홀".into(), sub: true, dirs: true, limit: 100, ..Default::default() }), vec!["C:\\Users\\홍길동\\Documents\\포트홀 보고.hwp"]);
+        assert_eq!(v.len(), 4, "Users·홍길동·Documents·보고만 남아요");
+        // 그 뒤 생기는 것도 빼요(뺀 폴더 아래 새 폴더·파일, 새로 만든 AppData)
+        v.apply(&UsnRec { frn: 30, parent: 11, reason: 0, attrs: d, name: "새 폴더".into() });
+        v.apply(&UsnRec { frn: 31, parent: 30, reason: 0, attrs: 0x20, name: "포트홀2.txt".into() });
+        v.apply(&UsnRec { frn: 40, parent: ROOT_FRN, reason: 0, attrs: d, name: "ProgramData".into() });
+        v.apply(&UsnRec { frn: 41, parent: 40, reason: 0, attrs: 0x20, name: "포트홀3.txt".into() });
+        v.apply(&UsnRec { frn: 50, parent: 24, reason: 0, attrs: 0x20, name: "포트홀4.txt".into() });
+        assert_eq!(find(&v, Query { name: "포트홀".into(), sub: true, dirs: true, limit: 100, ..Default::default() }).len(), 2);
+        assert!(is_skipped_path("C:\\Windows\\System32"));
+        assert!(is_skipped_path("d:/users/홍길동/appdata/local"));
+        assert!(!is_skipped_path("C:\\Users\\홍길동\\Documents"));
+        assert!(!is_skipped_path("D:\\민원처리\\Windows"));
     }
 
     #[test]

@@ -255,6 +255,7 @@ fn volume_worker(i: usize, drive: String, shared: Arc<Shared>, stop: Arc<AtomicB
             let (id, next) = ensure_journal(h.0)?;
             let mut v = Volume::new(&drive);
             scan(h.0, next, &mut v, &stop)?;
+            v.prune(); // 시스템 폴더·AppData 덜어 내기
             log(&format!("{drive} 목록 {}개 {:.1}초", v.len(), t0.elapsed().as_secs_f32()));
             {
                 let mut s = shared.slots[i].write().unwrap_or_else(|e| e.into_inner());
