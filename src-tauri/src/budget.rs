@@ -1,7 +1,7 @@
 //! 집행현황(12단계) 명령. 저장 규칙은 core의 budget, 엑셀은 core의 budget_xlsx에 있어요.
 
 use gilog_core::budget_xlsx::{BudgetExport, GridSheet};
-use gilog_core::{BudgetImportProject, BudgetLevel, BudgetProject, BudgetRowInput};
+use gilog_core::{BudgetShareOp, BudgetImportProject, BudgetLevel, BudgetProject, BudgetRowInput};
 use tauri::State;
 
 use crate::{code, with_store, AppState};
@@ -83,4 +83,27 @@ pub fn budget_excel_write(path: String, data: BudgetExport) -> Result<(), String
 #[tauri::command]
 pub fn budget_excel_read(path: String) -> Result<Vec<GridSheet>, String> {
     gilog_core::budget_xlsx::read_grid(std::path::Path::new(&path)).map_err(code)
+}
+
+// ---------- 팀 공유(2026-10-20) ----------
+
+#[tauri::command]
+pub fn budget_years(state: State<AppState>) -> Result<Vec<i64>, String> {
+    with_store(&state, |s| s.budget_years())
+}
+
+#[tauri::command]
+pub fn set_budget_owner(state: State<AppState>, id: i64, owner: Option<i64>) -> Result<Year, String> {
+    with_store(&state, |s| s.set_budget_owner(id, owner))
+}
+
+/// 받은 줄을 넣고 넣은 수를 돌려줘요.
+#[tauri::command]
+pub fn budget_share_apply(state: State<AppState>, ops: Vec<BudgetShareOp>) -> Result<usize, String> {
+    with_store(&state, |s| s.budget_share_apply(&ops))
+}
+
+#[tauri::command]
+pub fn budget_share_clear(state: State<AppState>) -> Result<(), String> {
+    with_store(&state, |s| s.budget_share_clear())
 }

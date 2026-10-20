@@ -57,6 +57,8 @@
   --saturday: #2F55C8;
   /* 캘린더 쉬는 날(토·일·공휴일) 칸 바탕과 주 보기 머리 줄 (설정에서 끄고 켜요) */
   --rest-wash: #FDF0EE;
+  /* 집행현황 팀 공유: 받은 줄 선·연결됨 글자·기다림 글자 */
+  --share-new: #2E9E5B; --share-ok: #1F7A45; --share-wait: #B45309;
   --rest-band: #F9E1DD;
   /* 삭제를 한 번 더 묻는 띠의 바탕. 글자는 danger. */
   --danger-wash: #FBE4EC;
@@ -213,6 +215,7 @@
     --search-line: #5A4E22;
     --saturday: #8AB4F8;
     --rest-wash: #261A1C;
+    --share-new: #3FBF75; --share-ok: #5FD38F; --share-wait: #F59E0B;
     --rest-band: #33201F;
     --row-alt: #1B1A21;
     --flash: #3A3416;
@@ -276,6 +279,7 @@
   --urgent-bg: #3D2220;
   --saturday: #8AB4F8;
   --rest-wash: #261A1C;
+  --share-new: #3FBF75; --share-ok: #5FD38F; --share-wait: #F59E0B;
   --rest-band: #33201F;
   --danger-wash: #3A1D24;
   --mark: #6B5A12;

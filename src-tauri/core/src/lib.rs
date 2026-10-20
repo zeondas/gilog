@@ -27,7 +27,7 @@ mod process;
 mod tasks;
 pub use address::{road_to_jibun, RoadHit, RoadLookup};
 pub use bstatus::{BStatusExport, BStatusLine, BStatusSetup};
-pub use budget::{BudgetImportItem, BudgetImportProject, BudgetImportRow, BudgetItem, BudgetLevel, BudgetProject, BudgetRow, BudgetRowInput, BUDGET_KINDS, BUDGET_STAGES};
+pub use budget::{BudgetShareOp, BudgetImportItem, BudgetImportProject, BudgetImportRow, BudgetItem, BudgetLevel, BudgetProject, BudgetRow, BudgetRowInput, BUDGET_KINDS, BUDGET_STAGES};
 pub use calendar::{CalKind, CalendarData, Event, EventInput, Holiday, BUILTIN_HOLIDAYS, KIND_COLORS, REMIND_MAX, SYSTEM_KINDS};
 pub use complaints::{Complaint, ComplaintImport, ComplaintInput, DEFAULT_STATUS};
 pub use contacts::{Contact, ContactImport, ContactInput, ContactsData, Project, ProjectGroup, PROJECT_COLORS};
@@ -227,6 +227,7 @@ impl Store {
         self.conn.execute_batch(process::SCHEMA)?;
         process::upgrade(&self.conn)?;
         self.conn.execute_batch(budget::SCHEMA)?;
+        budget::upgrade(&self.conn)?;
         self.conn.execute_batch(bstatus::SCHEMA)?;
         Ok(())
     }

@@ -25,6 +25,11 @@ const CAL_SCOPE = "https://www.googleapis.com/auth/calendar.app.created";
  * 그래서 설정의 "구글 할 일로 보내기"를 켠 사람만 받아요(사용자 2026-10-17 1안). */
 const TASKS_SCOPE = "https://www.googleapis.com/auth/tasks";
 const TASKS_API = "https://tasks.googleapis.com/tasks/v1";
+/** 집행현황 팀 공유(2026-10-20 15:23 사용자 1안): 모두 시트 권한(민감 – "확인되지 않은 앱" 경고 한 번·100명 한도), 내 메일 확인 권한. */
+export const SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
+export const EMAIL_SCOPE = "https://www.googleapis.com/auth/userinfo.email";
+/** 호스트만: 앱이 만든 시트의 공유(권한 주기·거두기) – 시트 권한으로는 공유를 바꿀 수 없어요. */
+export const DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const API = "https://www.googleapis.com/calendar/v3";
 const TZ = "Asia/Seoul";
@@ -274,7 +279,7 @@ async function challengeOf(verifier: string): Promise<string> {
  * 기본 브라우저로 구글 로그인 창을 띄우고, 끝나면 로그인 정보를 저장한 뒤 전체를 내보내요.
  * 실패하면 화면에 보일 글을 던져요.
  */
-export async function connectGoogle(withTasks?: boolean): Promise<void> {
+export async function connectGoogle(withTasks?: boolean, extraScopes: string[] = []): Promise<void> {
   if (!inApp) throw new Error("앱에서만 연결할 수 있어요.");
   const wantTasks = withTasks ?? (await loadOpts()).gtasks;
   const c = await getClient();
@@ -289,7 +294,7 @@ export async function connectGoogle(withTasks?: boolean): Promise<void> {
       client_id: c.id,
       redirect_uri: redirect,
       response_type: "code",
-      scope: wantTasks ? `${CAL_SCOPE} ${TASKS_SCOPE}` : CAL_SCOPE,
+      scope: [CAL_SCOPE, ...(wantTasks ? [TASKS_SCOPE] : []), ...extraScopes].join(" "),
       include_granted_scopes: "true",
       code_challenge: await challengeOf(verifier),
       code_challenge_method: "S256",
@@ -312,12 +317,42 @@ export async function connectGoogle(withTasks?: boolean): Promise<void> {
     throw new Error(e instanceof Error && e.message === "offline" ? "구글에 연결하지 못했어요(인터넷 연결을 확인해 주세요)." : `로그인 정보를 받지 못했어요(${e instanceof Error ? e.message : e}).`);
   }
   if (!j.refresh_token) throw new Error("로그인 정보를 받지 못했어요. 다시 시도해 주세요.");
-  await putJson(K_TOKEN, { refresh: String(j.refresh_token), access: String(j.access_token ?? ""), exp: Date.now() + Number(j.expires_in ?? 3600) * 1000, scope: String(j.scope ?? (wantTasks ? `${CAL_SCOPE} ${TASKS_SCOPE}` : CAL_SCOPE)) });
+  await putJson(K_TOKEN, { refresh: String(j.refresh_token), access: String(j.access_token ?? ""), exp: Date.now() + Number(j.expires_in ?? 3600) * 1000, scope: String(j.scope ?? [CAL_SCOPE, ...(wantTasks ? [TASKS_SCOPE] : []), ...extraScopes].join(" ")) });
   const s = await loadState();
   await putJson(K_STATE, { ...s, full: true, lastError: "" });
   publish({ connected: true, lastError: "" });
   await syncGoogle();
 }
+
+// ---------- 집행현황 팀 공유에서 쓰는 것 ----------
+
+/** 지금 로그인이 그 권한을 받았는지(받은 권한 목록에 있는지). */
+export async function hasGoogleScope(scope: string): Promise<boolean> {
+  const t = await getJson<GToken>(K_TOKEN);
+  return !!t?.refresh && !!t.scope?.includes(scope);
+}
+
+/** 쓸 수 있는 접근 열쇠 */
+export const googleAccessToken = (): Promise<string> => accessToken();
+
+/** 구글 API를 주소 전체로 불러요(시트·드라이브·내 메일). 404·410은 그대로 돌려줘요. */
+export const googleCall = (method: string, url: string, body?: unknown) => gapi(method, url, body, "");
+
+/**
+ * 집행현황 팀 공유를 켤 때 로그인(권한 더 받기). 구글에 처음 로그인하는 사람은 캘린더로 보내기 세 가지를 끈 채로 시작해요.
+ * host면 공유를 바꾸는 드라이브 권한(drive.file)까지 받아요.
+ */
+export async function connectForShare(host: boolean): Promise<void> {
+  const t = await getJson<GToken>(K_TOKEN);
+  if (!t?.refresh) {
+    const o = await loadOpts();
+    await putJson(K_OPTS, { ...o, events: false, complaints: false, tasks: false });
+  }
+  await connectGoogle(undefined, [SHEETS_SCOPE, EMAIL_SCOPE, ...(host ? [DRIVE_FILE_SCOPE] : [])]);
+}
+
+/** 구글 오류의 응답 번호(GError가 아니면 0) */
+export const googleErrorCode = (e: unknown): number => (e instanceof GError ? e.code : 0);
 
 /**
  * 연결 끊기: 로그인 정보를 지워요. removeEvents면 구글의 giLog 캘린더(내보낸 일정)도 지워요.
@@ -772,6 +807,15 @@ async function runSync(forceFull: boolean): Promise<void> {
     s.titems = s.titems ?? {};
     s.listId = s.listId ?? "";
     const opts = await loadOpts();
+    if (!opts.events && !opts.complaints && !opts.tasks && !s.calendarId && !Object.keys(s.titems).length) {
+      // 집행현황 공유만 쓰려고 로그인한 사람 – 캘린더를 만들지 않아요(설정에서 켜면 그때 만들어요).
+      s.full = false;
+      s.lastOk = stamp();
+      s.lastError = "";
+      await save();
+      publish({ busy: false, lastOk: s.lastOk, lastError: "" });
+      return;
+    }
     const cal = await ensureCalendar(s);
     await save();
     // 구글 할 일: 먼저 구글에서 체크한 것을 받아 오고, 그다음 기록 내용을 보내요.

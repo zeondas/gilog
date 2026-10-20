@@ -36,8 +36,22 @@ import { Setup } from "./budgetStatus";
 import { todayStr } from "./journal";
 import { keyAction, rowKeys } from "./keys";
 import { isEmptyMemo, MemoEditor, sanitize } from "./RichMemo";
+import {
+  AUTO_MS,
+  Conflict,
+  Field,
+  keepMine,
+  onShare,
+  personColor,
+  refreshShare,
+  SHARE_CHANGE,
+  shareActive,
+  ShareState,
+  shortTime,
+  takeTheirs,
+} from "./budgetShare";
 
-type ColId = "name" | "kind" | "co" | "bud" | "cmt" | "exp" | "act" | "bal" | "rate" | "avail" | "stage" | "memo";
+type ColId = "name" | "kind" | "co" | "bud" | "cmt" | "exp" | "act" | "bal" | "rate" | "avail" | "stage" | "owner" | "memo";
 const COLS: [ColId, string, number][] = [
   ["name", "세부사업", 336],
   ["kind", "구분", 56],
@@ -50,9 +64,12 @@ const COLS: [ColId, string, number][] = [
   ["rate", "집행률", 90],
   ["avail", "가용액", 118],
   ["stage", "단계", 64],
+  // 팀 공유(2026-10-20 사용자): 단계 뒤·메모 앞, 세부사업 줄에만 한 명 – 공유를 켜지 않으면 열이 없어요
+  ["owner", "담당", 76],
   ["memo", "메모", 36],
 ];
-const FIXED = new Set<ColId>(["kind", "rate", "stage", "memo"]);
+const COLS_SOLO = COLS.filter(([c]) => c !== "owner");
+const FIXED = new Set<ColId>(["kind", "rate", "stage", "owner", "memo"]);
 const START_W = Object.fromEntries(COLS.map(([c, , w]) => [c, w])) as Record<ColId, number>;
 const COLS_KEY = "budget.cols";
 const UNIT_KEY = "budget.unit";
@@ -81,7 +98,9 @@ type Pop =
   | { t: "stage"; x: number; y: number; id: number | "form"; from: string }
   | { t: "kind"; x: number; y: number; from: string }
   | { t: "memo"; x: number; y: number; level: BudgetLevel; id: number }
-  | { t: "excel"; x: number; y: number };
+  | { t: "excel"; x: number; y: number }
+  | { t: "owner"; x: number; y: number; id: number }
+  | { t: "cf"; x: number; y: number; uid: string; field: string };
 
 const ICON = (d: string, s = 14, w = 2) => (
   <svg aria-hidden="true" width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={w} strokeLinecap="round" strokeLinejoin="miter">
@@ -143,6 +162,13 @@ export default function BudgetScreen() {
     api.bstatusSet(name, JSON.stringify(s)).catch(() => {});
   };
   const [avail, setAvail] = useState(1200);
+  // ---------- 팀 공유 ----------
+  const [share, setShare] = useState<ShareState | null>(null);
+  useEffect(() => onShare(setShare), []);
+  const shareOn = !!share && shareActive(share.conf);
+  const VC = shareOn ? COLS : COLS_SOLO;
+  /** 닫은 결과 띠(새로고침 시각) – 다음 새로고침까지 받은 줄 초록 선도 지워요 */
+  const [bandOff, setBandOff] = useState("");
   const [ask, setAsk] = useState<(BudgetImport & { path: string }) | null>(null);
   const formRow = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
@@ -167,6 +193,21 @@ export default function BudgetScreen() {
   useEffect(() => {
     void load(year);
     void loadBs();
+  }, [year, load]);
+  // 팀 공유 새로고침(사용자 2안): 화면을 열 때 + 열려 있는 동안 5분마다(고치는 줄이 열려 있으면 그 차례는 건너뛰어요) + [새로고침]
+  const shareSheet = shareOn ? share?.conf.sheet : "";
+  useEffect(() => {
+    if (!shareSheet) return;
+    void refreshShare();
+    const t = window.setInterval(() => {
+      if (!formRef.current) void refreshShare();
+    }, AUTO_MS);
+    return () => window.clearInterval(t);
+  }, [shareSheet]);
+  useEffect(() => {
+    const f = () => void load(year);
+    window.addEventListener(SHARE_CHANGE, f);
+    return () => window.removeEventListener(SHARE_CHANGE, f);
   }, [year, load]);
   useEffect(() => {
     api.get(UNIT_KEY).then((v) => setUnitState(v === "1000" ? 1000 : 1), () => {});
@@ -468,11 +509,11 @@ export default function BudgetScreen() {
   };
 
   // ---------- 열 ----------
-  const rest = COLS.reduce((a, [c]) => a + (c === "name" ? 0 : W[c]), 0);
+  const rest = VC.reduce((a, [c]) => a + (c === "name" ? 0 : W[c]), 0);
   const nameW = nameFixed ? W.name : Math.max(160, Math.floor(avail - 6 - rest));
-  const cols = COLS.map(([c]) => (c === "name" ? nameW : W[c]) + "px").join(" ");
+  const cols = VC.map(([c]) => (c === "name" ? nameW : W[c]) + "px").join(" ");
   // 배치최적화(또는 세부사업 열을 직접 맞춘) 뒤 남는 폭이 있으면 왼쪽으로 모아요: 머리 줄 끝(엑셀) = 메모 끝, 세로 스크롤은 메모 끝 바로 옆(2026-10-19 사용자)
-  const colSum = COLS.reduce((a, [c]) => a + W[c], 0);
+  const colSum = VC.reduce((a, [c]) => a + W[c], 0);
   const packed = nameFixed && boxW > 0 && colSum + 2 + sbw <= boxW;
 
   const startDrag = (e: RMouseEvent, col: ColId) => {
@@ -511,7 +552,7 @@ export default function BudgetScreen() {
   };
   /** 그 열에 보이는 내용(열 제목 포함) 가운데 가장 긴 폭 */
   const fitOf = (col: ColId, head: HTMLElement) => {
-    const ci = COLS.findIndex(([c]) => c === col);
+    const ci = VC.findIndex(([c]) => c === col);
     const cells = [head, ...document.querySelectorAll<HTMLElement>(`.bd-body .bd-rw > .bd-c:nth-child(${ci + 1})`)];
     return Math.max(col === "name" ? 160 : 36, Math.max(...cells.map(need)) + 1);
   };
@@ -520,7 +561,7 @@ export default function BudgetScreen() {
     if (!(await commit())) return;
     const heads = [...document.querySelectorAll<HTMLElement>(".bd-hd > *")];
     const w = { ...W };
-    COLS.forEach(([c], i) => {
+    VC.forEach(([c], i) => {
       if (!FIXED.has(c) && heads[i]) w[c] = fitOf(c, heads[i]);
     });
     setW(w);
@@ -680,7 +721,7 @@ export default function BudgetScreen() {
     );
   };
   /** 합계 칸들(구분·업체 빈칸부터 메모까지) */
-  const sumCells = (budget: number | null, rows: BudgetRow[], sm: boolean, memo: ReactNode, budgetCell?: ReactNode) => {
+  const sumCells = (budget: number | null, rows: BudgetRow[], sm: boolean, memo: ReactNode, budgetCell?: ReactNode, owner?: ReactNode) => {
     const s = sums(budget, rows, basis);
     return (
       <>
@@ -698,6 +739,7 @@ export default function BudgetScreen() {
             {s.done}/{s.n}
           </span>,
         )}
+        {shareOn && cell(owner ?? "", " bs-oc")}
         {cell(memo)}
       </>
     );
@@ -764,7 +806,7 @@ export default function BudgetScreen() {
   };
   const draftRow: BudgetRow | null =
     form?.level === "row"
-      ? { id: form.id ?? -1, name: form.name, kind: form.kind, co: form.co, cmt: live(form.cmt), exp: live(form.exp), act: live(form.act), stage: form.stage, memo: "" }
+      ? { id: form.id ?? -1, name: form.name, kind: form.kind, co: form.co, cmt: live(form.cmt), exp: live(form.exp), act: live(form.act), stage: form.stage, memo: "", uid: "" }
       : null;
   const rowsOf = (it: { id: number; rows: BudgetRow[] }) => {
     if (!draftRow || form?.level !== "row") return it.rows;
@@ -778,7 +820,7 @@ export default function BudgetScreen() {
   // ---------- 숫자 칸 여러 개 고르기 ----------
   /** 칸 값(원). 화면에 보이는 계산과 같아요(고치는 중이면 치는 값으로). */
   const cellVal = (k: string, ci: number): number | null => {
-    const col = COLS[ci]?.[0];
+    const col = VC[ci]?.[0];
     const id = Number(k.slice(1));
     if (k[0] === "g") {
       const x = findRow(id);
@@ -866,6 +908,81 @@ export default function BudgetScreen() {
         .join(",") + "{background:var(--accent-tint);box-shadow:inset 0 0 0 1px var(--accent);color:var(--ink)}"
     : "";
 
+  // ---------- 팀 공유 그리기 ----------
+  const people = share?.people ?? [];
+  const personName = (no: number | null | undefined) => (no == null ? "" : (people.find((x) => x.no === no)?.name ?? ""));
+  const ownerBadge = (p: BudgetProject) => {
+    const nm = personName(p.owner);
+    const c = p.owner != null ? personColor(p.owner) : 0;
+    return (
+      <button
+        type="button"
+        data-pick
+        className={"bs-own" + (nm ? "" : " none")}
+        aria-label={nm ? `담당 ${nm} 바꾸기` : "담당 고르기"}
+        title={nm ? `담당 ${nm}` : "담당 고르기"}
+        style={nm ? { background: `var(--pj-${c}-bg)`, color: `var(--pj-${c}-fg)`, borderColor: `var(--pj-${c}-line)` } : undefined}
+        onDoubleClick={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (pop?.t === "owner" && pop.id === p.id) {
+            setPop(null);
+            return;
+          }
+          const r = e.currentTarget.getBoundingClientRect();
+          setSel(selKey("project", p.id));
+          setPop({ t: "owner", x: r.left, y: r.bottom + 4, id: p.id });
+        }}
+      >
+        {nm}
+      </button>
+    );
+  };
+  const setOwner = async (id: number, owner: number | null) => {
+    setPop(null);
+    await run(() => api.setBudgetOwner(id, owner));
+  };
+  /** 같은 칸 → 표 열 */
+  const CF_COL: Partial<Record<Field, ColId>> = { name: "name", budget: "bud", kind: "kind", co: "co", cmt: "cmt", exp: "exp", act: "act", stage: "stage", owner: "owner", memo: "memo" };
+  const cfs: Conflict[] = shareOn ? (share?.conflicts ?? []) : [];
+  const cfIx = (c: Conflict) => VC.findIndex(([x]) => x === CF_COL[c.field]);
+  const last = share?.last ?? null;
+  const bandShown = shareOn && !!last && last.at !== bandOff && (last.receivedCells > 0 || !!last.error || !!last.note);
+  const fresh = bandShown && last ? last.received : [];
+  const shareStyle =
+    cfs
+      .filter((c) => cfIx(c) >= 0)
+      .map((c) => `.bd-body .bd-rw[data-uid="${c.uid}"]>.bd-c:nth-child(${cfIx(c) + 1})`)
+      .join(",") +
+    (cfs.length ? "{box-shadow:inset 0 0 0 2px var(--cs-reply-bg);background:color-mix(in srgb,var(--cs-reply-bg) 14%,var(--surface));color:var(--ink);font-weight:600;cursor:pointer}" : "") +
+    (fresh.length ? fresh.map((u) => `.bd-body .bd-rw[data-uid="${u}"]>.bd-c:first-child`).join(",") + "{box-shadow:inset 3px 0 0 var(--share-new)}" : "");
+  /** 같은 칸을 누르면 고르기 상자 */
+  const openCf = (e: RMouseEvent): boolean => {
+    if (!cfs.length || e.shiftKey || e.ctrlKey || e.metaKey) return false;
+    const c = (e.target as Element).closest(".bd-c");
+    const rw = c?.parentElement;
+    const uid = rw?.getAttribute("data-uid");
+    if (!c || !rw || !uid || rw.classList.contains("edit")) return false;
+    const ci = Array.prototype.indexOf.call(rw.children, c) as number;
+    const hit = cfs.find((x) => x.uid === uid && cfIx(x) === ci);
+    if (!hit) return false;
+    e.stopPropagation();
+    e.preventDefault();
+    const r = c.getBoundingClientRect();
+    setPop({ t: "cf", x: r.left + r.width / 2 - 150, y: r.bottom + 6, uid, field: hit.field });
+    return true;
+  };
+  const cfValue = (f: Field, v: string) => {
+    if (["budget", "cmt", "exp", "act"].includes(f)) return v === "" ? "(빈칸)" : fmt(Number(v), unit) || "0";
+    if (f === "owner") return personName(v === "" ? null : Number(v)) || "(없음)";
+    if (f === "memo") return memoToText(v).slice(0, 40) || "(빈칸)";
+    return v || "(빈칸)";
+  };
+  const doRefresh = async () => {
+    if (!(await commit())) return;
+    await refreshShare();
+  };
+
   const rowsOut: ReactNode[] = [];
   let carryShown = false;
   const lines = (parts: string[]) => parts.map((c) => <span key={c} className={"bd-tl " + c} />);
@@ -883,7 +1000,7 @@ export default function BudgetScreen() {
         {cell("")}
         {cell(moneyInput("budget", "예산", f.budget, level === "project"))}
         {cell(<span className="bd-hint">Enter 저장 · Esc 취소</span>)}
-        {COLS.slice(5).map((_, i) => cell("", "", i))}
+        {VC.slice(5).map((_, i) => cell("", "", i))}
       </div>
     );
   };
@@ -934,6 +1051,7 @@ export default function BudgetScreen() {
         {draftRow && rowRateCell(draftRow)}
         {cell("")}
         {cell(stageChip(f.stage, (r, from) => setPop({ t: "stage", x: r.left, y: r.bottom + 4, id: "form", from }), "form-stage"))}
+        {shareOn && cell("")}
         {cell(existing ? memoBtn("row", existing.id, existing.memo) : "")}
       </div>
     );
@@ -959,6 +1077,7 @@ export default function BudgetScreen() {
         key={pk}
         ref={pEdit ? formRow : undefined}
         data-sel={pk}
+        data-uid={p.uid}
         className={"bd-rw pj" + (sel === pk ? " sel" : "") + (pEdit ? " edit" : "")}
         role="row"
         onClick={() => !pEdit && void rowClick("project", p.id)}
@@ -990,7 +1109,7 @@ export default function BudgetScreen() {
             )}
           </>,
         )}
-        {sumCells(budgetOf("project", p), pRows(p), false, memoBtn("project", p.id, p.memo), pEdit && form?.level === "project" ? cell(moneyInput("budget", "예산", form.budget, true)) : undefined)}
+        {sumCells(budgetOf("project", p), pRows(p), false, memoBtn("project", p.id, p.memo), pEdit && form?.level === "project" ? cell(moneyInput("budget", "예산", form.budget, true)) : undefined, ownerBadge(p))}
       </div>,
     );
     if (form?.level === "project" && form.id == null && form.after === p.id) rowsOut.push(nameRow("new-after-" + p.id, "project"));
@@ -1009,6 +1128,7 @@ export default function BudgetScreen() {
           key={ik}
           ref={iEdit ? formRow : undefined}
           data-sel={ik}
+          data-uid={it.uid}
           className={"bd-rw it" + (n % 2 === 0 ? " alt" : "") + (sel === ik ? " sel" : "") + (iEdit ? " edit" : "")}
           role="row"
           onClick={() => !iEdit && void rowClick("item", it.id)}
@@ -1058,6 +1178,7 @@ export default function BudgetScreen() {
           <div
             key={gk}
             data-sel={gk}
+            data-uid={r.uid}
             className={"bd-rw gun" + (FINAL(r.stage) ? " done" : "") + (n % 2 === 0 ? " alt" : "") + (sel === gk ? " sel" : "") + (flash === r.id ? " flash" : "")}
             role="row"
             onClick={() => void rowClick("row", r.id)}
@@ -1095,6 +1216,7 @@ export default function BudgetScreen() {
                 "stage-" + r.id,
               ),
             )}
+            {shareOn && cell("")}
             {cell(memoBtn("row", r.id, r.memo))}
           </div>,
         );
@@ -1324,6 +1446,71 @@ export default function BudgetScreen() {
     if (!pop) return null;
     if (pop.t === "menu") return <div style={{ width: 250 }}>{menuBody(pop.level, pop.id)}</div>;
     if (pop.t === "confirm") return confirmBody(pop.level, pop.id);
+    if (pop.t === "owner") {
+      const cur = findP(pop.id)?.owner ?? null;
+      const id = pop.id;
+      return (
+        <div className="bd-stlist bs-olist">
+          {people
+            .filter((x) => !x.gone)
+            .map((x) => (
+              <div key={x.no} className={"bd-mi" + (x.no === cur ? " cur" : "")} onClick={() => void setOwner(id, x.no)}>
+                <span className="bs-own" style={{ background: `var(--pj-${personColor(x.no)}-bg)`, color: `var(--pj-${personColor(x.no)}-fg)`, borderColor: `var(--pj-${personColor(x.no)}-line)` }}>
+                  {x.name}
+                </span>
+              </div>
+            ))}
+          {cur != null && (
+            <div className="bd-mi" onClick={() => void setOwner(id, null)}>
+              <span className="bs-mut">담당 비우기</span>
+            </div>
+          )}
+        </div>
+      );
+    }
+    if (pop.t === "cf") {
+      const c = cfs.find((x) => x.uid === pop.uid && x.field === pop.field);
+      if (!c) return null;
+      const who = personName(c.who) || "다른 사람";
+      return (
+        <div className="bs-cf">
+          <div className="bs-pt">
+            <b>{who} 님이 먼저 고쳤어요</b>
+            <span className="bs-mut">{shortTime(c.at)}</span>
+          </div>
+          <div className="bs-pr">
+            <span className="bs-mut">{who}</span>
+            <span className="bs-v">{cfValue(c.field, c.theirs)}</span>
+          </div>
+          <div className="bs-pr">
+            <span className="bs-mut">내 값</span>
+            <span className="bs-v">{cfValue(c.field, c.mine)}</span>
+          </div>
+          <div className="bs-pb">
+            <button
+              type="button"
+              className="btn btn-xs"
+              onClick={() => {
+                setPop(null);
+                void takeTheirs(c);
+              }}
+            >
+              {who} 값 그대로
+            </button>
+            <button
+              type="button"
+              className="btn-primary btn-xs"
+              onClick={() => {
+                setPop(null);
+                void keepMine(c);
+              }}
+            >
+              내 값으로
+            </button>
+          </div>
+        </div>
+      );
+    }
     if (pop.t === "stage") {
       const cur = pop.id === "form" ? (form as Extract<Form, { level: "row" }> | null)?.stage : findRow(pop.id)?.r.stage;
       return (
@@ -1408,10 +1595,10 @@ export default function BudgetScreen() {
 
   const head = useMemo(
     () =>
-      COLS.map(([c, label], i) => (
+      VC.map(([c, label], i) => (
         <div
           key={c}
-          className={"bd-h" + (colHl === i ? " on" : "")}
+          className={"bd-h" + (colHl === i ? " on" : "") + (c === "owner" ? " bs-oh" : "")}
           role="columnheader"
           title="누르면 이 열을 칠해요"
           onClick={(e) => {
@@ -1424,7 +1611,7 @@ export default function BudgetScreen() {
         </div>
       )),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [colHl, W, nameFixed, avail],
+    [colHl, W, nameFixed, avail, VC],
   );
 
   if (!data) {
@@ -1460,6 +1647,26 @@ export default function BudgetScreen() {
             {ICON("M9 6l6 6-6 6", 16, 2.2)}
           </button>
         </span>
+        {shareOn && share && (
+          <>
+            <button
+              type="button"
+              className={"btn btn-ctrl fx-tool bs-sync" + (share.busy ? " busy" : "")}
+              title="새로고침 – 내가 고친 것을 올리고 다른 사람이 고친 것을 받아요"
+              disabled={share.busy}
+              onClick={() => void doRefresh()}
+            >
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 11a8 8 0 1 0-2.3 5.7" />
+                <path d="M20 4v7h-7" />
+              </svg>
+              <span className="fx-tl">새로고침</span>
+            </button>
+            <span className={"bs-st" + (share.conf.error ? " bad" : "")} role="status" title={share.conf.error || undefined}>
+              {share.busy ? "새로고침 중…" : share.conf.up || share.conf.down ? `올림 ${shortTime(share.conf.up) || "–"} · 받음 ${shortTime(share.conf.down) || "–"}` : "아직 새로고침 전"}
+            </span>
+          </>
+        )}
         <span className="bd-sp" />
         <span className="bd-unit tb-seg-l" role="group" aria-label="잔액·집행률 기준" title="잔액·집행률 기준">
           {(["exp", "act"] as Basis[]).map((b) => (
@@ -1547,7 +1754,41 @@ export default function BudgetScreen() {
         </button>
       </div>
 
+      {shareOn && (bandShown || cfs.length > 0) && last && (
+        <div className={"bs-band" + (last.error ? " bad" : cfs.length ? " cf" : "")} role="status" style={packed ? { width: colSum + 2 + sbw } : undefined}>
+          {last.error ? (
+            <span>
+              <b>새로고침하지 못했어요</b> · {last.error}
+            </span>
+          ) : (
+            <span>
+              <b>새로고침했어요</b>
+              {last.receivedCells > 0 && (
+                <>
+                  {" · 받은 것 "}
+                  {last.receivedCells}칸{last.receivedBy.length > 0 && `(${last.receivedBy.map(([n, k]) => `${n} ${k}`).join(" · ")})`}
+                </>
+              )}
+              {last.sentCells > 0 && ` · 올린 것 ${last.sentCells}칸`}
+              {cfs.length > 0 && (
+                <>
+                  {" · "}
+                  <b className="bs-or">같은 칸 {cfs.length}곳</b>은 주황 칸을 눌러 골라 주세요
+                </>
+              )}
+              {last.note && ` · ${last.note}`}
+            </span>
+          )}
+          <span className="sp" />
+          {bandShown && (
+            <button type="button" className="btn x" aria-label="닫기" title="닫기" onClick={() => setBandOff(last.at)}>
+              {ICON("M6 6l12 12M18 6L6 18", 14, 2.4)}
+            </button>
+          )}
+        </div>
+      )}
       <div className="bd-tbl" style={packed ? { width: colSum + 2 + sbw } : undefined}>
+        <style>{shareStyle}</style>
         <style>{colHl == null ? "" : `.bd-body .bd-rw>.bd-c:nth-child(${colHl + 1}){background-image:linear-gradient(var(--bd-col-hl),var(--bd-col-hl))}`}</style>
         <style>{csStyle}</style>
         <div className="bd-scroll" ref={scroller}>
@@ -1561,7 +1802,9 @@ export default function BudgetScreen() {
               // Shift·Ctrl 누르기에 글자가 칠해지지 않게
               if ((e.shiftKey || e.ctrlKey || e.metaKey) && (e.target as Element).closest(".bd-rw[data-sel]:not(.edit) > .bd-c")) e.preventDefault();
             }}
-            onClickCapture={pickCell}
+            onClickCapture={(e) => {
+              if (!openCf(e)) pickCell(e);
+            }}
           >
             {rowsOut}
             {!list.length && !(form?.level === "project") && (
@@ -1606,7 +1849,7 @@ export default function BudgetScreen() {
       {pop && (
         <div
           ref={popRef}
-          className={"bd-pop" + (pop.t === "stage" || pop.t === "kind" ? " bd-pop-list" : "")}
+          className={"bd-pop" + (pop.t === "stage" || pop.t === "kind" || pop.t === "owner" ? " bd-pop-list" : "") + (pop.t === "cf" ? " bs-pop" : "")}
           role={pop.t === "menu" || pop.t === "excel" ? "menu" : "dialog"}
           style={popPos ?? { left: pop.x, top: pop.y, visibility: "hidden" }}
           onMouseDown={(e) => e.stopPropagation()}

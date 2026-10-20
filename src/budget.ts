@@ -13,9 +13,10 @@ export const STAGES = ["준비", "추진", "완료", "중지", "타절"] as cons
 export type Kind = (typeof KINDS)[number];
 export type Stage = (typeof STAGES)[number];
 
-export type BudgetRow = { id: number; name: string; kind: string; co: string; cmt: number; exp: number; act: number; stage: string; memo: string };
-export type BudgetItem = { id: number; name: string; budget: number | null; open: boolean; memo: string; rows: BudgetRow[] };
-export type BudgetProject = { id: number; year: number; name: string; budget: number | null; carry: boolean; open: boolean; memo: string; items: BudgetItem[] };
+/** uid: 팀 공유에서 PC 사이 같은 줄을 찾는 이름(core가 만들 때 정해요). owner: 세부사업 담당(함께 쓰는 사람 번호). */
+export type BudgetRow = { id: number; name: string; kind: string; co: string; cmt: number; exp: number; act: number; stage: string; memo: string; uid: string };
+export type BudgetItem = { id: number; name: string; budget: number | null; open: boolean; memo: string; rows: BudgetRow[]; uid: string };
+export type BudgetProject = { id: number; year: number; name: string; budget: number | null; carry: boolean; open: boolean; memo: string; items: BudgetItem[]; uid: string; owner: number | null };
 export type BudgetRowInput = { name: string; kind: string; co: string; cmt: number; exp: number; act: number; stage: string };
 export type BudgetLevel = "project" | "item" | "row";
 
