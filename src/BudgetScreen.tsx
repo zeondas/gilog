@@ -1,4 +1,4 @@
-// 집행현황(12단계) 화면 — 시안 목업(https://claude.ai/artifact/85GKw4XvZBnK3GA67R87RG, 2026-10-18 사용자 "통과") 그대로.
+// 집행현황(12단계) 화면 – 시안 목업(https://claude.ai/artifact/85GKw4XvZBnK3GA67R87RG, 2026-10-18 사용자 "통과") 그대로.
 // 세부사업 → 부기사업 → 공사 트리 표. 계산 규칙은 budget.ts, 저장은 core budget.rs.
 // - 한 번 누르기 = 고르기, 두 번 = 그 줄 고치기(줄 안 입력 칸), 바깥 누르기 = 저장, Esc = 취소. 뜨는 창으로 더하지 않아요(사용자: 팝업 싫음).
 // - 우클릭 메뉴: 맨 위 늘 세부사업 추가(아래에)·부기사업 추가·공사(용역·물품) 추가(세부사업 줄에서는 흐리게) → 겹마다 수정·메모·옮기기·지우기(묻고 지움).
@@ -79,7 +79,7 @@ const BASIS_KEY = "budget.basis";
 type Sel = string | null;
 const selKey = (level: BudgetLevel, id: number) => (level === "project" ? "p" : level === "item" ? "i" : "g") + id;
 
-/** 숫자 칸 여러 개 고르기(엑셀처럼) — 칸 = "고른 줄:열 번호"(예 g7:5), anchor = Shift 기준 칸 (2026-10-18 사용자) */
+/** 숫자 칸 여러 개 고르기(엑셀처럼) – 칸 = "고른 줄:열 번호"(예 g7:5), anchor = Shift 기준 칸 (2026-10-18 사용자) */
 type Cells = { keys: string[]; anchor: string | null };
 const NO_CELLS: Cells = { keys: [], anchor: null };
 const NUM_COLS: ColId[] = ["bud", "cmt", "exp", "act", "bal", "avail"];
@@ -173,7 +173,7 @@ export default function BudgetScreen() {
   const formRow = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  /** 화면(표가 놓일 자리) 폭과 세로 스크롤 막대 폭 — 배치최적화 뒤 왼쪽으로 모을지 정해요 */
+  /** 화면(표가 놓일 자리) 폭과 세로 스크롤 막대 폭 – 배치최적화 뒤 왼쪽으로 모을지 정해요 */
   const [boxW, setBoxW] = useState(0);
   const [sbw, setSbw] = useState(0);
   const qInput = useRef<HTMLInputElement>(null);
@@ -509,7 +509,7 @@ export default function BudgetScreen() {
   };
 
   // ---------- 열 ----------
-  // 세부사업 열도 다른 열처럼 정해진 폭 — "남는 폭 채우기"는 없앴어요(2026-10-20 사용자, 예산현황과 같게). 보이는 열(VC)은 공유를 끄면 "담당" 열이 빠져요
+  // 세부사업 열도 다른 열처럼 정해진 폭 – "남는 폭 채우기"는 없앴어요(2026-10-20 사용자, 예산현황과 같게). 보이는 열(VC)은 공유를 끄면 "담당" 열이 빠져요
   const cols = VC.map(([c]) => W[c] + "px").join(" ");
   // 남는 폭이 있으면 늘 왼쪽으로 모아요: 머리 줄 끝(엑셀) = 메모 끝, 세로 스크롤은 메모 끝 바로 옆(2026-10-19 사용자)
   const colSum = VC.reduce((a, [c]) => a + W[c], 0);
@@ -555,7 +555,7 @@ export default function BudgetScreen() {
     const cells = [head, ...document.querySelectorAll<HTMLElement>(`.bd-body .bd-rw > .bd-c:nth-child(${ci + 1})`)];
     return Math.max(col === "name" ? 160 : 36, Math.max(...cells.map(need)) + 1);
   };
-  /** 배치최적화(2026-10-19 사용자): 고정 폭 열(구분·집행률·단계·메모) 빼고 모든 열을 보이는 내용 폭에 맞춰요 — 끝선 두 번 누르기를 한 번에 */
+  /** 배치최적화(2026-10-19 사용자): 고정 폭 열(구분·집행률·단계·메모) 빼고 모든 열을 보이는 내용 폭에 맞춰요 – 끝선 두 번 누르기를 한 번에 */
   const fitAll = async () => {
     if (!(await commit())) return;
     const heads = [...document.querySelectorAll<HTMLElement>(".bd-hd > *")];
@@ -798,7 +798,7 @@ export default function BudgetScreen() {
     </button>
   );
 
-  // 입력 중에도 바로 계산(2026-10-18 사용자: 자동 계산되는 항목이 없어) — 적고 있는 값으로 그 줄 잔액·집행률과 위 합계를 그려요.
+  // 입력 중에도 바로 계산(2026-10-18 사용자: 자동 계산되는 항목이 없어) – 적고 있는 값으로 그 줄 잔액·집행률과 위 합계를 그려요.
   const live = (m: Money) => {
     const v = moneyOf(m, unit);
     return v == null ? 0 : v;

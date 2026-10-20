@@ -1,15 +1,15 @@
 // 구글 캘린더 연동(9단계, 사양서 "구글 캘린더 연동").
 // - 기록 → 구글 한 방향이에요. 구글에서 고친 것은 다음 내보내기 때 기록 내용으로 덮어써요.
-// - 사용자 구글 계정에 "giLog" 캘린더를 하나 만들어 그 안에만 써요(권한 calendar.app.created — 다른 캘린더는 볼 수도 없어요).
+// - 사용자 구글 계정에 "giLog" 캘린더를 하나 만들어 그 안에만 써요(권한 calendar.app.created – 다른 캘린더는 볼 수도 없어요).
 // - 내보내는 것 세 가지(내 일정·민원 마감·할 일 마감)는 설정에서 각각 켜고 꺼요. 끄면 구글에서 지워요.
 // - 민원인 이름·연락처·내용·조치내용·메모는 어떤 경우에도 내보내지 않아요(민원 마감은 접수유형·위치까지).
 // - 바꿀 때마다 바로 보내고, 실패하면 모아 두었다가(다음 맞추기 때 차이를 다시 계산해요) 10분마다 다시 해요.
 //
 // 저장(모두 암호화 파일 kv):
-//   google.client — 사용자가 고른 앱 정보 파일의 client_id·client_secret (저장소에는 넣지 않아요)
-//   google.token  — 로그인 정보(refresh token)
-//   google.state  — giLog 캘린더 id, 내보낸 일정 목록(우리 이름 → 구글 id·내용 지문), 마지막 성공·실패
-//   google.opts   — 세 가지 켜고 끄기
+//   google.client – 사용자가 고른 앱 정보 파일의 client_id·client_secret (저장소에는 넣지 않아요)
+//   google.token  – 로그인 정보(refresh token)
+//   google.state  – giLog 캘린더 id, 내보낸 일정 목록(우리 이름 → 구글 id·내용 지문), 마지막 성공·실패
+//   google.opts   – 세 가지 켜고 끄기
 import { invoke } from "@tauri-apps/api/core";
 import { api, CalEvent, CalKind, changeHooks, Complaint, inApp, Repeat, Task, TaskList } from "./api";
 import { linesToText, parseLines } from "./bullets";
@@ -19,7 +19,7 @@ import { todayStr } from "./journal";
 import { complaintTitle } from "./tasks";
 import { stamp } from "./reminders";
 
-/** 캘린더는 "앱이 만든 캘린더만", 할 일은 구글 할 일 전체(앱이 만든 목록만 만져요 — 구글에 더 좁은 권한이 없어요). */
+/** 캘린더는 "앱이 만든 캘린더만", 할 일은 구글 할 일 전체(앱이 만든 목록만 만져요 – 구글에 더 좁은 권한이 없어요). */
 const CAL_SCOPE = "https://www.googleapis.com/auth/calendar.app.created";
 /** 구글 할 일 권한. 구글이 "민감한 권한"으로 봐서, 받는 사람마다 확인되지 않은 앱 경고가 뜨고 100명 한도에 세어져요.
  * 그래서 설정의 "구글 할 일로 보내기"를 켠 사람만 받아요(사용자 2026-10-17 1안). */
@@ -41,7 +41,7 @@ const K_STATE = "google.state";
 const K_OPTS = "google.opts";
 
 export type GClient = { id: string; secret: string };
-/** scope는 구글이 허용한 권한 목록(0.9.4 전 로그인은 없어요 — 그때는 늘 할 일 권한까지 받았어요). */
+/** scope는 구글이 허용한 권한 목록(0.9.4 전 로그인은 없어요 – 그때는 늘 할 일 권한까지 받았어요). */
 type GToken = { refresh: string; access: string; exp: number; scope?: string };
 const hasTasksScope = (t: GToken | null) => !!t && (t.scope === undefined || t.scope.includes(TASKS_SCOPE));
 type GItem = { id: string; h: string };
@@ -171,7 +171,7 @@ export async function saveClient(c: GClient): Promise<void> {
 }
 
 // ---------- 인터넷 요청 ----------
-// 화면(Edge와 같은 길 — 회사 프록시 자동 설정)으로 먼저 보내고, 막히면 앱이 대신 보내요(공휴일과 같은 순서).
+// 화면(Edge와 같은 길 – 회사 프록시 자동 설정)으로 먼저 보내고, 막히면 앱이 대신 보내요(공휴일과 같은 순서).
 
 type Reply = { status: number; body: string };
 let viaApp = false;

@@ -41,7 +41,7 @@ export const PLACES: Place[] = TABLE.flatMap(([emd, list]) => list.split(",").ma
 /** 이 법정리·동이 속한 읍면동들 */
 export const emdsOf = (name: string) => PLACES.filter((p) => p.name === name).map((p) => p.emd);
 
-/** 끝의 리·동·읍·면을 뺀 이름 ("봉일천리" → "봉일천") — 초성을 칠 때 끝 글자는 보통 안 쳐요 */
+/** 끝의 리·동·읍·면을 뺀 이름 ("봉일천리" → "봉일천") – 초성을 칠 때 끝 글자는 보통 안 쳐요 */
 const stem = (s: string) => (s.length > 2 && /[리동읍면]$/.test(s) ? s.slice(0, -1) : s);
 
 /**

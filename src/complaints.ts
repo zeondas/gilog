@@ -129,7 +129,7 @@ export function readWidths(raw: string | null): (number | null)[] {
       v.splice(12, 0, 130);
     }
     if (Array.isArray(v) && v.length === COLUMNS.length && v.every((x) => x === null || (typeof x === "number" && x >= COL_MIN))) {
-      // 폭 고정 열은 2026-10-19 23:04 사용자가 되돌렸어요(고정이 오히려 불편) — 모든 열을 끌어 바꿀 수 있어요.
+      // 폭 고정 열은 2026-10-19 23:04 사용자가 되돌렸어요(고정이 오히려 불편) – 모든 열을 끌어 바꿀 수 있어요.
       return v;
     }
   } catch {
@@ -164,7 +164,7 @@ export const FLEX_SQUEEZE = 80;
 
 /**
  * 민원대장 열 맞추기(2026-10-19 사용자): 표 폭이 모자라면 먼저 내용·조치내용을 140 → 80까지 줄이고,
- * 그래도 모자랄 때만 다른 열(폭 고정 열 빼고)을 같은 비율로 줄여요 — 다른 칸이 두 줄로 넘어가는 일을 가장 늦게.
+ * 그래도 모자랄 때만 다른 열(폭 고정 열 빼고)을 같은 비율로 줄여요 – 다른 칸이 두 줄로 넘어가는 일을 가장 늦게.
  */
 export function fitComplaintCols(ws: (number | null)[], avail: number): { ws: (number | null)[]; flexMin: number } {
   const nFlex = ws.filter((w) => w === null).length;
@@ -205,7 +205,7 @@ export function passes(c: Complaint, f: ColFilters, skip?: FilterKey): boolean {
   return FILTER_KEYS.every((k) => k === skip || f[k] === null || f[k]!.includes(c[k]));
 }
 
-/** 열에 있는 값들 (빈 지역은 ""로 — 목록에서는 "(빈 칸)") */
+/** 열에 있는 값들 (빈 지역은 ""로 – 목록에서는 "(빈 칸)") */
 export function filterValues(list: Complaint[], k: FilterKey): string[] {
   return [...new Set(list.map((c) => c[k]))];
 }

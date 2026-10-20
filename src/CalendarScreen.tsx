@@ -135,7 +135,7 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
   const [notifyOpen, setNotifyOpen] = useState(false);
   const wheel = useRef({ acc: 0, at: 0 });
   const [statuses, setStatuses] = useState<string[]>(DEFAULT_SETTINGS.status);
-  /** 쉬는 날(토·일·공휴일) 붉은 음영 — 설정 화면에서 켜고 꺼요(처음 값 켜짐). */
+  /** 쉬는 날(토·일·공휴일) 붉은 음영 – 설정 화면에서 켜고 꺼요(처음 값 켜짐). */
   const [restShade, setRestShade] = useState(DEFAULT_SETTINGS.restShade);
   /** 이번에 체크한 민원의 그 전 상태 */
   const prevStatus = useRef(new Map<number, string>());
@@ -830,7 +830,7 @@ function WeekView({
   }, [start]);
   const nowTop = (now.getHours() * 60 + now.getMinutes()) * (HOUR / 60);
   const todayAt = days.indexOf(today);
-  /** 쉬는 날(토·일·공휴일)이면 " rest" — 음영은 달력의 .shade가 켜졌을 때만 칠해요. */
+  /** 쉬는 날(토·일·공휴일)이면 " rest" – 음영은 달력의 .shade가 켜졌을 때만 칠해요. */
   const rest = (d: string) => (weekday(d) === 0 || weekday(d) === 6 || restDays.has(d) ? " rest" : "");
   const dayCls = (d: string) => {
     const dow = weekday(d);
@@ -1724,7 +1724,7 @@ function NotifyDialog({ onClose }: { onClose: () => void }) {
 // ---------- 종류 고르기 ----------
 
 /**
- * 캘린더 종류를 배지로 보여 주고 목록에서만 골라요(0.8.2 — 아무 글자나 치면 종류가 늘어나서).
+ * 캘린더 종류를 배지로 보여 주고 목록에서만 골라요(0.8.2 – 아무 글자나 치면 종류가 늘어나서).
  * 새 종류는 "관리" 창에서 만들어요. 키: Space·↓ 열기, ↑↓ 고르기, Enter·Tab 확정, Esc 닫기.
  * 닫혀 있을 때의 Enter·Tab은 감싼 줄이 받아요(빠른 입력은 등록, 상세 창은 저장).
  */
@@ -1867,7 +1867,7 @@ function ColorButton({ label, value, auto, autoLabel, onPick }: { label: string;
         className="cal-cbtn"
         aria-haspopup="true"
         aria-expanded={open}
-        aria-label={`${label} 색: ${COLOR_NAMES[value]}${auto ? " (자동)" : ""} — 눌러서 바꾸기`}
+        aria-label={`${label} 색: ${COLOR_NAMES[value]}${auto ? " (자동)" : ""} – 눌러서 바꾸기`}
         title={`${COLOR_NAMES[value]}${auto ? " (자동)" : ""}`}
         onClick={toggle}
         style={{ background: colorBg(value), color: colorFg(value) }}

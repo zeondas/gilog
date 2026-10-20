@@ -86,7 +86,7 @@ function picker(headers: string[]) {
 const dateOf = (v: string) => (v ? parseDate(v) ?? v : "");
 
 /**
- * 넣을 줄: 연번 말고 모든 칸이 빈 줄은 건너뛰어요(연번은 앱이 매기고 읽지 않아요 —
+ * 넣을 줄: 연번 말고 모든 칸이 빈 줄은 건너뛰어요(연번은 앱이 매기고 읽지 않아요 –
  * 양식에 연번만 미리 적어 둔 빈 줄이 민원·연락처로 들어가지 않게).
  */
 function dataRows(sheet: ExcelSheet): string[][] {
@@ -128,7 +128,7 @@ function projectCells(p: Project | undefined, gname: Map<number, string>): strin
 }
 
 /**
- * 가져올 때 같은 사람(2026-10-19 사용자 1안): 이름이 있고 이름·소속이 같고 무선 번호 숫자가 같은 사람 —
+ * 가져올 때 같은 사람(2026-10-19 사용자 1안): 이름이 있고 이름·소속이 같고 무선 번호 숫자가 같은 사람 –
  * 새로 만들지 않고 없는 프로젝트만 붙여요(core `same_person`과 같은 규칙).
  */
 export function samePerson(a: { name: string; org: string; mobile: string }, b: { name: string; org: string; mobile: string }): boolean {
@@ -140,7 +140,7 @@ export function samePerson(a: { name: string; org: string; mobile: string }, b: 
 /** 프로젝트 여러 개를 한 칸에: "가,\n나,\n다"(쉼표 + 줄바꿈) */
 export const joinLines = (xs: string[]) => xs.join(",\n");
 
-/** joinLines의 거꾸로 — 줄로 나누고 줄 끝 쉼표를 떼요(빈 줄도 자리로 남겨요). */
+/** joinLines의 거꾸로 – 줄로 나누고 줄 끝 쉼표를 떼요(빈 줄도 자리로 남겨요). */
 export function splitLines(v: string): string[] {
   return v.split(/\r?\n/).map((x) => x.trim().replace(/,$/, "").trim());
 }
@@ -173,7 +173,7 @@ export function contactRows(list: Contact[], projects: Project[], groups: Projec
 }
 
 /**
- * 연번은 같은 사람 줄을 묶을 때만 봐요(앱에는 연번이 없어요). 같은 사람 = 연번과 이름이 같은 줄(떨어져 있어도 —
+ * 연번은 같은 사람 줄을 묶을 때만 봐요(앱에는 연번이 없어요). 같은 사람 = 연번과 이름이 같은 줄(떨어져 있어도 –
  * 엑셀에서 프로젝트로 정렬해도 돼요), 연번이 비었으면 이름~메모가 모두 같은 줄. 묶인 사람의 소속·번호·메모 등은
  * 처음 나온 줄 것을 쓰고, 그 칸이 비어 있으면 다음 줄 것으로 채워요.
  * 이름~메모가 모두 빈 줄은 프로젝트만 만들어요. 프로젝트 칸은 줄바꿈(쉼표 + 줄바꿈)으로 여러 개, 예전 파일처럼 쉼표만이어도 돼요.

@@ -40,7 +40,7 @@ export type Prefs = {
   autoLockMin: number;
   /** 사이드바 접힘 */
   sideCollapsed: boolean;
-  /** 창 닫기(X) 단추 — 작업표시줄로 / 트레이로(처음 값) / 묻고 끝내기 */
+  /** 창 닫기(X) 단추 – 작업표시줄로 / 트레이로(처음 값) / 묻고 끝내기 */
   closeAction: CloseAction;
   /** 윈도우 시작할 때 자동 실행(2026-10-19). 앱이 켤 때 레지스트리 실제 상태로 맞춰 돌려줘요. 미리 보기는 흉내만 */
   autoStart: boolean;
@@ -265,12 +265,12 @@ export type NotifyStatus = { pending: number; nextAt: number; shown: number; las
 /** 알림 한 건. at은 울릴 때(밀리초)예요. */
 export type Reminder = { at: number; title: string; body: string; event: number; date: string };
 
-// ---------- 민원처리(10단계) — core/process.rs와 같은 모양 ----------
+// ---------- 민원처리(10단계) – core/process.rs와 같은 모양 ----------
 
 export type WorkInput = {
   /** 축약 공사명(표의 공사 배지, 지시부 {축약 공사명}) */
   name: string;
-  /** 정식 공사명(지시부 {공사명}) — 비우면 축약 공사명 */
+  /** 정식 공사명(지시부 {공사명}) – 비우면 축약 공사명 */
   full: string;
   /** 시공사 */
   co: string;
@@ -281,7 +281,7 @@ export type WorkInput = {
   /** 처리 범위(AI의 판단 기준) */
   scope: string;
   nextSeq: number;
-  /** 예전 공사별 양식(2026-10-19부터 쓰지 않아요 — 표준 양식 하나) */
+  /** 예전 공사별 양식(2026-10-19부터 쓰지 않아요 – 표준 양식 하나) */
   tpl: string;
 };
 export type Work = WorkInput & { id: number };
@@ -336,7 +336,7 @@ export type Order = {
   sentAt: string;
   /** 든 민원을 고쳐 다시 만들어야 해요 */
   dirty: boolean;
-  /** 메일로 보낸 받는 사람 주소(2026-10-20 지시부 메일 — 보내지 않았으면 없거나 "") */
+  /** 메일로 보낸 받는 사람 주소(2026-10-20 지시부 메일 – 보내지 않았으면 없거나 "") */
   mailTo?: string;
   /** 메일로 보낸 때 "YYYY-MM-DD HH:MM" */
   mailedAt?: string;
@@ -1086,7 +1086,7 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
       return structuredClone(o);
     }
     case "check_sent":
-      // 미리 보기에는 Claude가 없어요 — 보내는 중으로 남아요.
+      // 미리 보기에는 Claude가 없어요 – 보내는 중으로 남아요.
       return [];
     case "open_path":
     case "show_in_folder":
@@ -1311,7 +1311,7 @@ function fakeCall(cmd: string, args: Record<string, unknown>): unknown {
 }
 
 function fakeHello(): boolean {
-  return window.confirm("[미리 보기] Windows Hello 흉내 — 확인 = PIN 맞음, 취소 = 취소");
+  return window.confirm("[미리 보기] Windows Hello 흉내 – 확인 = PIN 맞음, 취소 = 취소");
 }
 
 /** 자료를 바꾼 명령이 성공하면 알려 줄 곳(구글 연동이 바뀐 것을 내보내요). */
@@ -1381,7 +1381,7 @@ export const api = {
   deleteComplaint: (id: number) => call<null>("delete_complaint", { id }),
   processData: () => call<ProcessData>("process_data"),
 
-  // 집행현황(12단계) — 바꾸는 명령은 그 해 전체를 돌려줘요.
+  // 집행현황(12단계) – 바꾸는 명령은 그 해 전체를 돌려줘요.
   budgetData: (year: number) => call<BudgetProject[]>("budget_data", { year }),
   saveBudgetProject: (year: number, id: number | null, after: number | null, name: string, budget: number | null) =>
     call<BudgetProject[]>("save_budget_project", { year, id, after, name, budget }),
@@ -1472,7 +1472,7 @@ export const api = {
 
   /** 윈도우 입력기를 한글(true) 또는 영문(false) 상태로 바꿔요. 앱 밖에서는 아무 일도 안 해요. */
   /** 첫 화면을 그렸다고 알려요. 숨긴 채 만든 창이 이때 보여요(브라우저에서는 아무 일 없음). */
-  /** "기록을 끝낼까요?"의 끝내기 — 창 자리·크기를 저장하고 앱을 끝내요. */
+  /** "기록을 끝낼까요?"의 끝내기 – 창 자리·크기를 저장하고 앱을 끝내요. */
   quitApp: () => (inApp ? invoke<null>("quit_app").catch(() => null) : Promise.resolve(null)),
   windowReady: () => (inApp ? invoke<null>("window_ready").catch(() => null) : Promise.resolve(null)),
   setIme: (korean: boolean) => (inApp ? invoke<null>("set_ime", { korean }) : Promise.resolve(null)),

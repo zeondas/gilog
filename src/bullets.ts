@@ -1,4 +1,4 @@
-// 머릿기호 규칙 (2026-10-16 사용자가 정함, 2026-10-17 위계 규칙으로 바꿈 — CLAUDE.md "공통 입력 규칙", 시안 BulletRule.dc.html)
+// 머릿기호 규칙 (2026-10-16 사용자가 정함, 2026-10-17 위계 규칙으로 바꿈 – CLAUDE.md "공통 입력 규칙", 시안 BulletRule.dc.html)
 //
 // 여러 줄 칸은 줄마다 머릿기호가 있어요. 기본은 ●(채운 점)예요(2026-10-17 사용자: □는 가독성이 떨어져요).
 //   sq 네모 □ · ci 점 ●(기본) · da 작대기 - · none 머릿기호 없음(줄 맨 앞 Backspace로 지운 줄)
@@ -9,7 +9,7 @@
 // 그만큼 들여써요. 빈 줄은 묶음을 나눠요(빈 줄 위는 따지지 않아요). 기호 없는 줄은 lv가 있으면 그 단계, 없으면 바로 윗줄 단계.
 //
 // 저장 모양: [{"t":"글","k":"sq"}, ...] (k가 없으면 ●, none이면 lv에 단계). 메모는 b(굵게)·s(취소선)도 써요.
-// 예전에 글자만 저장한 것과 0.6.x의 기본 줄(k 없음 — 그때는 □)은 모두 ●로 읽어요(사용자 1안).
+// 예전에 글자만 저장한 것과 0.6.x의 기본 줄(k 없음 – 그때는 □)은 모두 ●로 읽어요(사용자 1안).
 
 export type BKind = "sq" | "ci" | "da" | "none";
 
@@ -42,7 +42,7 @@ const rank = (k: BKind) => (k === "sq" ? 0 : k === "ci" ? 1 : 2);
 /**
  * 줄마다 들여쓰기 단계(띄어쓰기 두 칸 단위)를 셈해요(시안 BulletRule.dc.html의 layout).
  * 개요 방식: 자기보다 높은 위계 기호가 위에 있을 때만 들여쓰고, 같은 위계 이상이 나오면 거기서 멈춰요.
- * 빈 줄은 묶음을 나눠요. 빈 줄이라도 기호가 있으면(적는 중) 자기 단계에 그려요 — 글을 치는 순간 기호가 옮겨 가지 않게.
+ * 빈 줄은 묶음을 나눠요. 빈 줄이라도 기호가 있으면(적는 중) 자기 단계에 그려요 – 글을 치는 순간 기호가 옮겨 가지 않게.
  */
 export function layout(lines: BLine[]): number[] {
   let stack: BKind[] = [];
@@ -238,7 +238,7 @@ export function openKinds(lines: BLine[], i: number): BKind[] {
 /**
  * Tab(한 칸 들이기)·Shift+Tab(한 위계 위로)을 누르면 이 줄이 바뀔 기호. 바뀌지 않으면 null이에요(시안 BulletRule.dc.html onKey).
  * Tab: 바로 위 위계의 다음 기호(□ 아래 ●, ● 아래 -). Shift+Tab: 위에 있는 더 높은 위계 기호.
- * 키를 어디에 붙일지는 엔터규칙 세션이 다시 정해요 — 규칙은 여기 하나예요.
+ * 키를 어디에 붙일지는 엔터규칙 세션이 다시 정해요 – 규칙은 여기 하나예요.
  */
 export function tabKind(lines: BLine[], i: number, back: boolean): BKind | null {
   const cur = lines[i];
@@ -256,7 +256,7 @@ export function tabKind(lines: BLine[], i: number, back: boolean): BKind | null 
   return null;
 }
 
-// ---------- 엔터규칙의 새 줄 (2026-10-17 사용자 — CLAUDE.md "엔터규칙") ----------
+// ---------- 엔터규칙의 새 줄 (2026-10-17 사용자 – CLAUDE.md "엔터규칙") ----------
 // Enter = 같은 위계로 다음 줄 · Shift+Enter = 한 위계 아래(□→●→-, 맨 아래 -는 그대로)
 // Ctrl+Enter = 한 위계 위(맨 위 □는 그대로) · 왼쪽 Alt+Enter = 같은 항목 안 줄 바꿈(기호 없이, 글 시작 위치에 맞춤)
 
@@ -283,7 +283,7 @@ export type NewLineMode = "same" | "down" | "up" | "br";
 
 /**
  * 엔터규칙으로 i번째 줄 아래에 새 줄을 만들 때의 모양(글 t는 커서 뒤 글).
- * lv는 layout(lines)[i] — 기호 없는 줄이 글 시작 위치를 맞출 때 써요.
+ * lv는 layout(lines)[i] – 기호 없는 줄이 글 시작 위치를 맞출 때 써요.
  */
 export function newLineFor(lines: BLine[], i: number, mode: NewLineMode, t: string, lv: number): BLine {
   const cur = lines[i];

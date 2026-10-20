@@ -3,7 +3,7 @@
   corner-shape: squircle;
 }
 
-/* 스크롤바: 모든 화면 한 규칙 — 둥근 12px, 세로·가로 같게 (2026-10-18 결정 H10 2안).
+/* 스크롤바: 모든 화면 한 규칙 – 둥근 12px, 세로·가로 같게 (2026-10-18 결정 H10 2안).
    scrollbar-width·scrollbar-color를 쓰면 크로미움이 아래 규칙을 무시하니 쓰지 않아요. */
 ::-webkit-scrollbar {
   width: 12px;
@@ -75,7 +75,7 @@ button:focus-visible {
   border-right: 1px solid var(--line-soft);
 }
 
-/* 펼침 로고: 가운데에서 왼쪽으로 2px(착시 보정 1안 — 시안 SidebarIcons) */
+/* 펼침 로고: 가운데에서 왼쪽으로 2px(착시 보정 1안 – 시안 SidebarIcons) */
 .brand {
   display: flex;
   align-items: center;
@@ -1468,7 +1468,7 @@ mark {
   overflow-y: auto;
 }
 
-/* 창 몸통이 스크롤되니 안의 줄은 줄어들지 않아요 — 줄이 많으면 줄이 최소 높이로 눌려
+/* 창 몸통이 스크롤되니 안의 줄은 줄어들지 않아요 – 줄이 많으면 줄이 최소 높이로 눌려
    지울까요 띠가 줄 위에 겹쳤어요(2026-10-19 사용자 신고, 프로젝트 관리) */
 .dialog-body > * {
   flex-shrink: 0;
@@ -2751,7 +2751,7 @@ mark {
   border-radius: 1px;
 }
 
-/* 기호를 지운 줄(줄 맨 앞 Backspace), 빈 줄(묶음 나누기 — 적는 중인 줄은 보여요) */
+/* 기호를 지운 줄(줄 맨 앞 Backspace), 빈 줄(묶음 나누기 – 적는 중인 줄은 보여요) */
 .rte-area ul > li.nb::before,
 .rte-view ul > li.nb::before,
 .rte-view ul > li.blank::before,
@@ -3796,8 +3796,8 @@ body.col-dragging * {
   min-width: 0;
 }
 
-/* 목록 칸: 맨 위 "새 목록 만들기"(상자 위 끝은 카드 위 끝선보다 4px 아래 — 착시 보정) → 목록(구분선 없음).
-   체크박스는 제목 왼쪽 끝선에 맞추고, 마우스를 올린 회색 바탕은 양쪽으로 8px 넓게(2026-10-19 사용자 — "목록" 글자는 지웠어요) */
+/* 목록 칸: 맨 위 "새 목록 만들기"(상자 위 끝은 카드 위 끝선보다 4px 아래 – 착시 보정) → 목록(구분선 없음).
+   체크박스는 제목 왼쪽 끝선에 맞추고, 마우스를 올린 회색 바탕은 양쪽으로 8px 넓게(2026-10-19 사용자 – "목록" 글자는 지웠어요) */
 .td-page .td-newlist {
   margin: 4px 0 var(--space-3);
   padding: 0;
@@ -3968,7 +3968,7 @@ body.col-dragging * {
   border-bottom: 1px solid var(--line-soft);
 }
 
-/* 배지 22(결정 ④)가 머리 줄을 늘리지 않게 — 두 카드 머리 높이를 같게 */
+/* 배지 22(결정 ④)가 머리 줄을 늘리지 않게 – 두 카드 머리 높이를 같게 */
 .td-card-head .td-link-badge {
   margin-block: -2px;
 }
@@ -5798,7 +5798,7 @@ body.col-dragging * {
 
 /* ---------- 글자 가운데 맞춤 (2026-10-17 사용자 확정, tools/align 기준: 위 여백 − 아래 여백 0 또는 −1) ---------- */
 /* 입력칸: 0.9.4의 padding-bottom 2px은 Pretendard에서 한글을 1px 위로 띄웠어요(−2). 위아래 여백 0이 한글 0·숫자 +1로 맞아요
-   (2026-10-18 UI 통일 — 재 보니 1px 바꾸면 위−아래가 2씩 바뀌어 0/−1 사이 값은 없어요). */
+   (2026-10-18 UI 통일 – 재 보니 1px 바꾸면 위−아래가 2씩 바뀌어 0/−1 사이 값은 없어요). */
 
 
 .cm-bullets {
@@ -6019,7 +6019,7 @@ body.col-dragging * {
   overflow-wrap: anywhere;
 }
 
-/* ---------- 업무일지 인쇄 — 기간 창 (시안 JournalPrint.dc.html) ---------- */
+/* ---------- 업무일지 인쇄 – 기간 창 (시안 JournalPrint.dc.html) ---------- */
 .jn-print {
   gap: var(--space-1h);
 }
@@ -6364,7 +6364,7 @@ body.col-dragging * {
   padding: 0 18px;
 }
 
-/* ---------- 업무일지 인쇄 — 종이 (시안 JournalPdf.dc.html, A4 가로) ----------
+/* ---------- 업무일지 인쇄 – 종이 (시안 JournalPdf.dc.html, A4 가로) ----------
    화면에서는 창 밖에 숨겨 두고(재기용), 인쇄할 때만 이것만 찍어요. */
 .jp-root {
   position: fixed;
@@ -6741,7 +6741,7 @@ body.col-dragging * {
   pointer-events: none;
 }
 
-/* ---------- 민원처리 (10단계 — 시안 Process.dc.html) ---------- */
+/* ---------- 민원처리 (10단계 – 시안 Process.dc.html) ---------- */
 .pr {
   display: flex;
   flex-direction: column;
@@ -6973,9 +6973,9 @@ body.col-dragging * {
   color: var(--muted);
 }
 
-/* 한 줄의 가운데 맞춤(2026-10-19 사용자): 첫 줄 글자 상자 11~29(가운데 20) — 고르기 칸·공사 배지 22·입력칸·단추 28도 가운데 20,
-   한 줄의 칸·단추·공사 고르기·지시부 이름은 모두 28(6~34) — 2026-10-19 사용자: 높이가 달라 보여요
-   둘째 줄 31~49(가운데 40) — 기한의 남은 날 배지 22도 29~51로 가운데 40 */
+/* 한 줄의 가운데 맞춤(2026-10-19 사용자): 첫 줄 글자 상자 11~29(가운데 20) – 고르기 칸·공사 배지 22·입력칸·단추 28도 가운데 20,
+   한 줄의 칸·단추·공사 고르기·지시부 이름은 모두 28(6~34) – 2026-10-19 사용자: 높이가 달라 보여요
+   둘째 줄 31~49(가운데 40) – 기한의 남은 날 배지 22도 29~51로 가운데 40 */
 .pr-date.pr-due {
   flex-direction: column;
   align-items: flex-start;
@@ -7574,7 +7574,7 @@ body.col-dragging * {
   white-space: nowrap;
 }
 
-/* 설정 — 민원처리 카드 */
+/* 설정 – 민원처리 카드 */
 .proc-dir { display: inline-flex; align-items: center; gap: 6px; }
 .proc-tpl { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
 .proc-dir .input { width: 260px; }
@@ -7704,7 +7704,7 @@ body.col-dragging * {
 .fx-tab:hover {
   background: var(--surface-band);
 }
-/* 고른 탭·드라이브는 보라로 꽉 채워요(2026-10-18 사용자 2안 — 어둡게에서도 잘 보이게, 시안 FilesActive) */
+/* 고른 탭·드라이브는 보라로 꽉 채워요(2026-10-18 사용자 2안 – 어둡게에서도 잘 보이게, 시안 FilesActive) */
 .fx-tab[data-on="1"] {
   background: var(--accent);
   border-color: var(--accent);
@@ -8634,7 +8634,7 @@ body.col-dragging * {
   width: 280px;
 }
 
-/* 민원처리: 신문고 위치를 도로명주소에서 바꿨을 때 원래 글(판단 근거 옆 작은 글) — 주소 변환 2026-10-18 */
+/* 민원처리: 신문고 위치를 도로명주소에서 바꿨을 때 원래 글(판단 근거 옆 작은 글) – 주소 변환 2026-10-18 */
 .pr-road {
   margin-left: 8px;
   opacity: 0.8;
@@ -8643,7 +8643,7 @@ body.col-dragging * {
   content: "· ";
 }
 
-/* 위치 칸 도로명주소 후보 — 줄바꿈 없이 넓게(주소 변환 2026-10-18) */
+/* 위치 칸 도로명주소 후보 – 줄바꿈 없이 넓게(주소 변환 2026-10-18) */
 .pin-list.pin-road {
   min-width: 300px;
   right: auto;
@@ -8945,7 +8945,7 @@ body.col-dragging * {
   min-height: 0;
 }
 
-/* ---------- 집행현황(12단계, 2026-10-18 시안 목업 확정 — BudgetScreen.tsx) ---------- */
+/* ---------- 집행현황(12단계, 2026-10-18 시안 목업 확정 – BudgetScreen.tsx) ---------- */
 .main > .bd {
   flex: 1 1 auto;
   min-height: 0;
@@ -9655,7 +9655,7 @@ button.bd-chip:hover {
   pointer-events: none;
 }
 
-/* 집행현황 — 숫자 칸 여러 개 고르기: 개수·합계 띠(표 오른쪽 아래, 2026-10-18 사용자) */
+/* 집행현황 – 숫자 칸 여러 개 고르기: 개수·합계 띠(표 오른쪽 아래, 2026-10-18 사용자) */
 .bd-tbl {
   position: relative;
 }
@@ -9701,7 +9701,7 @@ button.bd-chip:hover {
   color: var(--ink);
 }
 
-/* 업무일지 프로젝트 배지: 줄인 이름(pjLabel), 긴 이름은 "…" — 마우스를 올리면 정식 이름(빌드 0.15.0, wip/contacts 합친 뒤) */
+/* 업무일지 프로젝트 배지: 줄인 이름(pjLabel), 긴 이름은 "…" – 마우스를 올리면 정식 이름(빌드 0.15.0, wip/contacts 합친 뒤) */
 .jproj,
 .jproj-badge {
   display: inline-flex;
@@ -9716,12 +9716,12 @@ button.bd-chip:hover {
 
 /* ---------- 한 줄 칸 한 규칙 (2026-10-18 UI 통일, 공통 결정 로그 21:42) ----------
    보통 입력칸·고르기 칸·날짜 칸·전화 칸·검색칸·자리글은 모두 이 규칙 하나를 따라요.
-   바깥 높이 28(큰 칸 34 — --fld-h)은 그대로, 줄 높이 = 안 높이(테두리 뺀 값), 글자 13.
+   바깥 높이 28(큰 칸 34 – --fld-h)은 그대로, 줄 높이 = 안 높이(테두리 뺀 값), 글자 13.
    칸마다 여백·줄 높이·글자 크기를 따로 적지 않아요(새 칸은 class "fld"). .input·.cell-input은 이 규칙을 쓰는 칸 종류예요.
    아래 여백 1px의 까닭(재 보고 정함): 크로미움의 input은 줄 높이를 쓰지 않고 글자 상자(Pretendard 13px = 정수로 15px)를
    안 높이 가운데에 놓아요. 안 높이가 짝수(26·32)면 글자가 늘 0.5px 아래에 걸려(여러 줄 칸·배지는 정수 자리) 100%에서 1px,
    125%에서 반올림이 칸마다 갈려요. 아래 1px로 안 높이를 홀수(25·31)로 만들어 글자 상자 위를 정수 자리에 둬요.
-   재기: 주소 끝 ?ruler (src/ruler.ts — 글자 상자는 caretPositionFromPoint로 실제 자리를 읽어요). */
+   재기: 주소 끝 ?ruler (src/ruler.ts – 글자 상자는 caretPositionFromPoint로 실제 자리를 읽어요). */
 :is(.fld, .input, .cell-input:not(.bl-ed):not(.jtalk), .jday-in, .td-due-input, .td-add-title, .bd-in, .cal-select, .field > input) {
   height: var(--fld-h, var(--size-input));
   padding-top: 0;
@@ -9757,7 +9757,7 @@ button.bd-chip:hover {
 
 /* ---------- 125% 배율 보정 (2026-10-18 UI 통일, 결정 H9 1안) ----------
    100%에서 맞춘 1px 보정이 125%에서는 1.25 물리 px가 되어 반올림이 갈려요. 125%에서만 물리 1px 단위로 다시 맞춘 값이에요
-   (tools/align/census.py light 1.25 filled로 잰 값 — 0.8px = 물리 1px, 글자 상자 가운데는 여백의 반만 움직여요). */
+   (tools/align/census.py light 1.25 filled로 잰 값 – 0.8px = 물리 1px, 글자 상자 가운데는 여백의 반만 움직여요). */
 @media (min-resolution: 1.25dppx) {
   .cm-hbtn,
   .fx-tab,
@@ -9782,7 +9782,7 @@ button.bd-chip:hover {
   color: var(--muted);
 }
 
-/* 설정 "정보" (2026-10-18 사용자): 심볼 56px · 글자 로고(버전 두 줄과 같은 높이) · 그 오른쪽 버전/WebView2 · 카드 오른쪽 개발자/이메일 — 심볼 빼고 모두 위로 맞춰요 */
+/* 설정 "정보" (2026-10-18 사용자): 심볼 56px · 글자 로고(버전 두 줄과 같은 높이) · 그 오른쪽 버전/WebView2 · 카드 오른쪽 개발자/이메일 – 심볼 빼고 모두 위로 맞춰요 */
 .about > .logo {
   align-self: flex-start;
 }
@@ -9943,7 +9943,7 @@ button.bd-chip:hover {
   filter: brightness(0.9);
 }
 
-/* 색 테마(2026-10-18): 설정 "일반" 테마 줄 — 밝게·어둡게·시스템 묶음 오른쪽에 강조색 동그라미 4개(22px).
+/* 색 테마(2026-10-18): 설정 "일반" 테마 줄 – 밝게·어둡게·시스템 묶음 오른쪽에 강조색 동그라미 4개(22px).
    고른 것은 테두리 2px(바깥으로 2px 띄움) + 체크. 색은 --sw-* 토큰(지금 테마에서 보일 강조색). */
 .theme-ctl {
   display: inline-flex;
@@ -9982,11 +9982,11 @@ button.bd-chip:hover {
 .accent-blue { --sw: var(--sw-blue); }
 .accent-ink { --sw: var(--sw-ink); }
 
-/* 탐색기 — 날짜 형식(2026-10-18): 수정한 날은 한 줄로, 설정 고르기 목록은 가장 긴 형식이 다 보이게 */
+/* 탐색기 – 날짜 형식(2026-10-18): 수정한 날은 한 줄로, 설정 고르기 목록은 가장 긴 형식이 다 보이게 */
 .fx-nowrap { white-space: nowrap; }
 select.input.fx-set-date { width: 190px; }
 
-/* 닫기(X) 단추 "프로그램 종료" — 끝낼지 묻는 창(2026-10-18 앱 창 세션). 다른 창 위에도 떠요. */
+/* 닫기(X) 단추 "프로그램 종료" – 끝낼지 묻는 창(2026-10-18 앱 창 세션). 다른 창 위에도 떠요. */
 .overlay.close-ask-ov {
   z-index: 100;
 }
@@ -9995,7 +9995,7 @@ select.input.fx-set-date { width: 190px; }
   width: 360px;
 }
 
-/* 설정 "닫기(X) 단추" 줄 — 종료를 고르면 설명 아래 한 줄 */
+/* 설정 "닫기(X) 단추" 줄 – 종료를 고르면 설명 아래 한 줄 */
 .row-note {
   display: block;
   color: var(--danger);
@@ -10049,7 +10049,7 @@ select.input.fx-set-date { width: 190px; }
 /* 단추 폭은 정수 90px, 마지막(이름변경)이 남는 폭을 맡아 오른쪽 끝을 창 끝에 맞춰요(1600×900에서 88px) */
 .fx-tools .fx-tool { flex: none; width: 90px; }
 .fx-tools .fx-tool:last-child { flex: 1 1 0; width: auto; }
-/* 상자 모서리 가까이 붙은 것은 높이와 상관없이 6px(2026-10-19 사용자 1안, 공통 결정) — 탐색기 폴더 탭 */
+/* 상자 모서리 가까이 붙은 것은 높이와 상관없이 6px(2026-10-19 사용자 1안, 공통 결정) – 탐색기 폴더 탭 */
 .fx-tab { border-radius: var(--radius-sm); }
 /* 탐색기 두 상자 곡률 = 머리 줄 단추와 같은 8px(2026-10-19 사용자 1안: 위아래로 붙은 단추와 상자 모서리를 같게) */
 .fx-pane,
@@ -10060,7 +10060,7 @@ select.input.fx-set-date { width: 190px; }
 .fx-tree { padding: 1px; }
 .fx-pane[data-on="1"],
 .fx-pane[data-target="1"] { border-width: 2px; padding: 0; margin: 0; box-shadow: none; }
-/* 아래 키 안내 줄(2026-10-19 사용자: 바깥 여백·간격 통일) — 줄 높이 = 칸 높이 28(위아래 남는 틈 없앰),
+/* 아래 키 안내 줄(2026-10-19 사용자: 바깥 여백·간격 통일) – 줄 높이 = 칸 높이 28(위아래 남는 틈 없앰),
    칸 사이 8px(머리 줄 단추 사이와 같음). 상자 ↔ 키 칸 16px(머리 줄 ↔ 상자와 같음), 키 칸 ↔ 창 아래 24px(창 위 ↔ 머리 줄과 같음) */
 .fx-keys { height: 28px; gap: 8px; }
 /* 이름변경 단추 오른쪽 끝 1px 안으로(2026-10-19 사용자: 아래 창보다 튀어나와 보이는 착시 보정) */
@@ -10081,7 +10081,7 @@ select.input.fx-set-date { width: 190px; }
 .fx-pv-info dd { margin: 0; }
 .fx-pv-path { word-break: break-all; color: var(--muted); }
 
-/* 민원대장: 제목 대신 상태 줄을 위 줄에 (2026-10-19 사용자) — 제목은 화면 읽기용으로만 남겨요 */
+/* 민원대장: 제목 대신 상태 줄을 위 줄에 (2026-10-19 사용자) – 제목은 화면 읽기용으로만 남겨요 */
 .sr-only {
   position: absolute;
   width: 1px;
@@ -10096,14 +10096,14 @@ select.input.fx-set-date { width: 190px; }
   margin-right: var(--space-2);
 }
 
-/* 민원대장: 답변 끝난 민원(답변·완료·보류·장기)의 법정 답변기한 — 날짜는 남기고 가운데 줄 (2026-10-19 사용자 1안) */
+/* 민원대장: 답변 끝난 민원(답변·완료·보류·장기)의 법정 답변기한 – 날짜는 남기고 가운데 줄 (2026-10-19 사용자 1안) */
 .cm-due-done {
   color: var(--muted);
   text-decoration: line-through;
   text-decoration-thickness: 1px;
 }
 
-/* 민원대장 상태 배지 — 집행현황 단계 배지(.bd-chip.bd-stc)와 같은 규칙(2026-10-19 사용자): 폭 52 고정·가운데·▾, 글자 600, 누르면 살짝 어둡게 */
+/* 민원대장 상태 배지 – 집행현황 단계 배지(.bd-chip.bd-stc)와 같은 규칙(2026-10-19 사용자): 폭 52 고정·가운데·▾, 글자 600, 누르면 살짝 어둡게 */
 .cm-status {
   justify-content: center;
   gap: 3px;
@@ -10139,7 +10139,7 @@ select.input.fx-set-date { width: 190px; }
 .cm-spick-opt .cm-status {
   width: 52px;
 }
-/* 완료한 민원 줄은 흐리게 — 집행현황 완료·타절 줄과 같아요(2026-10-19 사용자: 신경 안 써도 되는 것은 흐리게) */
+/* 완료한 민원 줄은 흐리게 – 집행현황 완료·타절 줄과 같아요(2026-10-19 사용자: 신경 안 써도 되는 것은 흐리게) */
 .cm-view.done > .cm-c,
 .cm-view.done > .cm-c :not(.cm-status):not(.cm-status *) {
   color: var(--bd-faint);
@@ -10654,14 +10654,14 @@ body.ew-dragging * {
   font-weight: 700;
 }
 
-/* 집행현황 — 배치최적화 단추(탐색기 배치복구 모양)와 왼쪽으로 모으기(2026-10-19 사용자) */
+/* 집행현황 – 배치최적화 단추(탐색기 배치복구 모양)와 왼쪽으로 모으기(2026-10-19 사용자) */
 .bd-tool { gap: 6px; flex: none; white-space: nowrap; }
 .bd-tool svg { flex: none; color: var(--muted); }
 .bd-packed .bd-top,
 .bd-packed .bd-tbl { max-width: 100%; }
 .bd-packed .bd-scroll { padding-right: 0; }
 /* 마감일·조치완료일 칸(2026-10-19 사용자): 폭 고정 130, 날짜는 왼쪽·남은 날/걸린 날은 칸 오른쪽 끝에 맞춰 줄마다 세로로 가지런히 */
-/* 날짜와 D-day·걸린 날 사이는 두 열 모두 8px로 같게 — 숫자 뒤에 바로 붙여요(2026-10-19 사용자: 걸린 날이 너무 멀다) */
+/* 날짜와 D-day·걸린 날 사이는 두 열 모두 8px로 같게 – 숫자 뒤에 바로 붙여요(2026-10-19 사용자: 걸린 날이 너무 멀다) */
 .cm-view > .cm-due {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -10677,7 +10677,7 @@ body.ew-dragging * {
   font-weight: 600;
 }
 
-/* 조치완료일 열 접기(2026-10-19 사용자) — 접으면 걸린 날 "Nd"만, 고치는 줄·새 줄은 칸을 숨겨요(상태로 저절로 채워져요). */
+/* 조치완료일 열 접기(2026-10-19 사용자) – 접으면 걸린 날 "Nd"만, 고치는 줄·새 줄은 칸을 숨겨요(상태로 저절로 채워져요). */
 .cm-hbtn.cm-fold[aria-expanded] {
   border-color: transparent;
 }
@@ -10746,11 +10746,11 @@ body.ew-dragging * {
   color: var(--muted);
 }
 
-/* 민원대장 배치최적화 단추 — 집행현황 .bd-tool과 같은 모양 */
+/* 민원대장 배치최적화 단추 – 집행현황 .bd-tool과 같은 모양 */
 .cm-tool { gap: 6px; flex: none; white-space: nowrap; }
 .cm-tool svg { flex: none; color: var(--muted); }
 
-/* ---------- 예산현황(13단계, wip/budgetstatus) — 집행현황 표 부품 위에 덧붙임 ---------- */
+/* ---------- 예산현황(13단계, wip/budgetstatus) – 집행현황 표 부품 위에 덧붙임 ---------- */
 .bs .bd-rw > .bd-c.n { justify-content: flex-end; padding: 0 12px; } /* 10억 단위 13자가 양옆 12px 여유로 들어가는 폭(자세히 132·요약 152) */
 .bs .bd-rw { border-bottom-color: var(--line); } /* 구분선은 집행현황보다 진하게(2026-10-19 사용자) */
 .bs .bd-rw > .bd-c { border-right-color: var(--line); }
@@ -10761,7 +10761,7 @@ body.ew-dragging * {
 .bs-noexp { pointer-events: none; }
 .bs .bd-rw > .bd-c { user-select: none; } /* 두 번 누르기가 글자를 긁지 않게 */
 .bs .bd-in { user-select: text; }
-.bs-lab2 { margin-left: 8px; } /* 집행현황의 2·9·11·12열 가운데 규칙을 덮어요 — 숫자는 모두 오른쪽 */
+.bs-lab2 { margin-left: 8px; } /* 집행현황의 2·9·11·12열 가운데 규칙을 덮어요 – 숫자는 모두 오른쪽 */
 .bs .bd-rw.pj > .bd-c.bs-yrs { overflow: visible; }
 .bs .bd-rw.pj .bd-nm { flex: 0 1 auto; min-width: 0; }
 .bs-years { flex: none; font-size: 13px; font-weight: 500; color: var(--ink-2); white-space: nowrap; }
@@ -10806,7 +10806,7 @@ body.ew-dragging * {
 .bs .bd-hd.bs-hd2 { height: 56px; grid-template-rows: 28px 28px; }
 .bs .bd-hd.bs-hd2 .bd-h.bs-grp { border-bottom: 1px solid var(--line-soft); }
 .bs .bd-hd .bd-h { white-space: nowrap; }
-/* ⚙ 설정 상자 — 줄마다 이름표 64 + 28 높이 부품(한 줄 칸 규칙 .fld), 단년도/다년도는 묶음 단추(34 상자 안 26) */
+/* ⚙ 설정 상자 – 줄마다 이름표 64 + 28 높이 부품(한 줄 칸 규칙 .fld), 단년도/다년도는 묶음 단추(34 상자 안 26) */
 .bs-setup { display: flex; flex-direction: column; gap: 10px; width: 480px; padding: 12px 14px 10px; }
 .bs-row { display: flex; align-items: center; gap: 8px; min-height: 28px; }
 .bs-lab { flex: none; width: 64px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
@@ -10831,7 +10831,7 @@ body.ew-dragging * {
 .bs .bd-bar.rowbar > span { background: var(--bd-bar-fill); }
 .bs .bd-pct.rowp { font-weight: 400; color: var(--ink); }
 
-/* 민원대장 줄 위쪽 맞춤(2026-10-19 사용자 "굿") + 한 줄짜리 줄은 가운데(2026-10-20 사용자 — 첫 줄이 위로 2.5px 떠 보였어요):
+/* 민원대장 줄 위쪽 맞춤(2026-10-19 사용자 "굿") + 한 줄짜리 줄은 가운데(2026-10-20 사용자 – 첫 줄이 위로 2.5px 떠 보였어요):
    모든 칸의 첫 줄 가운데를 줄 위 20px(= 한 줄짜리 줄 높이 40의 가운데)에 맞춰요. 한 줄 칸 위아래 11px, 여러 줄 칸 10px,
    높이가 다른 것(복사 단추 22·상태 배지 22·메모 단추 28)은 위아래를 같은 만큼 당겨 줄 높이를 늘리지 않아요. */
 .cm-view > .cm-c { align-items: flex-start; padding-top: 11px; padding-bottom: 11px; }
@@ -10842,7 +10842,7 @@ body.ew-dragging * {
 .cm-view > .cm-center > span { display: flex; margin: -5px 0; }
 
 /* 민원대장 고치는 줄 정리(2026-10-19 사용자, 시안 editcmp3 1안 + 저장 단추): 칸은 보기 줄과 같은 열 그대로, 입력 칸 높이 28,
-   아래 띠는 점선 위 — 왼쪽 "× 이 민원 지우기"(×를 연번 숫자 왼쪽 끝에 맞춤, 재서 넣어요), 오른쪽 짧은 안내·취소·저장 */
+   아래 띠는 점선 위 – 왼쪽 "× 이 민원 지우기"(×를 연번 숫자 왼쪽 끝에 맞춤, 재서 넣어요), 오른쪽 짧은 안내·취소·저장 */
 .cm-edit > .cm-c { padding: 6px 4px; min-height: 0; }
 .cm-edit > .cm-no { display: block; padding: 6px 10px; line-height: 28px; text-align: right; }
 .cm-edit > .cm-area-auto { padding: 6px 10px; line-height: 28px; }
@@ -10851,7 +10851,7 @@ body.ew-dragging * {
 .cm-edit-foot > .cm-del { width: auto; gap: 4px; padding: 0 10px 0 0; margin-left: 0; border-radius: var(--radius-sm); font-size: 12.5px; font-weight: 600; }
 .cm-edit-foot > .cm-del:hover { padding-left: 0; }
 .cm-edit-hint { flex: 1; margin: 0 4px 0 0; text-align: right; }
-/* 지우기 단추 앞 붉은 네모 ×(2026-10-20 사용자): 채운 붉은 정사각형 + 바탕색 × — 네모 왼쪽 끝 = 연번 숫자 왼쪽 끝 */
+/* 지우기 단추 앞 붉은 네모 ×(2026-10-20 사용자): 채운 붉은 정사각형 + 바탕색 × – 네모 왼쪽 끝 = 연번 숫자 왼쪽 끝 */
 .cm-edit-foot > .cm-del { gap: 6px; }
 .cm-del-x { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 4px; background: var(--danger); color: var(--surface); flex: none; }
 .cm-del-x > svg { width: 12px; height: 12px; stroke-width: 2.6; }
@@ -10975,7 +10975,7 @@ body.ew-dragging .pjm-colgrip:active::after {
   margin-left: 4px;
 }
 
-/* ---------- 머리 줄 칸 폭 고정 (상단 정리, 2026-10-20 사용자 확정 — 시안 TopBar.dc.html) ----------
+/* ---------- 머리 줄 칸 폭 고정 (상단 정리, 2026-10-20 사용자 확정 – 시안 TopBar.dc.html) ----------
    민원대장·민원처리·업무연락처·집행현황·예산현황 다섯 화면만(.tb5). 오른쪽 묶음 순서:
    토글 → 배치최적화 → 입력창 단추 → 검색 → 엑셀(맨 오른쪽). 없는 칸은 같은 폭을 비워 다른 화면과 자리를 맞춰요.
    폭은 모두 정수라 100%·125%에서 반 픽셀에 걸리지 않아요. 간격 8은 .ct-head·.bd-top 그대로. */
@@ -11003,7 +11003,7 @@ body.ew-dragging .pjm-colgrip:active::after {
 .fx-brow[data-extdrop="1"],
 .fx-tr[data-extdrop="1"] { background: var(--accent-tint); box-shadow: inset 0 0 0 1px var(--accent-line); }
 
-/* 예산현황 설정 창 2안 — 두 단(2026-10-20 사용자): 왼쪽 사업 설정 · 오른쪽 재원 나누기 표 */
+/* 예산현황 설정 창 2안 – 두 단(2026-10-20 사용자): 왼쪽 사업 설정 · 오른쪽 재원 나누기 표 */
 .bss2 { max-width: calc(100vw - 80px); }
 .bss2-head { flex-direction: row; align-items: baseline; gap: 10px; }
 .bss2-head .bss-sub b { color: var(--ink); font-weight: 600; }
@@ -11025,7 +11025,7 @@ body.ew-dragging .pjm-colgrip:active::after {
 .bss2-help { display: flex; flex-direction: column; gap: 3px; padding: 8px 10px; border: 1px dashed var(--line); border-radius: var(--radius-sm); font-size: 11.5px; line-height: 16px; color: var(--muted); }
 .bss2-help b { color: var(--ink); font-weight: 600; }
 .bss2-foot-note { font-size: 11.5px; color: var(--muted); align-self: center; margin-right: 4px; }
-/* 표 — 머리 글 왼쪽, 숫자 오른쪽 */
+/* 표 – 머리 글 왼쪽, 숫자 오른쪽 */
 .bss2-tb { border: 1px solid var(--line-soft); border-radius: var(--radius-sm); overflow: hidden; }
 .bss2-tr { display: grid; align-items: center; min-height: 34px; padding: 0 10px; column-gap: 8px; border-top: 1px solid var(--line-row); background: var(--surface); font-size: 13px; }
 .bss2-tr:first-child { border-top: 0; }
@@ -11057,11 +11057,11 @@ body.ew-dragging .pjm-colgrip:active::after {
 /* 찾기 "자세히" 상자: 찾기 칸 왼쪽 끝에 맞춰 열어요(오른쪽 맞춤이면 좁은 찾기 칸에서 화면 왼쪽 밖으로 나갔어요) */
 .fx-top > .fx-findbox > .fx-findpanel { left: 0; right: auto; }
 .fx-findpanel .fx-hrow .btn { white-space: nowrap; flex: none; }
-/* 자세히 상자 안 칸이 상자 밖으로 넘치지 않게(칸 최소 폭 0) — 어디서 줄에 "모든 드라이브" 단추가 들어가 폭 520 */
+/* 자세히 상자 안 칸이 상자 밖으로 넘치지 않게(칸 최소 폭 0) – 어디서 줄에 "모든 드라이브" 단추가 들어가 폭 520 */
 .fx-top > .fx-findbox > .fx-findpanel { width: 520px; box-sizing: border-box; }
 .fx-findpanel .fx-fgrid > * { min-width: 0; }
 .fx-findpanel .fx-hrow > .fx-grow { flex: 1 1 0; min-width: 0; }
-/* 지시부 보내기(2026-10-20): [보내기 ▾] 메뉴 · 메일 확인 창 — 시안 캔버스 ProcessMail */
+/* 지시부 보내기(2026-10-20): [보내기 ▾] 메뉴 · 메일 확인 창 – 시안 캔버스 ProcessMail */
 .pr-next.pr-send {
   display: inline-flex;
   align-items: center;
@@ -11217,12 +11217,12 @@ body.ew-dragging .pjm-colgrip:active::after {
   resize: vertical;
   font: inherit;
 }
-/* 메일 본문 줄: 설명을 위로(2026-10-20 사용자) — 첫 글줄을 본문 칸 첫 줄과 나란히 */
+/* 메일 본문 줄: 설명을 위로(2026-10-20 사용자) – 첫 글줄을 본문 칸 첫 줄과 나란히 */
 .row:has(.proc-mail-body) { align-items: flex-start; }
 .row:has(.proc-mail-body) > .row-text { padding-top: 8px; }
 
 /* 표 줄 정리(2026-10-20 사용자 ①~⑥, 시안 캔버스 ProcessRows): 기한·위치 한 줄, 요약·판단 이유만 두 줄(넘치면 …),
-   나머지는 한 줄 위 맞춤 — 글자 11~29(가운데 20), 배지 22는 9~31, 칸·단추 28은 6~34. 지시부 이름·보내기는 위 띠로 */
+   나머지는 한 줄 위 맞춤 – 글자 11~29(가운데 20), 배지 22는 9~31, 칸·단추 28은 6~34. 지시부 이름·보내기는 위 띠로 */
 .pr-row {
   grid-template-columns: var(--pr-cols, 36px 144px 58px 112px 182px minmax(0, 1fr) 160px 240px 150px);
 }
@@ -11373,7 +11373,7 @@ body.ew-dragging .pjm-colgrip:active::after {
   margin-left: 0;
 }
 
-/* 위 띠 간격(2026-10-20 사용자: 들쭉날쭉) — 머리 줄·띠·표 사이는 .pr의 간격 16 하나로, 띠 아래 12를 더하지 않아요.
+/* 위 띠 간격(2026-10-20 사용자: 들쭉날쭉) – 머리 줄·띠·표 사이는 .pr의 간격 16 하나로, 띠 아래 12를 더하지 않아요.
    띠 안의 것은 모두 띠 높이 가운데(공사 이름표 28·글자·단추 34) */
 .pr-pickbar {
   margin-bottom: 0;

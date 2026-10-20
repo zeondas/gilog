@@ -112,7 +112,7 @@ pub async fn refresh_holidays(state: State<'_, AppState>, now: String) -> Result
     with_store(&state, |s| s.replace_holidays(&list, &now))
 }
 
-/// 화면(Edge와 같은 인터넷 길 — 회사 프록시 자동 설정을 따라가요)이 받아 온 공휴일을 저장해요(0.8.2).
+/// 화면(Edge와 같은 인터넷 길 – 회사 프록시 자동 설정을 따라가요)이 받아 온 공휴일을 저장해요(0.8.2).
 #[tauri::command]
 pub fn save_holidays(state: State<AppState>, list: Vec<Holiday>, now: String) -> Result<Vec<Holiday>, String> {
     with_store(&state, |s| s.replace_holidays(&list, &now))
@@ -277,7 +277,7 @@ fn finish(result: Result<String, String>) -> Result<(), String> {
 
 #[cfg(not(windows))]
 fn toast(_app: &AppHandle, title: &str, body: &str, _open: Option<Reminder>) -> Result<(), String> {
-    println!("[알림] {title} — {body}");
+    println!("[알림] {title} – {body}");
     finish(Ok("콘솔".into()))
 }
 

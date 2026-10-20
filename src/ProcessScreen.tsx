@@ -7,7 +7,7 @@
 //   지시부에 든 건의 공사·주소·고려사항을 고치면 그 지시부를 다시 만들어요(같은 연번·같은 파일).
 // - [폰 전송] = 지시부의 JPG를 보낼 폴더에 복사 → "보내는 중". Claude가 대화에 올리고 "보냄" 폴더에 써 두면 ✓ 전송 완료(사용자 2안).
 // - 대상이 아닌 건은 줄 끝 ×(작은 묻기 창). 지운 건은 다음 불러오기 때 다시 와요.
-// - 공사 관리 창: 현장대리인은 업무연락처에서 골라요(같은 연락처 하나 — 쌍방향), 공사명은 업무연락처 프로젝트로도 등록돼요.
+// - 공사 관리 창: 현장대리인은 업무연락처에서 골라요(같은 연락처 하나 – 쌍방향), 공사명은 업무연락처 프로젝트로도 등록돼요.
 import { createPortal } from "react-dom";
 import { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, Case, Complaint, Contact, ContactsData, errorText, inApp, Order, OrderResult, previewInbox, RunStatus, Work, WorkInput } from "./api";
@@ -30,7 +30,7 @@ function workColor(w: Work | undefined, cd: ContactsData | null): number {
 const phoneOf = (c: Contact | undefined) => (c ? c.mobile || c.tel : "");
 
 const FETCHED_KEY = "process.fetched";
-// 2026-10-20 표 줄 정리(시안 ProcessRows)로 처음 폭이 바뀌어 새 키 — 예전에 끈 폭(지시부 320)은 버려요
+// 2026-10-20 표 줄 정리(시안 ProcessRows)로 처음 폭이 바뀌어 새 키 – 예전에 끈 폭(지시부 320)은 버려요
 const COLS_KEY = "process.colWidths2";
 
 /** 열 제목과 처음 폭. null은 남는 폭을 쓰는 열(민원 요약)이에요. 끌어서 바꾼 폭은 COLS_KEY에 저장해요. */
@@ -299,7 +299,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
         : st.state === "stopped"
           ? `멈췄어요 · 새 민원 ${acc.n}건`
           : st.state === "error"
-            ? `Claude가 멈췄어요${st.message ? ` — ${st.message}` : ""} · 새 민원 ${acc.n}건`
+            ? `Claude가 멈췄어요${st.message ? ` – ${st.message}` : ""} · 새 민원 ${acc.n}건`
             : `새 민원 ${acc.n}건`;
     setNote([head, ...tail].join(" · "));
     if (st.state === "error" || st.state === "stopped") setNoteLog(st.log);
@@ -312,7 +312,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     await api.stopClaude().catch(() => {});
   }
 
-  // ---------- 지시부 메일 보내기 (korea.kr, 2026-10-20 사용자 2안·2안 — Claude가 [보내기]까지) ----------
+  // ---------- 지시부 메일 보내기 (korea.kr, 2026-10-20 사용자 2안·2안 – Claude가 [보내기]까지) ----------
 
   /** 지시부의 받는 사람: 공사 관리의 현장대리인 → 업무연락처 메일 주소 */
   const recipientOf = (o: Order) => {
@@ -368,10 +368,10 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     }
     setNote(
       st.state === "login"
-        ? "korea.kr 로그인이 풀려 못 보냈어요 — 크롬에서 로그인한 뒤 다시 [보내기 ▾ → 메일]을 눌러 주세요"
+        ? "korea.kr 로그인이 풀려 못 보냈어요 – 크롬에서 로그인한 뒤 다시 [보내기 ▾ → 메일]을 눌러 주세요"
         : st.state === "stopped"
-          ? "메일 보내기를 멈췄어요 — 크롬의 메일쓰기 탭을 확인해 주세요"
-          : `메일을 못 보냈어요${st.message ? ` — ${st.message}` : ""}`,
+          ? "메일 보내기를 멈췄어요 – 크롬의 메일쓰기 탭을 확인해 주세요"
+          : `메일을 못 보냈어요${st.message ? ` – ${st.message}` : ""}`,
     );
     setNoteLog(st.log);
   }
@@ -386,7 +386,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
       putOrder(o);
       return o;
     } catch (e) {
-      setNote(`JPG를 만들지 못했어요 — ${errText(e)}`);
+      setNote(`JPG를 만들지 못했어요 – ${errText(e)}`);
       return null;
     } finally {
       setBusyOf(String(id), null);
@@ -641,7 +641,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
           <span>
             <b>{mailRun.label}</b> 메일 보내는 중 · {MAIL_STEPS[Math.min(mailRun.n, MAIL_STEPS.length - 1)]} ({Math.min(mailRun.n + 1, 4)}/4)
           </span>
-          <span className="pr-sub">Claude가 크롬 korea.kr 탭에서 하고 있어요 — 그 탭은 건드리지 말아 주세요</span>
+          <span className="pr-sub">Claude가 크롬 korea.kr 탭에서 하고 있어요 – 그 탭은 건드리지 말아 주세요</span>
           <span className="pr-run-bar">
             <span style={{ width: `${(Math.min(mailRun.n, 4) / 4) * 100}%` }} />
           </span>
@@ -832,14 +832,14 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                       setPick(pick?.no === c.no ? null : { no: c.no, rect: e.currentTarget.getBoundingClientRect() });
                     }}
                   >
-                    {w ? w.name : "— 공사 고르기"}
+                    {w ? w.name : "– 공사 고르기"}
                   </button>
                 </div>
                 <div onClick={(e) => e.stopPropagation()}>
                   <TextCell value={c.note} disabled={isD} placeholder={isD ? "" : "예: 야간 작업, 교통 통제 협의"} onSave={(v) => patch(c.no, { note: v })} />
                 </div>
                 <div className="pr-acts" onClick={(e) => e.stopPropagation()}>
-                  {/* 지시부 현황 단추 넷 — 지시부(이 건만 만들기 / 열기) · 저장 폴더 · 민원대장 · 지우기 (2026-10-20 사용자, 시안 ProcessRows) */}
+                  {/* 지시부 현황 단추 넷 – 지시부(이 건만 만들기 / 열기) · 저장 폴더 · 민원대장 · 지우기 (2026-10-20 사용자, 시안 ProcessRows) */}
                   {o ? (
                     <button
                       type="button"
@@ -972,7 +972,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
           const o = orders.find((x) => x.id === sendMenu.id);
           if (!o) return null;
           const r = recipientOf(o);
-          const why = !r.work?.contact ? "공사 관리에서 현장대리인을 골라 주세요" : !r.email ? "현장대리인 메일 주소가 없어요 — 업무연락처에서 넣어 주세요" : run || mailRun ? "Claude가 다른 일을 하고 있어요" : "";
+          const why = !r.work?.contact ? "공사 관리에서 현장대리인을 골라 주세요" : !r.email ? "현장대리인 메일 주소가 없어요 – 업무연락처에서 넣어 주세요" : run || mailRun ? "Claude가 다른 일을 하고 있어요" : "";
           return (
             <Floating rect={sendMenu.rect} align="right" onClose={() => setSendMenu(null)}>
               <div className="pr-menu pr-sendmenu" role="menu" aria-label="지시부 보내기">
@@ -1024,7 +1024,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   );
 }
 
-// ---------- 열 제목 줄 (끌어서 열 너비, 우클릭 열 너비 초기화 — 민원대장과 같아요) ----------
+// ---------- 열 제목 줄 (끌어서 열 너비, 우클릭 열 너비 초기화 – 민원대장과 같아요) ----------
 
 function HeadRow({
   widths,
@@ -1080,7 +1080,7 @@ function HeadRow({
       {COLUMNS.map((col, i) => (
         <div role="columnheader" key={col.label} className={col.center ? "pr-c" : undefined}>
           {col.label}
-          {/* 남는 폭을 쓰는 열(민원 요약)은 끌지 않아요 — 옆 열을 끌면 따라 바뀌어요. */}
+          {/* 남는 폭을 쓰는 열(민원 요약)은 끌지 않아요 – 옆 열을 끌면 따라 바뀌어요. */}
           {i < COLUMNS.length - 1 && col.w !== null && !col.fixed && <span className="cm-grip" aria-hidden="true" title="끌어서 열 너비 바꾸기" onMouseDown={(e) => start(e, i)} />}
         </div>
       ))}
@@ -1105,7 +1105,7 @@ function HeadRow({
   );
 }
 
-// ---------- 위치 칸: 그 자리에서 고쳐요(법정리·동 + 지번, 리·동을 고르면 지역이 채워져요 — 민원대장 위치 칸과 같은 부품) ----------
+// ---------- 위치 칸: 그 자리에서 고쳐요(법정리·동 + 지번, 리·동을 고르면 지역이 채워져요 – 민원대장 위치 칸과 같은 부품) ----------
 
 function PlaceCell({ c, disabled, onSave }: { c: Case; disabled: boolean; onSave: (area: string, place: string, road: string) => void }) {
   const start = c.place === UNKNOWN ? "" : c.place;
@@ -1249,7 +1249,7 @@ function Floating({ rect, align, onClose, children }: { rect: DOMRect; align: "l
       window.removeEventListener("mousedown", down);
     };
   }, [onClose]);
-  // 화면 맨 위(body)에 띄워요 — 가운데 뜨는 창(.overlay) 안에 두면 창 자리 맞추기(snap.ts)가 이 상자까지 옮겨 화면 밖으로 밀려났어요(2026-10-19 공사 지우기 버그).
+  // 화면 맨 위(body)에 띄워요 – 가운데 뜨는 창(.overlay) 안에 두면 창 자리 맞추기(snap.ts)가 이 상자까지 옮겨 화면 밖으로 밀려났어요(2026-10-19 공사 지우기 버그).
   return createPortal(
     <div ref={ref} className="pr-float" style={pos} onClick={(e) => e.stopPropagation()}>
       {children}
@@ -1441,7 +1441,7 @@ function WorksDialog({
                   <span className="pr-dot" style={{ background: `var(--pj-${k}-line)` }} />
                   <span className="pr-ell">{w.full || w.name}</span>
                 </span>
-                <span className="pr-ell">{w.full && w.full !== w.name ? w.name : <span className="pr-sub">—</span>}</span>
+                <span className="pr-ell">{w.full && w.full !== w.name ? w.name : <span className="pr-sub">–</span>}</span>
                 <span className="pr-ell">{w.co}</span>
                 <span className="pr-agent" title="업무연락처와 같은 연락처예요. 어느 쪽에서 고쳐도 함께 바뀌어요">
                   {c ? (
@@ -1450,7 +1450,7 @@ function WorksDialog({
                       {c.name}
                     </span>
                   ) : (
-                    <span className="pr-sub">—</span>
+                    <span className="pr-sub">–</span>
                   )}
                 </span>
                 <span className="pr-scope">{w.scope}</span>
@@ -1684,7 +1684,7 @@ function DocIcon() {
   );
 }
 
-/** 이 건만으로 지시부 만들기 — 문서 + 더하기 */
+/** 이 건만으로 지시부 만들기 – 문서 + 더하기 */
 function DocPlusIcon() {
   return (
     <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1728,7 +1728,7 @@ function CheckIcon() {
   );
 }
 
-/** 메일로 보낼까요? — 받는 사람·제목·본문(고칠 수 있어요)·첨부. [보내기]를 누르면 Claude가 korea.kr에서 보내기까지 해요(사용자 2안). */
+/** 메일로 보낼까요? – 받는 사람·제목·본문(고칠 수 있어요)·첨부. [보내기]를 누르면 Claude가 korea.kr에서 보내기까지 해요(사용자 2안). */
 function MailDialog({ draft, files, from, onChange, onSend, onClose }: { draft: MailDraft; files: string[]; from: string; onChange: (d: MailDraft) => void; onSend: () => void; onClose: () => void }) {
   const subjectRef = useRef<HTMLInputElement>(null);
   useEffect(() => subjectRef.current?.focus(), []);

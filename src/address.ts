@@ -63,7 +63,7 @@ const SAMPLE = `금정로|0|14|0|금촌동||0|774|12|
 type Row = { road: string; main: number; sub: number; emd: string; ri: string; san: boolean; jm: string; js: string; bldg: string };
 let rows: Row[] | null = null;
 
-// 위치 글은 지번(숫자)으로 끝나요 — 주소 뒤 글은 붙이지 않아요(2026-10-18 사용자).
+// 위치 글은 지번(숫자)으로 끝나요 – 주소 뒤 글은 붙이지 않아요(2026-10-18 사용자).
 function hitOf(r: Row, _rest: string): RoadHit {
   const name = r.ri || r.emd;
   const place = `${name} ${r.san ? "산 " : ""}${r.jm}${r.js && r.js !== "0" ? "-" + r.js : ""}`;

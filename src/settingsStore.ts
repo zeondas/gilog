@@ -5,7 +5,7 @@ import { dateFormatOf, DEFAULT_DATE_FORMAT } from "./files";
 
 export type Kind = { name: string; key: string };
 
-/** 민원처리(10단계) 설정 — 사양서 "설정 화면 민원처리 카드" */
+/** 민원처리(10단계) 설정 – 사양서 "설정 화면 민원처리 카드" */
 export type ProcessSettings = {
   /** 지시부의 {지시자}: 이름 */
   signer: string;
@@ -23,7 +23,7 @@ export type ProcessSettings = {
   claude: string;
   /** 표준 지시부 양식(hwpx). 비우면 앱에 들어 있는 양식(2026-10-19) */
   tpl: string;
-  /** 지시부 메일 제목 틀 — {축약 공사명}·{연번} 같은 자리를 그 지시부 값으로 바꿔요(2026-10-20 사용자 1안) */
+  /** 지시부 메일 제목 틀 – {축약 공사명}·{연번} 같은 자리를 그 지시부 값으로 바꿔요(2026-10-20 사용자 1안) */
   mailSubject: string;
   /** 지시부 메일 본문 틀(줄바꿈 그대로). 자리가 모두 빈 줄은 빼요 */
   mailBody: string;
@@ -32,7 +32,7 @@ export type ProcessSettings = {
 /** 지시부 메일 틀에 쓰는 자리 */
 export const MAIL_FIELDS = ["공사명", "축약 공사명", "연번", "건수", "현장대리인", "시공사", "지시자", "연락처"] as const;
 export const DEFAULT_MAIL_SUBJECT = "[파주시 도로관리과] {축약 공사명} 작업지시 {연번}호";
-// "문의 {연락처}" 줄은 뺐어요 — korea.kr 계정 기본 서명이 연락처를 붙여 두 번 나와요(2026-10-20 사용자 1안). {연락처} 자리는 그대로 쓸 수 있어요.
+// "문의 {연락처}" 줄은 뺐어요 – korea.kr 계정 기본 서명이 연락처를 붙여 두 번 나와요(2026-10-20 사용자 1안). {연락처} 자리는 그대로 쓸 수 있어요.
 export const DEFAULT_MAIL_BODY = ["{현장대리인} 현장대리인님, {지시자}입니다.", "{축약 공사명} 작업지시 {연번}호(민원 {건수}건)를 보내드립니다.", "첨부를 확인하시고 조치 바랍니다."].join("\n");
 
 export const DEFAULT_PROCESS: ProcessSettings = {
@@ -56,12 +56,12 @@ export type Settings = {
   kinds: Kind[];
   /** 캘린더 쉬는 날(토·일·공휴일) 붉은 음영 */
   restShade: boolean;
-  /** 키 설정 — 처음 키와 다른 것만 (keys.ts, 2026-10-17 엔터규칙) */
+  /** 키 설정 – 처음 키와 다른 것만 (keys.ts, 2026-10-17 엔터규칙) */
   keys: Partial<Record<string, string>>;
   process: ProcessSettings;
   /** 설정 "탐색기" 카드 (11단계, 시안 FilesSettings.dc.html) */
   files: FilesSettings;
-  /** 모듈 켜고 끄기 — false인 모듈만 꺼짐(사이드바에서 숨김, 자료는 그대로). 2026-10-18 설정 세션 */
+  /** 모듈 켜고 끄기 – false인 모듈만 꺼짐(사이드바에서 숨김, 자료는 그대로). 2026-10-18 설정 세션 */
   modules: Modules;
 };
 
@@ -70,7 +70,7 @@ export type FilesSettings = {
   dateFmt: string;
   /** 드라이브 단추 줄에서 숨긴 것 ("E:", 내 PC·홈 포함) */
   hiddenDrives: string[];
-  /** 폴더 트리에서 숨긴 것 — 단추 줄과 따로 골라요(2026-10-19 사용자 2안). 예전 자료는 hiddenDrives를 이어받아요 */
+  /** 폴더 트리에서 숨긴 것 – 단추 줄과 따로 골라요(2026-10-19 사용자 2안). 예전 자료는 hiddenDrives를 이어받아요 */
   treeHidden: string[];
   /** 빠른 찾기(도우미가 깔려 있을 때 모든 드라이브를 바로 찾기) 켜짐 */
   fast: boolean;
@@ -79,17 +79,17 @@ export type FilesSettings = {
   newTabDir: string;
   /** F8 지울 때 묻기 (Shift+F8 완전 삭제는 늘 물어요) */
   askDelete: boolean;
-  /** 자세히 보기에서 보일 열(이름은 늘 보여요) — 2026-10-18 사용자 */
+  /** 자세히 보기에서 보일 열(이름은 늘 보여요) – 2026-10-18 사용자 */
   cols: { size: boolean; modified: boolean; type: boolean };
 };
 
 export const DEFAULT_FILES_SETTINGS: FilesSettings = { dateFmt: DEFAULT_DATE_FORMAT, hiddenDrives: [], treeHidden: [], fast: true, showHidden: false, newTabDir: "", askDelete: true, cols: { size: true, modified: true, type: true } };
 
 export const DEFAULT_SETTINGS: Settings = {
-  // 2026-10-19 사용자: 상태는 고정 7개예요(설정·분류 관리에서 바꾸지 않아요) — STATUSES
+  // 2026-10-19 사용자: 상태는 고정 7개예요(설정·분류 관리에서 바꾸지 않아요) – STATUSES
   status: ["접수", "진행", "답변", "완료", "불가", "보류", "장기"],
   intake: ["전화", "방문", "국민신문고", "정보공개청구", "진정민원"],
-  // 민원유형은 사용자가 필요할 때 직접 적어요(2026-10-17 사용자) — 미리 넣는 예시는 없어요. 이미 저장된 목록은 그대로예요.
+  // 민원유형은 사용자가 필요할 때 직접 적어요(2026-10-17 사용자) – 미리 넣는 예시는 없어요. 이미 저장된 목록은 그대로예요.
   ctype: [],
   myName: "전훈민",
   kinds: [
@@ -111,7 +111,7 @@ export const DONE_STATUS = "완료";
 /** 답변기한에 답변한 상태예요(지울 수 없어요). */
 export const ANSWER_STATUS = "답변";
 
-/** 받아들이지 않기로 끝낸 상태예요(2026-10-19 사용자 — 동작은 완료와 같아요). */
+/** 받아들이지 않기로 끝낸 상태예요(2026-10-19 사용자 – 동작은 완료와 같아요). */
 export const REJECT_STATUS = "불가";
 
 /** 끝난 민원: 완료·불가. 줄 글자가 흐려지고, 이 상태가 되면 조치완료일에 오늘 날짜가 들어가요. */
@@ -119,14 +119,14 @@ export const CLOSED_STATUSES = [DONE_STATUS, REJECT_STATUS];
 export const isClosed = (status: string) => CLOSED_STATUSES.includes(status);
 
 /**
- * 법정 답변기한(마감일)이 끝난 상태: 답변·완료·불가·보류·장기(2026-10-19 사용자 1안 — 보류·장기는 답변하면서 정하는 결과).
+ * 법정 답변기한(마감일)이 끝난 상태: 답변·완료·불가·보류·장기(2026-10-19 사용자 1안 – 보류·장기는 답변하면서 정하는 결과).
  * 이 상태면 마감일에 가운데 줄, 남은 날 배지 없음, 캘린더·업무일지 챙길 일에서 빠져요.
  */
 export const ANSWERED_STATUSES = [ANSWER_STATUS, DONE_STATUS, REJECT_STATUS, "보류", "장기"];
 export const isAnswered = (status: string) => ANSWERED_STATUSES.includes(status);
 
 /**
- * 민원 상태는 고정 7개예요(2026-10-19 사용자 — 설정·분류 관리에서 바꾸지 않아요, 불가는 같은 날 더함 — 처음 이름 "미수용").
+ * 민원 상태는 고정 7개예요(2026-10-19 사용자 – 설정·분류 관리에서 바꾸지 않아요, 불가는 같은 날 더함 – 처음 이름 "미수용").
  * 법정 답변기한(마감일)과 실제 해소를 나눠요: 답변·완료·보류·장기는 "답변 끝남".
  */
 export const STATUSES = ["접수", "진행", "답변", "완료", "불가", "보류", "장기"];
@@ -136,8 +136,8 @@ export const STATUS_RENAME: Record<string, string> = { 처리중: "진행" };
 
 
 /**
- * 상태 배지 색 — 신경 쓸 순서로 진하게(2026-10-19 사용자). 모양은 집행현황 단계 배지와 같아요.
- * 접수·진행·답변 = 따뜻한 색 진한 채움(노랑·자홍·주황 — 밝기도 달리) · 보류·장기 = 차가운 색 바탕(회색·하늘) · 완료·불가 = 흐리게(줄 글자도 흐려요, 불가는 붉은 기).
+ * 상태 배지 색 – 신경 쓸 순서로 진하게(2026-10-19 사용자). 모양은 집행현황 단계 배지와 같아요.
+ * 접수·진행·답변 = 따뜻한 색 진한 채움(노랑·자홍·주황 – 밝기도 달리) · 보류·장기 = 차가운 색 바탕(회색·하늘) · 완료·불가 = 흐리게(줄 글자도 흐려요, 불가는 붉은 기).
  */
 export const STATUS_COLORS: Record<string, [string, string]> = {
   접수: ["var(--cs-new-bg)", "var(--cs-new-fg)"],

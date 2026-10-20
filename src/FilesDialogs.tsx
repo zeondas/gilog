@@ -1,5 +1,5 @@
 // 탐색기에서 가운데 뜨는 창: 같은 이름 묻기(FilesConflict 1안), 지울까요, 일괄 이름 바꾸기(FilesRename).
-// 바깥을 누르기 시작했을 때만 닫혀요(onMouseDown + target === currentTarget — 글자를 끌어 고르다 밖에서 떼도 안 닫혀요).
+// 바깥을 누르기 시작했을 때만 닫혀요(onMouseDown + target === currentTarget – 글자를 끌어 고르다 밖에서 떼도 안 닫혀요).
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Conflict } from "./filesApi";
 import {
@@ -398,7 +398,7 @@ export function RenameDialog({
   );
 }
 
-/** 이름 하나 받기(새 폴더 이름 등) — 탐색기는 목록 안에서 바로 고치지만, 찾기 결과처럼 그럴 수 없을 때 써요. */
+/** 이름 하나 받기(새 폴더 이름 등) – 탐색기는 목록 안에서 바로 고치지만, 찾기 결과처럼 그럴 수 없을 때 써요. */
 export function NameDialog({ title, value, onOk, onCancel }: { title: string; value: string; onOk: (v: string) => void; onCancel: () => void }) {
   const [v, setV] = useState(value);
   const ref = useRef<HTMLInputElement>(null);

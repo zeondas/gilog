@@ -1,12 +1,12 @@
-// 예산현황 설정·보내기 창(2026-10-20 사용자 2안 — 두 단): 집행현황 세부사업 줄 우클릭 "예산현황으로 보내기"와 예산현황 ⚙이 같은 창을 열어요.
+// 예산현황 설정·보내기 창(2026-10-20 사용자 2안 – 두 단): 집행현황 세부사업 줄 우클릭 "예산현황으로 보내기"와 예산현황 ⚙이 같은 창을 열어요.
 // 왼쪽 "사업 설정"(한 번 정하는 것): 단년도/다년도 + 기간 · 재원(국비·도비·시비·기타) · 이월 사업 잇기.
 //   (명시이월)/(사고이월) 세부사업은 "기존 사업에 잇기 / 새 사업으로"를 골라요.
 // 오른쪽 "재원 나누기"(해마다 적는 것, 재원이 둘 이상일 때만): 해 토글 →
-//   ① 재원별 예산 표(재원마다 예산 직접 — rows["해:재원"].cur, 비율, 집행액(자동), 합계가 집행현황 예산과 맞는지)
-//   ② 공사별 재원 표(공사 · 계약금액 · 재원마다 금액 칸 · 남은 금액 — split["해:공사 번호"] = { 재원: 금액 }, 집행액은 그 비율대로.
+//   ① 재원별 예산 표(재원마다 예산 직접 – rows["해:재원"].cur, 비율, 집행액(자동), 합계가 집행현황 예산과 맞는지)
+//   ② 공사별 재원 표(공사 · 계약금액 · 재원마다 금액 칸 · 남은 금액 – split["해:공사 번호"] = { 재원: 금액 }, 집행액은 그 비율대로.
 //      빈 칸 두 번 누르기 = 남은 금액 채우기, 안 적은 공사는 첫 재원, 머리 글 왼쪽·숫자 오른쪽, 열 경계 끌기(kv bstatus.sendCols)).
 //   맞지 않아도 저장돼요(예산현황 표에 붉게 남아요). 머리 줄에 "맞지 않는 곳 N". 아래에 원인·지출재원 확인 방법 안내(2026-10-20 사용자).
-// 창 폭은 재원 수만큼 넓어져요(재원 2 → 1040, 하나 더마다 +124, 화면 폭 −80까지). 보낸 사업만 예산현황에 보여요 — "예산현황에서 빼기"로 되돌려요.
+// 창 폭은 재원 수만큼 넓어져요(재원 2 → 1040, 하나 더마다 +124, 화면 폭 −80까지). 보낸 사업만 예산현황에 보여요 – "예산현황에서 빼기"로 되돌려요.
 import { useEffect, useState, type MouseEvent as RMouseEvent } from "react";
 import { api } from "./api";
 import { BudgetProject } from "./budget";
@@ -19,7 +19,7 @@ const ICON = (d: string, s = 14, w = 2) => (
   </svg>
 );
 const COLS_KEY = "bstatus.sendCols";
-/** 고정 칩(국비·도비·시비) — "기타"는 이름을 직접 적는 재원이라 칩 목록에 없어요(2026-10-20 사용자: "기타"라고 적어도 칩이 생겨야 해요) */
+/** 고정 칩(국비·도비·시비) – "기타"는 이름을 직접 적는 재원이라 칩 목록에 없어요(2026-10-20 사용자: "기타"라고 적어도 칩이 생겨야 해요) */
 const FIXED = SOURCES.filter((x) => x !== "기타") as readonly string[];
 const won = (v: number) => v.toLocaleString("ko-KR");
 const fmtWon = (v: number) => (v ? won(v) : "");
@@ -180,7 +180,7 @@ export function BudgetStatusSend({
   const badCount = (project && curDiff !== 0 ? 1 : 0) + badRows;
   const unsplit = rows.filter((r) => specOf(r.id, r.cmt) == null).length;
 
-  // 연도 칸: 치는 동안은 글자 그대로 두고(지우다 세 자리가 되면 바로 막혀 "안 고쳐지는" 문제 — 2026-10-20 사용자), 떠날 때 네 자리면 반영
+  // 연도 칸: 치는 동안은 글자 그대로 두고(지우다 세 자리가 되면 바로 막혀 "안 고쳐지는" 문제 – 2026-10-20 사용자), 떠날 때 네 자리면 반영
   const [yrText, setYrText] = useState<{ from: string; to: string }>({ from: String(s.from), to: String(s.to) });
   const yr = (k: "from" | "to") => {
     const commit = () => {
@@ -249,7 +249,7 @@ export function BudgetStatusSend({
       <div className="bss2-fl">
         <span className="bss2-lab">잇는 사업</span>
         <select className="fld bd-in" aria-label="이을 사업" value={parent} onChange={(e) => setParent(e.target.value)}>
-          {!target.parents.length && <option value="">보낸 사업이 없어요 — 먼저 원래 사업을 보내 주세요</option>}
+          {!target.parents.length && <option value="">보낸 사업이 없어요 – 먼저 원래 사업을 보내 주세요</option>}
           {target.parents.map((p) => (
             <option key={p.name} value={p.name}>{p.name}</option>
           ))}
@@ -367,11 +367,11 @@ export function BudgetStatusSend({
         </span>
         <span className="bss2-sum">
           {badCount > 0 ? <span className="bss2-badtag">맞지 않는 곳 {badCount}</span> : project && curSum > 0 && rows.length > 0 ? <span className="bss2-oktag">모두 맞아요</span> : null}
-          {!project && (projs ? <>{year}년 집행현황에 없는 사업 — 재원별 예산만 적어요</> : <>읽는 중…</>)}
+          {!project && (projs ? <>{year}년 집행현황에 없는 사업 – 재원별 예산만 적어요</> : <>읽는 중…</>)}
         </span>
       </div>
 
-      {/* 재원별 예산 — 공사별 재원 표와 같은 열 틀(재원이 열): 항목 · 합계 · 재원… · 차이 */}
+      {/* 재원별 예산 – 공사별 재원 표와 같은 열 틀(재원이 열): 항목 · 합계 · 재원… · 차이 */}
       <div className="bss2-tb" role="table" aria-label="재원별 예산">
         <div className="bss2-tr h" style={{ gridTemplateColumns: grid }}>
           <span>재원별 예산</span>
@@ -438,7 +438,7 @@ export function BudgetStatusSend({
         </div>
         {!rows.length ? (
           <div className="bss2-tr" style={{ gridTemplateColumns: "1fr" }}>
-            <span className="m">{project ? "공사가 없어요" : `${year}년 집행현황에 이 사업이 없어요 — 공사를 넣은 뒤 여기서 재원을 나눠요`}</span>
+            <span className="m">{project ? "공사가 없어요" : `${year}년 집행현황에 이 사업이 없어요 – 공사를 넣은 뒤 여기서 재원을 나눠요`}</span>
           </div>
         ) : (
           rows.map((r) => {
@@ -486,7 +486,7 @@ export function BudgetStatusSend({
       </div>
       <div className="bss2-help">
         <b>적는 방법</b>
-        <span>계약금액을 재원 칸에 나눠 적어요 — 한 재원이면 그 칸에 전부. 빈 칸을 두 번 누르면 남은 금액이 채워져요. 집행액은 적은 금액 비율대로 나뉘고, 안 적은 공사{unsplit > 0 ? ` ${unsplit}건` : ""}는 첫 재원({s.sources[0]})으로 들어가요.</span>
+        <span>계약금액을 재원 칸에 나눠 적어요 – 한 재원이면 그 칸에 전부. 빈 칸을 두 번 누르면 남은 금액이 채워져요. 집행액은 적은 금액 비율대로 나뉘고, 안 적은 공사{unsplit > 0 ? ` ${unsplit}건` : ""}는 첫 재원({s.sources[0]})으로 들어가요.</span>
       </div>
       <div className="bss2-help">
         <b>원인·지출 재원 확인 방법</b>
@@ -519,7 +519,7 @@ export function BudgetStatusSend({
             <span />
           )}
           <span className="bss-btns">
-            {wide && badCount > 0 && <span className="bss2-foot-note">맞지 않아도 저장돼요 — 예산현황 표에 붉게 남아요</span>}
+            {wide && badCount > 0 && <span className="bss2-foot-note">맞지 않아도 저장돼요 – 예산현황 표에 붉게 남아요</span>}
             <button type="button" className="btn btn-ctrl btn-text" onClick={onClose}>취소</button>
             <button type="button" className="btn-primary btn-ctrl" disabled={attaching && !parent} onClick={save}>
               {setup ? "저장" : "보내기"}

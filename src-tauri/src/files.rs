@@ -93,7 +93,7 @@ fn is_hidden(path: &Path, _meta: &fs::Metadata) -> bool {
 }
 
 /// 회사 보안 프로그램이 잠근 파일인지 머리 부분으로 짐작해요.
-/// 어떤 보안 프로그램인지 아직 몰라요(사용자가 회사에서 확인 예정) — 흔한 국산 DRM 표시만 봐요.
+/// 어떤 보안 프로그램인지 아직 몰라요(사용자가 회사에서 확인 예정) – 흔한 국산 DRM 표시만 봐요.
 /// 틀려도 배지 하나라 해가 없어요. 회사 PC에서 맞는지 확인할 것(시험 항목).
 fn looks_locked(path: &Path) -> bool {
     const MARKS: [&[u8]; 6] = [b"SCDSA00", b"<!-- FasooSecureContainer", b"DRMONE", b"MarkAny", b"<DOCUMENT SAFER", b"DSCSFTCF"];
@@ -452,7 +452,7 @@ pub(crate) fn conflicts(sources: &[PathBuf], dest: &Path) -> Vec<Conflict> {
         .collect()
 }
 
-/// "이름 (2).확장자" — 없는 번호를 찾아요.
+/// "이름 (2).확장자" – 없는 번호를 찾아요.
 pub(crate) fn unique_path(p: &Path) -> PathBuf {
     if !p.exists() {
         return p.to_path_buf();
@@ -621,7 +621,7 @@ fn copy_empty_dirs(src: &Path, dst: &Path) {
     }
 }
 
-/// 옮기고 남은 빈 폴더들을 지워요(파일이 남아 있으면 그 폴더는 두어요 — 건너뛴 파일).
+/// 옮기고 남은 빈 폴더들을 지워요(파일이 남아 있으면 그 폴더는 두어요 – 건너뛴 파일).
 fn remove_if_empty_tree(p: &Path) -> bool {
     if let Ok(it) = fs::read_dir(p) {
         let mut empty = true;
@@ -878,7 +878,7 @@ fn fast_ask(req: &serde_json::Value) -> Option<serde_json::Value> {
                 pipe = Some(f);
                 break;
             }
-            // ERROR_PIPE_BUSY(다른 물음에 답하는 중)·ERROR_FILE_NOT_FOUND(통로를 바꿔 끼우는 틈) — 잠깐 뒤 다시
+            // ERROR_PIPE_BUSY(다른 물음에 답하는 중)·ERROR_FILE_NOT_FOUND(통로를 바꿔 끼우는 틈) – 잠깐 뒤 다시
             Err(e) if matches!(e.raw_os_error(), Some(231) | Some(2)) => std::thread::sleep(std::time::Duration::from_millis(50)),
             Err(_) => return None,
         }
@@ -967,7 +967,7 @@ pub async fn fs_fast_setup(app: AppHandle, op: String) -> Result<(), String> {
     .map_err(|e| e.to_string())?
 }
 
-/// 빠른 찾기 도우미가 목록에서 빼는 곳 — 도우미(fastfind/src/index.rs `is_skipped_path`)와 같은 규칙
+/// 빠른 찾기 도우미가 목록에서 빼는 곳 – 도우미(fastfind/src/index.rs `is_skipped_path`)와 같은 규칙
 fn fast_skipped_path(path: &str) -> bool {
     const SKIP_TOP: [&str; 9] = ["windows", "windows.old", "program files", "program files (x86)", "programdata", "$recycle.bin", "system volume information", "recovery", "perflogs"];
     let p = path.replace('/', "\\").to_lowercase();
@@ -1017,7 +1017,7 @@ pub(crate) fn find_fast(spec: &FindSpec, ask: &dyn Fn(&serde_json::Value) -> Opt
     let hits: Vec<FastHit> = serde_json::from_value(v.get("hits")?.clone()).ok()?;
     let needle = spec.text.trim().to_lowercase();
     let all = spec.roots.is_empty();
-    // 결과가 많으면 잠김 표시(파일 머리 읽기)는 건너뛰어요 — 치는 대로 찾기가 늦어지지 않게
+    // 결과가 많으면 잠김 표시(파일 머리 읽기)는 건너뛰어요 – 치는 대로 찾기가 늦어지지 않게
     let check_lock = spec.locked_only || hits.len() <= 2000;
     let mut out = Vec::new();
     for (i, h) in hits.iter().enumerate() {

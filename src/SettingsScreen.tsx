@@ -37,7 +37,7 @@ type Props = {
   onLocked: () => void;
   /** 모듈을 켜고 끄면 사이드바에 알려요. */
   onModules: (m: Modules) => void;
-  /** 설정 닫기(× 단추) — 마지막으로 보던 화면으로 */
+  /** 설정 닫기(× 단추) – 마지막으로 보던 화면으로 */
   onClose: () => void;
 };
 
@@ -125,7 +125,7 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
               <input
                 ref={findBox}
                 aria-label="설정 찾기"
-                placeholder="설정 찾기 — 잠금, 폴더, 구분…"
+                placeholder="설정 찾기 – 잠금, 폴더, 구분…"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 onKeyDown={(e) => {
@@ -447,7 +447,7 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
   );
 }
 
-/** 화면 엔진(WebView2) 버전 — 139 이상이면 모서리 스퀴클이 그려져요(2026-10-18 결정 ⑧). */
+/** 화면 엔진(WebView2) 버전 – 139 이상이면 모서리 스퀴클이 그려져요(2026-10-18 결정 ⑧). */
 function engineVersion(): string {
   const ua = navigator.userAgent;
   return (ua.match(/Edg\/([\d.]+)/) ?? ua.match(/Chrome\/([\d.]+)/))?.[1] ?? "알 수 없음";
@@ -455,7 +455,7 @@ function engineVersion(): string {
 
 // ---------- 설정 찾기 (2026-10-18 사용자, 시안 Settings) ----------
 // 화면을 다시 짜지 않고, 그린 뒤 줄마다 글자(이름·설명·숨은 낱말 data-k)를 보고 안 맞는 줄·카드·묶음 머리글을 숨겨요.
-// 맞은 글자는 CSS Custom Highlight(::highlight(set-find))로 칠해요 — 글자를 고치지 않아 입력 중인 칸이 흔들리지 않아요.
+// 맞은 글자는 CSS Custom Highlight(::highlight(set-find))로 칠해요 – 글자를 고치지 않아 입력 중인 칸이 흔들리지 않아요.
 
 const squash = (t: string) => t.toLowerCase().replace(/\s+/g, "");
 
@@ -608,7 +608,7 @@ function ModuleCard({ id, name, off, gap, children }: { id: ModuleId; name: stri
   );
 }
 
-// ---------- 키 설정 (엔터규칙, 2026-10-17 사용자 — 시안 KeySettings.dc.html 키 고르기 1안 · 배치 2안) ----------
+// ---------- 키 설정 (엔터규칙, 2026-10-17 사용자 – 시안 KeySettings.dc.html 키 고르기 1안 · 배치 2안) ----------
 
 const KEY_HINT = "Enter·Tab·Esc와 Shift·Ctrl·왼쪽 Alt만 골라요";
 const RALT_HINT = "오른쪽 Alt는 한/영 키라 고를 수 없어요";
@@ -1049,7 +1049,7 @@ function eulReul(w: string) {
 }
 
 /**
- * 목록 묶음(상태·접수유형·민원유형). ×를 누르면 "지울까요?"를 물어요(2026-10-17 사용자 — 다른 화면과 같게).
+ * 목록 묶음(상태·접수유형·민원유형). ×를 누르면 "지울까요?"를 물어요(2026-10-17 사용자 – 다른 화면과 같게).
  * stack이면 관리 창 모양: 배지 아래 줄에 넓은 추가 칸과 "＋ 추가" 단추.
  */
 export function ListGroup({
@@ -1383,7 +1383,7 @@ function PasswordChange() {
         done = "비밀번호를 바꿨어요. PIN 풀기용도 새것으로 바꿨어요.";
       }
     } catch {
-      done = "비밀번호를 바꿨어요. PIN 풀기는 껐어요 — 다시 켜면 새 비밀번호로 보관해요.";
+      done = "비밀번호를 바꿨어요. PIN 풀기는 껐어요 – 다시 켜면 새 비밀번호로 보관해요.";
     }
     window.dispatchEvent(new Event(PIN_CHANGED));
     setOldPw("");

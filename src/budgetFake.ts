@@ -58,7 +58,7 @@ function yearOf(level: BudgetLevel, id: number): number {
 }
 const renumber = <T extends { ord: number }>(list: T[]) => list.forEach((x, i) => (x.ord = i));
 
-/** 저장 쪽 import_budget과 같아요 — 같은 이름은 덮어쓰고 없는 것만 더해요. [덮어쓰기, 새로 더하기] */
+/** 저장 쪽 import_budget과 같아요 – 같은 이름은 덮어쓰고 없는 것만 더해요. [덮어쓰기, 새로 더하기] */
 function importYear(y: number, list: ImportProject[]): [number, number] {
   let ord = Math.max(-1, ...db.p.filter((p) => p.year === y).map((p) => p.ord)) + 1;
   let upd = 0;

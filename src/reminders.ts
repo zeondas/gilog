@@ -87,7 +87,7 @@ const why = (e: unknown) => (e instanceof Error ? (e.name === "AbortError" ? "�
 
 /**
  * 공휴일을 받아 저장해요. 성공하면 "", 실패하면 곳마다 실패 이유를 이어 붙인 글을 돌려줘요.
- * 1) 공휴일 자료 사이트, 2) 공용 배포처(jsDelivr) — 둘 다 화면 쪽에서, 3) 앱이 직접.
+ * 1) 공휴일 자료 사이트, 2) 공용 배포처(jsDelivr) – 둘 다 화면 쪽에서, 3) 앱이 직접.
  */
 export async function updateHolidays(): Promise<string> {
   const fails: string[] = [];
