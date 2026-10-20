@@ -952,8 +952,8 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                 >
                   <PhoneIcon />
                   <span>
-                    <span className="pr-sopt-t">내 폰으로 보내기</span>
-                    <span className="pr-sopt-s">JPG를 Claude 앱 대화로 — 카톡으로 다시 보내요</span>
+                    <span className="pr-sopt-t">이미지 보내기</span>
+                    <span className="pr-sopt-s">내 핸드폰의 Claude 앱으로 사진을 전송해요</span>
                   </span>
                 </button>
               </div>
