@@ -109,7 +109,7 @@ function importYear(y: number, list: ImportProject[]): [number, number] {
 }
 
 if (typeof window !== "undefined" && !("__TAURI_INTERNALS__" in window)) {
-  (window as unknown as { __budgetFake: unknown }).__budgetFake = { import: importYear };
+  (window as unknown as { __budgetFake: unknown }).__budgetFake = { import: importYear, year };
 }
 
 export function fakeBudget(cmd: string, a: Record<string, unknown>): unknown {
