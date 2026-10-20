@@ -11159,3 +11159,6 @@ body.ew-dragging .pjm-colgrip:active::after {
   resize: vertical;
   font: inherit;
 }
+/* 메일 본문 줄: 설명을 위로(2026-10-20 사용자) — 첫 글줄을 본문 칸 첫 줄과 나란히 */
+.row:has(.proc-mail-body) { align-items: flex-start; }
+.row:has(.proc-mail-body) > .row-text { padding-top: 8px; }
