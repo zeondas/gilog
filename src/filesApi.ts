@@ -320,6 +320,8 @@ export const fsApi = {
   /** 파일 형식 이름(윈도우 것): 키는 ".xlsx"·"<dir>" */
   types: (keys: string[]) => (inApp ? call<Record<string, string>>("fs_types", { keys }) : Promise.resolve({} as Record<string, string>)),
   contextMenu: (dir: string, names: string[], x: number, y: number) => call<MenuResult>("fs_context_menu", { dir, names, x, y }),
+  /** 윈도우 끌기 시작(기록 → 윈도우 탐색기·바탕 화면) — 놓을 때까지 기다려요. "" 놓지 않음 · copy · move · link */
+  startDrag: (paths: string[]) => call<string>("fs_start_drag", { paths }),
   /** 윈도우 탐색기로 넘기기(보안 해제) — dir을 열어 names를 골라 두고 우클릭 메뉴를 띄워요 */
   reveal: (dir: string, names: string[]) => (inApp ? call<null>("fs_reveal", { dir, names, popup: true }) : Promise.resolve(null)),
   /** roots가 비면 빠른 찾기 목록이 있는 모든 드라이브 */

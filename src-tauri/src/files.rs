@@ -793,6 +793,21 @@ pub fn fs_context_menu(window: tauri::WebviewWindow, dir: String, names: Vec<Str
     }
 }
 
+/// 기록에서 윈도우 탐색기·바탕 화면으로 끌어 내기 — 줄을 끌기 시작하면 화면이 불러요(놓을 때까지 기다려요)
+#[tauri::command]
+pub fn fs_start_drag(window: tauri::WebviewWindow, paths: Vec<String>) -> Result<String, String> {
+    #[cfg(windows)]
+    {
+        let hwnd = window.hwnd().map_err(|e| e.to_string())?;
+        crate::files_win::start_drag(hwnd.0 as isize, &paths)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (window, paths);
+        Err("windows_only".into())
+    }
+}
+
 // ---------- 찾기 ----------
 
 #[derive(Deserialize, Clone, Debug, Default)]

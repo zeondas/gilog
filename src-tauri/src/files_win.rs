@@ -674,3 +674,35 @@ pub fn run_elevated(exe: &std::path::Path, args: &str) -> Result<u32, String> {
     }
     Ok(code)
 }
+
+// ── 기록 → 윈도우 탐색기·바탕 화면으로 끌어 내기(2026-10-20 사용자) ─────────────────────
+// 화면 안 끌기(HTML)는 윈도우가 알아보지 못해요. 그래서 줄을 끌기 시작하면 윈도우 탐색기와 같은 끌기를 띄워요.
+// 파일들을 셸 항목으로 묶어 "데이터 개체"를 만들고 SHDoDragDrop(윈도우가 끌기 그림·Ctrl/Shift 처리까지 해 줘요).
+// 기록 창 안에 놓으면 앱 틀의 놓기 알림(onDragDropEvent)이 받아요 — 바깥에서 끌어온 것과 같은 길.
+// 돌려주는 값: "" 놓지 않음 · "copy" · "move" · "link"
+pub fn start_drag(hwnd_raw: isize, paths: &[String]) -> Result<String, String> {
+    use windows::Win32::System::Com::{IBindCtx, IDataObject};
+    use windows::Win32::System::Ole::{IDropSource, DROPEFFECT};
+    use windows::Win32::UI::Shell::{SHCreateShellItemArrayFromIDLists, SHDoDragDrop, BHID_DataObject};
+    if paths.is_empty() {
+        return Ok(String::new());
+    }
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        let pidls: Vec<Pidl> = paths.iter().map(|p| parse(p)).collect::<Result<_, _>>()?;
+        let raw: Vec<*const ITEMIDLIST> = pidls.iter().map(|p| p.0 as *const ITEMIDLIST).collect();
+        let arr = SHCreateShellItemArrayFromIDLists(&raw).map_err(|e| format!("items:{e}"))?;
+        let data: IDataObject = arr.BindToHandler(None::<&IBindCtx>, &BHID_DataObject).map_err(|e| format!("data:{e}"))?;
+        let hwnd = HWND(hwnd_raw as *mut c_void);
+        // 복사(1)·옮기기(2)·바로 가기(4) 모두 허용 — 무엇을 할지는 놓는 곳(윈도우 탐색기)이 정해요
+        let eff = SHDoDragDrop(Some(hwnd), &data, None::<&IDropSource>, DROPEFFECT(1 | 2 | 4)).map_err(|e| format!("drag:{e}"))?;
+        drop(pidls);
+        Ok(match eff.0 {
+            0 => "",
+            e if e & 2 != 0 => "move",
+            e if e & 4 != 0 => "link",
+            _ => "copy",
+        }
+        .into())
+    }
+}

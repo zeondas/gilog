@@ -480,7 +480,9 @@ export default function FilesScreen() {
     return () => window.removeEventListener("focus", sync);
   }, []);
 
+  const refreshRef = useRef<() => void>(() => {});
   const refreshAll = () => listsRef.current.forEach((l, i) => l.path && void load(i, l.path, true));
+  refreshRef.current = refreshAll;
 
   const askDelete = (pane: number, permanent: boolean) => {
     const items = selected(pane);
@@ -1084,6 +1086,34 @@ export default function FilesScreen() {
 
   // ---------- 끌어다 놓기(창 사이, 윈도우 탐색기에서) ----------
   const dragSrc = useRef<{ pane: number; rows: Row[] } | null>(null);
+  // 윈도우 끌기(2026-10-20 사용자: 기록 → 윈도우 탐색기로 끌어 내기): 줄을 누른 채 6px 넘게 움직이면 시작
+  const nativeDrag = useRef<{ x: number; y: number; paths: string[] } | null>(null);
+  useEffect(() => {
+    if (!inApp) return;
+    const move = (e: MouseEvent) => {
+      const d = nativeDrag.current;
+      if (!d) return;
+      if (!(e.buttons & 1)) {
+        nativeDrag.current = null;
+        return;
+      }
+      if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) < 6) return;
+      nativeDrag.current = null;
+      void fsApi
+        .startDrag(d.paths)
+        .then((r) => r && window.setTimeout(() => refreshRef.current(), 300))
+        .catch(() => {});
+    };
+    const up = () => {
+      nativeDrag.current = null;
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+    return () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    };
+  }, []);
   const dropTo = (pane: number, e: React.DragEvent, dir?: string) => {
     e.preventDefault();
     const src = dragSrc.current;
@@ -1604,8 +1634,16 @@ export default function FilesScreen() {
               "data-hid": r.hidden || cut.has(r.path) ? "1" : "0",
               "data-dir": r.dir ? r.path : undefined,
               "data-extdrop": r.dir && extHover?.dir === r.path ? "1" : "0",
-              draggable: !inline,
-              onMouseDown: (e: React.MouseEvent) => e.button === 0 && pick(r, e),
+              // 앱에서는 윈도우 끌기를 써요(윈도우 탐색기·바탕 화면에 놓을 수 있게) — 화면 안 끌기는 미리 보기에서만
+              draggable: !inline && !inApp,
+              onMouseDown: (e: React.MouseEvent) => {
+                if (e.button !== 0) return;
+                if (inApp && !inline && !e.shiftKey && !e.ctrlKey) {
+                  const items = s.paths.has(r.path) ? rows.filter((x) => s.paths.has(x.path)) : [r];
+                  nativeDrag.current = { x: e.clientX, y: e.clientY, paths: items.map((x) => x.path) };
+                }
+                pick(r, e);
+              },
               onDoubleClick: () => openEntry(pane, r),
               onContextMenu: (e: React.MouseEvent) => rowCtx(r, e),
               onDragStart: (e: React.DragEvent) => {
