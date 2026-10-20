@@ -11146,3 +11146,16 @@ body.ew-dragging .pjm-colgrip:active::after {
   align-items: center;
   gap: 6px;
 }
+
+/* 설정 민원처리 · 지시부 메일 틀(2026-10-20) */
+.proc-dir .input.proc-mail-subject { width: 420px; }
+.proc-mail { align-items: flex-start; }
+.proc-dir .input.proc-mail-body {
+  width: 420px;
+  height: auto;
+  min-height: 96px;
+  padding: 6px 8px;
+  line-height: 20px;
+  resize: vertical;
+  font: inherit;
+}

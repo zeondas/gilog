@@ -1,7 +1,7 @@
 import { FormEvent, Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ACCENTS, api, DEFAULT_PREFS, errorText, inApp, Prefs, Status } from "./api";
 import { splitJamo } from "./journal";
-import { DEFAULT_SETTINGS, Kind, loadSettings, MEMO_KIND, ProcessSettings, saveSettings, Settings, FilesSettings, STATUS_COLORS } from "./settingsStore";
+import { DEFAULT_MAIL_BODY, DEFAULT_MAIL_SUBJECT, DEFAULT_SETTINGS, MAIL_FIELDS, Kind, loadSettings, MEMO_KIND, ProcessSettings, saveSettings, Settings, FilesSettings, STATUS_COLORS } from "./settingsStore";
 import { aiGuide, phoneGuide } from "./process";
 import { isOn, MODULE_DESC, ModuleId, Modules, onScreens, SCREENS, firstOn } from "./screens";
 import { NavIcon, NavIconName } from "./Icons";
@@ -1570,6 +1570,51 @@ function ProcessRows({ p, onChange }: { p: ProcessSettings; onChange: (p: Proces
           )}
           {p.tpl && (
             <button type="button" className="btn btn-xs" onClick={() => onChange({ ...p, tpl: "" })}>
+              기본으로
+            </button>
+          )}
+        </span>
+      </Row>
+      <Row label="메일 제목" desc={<>지시부를 메일로 보낼 때 제목이에요. {"{축약 공사명}"}처럼 자리를 넣으면 그 지시부 값으로 바뀌어요.</>} k="메일 korea">
+        <span className="proc-dir">
+          <input
+            key={p.mailSubject}
+            className="input proc-mail-subject"
+            aria-label="메일 제목"
+            defaultValue={p.mailSubject}
+            onBlur={(e) => {
+              const t = e.target.value.trim();
+              if (t !== p.mailSubject) onChange({ ...p, mailSubject: t || DEFAULT_MAIL_SUBJECT });
+            }}
+            onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+          />
+        </span>
+      </Row>
+      <Row
+        label="메일 본문"
+        desc={
+          <>
+            쓸 수 있는 자리: {MAIL_FIELDS.map((f) => `{${f}}`).join(" ")}
+            <br />
+            값이 비어 자리만 남는 줄은 빼요. 보낼 때 확인 창에서 한 통만 고칠 수도 있어요.
+          </>
+        }
+        k="메일 korea 본문"
+      >
+        <span className="proc-dir proc-mail">
+          <textarea
+            key={p.mailBody}
+            className="input proc-mail-body"
+            aria-label="메일 본문"
+            rows={4}
+            defaultValue={p.mailBody}
+            onBlur={(e) => {
+              const t = e.target.value.replace(/\s+$/, "");
+              if (t !== p.mailBody) onChange({ ...p, mailBody: t || DEFAULT_MAIL_BODY });
+            }}
+          />
+          {(p.mailSubject !== DEFAULT_MAIL_SUBJECT || p.mailBody !== DEFAULT_MAIL_BODY) && (
+            <button type="button" className="btn btn-xs" onClick={() => onChange({ ...p, mailSubject: DEFAULT_MAIL_SUBJECT, mailBody: DEFAULT_MAIL_BODY })}>
               기본으로
             </button>
           )}

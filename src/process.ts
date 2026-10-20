@@ -1,6 +1,7 @@
 // 민원처리(10단계) 화면의 규칙 함수예요. 사양서 "민원처리" 절, 시안 Process.dc.html.
 // 저장은 core/process.rs(표 works·cases), 파일 일은 src-tauri/src/process.rs가 해요.
 import type { Case } from "./api";
+import { DEFAULT_MAIL_BODY, DEFAULT_MAIL_SUBJECT } from "./settingsStore";
 
 export type { Case, Stage, Work } from "./api";
 
@@ -136,22 +137,33 @@ PC에 이어져 있지 않으면 "PC 연결이 끊겨 있어요 — 데스크톱
 }
 
 
-/** 지시부 메일(korea.kr)의 제목·본문 처음 값(2026-10-20 — 확인 창에서 고칠 수 있어요). 지시자 "도로관리과 전훈민"을 부서·이름으로 나눠 써요. */
-export function mailDraft(p: { signer: string; signerPhone: string }, workName: string, seq: number, count: number, agent: string) {
-  const parts = p.signer.trim().split(/\s+/);
-  const name = parts.length > 1 ? parts[parts.length - 1] : p.signer.trim();
-  const dept = parts.length > 1 ? parts.slice(0, -1).join(" ") : "";
-  const no = String(seq).padStart(2, "0");
-  const subject = `[파주시${dept ? ` ${dept}` : ""}] ${workName} 작업지시 ${no}호`;
-  const body = [
-    `${agent ? `${agent} ` : ""}현장대리인님, ${dept ? `${dept} ` : ""}${name}입니다.`,
-    `${workName} 작업지시 ${no}호(민원 ${count}건)를 보내드립니다.`,
-    "첨부를 확인하시고 조치 바랍니다.",
-    p.signerPhone ? `문의 ${p.signerPhone}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
-  return { subject, body };
+/** 메일 틀의 {자리}를 값으로 바꿔요. 자리가 있는데 모두 빈 값인 줄은 빼요(예: 연락처가 없으면 "문의 {연락처}" 줄). */
+export function fillMail(tpl: string, v: Record<string, string>): string {
+  return tpl
+    .split("\n")
+    .map((line) => {
+      const keys = [...line.matchAll(/\{([^{}]+)\}/g)].map((m) => m[1].trim());
+      if (keys.length && keys.every((k) => k in v && !v[k])) return null;
+      return line.replace(/\{([^{}]+)\}/g, (m, k: string) => (k.trim() in v ? v[k.trim()] : m));
+    })
+    .filter((l): l is string => l !== null)
+    .join("\n")
+    .trim();
+}
+
+/** 지시부 메일(korea.kr)의 제목·본문 처음 값 — 설정 "민원처리"의 메일 틀에 그 지시부 값을 넣어요(2026-10-20 사용자 1안, 확인 창에서 한 통만 고칠 수 있어요). */
+export function mailDraft(p: { signer: string; signerPhone: string; mailSubject: string; mailBody: string }, w: { name: string; full: string; co: string }, seq: number, count: number, agent: string) {
+  const v: Record<string, string> = {
+    공사명: w.full || w.name,
+    "축약 공사명": w.name,
+    연번: String(seq).padStart(2, "0"),
+    건수: String(count),
+    현장대리인: agent,
+    시공사: w.co,
+    지시자: p.signer.trim(),
+    연락처: p.signerPhone.trim(),
+  };
+  return { subject: fillMail(p.mailSubject || DEFAULT_MAIL_SUBJECT, v).replace(/\s*\n\s*/g, " "), body: fillMail(p.mailBody || DEFAULT_MAIL_BODY, v) };
 }
 
 /**

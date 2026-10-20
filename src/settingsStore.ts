@@ -23,7 +23,16 @@ export type ProcessSettings = {
   claude: string;
   /** 표준 지시부 양식(hwpx). 비우면 앱에 들어 있는 양식(2026-10-19) */
   tpl: string;
+  /** 지시부 메일 제목 틀 — {축약 공사명}·{연번} 같은 자리를 그 지시부 값으로 바꿔요(2026-10-20 사용자 1안) */
+  mailSubject: string;
+  /** 지시부 메일 본문 틀(줄바꿈 그대로). 자리가 모두 빈 줄은 빼요 */
+  mailBody: string;
 };
+
+/** 지시부 메일 틀에 쓰는 자리 */
+export const MAIL_FIELDS = ["공사명", "축약 공사명", "연번", "건수", "현장대리인", "시공사", "지시자", "연락처"] as const;
+export const DEFAULT_MAIL_SUBJECT = "[파주시 도로관리과] {축약 공사명} 작업지시 {연번}호";
+export const DEFAULT_MAIL_BODY = ["{현장대리인} 현장대리인님, {지시자}입니다.", "{축약 공사명} 작업지시 {연번}호(민원 {건수}건)를 보내드립니다.", "첨부를 확인하시고 조치 바랍니다.", "문의 {연락처}"].join("\n");
 
 export const DEFAULT_PROCESS: ProcessSettings = {
   signer: "도로관리과 전훈민",
@@ -34,6 +43,8 @@ export const DEFAULT_PROCESS: ProcessSettings = {
   outbox: "D:\\민원처리\\보내기",
   claude: "claude",
   tpl: "",
+  mailSubject: DEFAULT_MAIL_SUBJECT,
+  mailBody: DEFAULT_MAIL_BODY,
 };
 
 export type Settings = {

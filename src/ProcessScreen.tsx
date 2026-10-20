@@ -325,7 +325,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     const r = recipientOf(o);
     if (!r.work || !r.email) return;
     const n = cases.filter((c) => c.order === o.id).length;
-    const d = mailDraft(ps, r.work.name, o.seq, n, r.name);
+    const d = mailDraft(ps, r.work, o.seq, n, r.name);
     setMailAsk({ id: o.id, to: r.email, toName: r.name, org: r.org, subject: d.subject, body: d.body, label: orderTag(r.work.name, o.seq) });
   }
 
