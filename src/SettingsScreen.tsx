@@ -1679,6 +1679,21 @@ function ProcessRows({ p, onChange }: { p: ProcessSettings; onChange: (p: Proces
           />
         </span>
       </Row>
+      <Row label="Claude 모델" desc="[민원 불러오기]·메일 보내기가 쓰는 모델이에요. 느리면 Sonnet, 판단이 아쉬우면 Opus.">
+        <span className="seg" role="radiogroup" aria-label="Claude 모델">
+          {(
+            [
+              ["sonnet", "Sonnet · 빠름"],
+              ["opus", "Opus · 꼼꼼"],
+              ["haiku", "Haiku · 가장 빠름"],
+            ] as const
+          ).map(([id, name]) => (
+            <button key={id} type="button" role="radio" aria-checked={(p.claudeModel ?? "sonnet") === id} onClick={() => onChange({ ...p, claudeModel: id })}>
+              {name}
+            </button>
+          ))}
+        </span>
+      </Row>
       <Row label="AI 지침" desc="[민원 불러오기]가 Claude에게 주는 지침이에요. 다른 AI에 붙여 넣어 써도 돼요.">
         <span className="proc-dir">
           {copied === "ai" && <span className="muted small">복사했어요</span>}
