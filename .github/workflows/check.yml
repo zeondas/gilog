@@ -49,9 +49,18 @@ jobs:
         run: npm run build 2>&1 | tee -a check.log; exit ${PIPESTATUS[0]}
 
       # 암호 풀기(argon2)는 시험 모드에서 아주 느려서 그 둘만 빠르게 만들어요(시험 결과는 같아요).
+      # 만들기와 돌리기를 나눠 두면 어디서 시간이 드는지 단계 시간으로 보여요.
+      - name: 저장·암호화 시험 만들기
+        shell: bash
+        run: cargo test --no-run --manifest-path src-tauri/core/Cargo.toml $CORE_FAST 2>&1 | tee -a check.log; exit ${PIPESTATUS[0]}
+        env:
+          CORE_FAST: --config profile.dev.package.argon2.opt-level=3 --config profile.dev.package.blake2.opt-level=3
+
       - name: 저장·암호화 시험
         shell: bash
-        run: cargo test --manifest-path src-tauri/core/Cargo.toml --config 'profile.dev.package.argon2.opt-level=3' --config 'profile.dev.package.blake2.opt-level=3' 2>&1 | tee -a check.log; exit ${PIPESTATUS[0]}
+        run: cargo test --manifest-path src-tauri/core/Cargo.toml $CORE_FAST 2>&1 | tee -a check.log; exit ${PIPESTATUS[0]}
+        env:
+          CORE_FAST: --config profile.dev.package.argon2.opt-level=3 --config profile.dev.package.blake2.opt-level=3
 
       # 앱 틀 검사. 빠른 찾기 도우미 exe는 설치 파일 단계에서만 만들어서, 검사 때는 빈 자리 파일을 둬요(없으면 tauri가 멈춰요).
       # --release는 build.yml이 남긴 캐시(OpenSSL 등 미리 만든 것)를 그대로 쓰려고 붙여요.
