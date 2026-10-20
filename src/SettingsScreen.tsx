@@ -1575,7 +1575,7 @@ function ProcessRows({ p, onChange }: { p: ProcessSettings; onChange: (p: Proces
           )}
         </span>
       </Row>
-      <Row label="메일 제목" desc={<>지시부를 메일로 보낼 때 제목이에요. {"{축약 공사명}"}처럼 자리를 넣으면 그 지시부 값으로 바뀌어요.</>} k="메일 korea">
+      <Row label="메일 제목" desc="{자리}는 그 지시부 값으로 바뀌어요." k="메일 korea">
         <span className="proc-dir">
           <input
             key={p.mailSubject}
@@ -1592,13 +1592,7 @@ function ProcessRows({ p, onChange }: { p: ProcessSettings; onChange: (p: Proces
       </Row>
       <Row
         label="메일 본문"
-        desc={
-          <>
-            쓸 수 있는 자리: {MAIL_FIELDS.map((f) => `{${f}}`).join(" ")}
-            <br />
-            값이 비어 자리만 남는 줄은 빼요. 보낼 때 확인 창에서 한 통만 고칠 수도 있어요.
-          </>
-        }
+        desc={`자리: ${MAIL_FIELDS.map((f) => `{${f}}`).join(" ")}`}
         k="메일 korea 본문"
       >
         <span className="proc-dir proc-mail">
