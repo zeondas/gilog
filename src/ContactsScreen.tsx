@@ -1409,6 +1409,8 @@ function ProjectDialog({
   // 열 폭(2026-10-20 사용자): 열 때 가장 긴 사업명·축약 공사명에 맞추고, 창 폭 = 열 폭의 합이에요.
   const [cols, setCols] = useState(() => fitCols(data.projects));
   const [rowMenu, setRowMenu] = useState<{ id: number; x: number; y: number } | null>(null);
+  /** [그룹 추가]를 눌러 새 그룹 이름을 적는 중(2026-10-20 사용자: 처음 쓰는 사람도 그룹 만드는 곳을 알게) */
+  const [newGroup, setNewGroup] = useState(false);
   /** 방금 더한 프로젝트 이름(그 줄로 내려가요) */
   const [added, setAdded] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -1507,6 +1509,9 @@ function ProjectDialog({
         <div className="dialog-head pjm-head">
           <span className="dialog-title">사업 관리</span>
           <span className="mgr-info">{data.projects.length}개</span>
+          <button type="button" className="btn pjm-grp-add" onClick={() => setNewGroup(true)} disabled={newGroup}>
+            <Plus size={14} /> 그룹 추가
+          </button>
           <input
             className="input pjm-find"
             aria-label="프로젝트 찾기"
@@ -1575,6 +1580,21 @@ function ProjectDialog({
           <span />
         </div>
         <div className="dialog-body pjm-body" ref={bodyRef}>
+          {newGroup && (
+            <div className="pjm-grp-h pjm-grp-new">
+              <FoldArrow open />
+              <GroupRename
+                name=""
+                placeholder="새 그룹 이름"
+                taken={(n) => groups.some((g) => g.name === n)}
+                onDone={async (name) => {
+                  setNewGroup(false);
+                  if (name) await run(api.addProjectGroup(name));
+                }}
+              />
+              <span className="muted small pjm-grp-tip">Enter 만들기 · Esc 취소</span>
+            </div>
+          )}
           {data.projects.length === 0 && groups.length === 0 && <p className="muted small pjm-empty">아직 프로젝트가 없어요.</p>}
           {data.projects.length > 0 && nothing && !!ql && <p className="muted small pjm-empty">맞는 프로젝트가 없어요.</p>}
           {sections.map((sec) => {
@@ -1633,7 +1653,7 @@ function ProjectDialog({
                   )}
                 </div>
                 {open && sec.rows.map(rowOf)}
-                {open && sec.rows.length === 0 && <p className="muted small pjm-grp-empty">이 그룹에 프로젝트가 없어요.</p>}
+                {open && sec.rows.length === 0 && <p className="muted small pjm-grp-empty">비어 있어요 — 사업 줄을 우클릭해 "그룹 변경"으로 넣어요.</p>}
                 {groupMenu?.id === sec.id && (
                   <CtxMenu
                     x={groupMenu.x}
@@ -1830,7 +1850,7 @@ function GroupInput({ groups, value, onChange, onEnter, autoFocus }: { groups: P
   );
 }
 
-function GroupRename({ name, taken, onDone }: { name: string; taken: (n: string) => boolean; onDone: (name: string | null) => void }) {
+function GroupRename({ name, placeholder, taken, onDone }: { name: string; placeholder?: string; taken: (n: string) => boolean; onDone: (name: string | null) => void }) {
   const [v, setV] = useState(name);
   const done = useRef(false);
   const t = v.trim();
@@ -1844,6 +1864,7 @@ function GroupRename({ name, taken, onDone }: { name: string; taken: (n: string)
     <input
       className={"input pjm-grp-in" + (bad ? " invalid" : "")}
       aria-label="그룹 이름"
+      placeholder={placeholder}
       autoFocus
       value={v}
       onFocus={(e) => e.currentTarget.select()}

@@ -10337,7 +10337,6 @@ select.input.fx-set-date { width: 190px; }
 .pjm-find {
   /* 찾기 칸 = 아래 줄 축약 공사명 칸 + 사이 + 추가 단추 폭(좌우 끝을 맞춰요) */
   width: calc(var(--pjm-short) + var(--space-2) + var(--pjm-btn));
-  margin-left: auto;
 }
 
 .mgr.pjm {
@@ -10932,4 +10931,22 @@ body.ew-dragging .pjm-colgrip:active::after {
   height: 1px;
   margin: 2px 6px;
   background: var(--line-soft);
+}
+
+/* [그룹 추가](2026-10-20 사용자): 찾기 칸 왼쪽, 새 그룹 이름 줄은 목록 맨 위 */
+.pjm-grp-add {
+  margin-left: auto;
+}
+
+.pjm-grp-new {
+  gap: 8px;
+  background: var(--accent-wash);
+}
+
+.pjm-grp-new .grp-arrow {
+  margin-left: 4px;
+}
+
+.pjm-grp-tip {
+  margin-left: 4px;
 }
