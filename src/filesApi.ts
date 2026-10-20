@@ -41,7 +41,7 @@ export type FastStatus = {
   drives: { drive: string; count: number; ready: boolean }[];
 };
 /** 우클릭 메뉴 결과: "" 안 고름 · "done" 실행함 · "rename" 이름 바꾸기 시작 */
-export type MenuResult = "" | "done" | "rename" | "reveal" | "newfolder";
+export type MenuResult = "" | "done" | "rename" | "reveal" | "newfolder" | "openlocation";
 
 // ---------- 브라우저 흉내 ----------
 
@@ -153,6 +153,18 @@ function fakeCall(cmd: string, a: Record<string, unknown>): unknown {
       ];
     case "fs_home":
       return "D:\\민원처리";
+    case "fs_resolve": {
+      const v = (a.input as string).replace(/%USERPROFILE%/gi, "C:\\사용자\\hunmin");
+      const n = fakeFs.get(v);
+      return n ? [v, n.dir] : v === "F:\\" ? [v, true] : null;
+    }
+    case "fs_make_links":
+      return (a.paths as string[]).map((p) => {
+        const at = joinPath(a.dest as string, `${baseName(p)} - 바로 가기.lnk`);
+        fakeFs.set(at, { dir: false, size: 1200, modified: Date.now() });
+        fakeChanged(a.dest as string);
+        return at;
+      });
     case "fs_is_dir":
       return fakeFs.get(a.path as string)?.dir === true || a.path === "F:\\";
     case "fs_list":
@@ -384,7 +396,11 @@ export const fsApi = {
   /** 바로가기(.lnk)가 가리키는 곳 */
   lnkTarget: (path: string) => (inApp ? call<string | null>("fs_lnk_target", { path }) : Promise.resolve(null)),
   /** 지금 누른 Ctrl·Shift */
-  mods: () => (inApp ? call<[boolean, boolean]>("fs_mods") : Promise.resolve([false, false] as [boolean, boolean])),
+  mods: () => (inApp ? call<[boolean, boolean, boolean]>("fs_mods") : Promise.resolve([false, false, false] as [boolean, boolean, boolean])),
+  /** Alt 누른 채 놓기: dest에 바로가기를 만들어요 */
+  makeLinks: (paths: string[], dest: string) => call<string[]>("fs_make_links", { paths, dest }),
+  /** 주소 칸: %환경변수%·shell:이름을 풀고 [경로, 폴더인지] – 없으면 null */
+  resolve: (input: string) => call<[string, boolean] | null>("fs_resolve", { input }),
   /** 윈도우 탐색기로 넘기기(보안 해제) – dir을 열어 names를 골라 두고 우클릭 메뉴를 띄워요 */
   reveal: (dir: string, names: string[]) => (inApp ? call<null>("fs_reveal", { dir, names, popup: true }) : Promise.resolve(null)),
   /** roots가 비면 빠른 찾기 목록이 있는 모든 드라이브 */
@@ -417,6 +433,7 @@ export function fsErrorText(e: unknown): string {
   const s = String(e);
   if (s === "exists") return "같은 이름이 이미 있어요.";
   if (s === "bad_name") return "쓸 수 없는 이름이에요.";
+  if (s === "reserved_name") return "CON·PRN·AUX·NUL·COM1·LPT1 같은 이름은 윈도우가 쓰는 이름이라 쓸 수 없어요.";
   if (s === "not_found") return "폴더를 찾지 못했어요.";
   if (s === "denied") return "권한이 없어 할 수 없어요.";
   if (s === "into_self") return "폴더를 그 안으로 옮기거나 복사할 수 없어요.";

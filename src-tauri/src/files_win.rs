@@ -400,6 +400,14 @@ pub fn context_menu(hwnd_raw: isize, origin: (i32, i32), scale: f64, dir: &str, 
             let _ = DestroyMenu(menu);
             return Ok("newfolder".into());
         }
+        // "파일 위치 열기"(바로가기·찾기 결과): 윈도우 탐색기 창 대신 기록 안에서 그 폴더로(호환 B, 2026-10-20 사용자 1안)
+        let mut text = [0u16; 128];
+        let n = windows::Win32::UI::WindowsAndMessaging::GetMenuStringW(menu, cmd, Some(&mut text), windows::Win32::UI::WindowsAndMessaging::MF_BYCOMMAND);
+        let text = String::from_utf16_lossy(&text[..n.max(0) as usize]).replace('&', "");
+        if verb == "openfilelocation" || verb == "opencontaining" || verb == "opencontainingfolder" || text.contains("파일 위치 열기") || text.to_lowercase().contains("open file location") {
+            let _ = DestroyMenu(menu);
+            return Ok("openlocation".into());
+        }
         let dir_w = wide(dir);
         let info = CMINVOKECOMMANDINFOEX {
             cbSize: std::mem::size_of::<CMINVOKECOMMANDINFOEX>() as u32,
@@ -747,8 +755,44 @@ pub fn lnk_target(path: &str) -> Option<String> {
     }
 }
 
-/// 지금 Ctrl·Shift를 누르고 있는지(기록 창 안에 놓을 때 복사·옮기기 고르기)
-pub fn modifiers() -> (bool, bool) {
-    use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_CONTROL};
-    unsafe { (GetAsyncKeyState(VK_CONTROL.0 as i32) < 0, GetAsyncKeyState(VK_SHIFT.0 as i32) < 0) }
+/// 지금 Ctrl·Shift·Alt를 누르고 있는지(기록 창 안에 놓을 때 복사·옮기기·바로가기 고르기)
+pub fn modifiers() -> (bool, bool, bool) {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_CONTROL, VK_MENU};
+    unsafe { (GetAsyncKeyState(VK_CONTROL.0 as i32) < 0, GetAsyncKeyState(VK_SHIFT.0 as i32) < 0, GetAsyncKeyState(VK_MENU.0 as i32) < 0) }
+}
+
+/// 바로가기(.lnk) 만들기: target을 가리키는 바로가기를 at에 저장해요(Alt 누른 채 놓기)
+pub fn make_link(target: &str, at: &str) -> Result<(), String> {
+    use windows::Win32::System::Com::{CoCreateInstance, IPersistFile, CLSCTX_INPROC_SERVER};
+    use windows::Win32::UI::Shell::{IShellLinkW, ShellLink};
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        let link: IShellLinkW = CoCreateInstance(&ShellLink, None::<&windows::core::IUnknown>, CLSCTX_INPROC_SERVER).map_err(|e| format!("link:{e}"))?;
+        let t = wide(target);
+        link.SetPath(PCWSTR(t.as_ptr())).map_err(|e| format!("link:{e}"))?;
+        if let Some(dir) = std::path::Path::new(target).parent() {
+            let d = wide(&dir.to_string_lossy());
+            let _ = link.SetWorkingDirectory(PCWSTR(d.as_ptr()));
+        }
+        let pf: IPersistFile = link.cast().map_err(|e| format!("link:{e}"))?;
+        let a = wide(at);
+        pf.Save(PCWSTR(a.as_ptr()), true).map_err(|e| format!("link:{e}"))
+    }
+}
+
+/// 주소 칸의 shell:downloads 같은 이름 → 실제 폴더 경로
+pub fn shell_path(name: &str) -> Option<String> {
+    use windows::Win32::System::Com::{CoTaskMemFree, IBindCtx};
+    use windows::Win32::UI::Shell::{SHGetPathFromIDListW, SHParseDisplayName};
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        let w = wide(name);
+        let mut p: *mut ITEMIDLIST = std::ptr::null_mut();
+        SHParseDisplayName(PCWSTR(w.as_ptr()), None::<&IBindCtx>, &mut p, 0, None).ok()?;
+        let mut buf = [0u16; 260];
+        let ok = SHGetPathFromIDListW(p, &mut buf).as_bool();
+        CoTaskMemFree(Some(p as *const c_void));
+        let s = from_wide(&buf);
+        (ok && !s.is_empty()).then_some(s)
+    }
 }

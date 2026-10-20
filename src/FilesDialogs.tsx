@@ -184,6 +184,41 @@ export function TransferAsk({ items, op, dest, onYes, onNo }: { items: { name: s
   );
 }
 
+/** 예/아니요 작은 창(Enter = 예, Esc = 아니요) */
+export function AskDialog({ title, sub, yes, onYes, onNo }: { title: string; sub: string; yes: string; onYes: () => void; onNo: () => void }) {
+  const ok = useRef<HTMLButtonElement>(null);
+  // 이름 칸의 Enter로 열리면 같은 Enter가 단추를 누르지 않게 조금 뒤에 커서를 줘요
+  useEffect(() => {
+    const t = window.setTimeout(() => ok.current?.focus(), 150);
+    return () => window.clearTimeout(t);
+  }, []);
+  return (
+    <Overlay onClose={onNo} width={440}>
+      <div
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            onNo();
+          }
+        }}
+      >
+        <div className="dialog-head">
+          <span className="dialog-title">{title}</span>
+          <span className="fx-sub">{sub}</span>
+        </div>
+        <div className="dialog-foot fx-gap">
+          <button type="button" className="btn btn-ctrl" onClick={onNo}>
+            취소
+          </button>
+          <button type="button" ref={ok} className="btn-primary btn-ctrl" onClick={onYes}>
+            {yes}
+          </button>
+        </div>
+      </div>
+    </Overlay>
+  );
+}
+
 type RenameRow = FsEntry & { parentName: string; folder: string };
 
 /** 일괄 이름 바꾸기 (FreeCommander 창과 같은 구성, 시안 FilesRename.dc.html) */

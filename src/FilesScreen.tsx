@@ -6,7 +6,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, inApp } from "./api";
 import { FileIcon } from "./FileIcon";
-import { ConflictDialog, Decision, DeleteDialog, NameDialog, RenameDialog, TransferAsk } from "./FilesDialogs";
+import { AskDialog, ConflictDialog, Decision, DeleteDialog, NameDialog, RenameDialog, TransferAsk } from "./FilesDialogs";
 import {
   CLOCKWISE,
   EMPTY_FIND,
@@ -43,6 +43,10 @@ import {
   PC,
   PC_FOLD,
   isSpecial,
+  isLnk,
+  isReservedName,
+  shownName,
+  tidyName,
 } from "./files";
 import { Conflict, FastStatus, Found, MenuResult, Step, TreeDir, fsApi, fsErrorText, onFsChanged, onFsProgress } from "./filesApi";
 import { parseDate } from "./journal";
@@ -131,7 +135,10 @@ export default function FilesScreen() {
   /** 4창의 대상 창(바로 전에 있던 창) */
   const [prev, setPrev] = useState(1);
   const [editPath, setEditPath] = useState<{ pane: number; value: string } | null>(null);
-  const [inline, setInline] = useState<{ pane: number; path: string; value: string } | null>(null);
+  const [inline, setInline] = useState<{ pane: number; path: string; value: string; dir?: boolean } | null>(null);
+  // 예/아니요 묻는 작은 창(확장자 바꾸기·같은 이름·폴더 합치기 등)
+  const [ask, setAsk] = useState<{ title: string; sub: string; yes: string; resolve: (ok: boolean) => void } | null>(null);
+  const askYes = (title: string, sub: string, yes: string) => new Promise<boolean>((resolve) => setAsk({ title, sub, yes, resolve }));
   const [menu, setMenu] = useState<{ kind: "view" | "fav" | "tab"; pane: number; tab?: number; x?: number; y?: number } | null>(null);
   const [findOpen, setFindOpen] = useState(false);
   const [quickFind, setQuickFind] = useState("");
@@ -336,6 +343,8 @@ export default function FilesScreen() {
 
   const newTab = (pane: number, path: string) =>
     updPane(pane, (p) => ({ ...p, tabs: [...p.tabs, { path, pinned: false, id: tabSeq++ }], active: p.tabs.length }));
+  /** 뒤에 새 탭(가운데 단추로 폴더 누르기·여러 개 열기 – 윈도우처럼 지금 탭은 그대로) */
+  const newTabBg = (pane: number, path: string) => updPane(pane, (p) => ({ ...p, tabs: [...p.tabs, { path, pinned: false, id: tabSeq++ }] }));
 
   const closeTab = (pane: number, ti: number) =>
     updPane(pane, (p) => {
@@ -610,31 +619,70 @@ export default function FilesScreen() {
     if (items.length > 1) return openBatch(pane);
     const e = items[0];
     if (!e) return;
-    setInline({ pane, path: e.path, value: e.name });
+    setInline({ pane, path: e.path, value: shownName(e), dir: e.dir });
   };
 
-  const commitInline = async () => {
+  /** 이름 칸 마치기. then은 이름을 바꾼 뒤(또는 바꿀 것이 없을 때) 이어서 할 일(Tab = 다음 파일 이름 칸) */
+  const commitInline = async (then?: () => void) => {
     if (!inline) return;
     const it = inline;
     setInline(null);
-    if (it.value.trim() === baseName(it.path) || !it.value.trim()) return void (newDirRef.current = null);
-    try {
-      const to = await fsApi.rename(it.path, it.value.trim());
-      recordRename(it.path, to);
-      if (st && activeTab(st.panes[it.pane]).find) {
-        updPane(it.pane, (p) => ({
-          ...p,
-          tabs: p.tabs.map((t, i) => (i === p.active && t.find ? { ...t, find: { ...t.find, results: t.find.results.map((r) => (r.path === it.path ? { ...r, path: to, name: baseName(to) } : r)) } } : t)),
-        }));
-      } else {
-        await load(it.pane, listsRef.current[it.pane].path, true);
-      }
-      setSel(it.pane, { paths: new Set([to]), cursor: to, anchor: to });
-    } catch (e) {
-      flash(fsErrorText(e));
-      // 실패해도 이름 칸을 닫지 않고 고칠 수 있게(호환 A10)
-      setInline(it);
+    const ent = lists[it.pane]?.entries.find((x) => x.path === it.path);
+    const dir = it.dir ?? ent?.dir ?? false;
+    const lnk = isLnk({ name: baseName(it.path), dir });
+    // 윈도우처럼 앞뒤 칸·끝 점은 저절로 지워요(호환 B)
+    let name = tidyName(it.value);
+    if (name && lnk) name += ".lnk";
+    if (!name || name === baseName(it.path)) {
+      newDirRef.current = null;
+      return then?.();
     }
+    if (isReservedName(name)) {
+      flash(fsErrorText("reserved_name"));
+      return setInline(it);
+    }
+    // 확장자를 바꾸면 윈도우처럼 물어요(호환 B)
+    if (!dir && !lnk && extOf(name) !== extOf(baseName(it.path)) && !(await askYes("확장자를 바꿀까요?", "확장자를 바꾸면 파일을 못 쓰게 될 수도 있어요.", "바꾸기"))) return setInline(it);
+    const parent = parentOf(it.path) ?? "";
+    let to: string;
+    try {
+      to = await fsApi.rename(it.path, name);
+    } catch (e) {
+      if (String(e) !== "exists") {
+        flash(fsErrorText(e));
+        // 실패해도 이름 칸을 닫지 않고 고칠 수 있게(호환 A10)
+        return setInline(it);
+      }
+      // 이미 있는 이름(호환 B): 파일은 "이름 (2)"로 바꿀지, 폴더는 합칠지 물어요
+      const taken = new Set((lists[it.pane]?.entries ?? []).map((x) => x.name.toLowerCase()));
+      if (!dir) {
+        const alt = bothName(name, (n) => taken.has(n.toLowerCase()));
+        if (!(await askYes(`'${shownName({ name, dir })}'이(가) 이미 있어요`, `'${shownName({ name: alt, dir })}'(으)로 바꿀까요?`, "바꾸기"))) return setInline(it);
+        try {
+          to = await fsApi.rename(it.path, alt);
+        } catch (e2) {
+          flash(fsErrorText(e2));
+          return setInline(it);
+        }
+      } else {
+        if (!(await askYes("폴더를 합칠까요?", `'${name}' 폴더가 이미 있어요. 안의 것을 그 폴더로 옮겨요(같은 이름 파일은 건너뛰어요).`, "합치기"))) return setInline(it);
+        const sum = await fsApi.undo([{ k: "move", from: it.path, to: joinPath(parent, name) }]).catch((e3) => ({ done: 0, skipped: 0, errors: [["", String(e3)]] as [string, string][] }));
+        flash(sum.errors.length ? `합쳤어요 · 못 옮긴 것 ${sum.errors.length}개 – ${fsErrorText(sum.errors[0][1])}` : "폴더를 합쳤어요");
+        refreshAll();
+        return then?.();
+      }
+    }
+    recordRename(it.path, to);
+    if (st && activeTab(st.panes[it.pane]).find) {
+      updPane(it.pane, (p) => ({
+        ...p,
+        tabs: p.tabs.map((t, i) => (i === p.active && t.find ? { ...t, find: { ...t.find, results: t.find.results.map((r) => (r.path === it.path ? { ...r, path: to, name: baseName(to) } : r)) } } : t)),
+      }));
+    } else {
+      await load(it.pane, listsRef.current[it.pane].path, true);
+    }
+    setSel(it.pane, { paths: new Set([to]), cursor: to, anchor: to });
+    then?.();
   };
 
   const newFolder = async (pane: number) => {
@@ -648,7 +696,7 @@ export default function FilesScreen() {
       newDirRef.current = { path: p, h: recordMkdir(p) };
       await load(pane, t.path, true);
       setSel(pane, { paths: new Set([p]), cursor: p, anchor: p });
-      setInline({ pane, path: p, value: name });
+      setInline({ pane, path: p, value: name, dir: true });
     } catch (e) {
       flash(fsErrorText(e));
     }
@@ -661,7 +709,7 @@ export default function FilesScreen() {
       value: baseName(path),
       ok: async (v) => {
         setNameAsk(null);
-        const name = v.trim();
+        const name = tidyName(v);
         if (!name || name === baseName(path)) return;
         try {
           recordRename(path, await fsApi.rename(path, name));
@@ -678,7 +726,7 @@ export default function FilesScreen() {
       value: "새 폴더",
       ok: async (v) => {
         setNameAsk(null);
-        const name = v.trim();
+        const name = tidyName(v);
         if (!name) return;
         try {
           recordMkdir(await fsApi.mkdir(dir, name));
@@ -773,6 +821,14 @@ export default function FilesScreen() {
     }
   };
 
+  /** "파일 위치 열기": 바로가기면 가리키는 것의 폴더, 아니면 그 파일의 폴더를 이 창에 열고 골라 둬요(호환 B) */
+  const openLocation = async (pane: number, r: Row) => {
+    const target = isLnk(r) ? await fsApi.lnkTarget(r.path).catch(() => null) : r.path;
+    if (!target) return flash("바로가기가 가리키는 곳을 찾지 못했어요");
+    const folder = parentOf(target);
+    if (folder) go(pane, folder, target);
+  };
+
   const shellMenu = async (pane: number, e: React.MouseEvent | null, rowsForMenu: Row[]) => {
     if (!st) return;
     const t = activeTab(st.panes[pane]);
@@ -793,6 +849,7 @@ export default function FilesScreen() {
       if (r === "rename") startRename(pane);
       else if (r === "newfolder") void newFolder(pane);
       else if (r === "reveal") void revealRows(rowsForMenu);
+      else if (r === "openlocation" && rowsForMenu[0]) void openLocation(pane, rowsForMenu[0]);
       else if (r === "done" && before) {
         // 새로 생긴 것이 하나면 윈도우 탐색기처럼 바로 이름을 고치게 해요
         window.setTimeout(async () => {
@@ -803,7 +860,7 @@ export default function FilesScreen() {
           const p = added[0].path;
           await load(pane, dir, true);
           setSel(pane, { paths: new Set([p]), cursor: p, anchor: p });
-          setInline({ pane, path: p, value: added[0].name });
+          setInline({ pane, path: p, value: shownName(added[0]), dir: added[0].dir });
         }, 400);
       } else if (r === "done") window.setTimeout(refreshAll, 300);
     } catch (er) {
@@ -898,7 +955,7 @@ export default function FilesScreen() {
   // ---------- 키 ----------
   const keyRef = useRef<(e: KeyboardEvent) => void>(() => {});
   keyRef.current = (e: KeyboardEvent) => {
-    if (!st || conflict || del || renameRows || nameAsk || xfer) return;
+    if (!st || conflict || del || renameRows || nameAsk || xfer || ask) return;
     if (e.ctrlKey && !e.shiftKey && e.code === "KeyF") {
       // 2026-10-20 사용자: Ctrl+F = 상세 찾기 창(이름 칸에 커서)
       e.preventDefault();
@@ -938,9 +995,22 @@ export default function FilesScreen() {
     const handled = () => e.preventDefault();
     if (k === "F2") return handled(), startRename(pane);
     if (k === "F3" || (k === "Enter" && !ctrl && !e.altKey)) {
+      handled();
+      // 여러 개를 골랐으면 모두 열어요(호환 B) – 폴더는 뒤에 새 탭으로, 16개 넘으면 물어요
+      const many = s.paths.size > 1 ? rows.filter((x) => s.paths.has(x.path)) : [];
+      if (many.length > 1) {
+        void (async () => {
+          if (many.length > 15 && !(await askYes(`${many.length}개를 모두 열까요?`, "파일마다 프로그램이 하나씩 열려요.", "모두 열기"))) return;
+          for (const x of many) {
+            if (x.dir) newTabBg(pane, x.path);
+            else void fsApi.open(x.path).catch((er) => flash(fsErrorText(er)));
+          }
+        })();
+        return;
+      }
       const r = rows[idx];
       if (r) openEntry(pane, r);
-      return handled();
+      return;
     }
     if (k === "Enter" && ctrl) {
       const r = rows[idx];
@@ -971,6 +1041,17 @@ export default function FilesScreen() {
       return;
     }
     if (k === "F8" || k === "Delete") return handled(), askDelete(pane, e.shiftKey);
+    if (ctrl && !e.shiftKey && !e.altKey && e.code === "KeyD") return handled(), askDelete(pane, false);
+    // Alt+P·Alt+Shift+P: 미리 보기 칸(세부 정보도 미리 보기 칸에 함께 나와요)
+    if (e.altKey && !ctrl && e.code === "KeyP") return handled(), setSt({ ...st, preview: !st.preview });
+    // Ctrl+Tab·Ctrl+Shift+Tab: 이 창의 다음·앞 탭
+    if (ctrl && k === "Tab") {
+      handled();
+      const pp = st.panes[pane];
+      const n = pp.tabs.length;
+      if (n > 1) updPane(pane, (x) => ({ ...x, active: (x.active + (e.shiftKey ? n - 1 : 1)) % n }));
+      return;
+    }
     if (k === "Backspace") return handled(), up(pane);
     if (e.altKey && (k === "ArrowLeft" || k === "ArrowRight")) return handled(), stepHistory(pane, k === "ArrowLeft" ? -1 : 1);
     if (k === "Tab" && !ctrl) {
@@ -1001,6 +1082,17 @@ export default function FilesScreen() {
     if (ctrl && e.code === "KeyT") return handled(), newTab(pane, activeTab(st.panes[pane]).find ? home : activeTab(st.panes[pane]).path);
     if (ctrl && e.code === "KeyW") return handled(), closeTab(pane, st.panes[pane].active);
     if (ctrl && e.code === "KeyA") return handled(), setSel(pane, { paths: new Set(rows.map((r) => r.path)), cursor: s.cursor, anchor: s.anchor });
+    if (k === " " && ctrl) {
+      // Ctrl+Space: 커서 줄만 고르기·풀기(커서는 그대로, 호환 B)
+      handled();
+      const r = rows[idx < 0 ? 0 : idx];
+      if (!r) return;
+      const ps = new Set(s.paths.size ? s.paths : s.cursor ? [s.cursor] : []);
+      if (ps.has(r.path)) ps.delete(r.path);
+      else ps.add(r.path);
+      setSel(pane, { paths: ps, cursor: r.path, anchor: r.path });
+      return;
+    }
     if (k === " ") {
       handled();
       const at = idx < 0 ? 0 : idx;
@@ -1014,12 +1106,29 @@ export default function FilesScreen() {
       document.getElementById(`fx-row-${pane}-${Math.min(rows.length - 1, at + 1)}`)?.scrollIntoView({ block: "nearest" });
       return;
     }
-    if (k === "ArrowDown") return handled(), moveTo(idx + 1, e.shiftKey);
-    if (k === "ArrowUp") return handled(), moveTo(idx < 0 ? 0 : idx - 1, e.shiftKey);
-    if (k === "Home") return handled(), moveTo(0, e.shiftKey);
-    if (k === "End") return handled(), moveTo(rows.length - 1, e.shiftKey);
-    if (k === "PageDown") return handled(), moveTo(idx + 15, e.shiftKey);
-    if (k === "PageUp") return handled(), moveTo(idx - 15, e.shiftKey);
+    // Ctrl+화살표·Home·End·PageUp·PageDown: 고른 것은 그대로 두고 커서만(호환 B)
+    const step = (i: number) => (ctrl && !e.shiftKey ? cursorTo(i) : moveTo(i, e.shiftKey));
+    const cursorTo = (i: number) => {
+      if (!rows.length) return;
+      const n = Math.max(0, Math.min(rows.length - 1, i));
+      const ps = new Set(s.paths.size ? s.paths : s.cursor ? [s.cursor] : []);
+      setSel(pane, { paths: ps, cursor: rows[n].path, anchor: s.anchor });
+      document.getElementById(`fx-row-${pane}-${n}`)?.scrollIntoView({ block: "nearest" });
+    };
+    // 한 화면에 보이는 줄 수만큼(호환 B – 예전엔 15줄 고정)
+    const page = () => {
+      const list = document.querySelector<HTMLElement>(`[data-pane="${pane}"] .fx-list`);
+      const row = document.getElementById(`fx-row-${pane}-0`);
+      if (!list || !row || !row.offsetHeight) return 15;
+      const perRow = list.classList.contains("fx-grid") ? Math.max(1, Math.floor(list.clientWidth / (row.offsetWidth || 1))) : 1;
+      return Math.max(1, (Math.floor(list.clientHeight / row.offsetHeight) - 1) * perRow);
+    };
+    if (k === "ArrowDown") return handled(), step(idx + 1);
+    if (k === "ArrowUp") return handled(), step(idx < 0 ? 0 : idx - 1);
+    if (k === "Home") return handled(), step(0);
+    if (k === "End") return handled(), step(rows.length - 1);
+    if (k === "PageDown") return handled(), step((idx < 0 ? 0 : idx) + page());
+    if (k === "PageUp") return handled(), step((idx < 0 ? 0 : idx) - page());
     if (k === "Escape") {
       if (menu) return handled(), setMenu(null);
       if (filters[pane]) return handled(), setFilters((f) => f.map((x, i) => (i === pane ? "" : x)));
@@ -1308,6 +1417,7 @@ export default function FilesScreen() {
 
   // 윈도우 끌기(2026-10-20 사용자: 기록 → 윈도우 탐색기로 끌어 내기): 줄을 누른 채 6px 넘게 움직이면 시작
   const nativeDrag = useRef<{ x: number; y: number; paths: string[] } | null>(null);
+  const keepPick = useRef<{ pane: number; path: string } | null>(null);
   useEffect(() => {
     if (!inApp) return;
     const move = (e: MouseEvent) => {
@@ -1319,6 +1429,7 @@ export default function FilesScreen() {
       }
       if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) < 6) return;
       nativeDrag.current = null;
+      keepPick.current = null;
       void fsApi
         .startDrag(d.paths)
         .then((r) => r && window.setTimeout(() => refreshRef.current(), 300))
@@ -1354,6 +1465,15 @@ export default function FilesScreen() {
   const [extHover, setExtHover] = useState<{ pane: number | null; dir: string | null } | null>(null);
   const extRef = useRef<{ paths: string[] }>({ paths: [] });
   const dropAtRef = useRef<(paths: string[], x: number, y: number) => void>(() => {});
+  /** 끄는 동안 목록 위·아래 끝에 대면 그쪽으로 스크롤(호환 B) */
+  const dragScroll = (x: number, y: number) => {
+    const el = (document.elementFromPoint(x, y) as HTMLElement | null)?.closest<HTMLElement>(".fx-list, .fx-tree-body");
+    if (!el) return;
+    const rc = el.getBoundingClientRect();
+    const edge = 28;
+    if (y < rc.top + edge) el.scrollTop -= Math.ceil((rc.top + edge - y) / 2);
+    else if (y > rc.bottom - edge) el.scrollTop += Math.ceil((y - (rc.bottom - edge)) / 2);
+  };
   const hitAt = (x: number, y: number) => {
     const el = document.elementFromPoint(x, y) as HTMLElement | null;
     if (!el) return { pane: null, dir: null };
@@ -1380,7 +1500,17 @@ export default function FilesScreen() {
     if (!srcs.length || srcs.every((p) => parentOf(p) === dest)) return;
     const d = dest;
     // 놓을 때 Ctrl = 복사 · Shift = 옮기기, 아니면 같은 드라이브 옮기기·다른 드라이브 복사(호환 A7, 윈도우와 같게)
-    void fsApi.mods().then(([c, sh]) => {
+    void fsApi.mods().then(([c, sh, alt]) => {
+      // Alt(또는 Ctrl+Shift) 누른 채 놓기 = 바로가기 만들기(호환 B)
+      if (alt || (c && sh))
+        return void fsApi
+          .makeLinks(srcs, d)
+          .then((made) => {
+            flash(`바로 가기 ${made.length}개를 만들었어요`);
+            record({ label: `바로 가기 ${made.length}개`, undo: { steps: [{ k: "trash", paths: made }] }, redo: { steps: [] } });
+            refreshAll();
+          })
+          .catch((er) => flash(fsErrorText(er)));
       const op = c ? "copy" : sh ? "move" : driveOf(srcs[0]) === driveOf(d) ? "move" : "copy";
       void transfer(pane, op, srcs.map((path) => ({ path }) as Row), d);
     });
@@ -1398,6 +1528,7 @@ export default function FilesScreen() {
           const r = window.devicePixelRatio || 1;
           if (d.type === "enter") extRef.current.paths = d.paths;
           if (d.type === "enter" || d.type === "over") {
+            dragScroll(d.position.x / r, d.position.y / r);
             const h = hitAt(d.position.x / r, d.position.y / r);
             setExtHover((o) => (o && o.pane === h.pane && o.dir === h.dir ? o : h));
           } else if (d.type === "drop") {
@@ -1441,7 +1572,14 @@ export default function FilesScreen() {
         const a = rows.findIndex((x) => x.path === (s.anchor ?? s.cursor ?? r.path));
         const b = rows.indexOf(r);
         const [lo, hi] = a <= b ? [a, b] : [b, a];
-        setSel(pane, { paths: new Set(rows.slice(Math.max(0, lo), hi + 1).map((x) => x.path)), cursor: r.path, anchor: s.anchor ?? r.path });
+        const range = rows.slice(Math.max(0, lo), hi + 1).map((x) => x.path);
+        // Ctrl+Shift+클릭: 고른 것에 범위를 더해요(호환 B)
+        const paths = e.ctrlKey || e.metaKey ? new Set([...(s.paths.size ? s.paths : s.cursor ? [s.cursor] : []), ...range]) : new Set(range);
+        setSel(pane, { paths, cursor: r.path, anchor: s.anchor ?? r.path });
+      } else if (s.paths.size > 1 && s.paths.has(r.path)) {
+        // 여러 개 고른 줄을 다시 누르면 끌 수 있게 그대로 두고, 끌지 않고 떼면 그 줄 하나만(호환 B)
+        keepPick.current = { pane, path: r.path };
+        setSel(pane, { ...s, cursor: r.path });
       } else if (e.ctrlKey || e.metaKey) {
         const ps = new Set(s.paths);
         if (s.cursor && !ps.size) ps.add(s.cursor);
@@ -1483,6 +1621,18 @@ export default function FilesScreen() {
             e.stopPropagation();
             if (e.key === "Enter") void commitInline();
             if (e.key === "Escape") setInline(null);
+            if (e.key === "Tab") {
+              // Tab·Shift+Tab: 이름을 바꾸고 다음·앞 파일 이름 칸으로(호환 B)
+              e.preventDefault();
+              const i = rows.findIndex((x) => x.path === r.path);
+              const nx = rows[i + (e.shiftKey ? -1 : 1)];
+              void commitInline(() => {
+                if (!nx) return;
+                setSel(pane, { paths: new Set([nx.path]), cursor: nx.path, anchor: nx.path });
+                setInline({ pane, path: nx.path, value: shownName(nx), dir: nx.dir });
+                document.getElementById(`fx-row-${pane}-${i + (e.shiftKey ? -1 : 1)}`)?.scrollIntoView({ block: "nearest" });
+              });
+            }
           }}
           onBlur={() => void commitInline()}
           onClick={(e) => e.stopPropagation()}
@@ -1490,7 +1640,7 @@ export default function FilesScreen() {
         />
       ) : (
         <span className="fx-nm" title={r.name}>
-          {r.name}
+          {shownName(r)}
         </span>
       );
     // 보일 열: 이름은 늘, 크기·수정한 날·파일 형식은 설정에서 켜고 꺼요(2026-10-18 사용자). 찾기 결과는 폴더 열이 이름 다음에.
@@ -1549,7 +1699,11 @@ export default function FilesScreen() {
             stepHistory(pane, e.button === 3 ? -1 : 1);
           }
         }}
-        onDragOver={(e) => dragSrc.current && e.preventDefault()}
+        onDragOver={(e) => {
+          if (!dragSrc.current) return;
+          e.preventDefault();
+          dragScroll(e.clientX, e.clientY);
+        }}
         onDrop={(e) => dropTo(pane, e)}
       >
         <div className="fx-tabs">
@@ -1682,11 +1836,16 @@ export default function FilesScreen() {
               onKeyDown={async (e) => {
                 if (e.key === "Escape") setEditPath(null);
                 if (e.key === "Enter") {
+                  // %USERPROFILE%·shell:downloads 같은 이름도 받고, 파일 경로면 그 파일을 열어요(호환 B)
                   const v = cleanPath(editPath.value);
-                  if (await fsApi.isDir(v)) {
+                  const hit = await fsApi.resolve(v).catch(() => null);
+                  if (hit && hit[1]) {
                     setEditPath(null);
-                    go(pane, v);
-                  } else flash("그 폴더를 찾지 못했어요");
+                    go(pane, cleanPath(hit[0]));
+                  } else if (hit) {
+                    setEditPath(null);
+                    void fsApi.open(hit[0]).catch((er) => flash(fsErrorText(er)));
+                  } else flash("그 폴더·파일을 찾지 못했어요");
                 }
               }}
               onBlur={() => setEditPath(null)}
@@ -1882,12 +2041,25 @@ export default function FilesScreen() {
               // 앱에서는 윈도우 끌기를 써요(윈도우 탐색기·바탕 화면에 놓을 수 있게) – 화면 안 끌기는 미리 보기에서만
               draggable: !inline && !inApp,
               onMouseDown: (e: React.MouseEvent) => {
+                if (e.button === 1) return e.preventDefault(); // 가운데 단추 자동 스크롤 막기
                 if (e.button !== 0) return;
                 if (inApp && !inline && !e.shiftKey && !e.ctrlKey) {
                   const items = s.paths.has(r.path) ? rows.filter((x) => s.paths.has(x.path)) : [r];
                   nativeDrag.current = { x: e.clientX, y: e.clientY, paths: items.map((x) => x.path) };
                 }
                 pick(r, e);
+              },
+              onMouseUp: (e: React.MouseEvent) => {
+                const k = keepPick.current;
+                keepPick.current = null;
+                if (e.button === 0 && k && k.pane === pane && k.path === r.path) setSel(pane, { paths: new Set([r.path]), cursor: r.path, anchor: r.path });
+              },
+              // 가운데 단추로 폴더를 누르면 뒤에 새 탭(호환 B)
+              onAuxClick: (e: React.MouseEvent) => {
+                if (e.button !== 1) return;
+                e.preventDefault();
+                if (r.dir) newTabBg(pane, r.path);
+                else if (isLnk(r)) void fsApi.lnkTarget(r.path).then(async (tg) => tg && (await fsApi.isDir(tg)) && newTabBg(pane, tg)).catch(() => {});
               },
               onDoubleClick: () => openEntry(pane, r),
               onContextMenu: (e: React.MouseEvent) => rowCtx(r, e),
@@ -1919,7 +2091,7 @@ export default function FilesScreen() {
                     {r.locked && <LockBadge small />}
                   </span>
                   <span className="fx-gname" style={{ fontWeight: r.dir ? 600 : 400 }}>
-                    {inline && inline.path === r.path ? nameCell(r) : r.name}
+                    {inline && inline.path === r.path ? nameCell(r) : shownName(r)}
                   </span>
                 </div>
               );
@@ -1929,7 +2101,7 @@ export default function FilesScreen() {
                 <div key={r.path} className="fx-brow" {...common} title={r.name}>
                   <FileIcon name={r.name} path={r.path} dir={r.dir} size={16} rev={r.modified} />
                   <span className="fx-bn" style={{ fontWeight: r.dir ? 600 : 400 }}>
-                    {inline && inline.path === r.path ? nameCell(r) : r.name}
+                    {inline && inline.path === r.path ? nameCell(r) : shownName(r)}
                   </span>
                 </div>
               );
@@ -2409,6 +2581,21 @@ export default function FilesScreen() {
         <div
           className="fx-band"
           style={{ left: Math.min(band.x0, band.x1), top: Math.min(band.y0, band.y1), width: Math.abs(band.x1 - band.x0), height: Math.abs(band.y1 - band.y0) }}
+        />
+      )}
+      {ask && (
+        <AskDialog
+          title={ask.title}
+          sub={ask.sub}
+          yes={ask.yes}
+          onYes={() => {
+            ask.resolve(true);
+            setAsk(null);
+          }}
+          onNo={() => {
+            ask.resolve(false);
+            setAsk(null);
+          }}
         />
       )}
       {xfer && (

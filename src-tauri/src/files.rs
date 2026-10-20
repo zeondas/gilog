@@ -186,6 +186,13 @@ pub fn fs_is_dir(path: String) -> bool {
     Path::new(&path).is_dir()
 }
 
+/// 윈도우가 장치 이름으로 쓰는 이름(CON, PRN, AUX, NUL, COM1~9, LPT1~9) – 확장자가 붙어도 못 써요
+pub(crate) fn reserved_name(name: &str) -> bool {
+    let stem = name.split('.').next().unwrap_or("").trim_end().to_uppercase();
+    matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || ((stem.starts_with("COM") || stem.starts_with("LPT")) && stem.len() == 4 && matches!(stem.as_bytes()[3], b'1'..=b'9'))
+}
+
 fn check_name(name: &str) -> Result<(), String> {
     let bad = name.trim().is_empty()
         || name.chars().any(|c| matches!(c, '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|') || (c as u32) < 32)
@@ -195,6 +202,8 @@ fn check_name(name: &str) -> Result<(), String> {
         || name.ends_with(' ');
     if bad {
         Err("bad_name".into())
+    } else if reserved_name(name) {
+        Err("reserved_name".into())
     } else {
         Ok(())
     }
@@ -1006,17 +1015,90 @@ pub fn fs_lnk_target(path: String) -> Option<String> {
     }
 }
 
-/// 지금 누르고 있는 Ctrl·Shift(기록 창 안에 놓을 때)
+/// 지금 누르고 있는 Ctrl·Shift·Alt(기록 창 안에 놓을 때)
 #[tauri::command]
-pub fn fs_mods() -> (bool, bool) {
+pub fn fs_mods() -> (bool, bool, bool) {
     #[cfg(windows)]
     {
         crate::files_win::modifiers()
     }
     #[cfg(not(windows))]
     {
-        (false, false)
+        (false, false, false)
     }
+}
+
+/// Alt 누른 채 놓기: dest에 "이름 - 바로 가기.lnk"를 만들어요. 만든 경로들을 돌려줘요.
+#[tauri::command]
+pub fn fs_make_links(paths: Vec<String>, dest: String) -> Result<Vec<String>, String> {
+    let mut out = Vec::new();
+    for p in &paths {
+        let src = Path::new(p);
+        let stem = src.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| p.trim_end_matches(['\\', ':']).to_string());
+        let mut at = Path::new(&dest).join(format!("{stem} - 바로 가기.lnk"));
+        let mut n = 2;
+        while at.exists() {
+            at = Path::new(&dest).join(format!("{stem} - 바로 가기 ({n}).lnk"));
+            n += 1;
+        }
+        #[cfg(windows)]
+        crate::files_win::make_link(p, &at.to_string_lossy())?;
+        #[cfg(not(windows))]
+        return Err("windows_only".into());
+        #[allow(unreachable_code)]
+        out.push(at.to_string_lossy().into_owned());
+    }
+    Ok(out)
+}
+
+/// 주소 칸에 적은 것 → 실제 경로와 폴더인지. %USERPROFILE% 같은 환경 변수와 shell:downloads 같은 이름도 풀어요.
+#[tauri::command]
+pub fn fs_resolve(input: String) -> Option<(String, bool)> {
+    let p = expand_env(input.trim());
+    let p = if p.to_lowercase().starts_with("shell:") {
+        #[cfg(windows)]
+        {
+            crate::files_win::shell_path(&p)?
+        }
+        #[cfg(not(windows))]
+        {
+            return None;
+        }
+    } else {
+        p
+    };
+    let path = Path::new(&p);
+    path.exists().then(|| (p.clone(), path.is_dir()))
+}
+
+/// %이름% 을 환경 변수 값으로(없는 이름은 그대로)
+pub(crate) fn expand_env(s: &str) -> String {
+    let mut out = String::new();
+    let mut rest = s;
+    while let Some(i) = rest.find('%') {
+        out.push_str(&rest[..i]);
+        let after = &rest[i + 1..];
+        match after.find('%') {
+            Some(j) if j > 0 => {
+                let name = &after[..j];
+                match std::env::var(name) {
+                    Ok(v) => out.push_str(&v),
+                    Err(_) => {
+                        out.push('%');
+                        out.push_str(name);
+                        out.push('%');
+                    }
+                }
+                rest = &after[j + 1..];
+            }
+            _ => {
+                out.push('%');
+                rest = after;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
 }
 
 // ---------- 찾기 ----------
@@ -1532,6 +1614,31 @@ mod tests {
         ]);
         assert_eq!(r.done, 2);
         assert!(d.join("e/현장/사진/1.jpg").exists() && d.join("새 폴더").is_dir());
+    }
+
+    #[test]
+    fn merge_folders_by_rename() {
+        let d = tmp("merge");
+        fs::create_dir_all(d.join("가/속")).unwrap();
+        fs::write(d.join("가/속/1.txt"), "1").unwrap();
+        fs::write(d.join("가/겹침.txt"), "new").unwrap();
+        fs::create_dir_all(d.join("나/속")).unwrap();
+        fs::write(d.join("나/겹침.txt"), "old").unwrap();
+        let r = run_steps(&[Step::Move { from: d.join("가").to_string_lossy().into_owned(), to: d.join("나").to_string_lossy().into_owned() }]);
+        assert_eq!(r.errors.len(), 1); // 겹친 파일만 남아요
+        assert!(d.join("나/속/1.txt").exists());
+        assert_eq!(fs::read_to_string(d.join("나/겹침.txt")).unwrap(), "old");
+        assert!(d.join("가/겹침.txt").exists() && !d.join("가/속").exists());
+    }
+
+    #[test]
+    fn reserved_and_env() {
+        assert!(reserved_name("CON") && reserved_name("nul.txt") && reserved_name("com3.hwp") && reserved_name("LPT9"));
+        assert!(!reserved_name("CONTACT") && !reserved_name("COM10") && !reserved_name("공문.hwp") && !reserved_name("com0"));
+        assert_eq!(check_name("aux.txt").unwrap_err(), "reserved_name");
+        std::env::set_var("GILOG_T", "C:\\Users\\hun");
+        assert_eq!(expand_env("%GILOG_T%\\Downloads"), "C:\\Users\\hun\\Downloads");
+        assert_eq!(expand_env("100% 끝 %없는이름%"), "100% 끝 %없는이름%");
     }
 
     /// 실제 휴지통을 써요 – `cargo test -- --ignored trash_and_restore`로만
