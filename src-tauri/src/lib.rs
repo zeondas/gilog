@@ -783,6 +783,7 @@ pub fn run() {
             files::fs_mods,
             files::fs_make_links,
             files::fs_resolve,
+            files::fs_zip_extract,
             files::fs_delete,
             files::fs_open,
             files::fs_explorer,

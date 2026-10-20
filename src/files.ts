@@ -157,11 +157,26 @@ export function joinPath(dir: string, name: string): string {
   return dir.endsWith(s) ? dir + name : dir + s + name;
 }
 
-/** 위 폴더. 드라이브 맨 위(C:\, /)면 null */
+/** 네트워크 공유 맨 위(\\서버\공유) – UNC 경로가 아니면 null(호환 B) */
+export function uncRoot(path: string): string | null {
+  const m = /^\\\\[^\\]+\\[^\\]+/.exec(path);
+  return m ? m[0] : null;
+}
+
+/** zip 파일 안 경로인지("…\자료.zip\사진") – 읽기만 돼요(호환 B) */
+export const inZip = (path: string) => /\.zip\\/i.test(path);
+/** zip 파일이거나 그 안(새로 넣기·지우기·이름 바꾸기를 막을 곳) */
+export const zipOrIn = (path: string) => /\.zip(\\|$)/i.test(path);
+/** zip 파일 자체인지 */
+export const isZipFile = (e: { name: string; dir: boolean }) => !e.dir && /\.zip$/i.test(e.name);
+
+/** 위 폴더. 드라이브 맨 위(C:\, /)·공유 맨 위(\\서버\공유)면 null */
 export function parentOf(path: string): string | null {
   const s = sepOf(path);
   const t = path.length > 1 && path.endsWith(s) && !/^[A-Za-z]:\\$/.test(path) ? path.slice(0, -1) : path;
   if (/^[A-Za-z]:\\?$/.test(t) || t === "/") return null;
+  const unc = uncRoot(t);
+  if (unc && t.length <= unc.length) return null;
   const i = t.lastIndexOf(s);
   if (i < 0) return null;
   const up = t.slice(0, i);
@@ -173,8 +188,19 @@ export function parentOf(path: string): string | null {
 export function crumbsOf(path: string): { name: string; path: string }[] {
   if (isSpecial(path)) return [{ name: specialName(path), path }];
   const s = sepOf(path);
-  const parts = path.split(s).filter(Boolean);
   const out: { name: string; path: string }[] = [];
+  const unc = uncRoot(path);
+  if (unc) {
+    // 첫 조각은 \\서버\공유 하나(서버만으로는 들어갈 수 없어요)
+    out.push({ name: unc, path: unc });
+    let acc = unc;
+    for (const part of path.slice(unc.length).split("\\").filter(Boolean)) {
+      acc = acc + "\\" + part;
+      out.push({ name: part, path: acc });
+    }
+    return out;
+  }
+  const parts = path.split(s).filter(Boolean);
   let acc = s === "/" ? "/" : "";
   for (const part of parts) {
     if (s === "\\" && /^[A-Za-z]:$/.test(part)) {
@@ -195,7 +221,7 @@ export const baseName = (path: string) => {
 };
 
 /** 드라이브 이름(C:) – 드라이브 단추 고르기 */
-export const driveOf = (path: string) => (/^[A-Za-z]:/.test(path) ? path.slice(0, 2).toUpperCase() : "/");
+export const driveOf = (path: string) => (/^[A-Za-z]:/.test(path) ? path.slice(0, 2).toUpperCase() : (uncRoot(path)?.toLowerCase() ?? "/"));
 
 /** 경로 칸에 적은 글자를 다듬어요: 따옴표 빼기, C: → C:\, 끝 \ 빼기 */
 export function cleanPath(input: string): string {
