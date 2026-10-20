@@ -878,7 +878,7 @@ function DriveRow({ label, desc, list, drives, onSet }: { label: string; desc: s
   );
 }
 
-/** 빠른 찾기(2026-10-20 사용자): 도우미가 깔려 있으면 켜고 끄는 스위치, 없으면(설치 때 관리자 허용을 거절) [깔기] */
+/** 빠른 찾기(2026-10-20 사용자): 도우미가 설치돼 있으면 켜고 끄는 스위치, 없으면(설치 때 관리자 허용을 거절) [설치] */
 function FastRow({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
   const [f, setF] = useState<FastStatus | null | undefined>(undefined);
   const [busy, setBusy] = useState("");
@@ -888,7 +888,7 @@ function FastRow({ on, onChange }: { on: boolean; onChange: (v: boolean) => void
   if (f?.installed)
     return <Toggle label="빠른 찾기" desc={desc} k="에브리띵 everything 모든 드라이브" on={on} onChange={onChange} />;
   const install = async () => {
-    setBusy("까는 중…");
+    setBusy("설치하는 중…");
     try {
       await fsApi.fastSetup("install");
       setBusy("");
@@ -898,9 +898,9 @@ function FastRow({ on, onChange }: { on: boolean; onChange: (v: boolean) => void
     ask();
   };
   return (
-    <Row label="빠른 찾기" desc={busy || "모든 드라이브에서 이름을 바로 찾아요. 드라이브의 파일 목록을 미리 저장해 두는 방식이라 관리자 허용이 필요한데, 설치할 때 받지 못해 깔리지 않았어요. [깔기]를 누르면 한 번 더 물어요."} k="에브리띵 everything 모든 드라이브">
+    <Row label="빠른 찾기" desc={busy || "모든 드라이브에서 이름을 바로 찾아요. 드라이브의 파일 목록을 미리 저장해 두는 방식이라 관리자 허용이 필요한데, 설치할 때 받지 못해 설치되지 않았어요. [설치]를 누르면 한 번 더 물어요."} k="에브리띵 everything 모든 드라이브">
       <button type="button" className="btn btn-ctrl" disabled={f === undefined || !!busy && busy.endsWith("…")} onClick={() => void install()}>
-        깔기
+        설치
       </button>
     </Row>
   );
