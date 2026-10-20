@@ -1,5 +1,5 @@
 // 업무연락처 화면이에요. 시안 Contacts.dc.html과 사양서의 "업무연락처" 절을 따라요.
-import { KeyboardEvent, RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { KeyboardEvent, RefObject, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ExcelMenu } from "./ExcelMenu";
 import { ProjectImport, contactImports, contactRows, samePerson } from "./excel";
 import { DelIcon } from "./Icons";
@@ -1182,14 +1182,34 @@ export function MemoEditor({
   );
 }
 
-// ---------- 프로젝트 관리 창 ----------
+// ---------- 사업 관리 창 (2026-10-20 사용자: "프로젝트 관리" → "사업 관리") ----------
 
-const PJM_W = 960;
-const PJM_W_KEY = "contacts.projectDialogWidth";
-const clampW = (w: number) => Math.max(640, Math.min(Number.isFinite(w) ? w : PJM_W, window.innerWidth - 32));
+/** 열 폭(2026-10-20 사용자): 창을 열 때 가장 긴 사업명·축약 공사명에 맞추고, 열 제목 경계를 끌어 바꿔요. */
+const PJM_N = 56; // 연락처 열
+const PJM_MIN_NAME = 160;
+const PJM_MIN_SHORT = 96;
+/** 사업명·축약 열 밖의 폭: 창 테두리 2 + 몸통 좌우 40 + 줄 좌우(그룹 안 20+4) + 색 22 + 칸 사이 10×4 + 연락처 + 지우기 28 + 스크롤 막대 12 */
+const pjmFixed = (grouped: boolean) => 2 + 40 + (grouped ? 24 : 8) + 22 + 40 + PJM_N + 28 + 12;
+const pjmMaxW = () => window.innerWidth - 32;
+const PJM_MIN_W = 640;
+
+/** 가장 긴 사업명·축약 공사명 글자 폭(줄 글꼴 13px, 축약은 굵게) + 여유 */
+function fitCols(projects: Project[]): { name: number; short: number } {
+  const ctx = document.createElement("canvas").getContext("2d");
+  if (!ctx) return { name: 360, short: 220 };
+  const family = getComputedStyle(document.body).fontFamily;
+  const w = (xs: string[], weight: number) => {
+    ctx.font = `${weight} 13px ${family}`;
+    return Math.max(0, ...xs.filter(Boolean).map((x) => ctx.measureText(x).width));
+  };
+  return {
+    name: Math.max(PJM_MIN_NAME, Math.ceil(w(projects.map(pjFull), 400)) + 8),
+    short: Math.max(PJM_MIN_SHORT, Math.ceil(w(projects.map((p) => p.alias), 600)) + 8),
+  };
+}
 
 /** 창 왼쪽·오른쪽 가장자리 손잡이. 창은 가운데에 있으니 끈 만큼 양쪽이 같이 늘어요(손잡이가 마우스를 따라와요). */
-function EdgeGrip({ side, width, onWidth, onDone }: { side: "l" | "r"; width: number; onWidth: (w: number) => void; onDone: (w: number) => void }) {
+function EdgeGrip({ side, width, onWidth, onFit }: { side: "l" | "r"; width: number; onWidth: (w: number) => void; onFit: () => void }) {
   return (
     <div
       className={"pjm-grip pjm-grip-" + side}
@@ -1198,28 +1218,170 @@ function EdgeGrip({ side, width, onWidth, onDone }: { side: "l" | "r"; width: nu
         e.preventDefault();
         const x0 = e.clientX;
         const w0 = width;
-        let w = w0;
-        const move = (ev: MouseEvent) => {
-          const dx = (ev.clientX - x0) * (side === "r" ? 1 : -1);
-          w = clampW(w0 + dx * 2);
-          onWidth(w);
-        };
+        const move = (ev: MouseEvent) => onWidth(w0 + (ev.clientX - x0) * (side === "r" ? 1 : -1) * 2);
         const up = () => {
           window.removeEventListener("mousemove", move);
           window.removeEventListener("mouseup", up);
           document.body.classList.remove("ew-dragging");
-          onDone(w);
         };
         document.body.classList.add("ew-dragging");
         window.addEventListener("mousemove", move);
         window.addEventListener("mouseup", up);
       }}
-      onDoubleClick={() => {
-        onWidth(PJM_W);
-        onDone(PJM_W);
-      }}
-      title="끌어서 폭 바꾸기 · 두 번 누르면 처음 폭"
+      onDoubleClick={onFit}
+      title="끌어서 폭 바꾸기 · 두 번 누르면 가장 긴 이름에 맞춤"
     />
+  );
+}
+
+/** 열 제목 경계 손잡이: 끌면 그 열이 넓어지고 창도 같이 넓어져요. 두 번 누르면 가장 긴 이름에 맞춰요. */
+function ColGrip({ width, onWidth, onFit, label }: { width: number; onWidth: (w: number) => void; onFit: () => void; label: string }) {
+  return (
+    <span
+      className="pjm-colgrip"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={label + " 열 폭"}
+      title="끌어서 열 폭 바꾸기 · 두 번 누르면 가장 긴 이름에 맞춤"
+      onMouseDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const x0 = e.clientX;
+        const w0 = width;
+        // 창이 가운데라 열이 d 넓어지면 경계는 d/2만 움직여요 → 2배로 늘려 손잡이가 마우스를 따라와요.
+        const move = (ev: MouseEvent) => onWidth(w0 + (ev.clientX - x0) * 2);
+        const up = () => {
+          window.removeEventListener("mousemove", move);
+          window.removeEventListener("mouseup", up);
+          document.body.classList.remove("ew-dragging");
+        };
+        document.body.classList.add("ew-dragging");
+        window.addEventListener("mousemove", move);
+        window.addEventListener("mouseup", up);
+      }}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        onFit();
+      }}
+    />
+  );
+}
+
+/** 사업 줄 우클릭 메뉴: 수정 · 그룹 변경 ▸ · 지우기 */
+function PjMenu({
+  x,
+  y,
+  groups,
+  current,
+  onEdit,
+  onGroup,
+  onDelete,
+  onClose,
+}: {
+  x: number;
+  y: number;
+  groups: ProjectGroup[];
+  current: number | null;
+  onEdit: () => void;
+  onGroup: (name: string) => void;
+  onDelete: () => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const subBtn = useRef<HTMLButtonElement>(null);
+  const [sub, setSub] = useState(false);
+  const [pos, setPos] = useState({ x, y });
+  useLayoutEffect(() => {
+    const r = ref.current?.getBoundingClientRect();
+    if (!r) return;
+    setPos({ x: Math.min(x, window.innerWidth - r.width - 8), y: Math.min(y, window.innerHeight - r.height - 8) });
+  }, [x, y]);
+  useEffect(() => {
+    const down = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && onClose();
+    const key = (e: globalThis.KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        if (sub) {
+          setSub(false);
+          subBtn.current?.focus();
+        } else onClose();
+      }
+    };
+    document.addEventListener("mousedown", down);
+    window.addEventListener("keydown", key, true);
+    return () => {
+      document.removeEventListener("mousedown", down);
+      window.removeEventListener("keydown", key, true);
+    };
+  }, [onClose, sub]);
+  const pick = (f: () => void) => () => {
+    onClose();
+    f();
+  };
+  const opts: { id: number | null; name: string }[] = [...groups.map((g) => ({ id: g.id, name: g.name })), { id: null, name: "그룹 없음" }];
+  // 하위 메뉴가 화면 오른쪽에 걸리면 왼쪽으로 열어요.
+  const left = pos.x + 160 + 4 + 200 > window.innerWidth;
+  return (
+    <div ref={ref} className="dmenu pjm-menu" role="menu" style={{ position: "fixed", left: pos.x, top: pos.y }} onContextMenu={(e) => e.preventDefault()}>
+      <button type="button" role="menuitem" className="dmenu-item" autoFocus onMouseEnter={() => setSub(false)} onClick={pick(onEdit)}>
+        수정
+      </button>
+      <button
+        ref={subBtn}
+        type="button"
+        role="menuitem"
+        aria-haspopup="menu"
+        aria-expanded={sub}
+        className={"dmenu-item pjm-menu-sub" + (sub ? " on" : "")}
+        onMouseEnter={() => setSub(true)}
+        onClick={() => setSub(true)}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowRight" || e.key === "Enter") {
+            e.preventDefault();
+            setSub(true);
+            requestAnimationFrame(() => (ref.current?.querySelector(".pjm-submenu .dmenu-item:not(:disabled)") as HTMLElement | null)?.focus());
+          }
+        }}
+      >
+        그룹 변경
+        <svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9 6l6 6-6 6" />
+        </svg>
+      </button>
+      <div className="dmenu-sep" role="separator" />
+      <button type="button" role="menuitem" className="dmenu-item danger" onMouseEnter={() => setSub(false)} onClick={pick(onDelete)}>
+        지우기
+      </button>
+      {sub && (
+        <div className={"dmenu pjm-submenu" + (left ? " pjm-submenu-l" : "")} role="menu" aria-label="그룹 변경">
+          {opts.map((o) => (
+            <button
+              key={o.id ?? "none"}
+              type="button"
+              role="menuitemradio"
+              aria-checked={o.id === current}
+              className={"dmenu-item pjm-gopt" + (o.id === null ? " pjm-gnone" : "")}
+              disabled={o.id === current}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowLeft") {
+                  e.preventDefault();
+                  setSub(false);
+                  subBtn.current?.focus();
+                }
+              }}
+              onClick={pick(() => onGroup(o.id === null ? "" : o.name))}
+            >
+              <span className="pjm-gcheck" aria-hidden="true">
+                {o.id === current ? "✓" : ""}
+              </span>
+              {o.name}
+            </button>
+          ))}
+          {groups.length === 0 && <p className="dmenu-note">그룹은 위 그룹 칸에 이름을 적어 만들어요.</p>}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1244,12 +1406,11 @@ function ProjectDialog({
   const [groupMenu, setGroupMenu] = useState<{ id: number; x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState<number | null>(null);
   const [askGroup, setAskGroup] = useState<number | null>(null);
-  // 창 폭: 양옆 가장자리를 끌어 넓혀요(2026-10-19 사용자), 고른 폭은 기억해요.
-  const [pjmW, setPjmW] = useState(PJM_W);
-  useEffect(() => {
-    api.get(PJM_W_KEY).then((v) => v && setPjmW(clampW(Number(v))), () => {});
-  }, []);
-  const savePjmW = (w: number) => api.set(PJM_W_KEY, String(Math.round(w))).catch(() => {});
+  // 열 폭(2026-10-20 사용자): 열 때 가장 긴 사업명·축약 공사명에 맞추고, 창 폭 = 열 폭의 합이에요.
+  const [cols, setCols] = useState(() => fitCols(data.projects));
+  const [rowMenu, setRowMenu] = useState<{ id: number; x: number; y: number } | null>(null);
+  /** [그룹 추가]를 눌러 새 그룹 이름을 적는 중(2026-10-20 사용자: 처음 쓰는 사람도 그룹 만드는 곳을 알게) */
+  const [newGroup, setNewGroup] = useState(false);
   /** 방금 더한 프로젝트 이름(그 줄로 내려가요) */
   const [added, setAdded] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -1329,18 +1490,28 @@ function ProjectDialog({
   }, [added, data]);
 
   const groupName = (id: number | null) => groups.find((g) => g.id === id)?.name ?? "";
+  const fixed = pjmFixed(!flat);
+  const pjmW = Math.max(PJM_MIN_W, Math.min(fixed + cols.name + cols.short, pjmMaxW()));
+  /** 사업명 열: 창이 화면보다 넓어지지 않게 막아요 */
+  const setNameW = (w: number) => setCols((c) => ({ ...c, name: Math.round(Math.max(PJM_MIN_NAME, Math.min(w, pjmMaxW() - fixed - c.short))) }));
+  const setShortW = (w: number) => setCols((c) => ({ ...c, short: Math.round(Math.max(PJM_MIN_SHORT, Math.min(w, pjmMaxW() - fixed - PJM_MIN_NAME))) }));
+  const fit = () => setCols(fitCols(data.projects));
+  const colVars = { width: pjmW, "--pjm-short": cols.short + "px" } as React.CSSProperties;
 
   return (
     <div
       className="overlay"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="dialog mgr pjm" role="dialog" aria-modal="true" aria-label="프로젝트 관리" style={{ width: pjmW }}>
-        <EdgeGrip side="l" width={pjmW} onWidth={setPjmW} onDone={savePjmW} />
-        <EdgeGrip side="r" width={pjmW} onWidth={setPjmW} onDone={savePjmW} />
+      <div className="dialog mgr pjm" role="dialog" aria-modal="true" aria-label="사업 관리" style={colVars}>
+        <EdgeGrip side="l" width={pjmW} onWidth={(w) => setNameW(w - fixed - cols.short)} onFit={fit} />
+        <EdgeGrip side="r" width={pjmW} onWidth={(w) => setNameW(w - fixed - cols.short)} onFit={fit} />
         <div className="dialog-head pjm-head">
-          <span className="dialog-title">프로젝트 관리</span>
+          <span className="dialog-title">사업 관리</span>
           <span className="mgr-info">{data.projects.length}개</span>
+          <button type="button" className="btn pjm-grp-add" onClick={() => setNewGroup(true)} disabled={newGroup}>
+            <Plus size={14} /> 그룹 추가
+          </button>
           <input
             className="input pjm-find"
             aria-label="프로젝트 찾기"
@@ -1361,8 +1532,8 @@ function ProjectDialog({
           <input
             ref={inputRef}
             className={"input" + (badFull ? " invalid" : "")}
-            aria-label="공사명"
-            placeholder="공사명"
+            aria-label="사업명"
+            placeholder="사업명"
             title={badFull ? "같은 이름의 프로젝트가 있어요" : undefined}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -1393,17 +1564,37 @@ function ProjectDialog({
         </div>
         <div className="pjm-row pjm-th" role="row">
           <span>색</span>
-          <button type="button" className="pjm-sort" aria-pressed={sort === "name"} onClick={() => setSort("name")}>
-            공사명{sort === "name" ? " ↓" : ""}
-          </button>
-          <span>축약 공사명</span>
+          <span className="pjm-thc">
+            <button type="button" className="pjm-sort" aria-pressed={sort === "name"} onClick={() => setSort("name")}>
+              사업명{sort === "name" ? " ↓" : ""}
+            </button>
+            <ColGrip label="사업명" width={cols.name} onWidth={setNameW} onFit={fit} />
+          </span>
+          <span className="pjm-thc">
+            <span>축약 공사명</span>
+            <ColGrip label="축약 공사명" width={cols.short} onWidth={setShortW} onFit={fit} />
+          </span>
           <button type="button" className="pjm-sort pjm-n" aria-pressed={sort === "count"} onClick={() => setSort("count")}>
             {sort === "count" ? "↓ " : ""}연락처
           </button>
           <span />
-          <span />
         </div>
         <div className="dialog-body pjm-body" ref={bodyRef}>
+          {newGroup && (
+            <div className="pjm-grp-h pjm-grp-new">
+              <FoldArrow open />
+              <GroupRename
+                name=""
+                placeholder="새 그룹 이름"
+                taken={(n) => groups.some((g) => g.name === n)}
+                onDone={async (name) => {
+                  setNewGroup(false);
+                  if (name) await run(api.addProjectGroup(name));
+                }}
+              />
+              <span className="muted small pjm-grp-tip">Enter 만들기 · Esc 취소</span>
+            </div>
+          )}
           {data.projects.length === 0 && groups.length === 0 && <p className="muted small pjm-empty">아직 프로젝트가 없어요.</p>}
           {data.projects.length > 0 && nothing && !!ql && <p className="muted small pjm-empty">맞는 프로젝트가 없어요.</p>}
           {sections.map((sec) => {
@@ -1462,7 +1653,7 @@ function ProjectDialog({
                   )}
                 </div>
                 {open && sec.rows.map(rowOf)}
-                {open && sec.rows.length === 0 && <p className="muted small pjm-grp-empty">이 그룹에 프로젝트가 없어요.</p>}
+                {open && sec.rows.length === 0 && <p className="muted small pjm-grp-empty">비어 있어요 — 사업 줄을 우클릭해 "그룹 변경"으로 넣어요.</p>}
                 {groupMenu?.id === sec.id && (
                   <CtxMenu
                     x={groupMenu.x}
@@ -1491,7 +1682,17 @@ function ProjectDialog({
 
   function rowOf({ p, users }: { p: Project; users: number }) {
     return (
-      <div key={p.id} className={"pjm-row" + (editId === p.id ? " pjm-editing" : "")} data-pj={p.name} onDoubleClick={(e) => !(e.target as HTMLElement).closest("button, input, .ask-band") && setEditId(p.id)}>
+      <div key={p.id} className={"pjm-row" + (editId === p.id ? " pjm-editing" : "")} data-pj={p.name}
+        aria-selected={rowMenu?.id === p.id}
+        title={editId === p.id ? undefined : "우클릭: 수정 · 그룹 변경 · 지우기"}
+        onDoubleClick={(e) => !(e.target as HTMLElement).closest("button, input, .ask-band") && setEditId(p.id)}
+        onContextMenu={(e) => {
+          if (editId === p.id || (e.target as HTMLElement).closest("input, .ask-band")) return;
+          e.preventDefault();
+          setAsk(null);
+          setRowMenu({ id: p.id, x: e.clientX, y: e.clientY });
+        }}
+      >
         <ColorPick name={p.name} current={projectColor(p)} auto={p.color === null} onPick={(c) => run(api.setProjectColor(p.id, c))} />
         {editId === p.id ? (
           <div className={"pjm-edit" + (flat ? "" : " pjm-edit-g")}>
@@ -1524,14 +1725,21 @@ function ProjectDialog({
           </>
         )}
         <span className={"pjm-n" + (users ? "" : " pjm-zero")}>{users}명</span>
-        <button type="button" className="tool-box pjm-tool" aria-label={`${p.name} 고치기`} title="고치기(줄을 두 번 눌러도 돼요)" onClick={() => setEditId(p.id)}>
-          <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 20h4L19 9l-4-4L4 16z" />
-          </svg>
-        </button>
         <button type="button" className="tool-box pjm-tool" aria-label={`${p.name} 지우기`} title="이 프로젝트 지우기" onClick={() => setAsk(p.id)}>
           <DelIcon />
         </button>
+        {rowMenu?.id === p.id && (
+          <PjMenu
+            x={rowMenu.x}
+            y={rowMenu.y}
+            groups={groups}
+            current={p.group}
+            onClose={() => setRowMenu(null)}
+            onEdit={() => setEditId(p.id)}
+            onGroup={(g) => run(api.setProjectGroup(p.id, g))}
+            onDelete={() => setAsk(p.id)}
+          />
+        )}
         {ask === p.id && (
           <div className="ask-band ask-wide pjm-ask" role="alertdialog" aria-label="프로젝트 지우기 확인">
             <span>{users ? `${users}명에게 붙어 있어요. 지워도 사람은 남고 배지만 빠져요.` : "아무에게도 붙어 있지 않아요. 지울까요?"}</span>
@@ -1642,7 +1850,7 @@ function GroupInput({ groups, value, onChange, onEnter, autoFocus }: { groups: P
   );
 }
 
-function GroupRename({ name, taken, onDone }: { name: string; taken: (n: string) => boolean; onDone: (name: string | null) => void }) {
+function GroupRename({ name, placeholder, taken, onDone }: { name: string; placeholder?: string; taken: (n: string) => boolean; onDone: (name: string | null) => void }) {
   const [v, setV] = useState(name);
   const done = useRef(false);
   const t = v.trim();
@@ -1656,6 +1864,7 @@ function GroupRename({ name, taken, onDone }: { name: string; taken: (n: string)
     <input
       className={"input pjm-grp-in" + (bad ? " invalid" : "")}
       aria-label="그룹 이름"
+      placeholder={placeholder}
       autoFocus
       value={v}
       onFocus={(e) => e.currentTarget.select()}

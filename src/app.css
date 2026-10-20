@@ -10337,7 +10337,6 @@ select.input.fx-set-date { width: 190px; }
 .pjm-find {
   /* 찾기 칸 = 아래 줄 축약 공사명 칸 + 사이 + 추가 단추 폭(좌우 끝을 맞춰요) */
   width: calc(var(--pjm-short) + var(--space-2) + var(--pjm-btn));
-  margin-left: auto;
 }
 
 .mgr.pjm {
@@ -10366,7 +10365,7 @@ select.input.fx-set-date { width: 190px; }
 
 .pjm-row {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) 220px 56px 28px 28px;
+  grid-template-columns: 22px minmax(0, 1fr) var(--pjm-short) 56px 28px;
   align-items: center;
   column-gap: 10px;
   min-height: 32px;
@@ -10458,7 +10457,7 @@ select.input.fx-set-date { width: 190px; }
 
 .pjm-edit .mgr-names {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 220px;
+  grid-template-columns: minmax(0, 1fr) var(--pjm-short);
   gap: 10px;
 }
 
@@ -10608,7 +10607,7 @@ body.ew-dragging * {
 }
 
 .pjm-edit-g .mgr-names {
-  grid-template-columns: 150px minmax(0, 1fr) 220px;
+  grid-template-columns: 150px minmax(0, 1fr) var(--pjm-short);
 }
 
 .grp-in .input {
@@ -10861,3 +10860,116 @@ body.ew-dragging * {
 .fx-tree-list { padding-top: 8px; }
 .fx-tr { margin: 0 8px; }
 .fx-pane .fx-row1 { align-items: flex-start; padding: 8px 8px 5px; }
+
+/* ---------- 사업 관리 창 (2026-10-20 사용자): 열 제목 경계 끌기 · 줄 우클릭 메뉴 ---------- */
+.pjm-thc {
+  position: relative;
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  min-width: 0;
+}
+
+/* 경계 손잡이: 열 사이 10px 간격 가운데에 2px 선 */
+.pjm-colgrip {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  right: -10px;
+  width: 10px;
+  cursor: ew-resize;
+  z-index: 1;
+}
+
+.pjm-colgrip::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 4px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--line);
+}
+
+.pjm-colgrip:hover::after,
+body.ew-dragging .pjm-colgrip:active::after {
+  background: var(--accent);
+}
+
+.pjm-row[aria-selected="true"] {
+  background: var(--surface-band);
+}
+
+.pjm-menu {
+  min-width: 160px;
+}
+
+.pjm-menu-sub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pjm-menu-sub.on {
+  background: var(--surface-band);
+}
+
+.pjm-submenu {
+  position: absolute;
+  top: 36px;
+  left: calc(100% + 4px);
+  min-width: 180px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.pjm-submenu-l {
+  left: auto;
+  right: calc(100% + 4px);
+}
+
+.pjm-gopt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pjm-gopt:disabled {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.pjm-gcheck {
+  flex: none;
+  width: 14px;
+  color: var(--accent);
+}
+
+.pjm-gnone {
+  color: var(--muted);
+}
+
+.dmenu-sep {
+  height: 1px;
+  margin: 2px 6px;
+  background: var(--line-soft);
+}
+
+/* [그룹 추가](2026-10-20 사용자): 찾기 칸 왼쪽, 새 그룹 이름 줄은 목록 맨 위 */
+.pjm-grp-add {
+  margin-left: auto;
+}
+
+.pjm-grp-new {
+  gap: 8px;
+  background: var(--accent-wash);
+}
+
+.pjm-grp-new .grp-arrow {
+  margin-left: 4px;
+}
+
+.pjm-grp-tip {
+  margin-left: 4px;
+}
