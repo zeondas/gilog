@@ -96,18 +96,18 @@ export type ColKey =
 export const COLUMNS: { key: ColKey; label: string; w: number | null; fixed?: boolean }[] = [
   { key: "no", label: "연번", w: 52 },
   { key: "intake", label: "접수유형", w: 92 },
-  { key: "received", label: "접수일", w: 96, fixed: true },
+  { key: "received", label: "접수일", w: 96 },
   { key: "ctype", label: "민원유형", w: 84 },
   { key: "area", label: "지역", w: 64 },
   { key: "place", label: "위치", w: 116 },
   { key: "person", label: "민원인", w: 60 },
-  { key: "phone", label: "연락처", w: 120, fixed: true },
+  { key: "phone", label: "연락처", w: 120 },
   { key: "body", label: "내용", w: null },
   { key: "action", label: "조치내용", w: null },
-  { key: "due", label: "마감일", w: 130, fixed: true },
-  { key: "status", label: "상태", w: 72, fixed: true },
-  { key: "done", label: "조치완료일", w: 130, fixed: true },
-  { key: "memo", label: "메모", w: 40, fixed: true },
+  { key: "due", label: "마감일", w: 130 },
+  { key: "status", label: "상태", w: 72 },
+  { key: "done", label: "조치완료일", w: 130 },
+  { key: "memo", label: "메모", w: 40 },
 ];
 
 /** 내용·조치내용의 가장 좁은 폭 */
@@ -129,8 +129,8 @@ export function readWidths(raw: string | null): (number | null)[] {
       v.splice(12, 0, 130);
     }
     if (Array.isArray(v) && v.length === COLUMNS.length && v.every((x) => x === null || (typeof x === "number" && x >= COL_MIN))) {
-      // 폭이 정해진 열(날짜·연락처·상태·메모)은 저장값과 상관없이 늘 처음 폭이에요(2026-10-19 사용자).
-      return v.map((x, i) => (COLUMNS[i].fixed ? COLUMNS[i].w : x));
+      // 폭 고정 열은 2026-10-19 23:04 사용자가 되돌렸어요(고정이 오히려 불편) — 모든 열을 끌어 바꿀 수 있어요.
+      return v;
     }
   } catch {
     /* 처음 폭으로 */

@@ -172,7 +172,7 @@ export default function ContactsScreen() {
           />
         </label>
         <button type="button" className="btn btn-ctrl btn-text" onClick={() => setProjOpen(true)}>
-          프로젝트 관리
+          사업 관리
         </button>
         <ExcelMenu
           kind="contacts"
