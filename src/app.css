@@ -11002,20 +11002,47 @@ body.ew-dragging .pjm-colgrip:active::after {
 .fx-gcell[data-extdrop="1"],
 .fx-brow[data-extdrop="1"],
 .fx-tr[data-extdrop="1"] { background: var(--accent-tint); box-shadow: inset 0 0 0 1px var(--accent-line); }
-/* 예산현황 보내기 창 — 재원별 예산·공사별 재원(2026-10-20 사용자 1안) */
-.bss-amt { width: 160px; text-align: right; font-variant-numeric: tabular-nums; }
-.bss-amt.sm { width: 120px; }
-.bss-sum { font-size: 12px; color: var(--muted); padding: 0 2px; }
-.bss-sum b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
-.bss-ok { margin-left: 6px; color: var(--st-done-fg); font-weight: 600; }
-.bss-bad { margin-left: 6px; color: var(--danger); font-weight: 600; }
-.bss-row { height: auto; min-height: 34px; flex-direction: column; align-items: stretch; gap: 0; padding: 0; }
-.bss-row-main { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; }
-.bss-row.mixed { border-color: var(--accent-line); }
-.bss-item-kind { margin-left: 6px; font-size: 11px; color: var(--muted); font-weight: 500; }
-.bss-row-mix { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 0 10px 8px 10px; }
-.bss-mix { display: inline-flex; align-items: center; gap: 6px; }
-.bss-mix-lab { font-size: 12px; color: var(--muted); }
-.bss-mix-sum { font-size: 11.5px; color: var(--muted); }
-.bss-mix-sum.bad { color: var(--danger); }
-.bss-body { max-height: calc(100vh - 220px); overflow: auto; }
+
+/* 예산현황 설정 창 2안 — 두 단(2026-10-20 사용자): 왼쪽 사업 설정 · 오른쪽 재원 나누기 표 */
+.bss2 { max-width: calc(100vw - 80px); }
+.bss2-head { flex-direction: row; align-items: baseline; gap: 10px; }
+.bss2-head .bss-sub b { color: var(--ink); font-weight: 600; }
+.bss2-body { gap: 0; padding-bottom: 8px; max-height: calc(100vh - 200px); }
+.bss2-body.wide { display: grid; grid-template-columns: 300px 1fr; }
+.bss2-body.wide .bss2-l { padding: 4px 20px 8px 0; border-right: 1px solid var(--line-row); }
+.bss2-l { display: flex; flex-direction: column; gap: 14px; padding-top: 4px; }
+.bss2-r { display: flex; flex-direction: column; gap: 12px; padding: 4px 0 8px 20px; min-width: 0; }
+.bss2-ttl { display: flex; align-items: center; gap: 10px; min-height: 28px; font-size: 12px; font-weight: 700; }
+.bss2-years { height: 28px; padding: 2px; }
+.bss2-years button { height: 22px; padding: 0 8px; font-size: 12px; }
+.bss2-sum { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 400; color: var(--muted); white-space: nowrap; }
+.bss2-sum b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.bss2-fl { display: flex; flex-direction: column; gap: 6px; }
+.bss2-lab { font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.bss2-row { display: flex; align-items: center; gap: 8px; }
+.bss2-fl .bs-srcs { gap: 6px; }
+.bss2-hint { font-size: 11.5px; line-height: 16px; color: var(--muted); }
+.bss2-help { display: flex; flex-direction: column; gap: 3px; padding: 8px 10px; border: 1px dashed var(--line); border-radius: var(--radius-sm); font-size: 11.5px; line-height: 16px; color: var(--muted); }
+.bss2-help b { color: var(--ink); font-weight: 600; }
+.bss2-foot-note { font-size: 11.5px; color: var(--muted); align-self: center; margin-right: 4px; }
+/* 표 — 머리 글 왼쪽, 숫자 오른쪽 */
+.bss2-tb { border: 1px solid var(--line-soft); border-radius: var(--radius-sm); overflow: hidden; }
+.bss2-tr { display: grid; align-items: center; min-height: 34px; padding: 0 10px; column-gap: 8px; border-top: 1px solid var(--line-row); background: var(--surface); font-size: 13px; }
+.bss2-tr:first-child { border-top: 0; }
+.bss2-tr.h { min-height: 28px; background: var(--surface-side); font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.bss2-tr.h > span { text-align: left; }
+.bss2-tr.sum { background: var(--surface-side); font-weight: 600; }
+.bss2-tr.exp { min-height: 30px; border-top: 1px dashed var(--line-soft); font-size: 12px; }
+.bss2-tr > .n { text-align: right; font-variant-numeric: tabular-nums; justify-self: end; }
+.bss2-tr > .m, .bss2-tr .m { color: var(--muted); font-size: 12px; }
+.bss2-tr > .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.bss2-tr .bad { color: var(--danger); font-weight: 600; }
+.bss2-th { position: relative; }
+.bss2-tb .bd-grip { right: -9px; }
+.bss2-kind { margin-left: 6px; font-size: 11px; color: var(--muted); font-weight: 500; }
+.bss2-def { font-size: 11px; color: var(--muted); font-weight: 400; }
+.bss2-amt { width: 100%; max-width: 160px; text-align: right; font-variant-numeric: tabular-nums; }
+.bss2-amt.bad { background: var(--danger-wash); }
+.bss2-amt::placeholder { color: var(--line); }
+.bss2-ok { color: var(--st-done-fg); font-weight: 700; }
+.bss2-badtag { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 5px; background: var(--danger-wash); color: var(--danger); font-size: 11px; font-weight: 600; white-space: nowrap; }

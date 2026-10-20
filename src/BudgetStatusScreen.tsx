@@ -863,9 +863,9 @@ export default function BudgetStatusScreen() {
         const yAt = ys.includes(year) ? year : ys[ys.length - 1];
         const target: SendTarget = {
           name: send,
-          project: (byYear[yAt] ?? []).find((x) => x.name === send) ?? null,
           years: ys,
           year: yAt,
+          byYear,
           parents: all.filter((x) => !x.carry && setups[x.name]?.sent && x.name !== send).map((x) => ({ name: x.name, setup: setups[x.name] })),
           carries: all.filter((x) => x.carry && x.name !== send),
         };
