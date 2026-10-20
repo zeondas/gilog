@@ -10995,3 +10995,10 @@ body.ew-dragging .pjm-colgrip:active::after {
 .tb5 .tb-seg-s > button { flex: 1 1 0; min-width: 0; padding: 0; }
 .tb5 .tb-hole-pop { flex: none; width: 80px; }  /* 예산현황: 집행현황 "사업 추가" 자리 */
 .tb5 .tb-hole-xl { flex: none; width: 76px; }   /* 민원처리: 다른 화면 "엑셀" 자리 */
+
+/* 윈도우에서 끌어온 파일을 놓을 자리(2026-10-20): 창이면 강조색 테두리 안쪽 선, 폴더 줄·트리 줄이면 연한 강조 바탕 */
+.fx-pane[data-extdrop="1"] { box-shadow: inset 0 0 0 2px var(--accent); }
+.fx-frow[data-extdrop="1"],
+.fx-gcell[data-extdrop="1"],
+.fx-brow[data-extdrop="1"],
+.fx-tr[data-extdrop="1"] { background: var(--accent-tint); box-shadow: inset 0 0 0 1px var(--accent-line); }

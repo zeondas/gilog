@@ -321,10 +321,116 @@ fn plan(sources: &[PathBuf], dest: &Path) -> Vec<(PathBuf, PathBuf)> {
     }
     for s in sources {
         if let Some(name) = s.file_name() {
-            walk(s, &dest.join(name), &mut out);
+            // 원본이 이미 이 폴더에 있으면(같은 폴더에 붙여 넣기) 윈도우처럼 "이름 - 복사본"으로 만들어요.
+            let to = dest.join(name);
+            let to = if s.parent() == Some(dest) { copy_name(&to) } else { to };
+            walk(s, &to, &mut out);
         }
     }
     out
+}
+
+/// "이름 - 복사본.확장자", 있으면 "이름 - 복사본 (2).확장자" … (폴더는 이름 전체)
+pub(crate) fn copy_name(p: &Path) -> PathBuf {
+    let dir = p.parent().unwrap_or(Path::new(""));
+    let name = p.file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+    let (stem, ext) = match (p.is_dir(), name.rfind('.')) {
+        (false, Some(i)) if i > 0 => (name[..i].to_string(), name[i..].to_string()),
+        _ => (name.clone(), String::new()),
+    };
+    let first = dir.join(format!("{stem} - 복사본{ext}"));
+    if !first.exists() {
+        return first;
+    }
+    let mut n = 2;
+    loop {
+        let c = dir.join(format!("{stem} - 복사본 ({n}){ext}"));
+        if !c.exists() {
+            return c;
+        }
+        n += 1;
+    }
+}
+
+/// 윈도우 클립보드 파일 목록(DROPFILES) 바이트: 머리 20바이트(pFiles=20, pt, fNC, fWide=1) + 넓은 글자 경로들, 끝은 0 두 번.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub(crate) fn drop_files_bytes(paths: &[String]) -> Vec<u8> {
+    let mut b: Vec<u8> = Vec::new();
+    for v in [20i32, 0, 0, 0, 1] {
+        b.extend(v.to_le_bytes());
+    }
+    for p in paths {
+        for w in p.encode_utf16() {
+            b.extend(w.to_le_bytes());
+        }
+        b.extend(0u16.to_le_bytes());
+    }
+    b.extend(0u16.to_le_bytes());
+    b
+}
+
+/// DROPFILES 바이트 → 경로들(넓은 글자·좁은 글자 둘 다)
+#[cfg_attr(not(windows), allow(dead_code))]
+pub(crate) fn parse_drop_files(b: &[u8]) -> Vec<String> {
+    if b.len() < 20 {
+        return vec![];
+    }
+    let off = u32::from_le_bytes([b[0], b[1], b[2], b[3]]) as usize;
+    let wide = i32::from_le_bytes([b[16], b[17], b[18], b[19]]) != 0;
+    let mut out = Vec::new();
+    if off >= b.len() {
+        return out;
+    }
+    if wide {
+        let ws: Vec<u16> = b[off..].chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
+        for part in ws.split(|&w| w == 0) {
+            if part.is_empty() {
+                break;
+            }
+            out.push(String::from_utf16_lossy(part));
+        }
+    } else {
+        for part in b[off..].split(|&c| c == 0) {
+            if part.is_empty() {
+                break;
+            }
+            out.push(String::from_utf8_lossy(part).into_owned());
+        }
+    }
+    out
+}
+
+#[derive(Serialize)]
+pub struct Clip {
+    pub paths: Vec<String>,
+    pub cut: bool,
+}
+
+/// Ctrl+C·X: 파일을 윈도우 클립보드에(빈 목록이면 비우기)
+#[tauri::command]
+pub fn fs_clip_set(paths: Vec<String>, cut: bool) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        crate::files_win::clip_set(&paths, cut)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (paths, cut);
+        Err("windows_only".into())
+    }
+}
+
+/// Ctrl+V: 윈도우 클립보드의 파일 목록
+#[tauri::command]
+pub fn fs_clip_get() -> Result<Clip, String> {
+    #[cfg(windows)]
+    {
+        crate::files_win::clip_get().map(|(paths, cut)| Clip { paths, cut })
+    }
+    #[cfg(not(windows))]
+    {
+        Err("windows_only".into())
+    }
 }
 
 /// 대상에 같은 이름의 파일이 이미 있는 것들. 원본과 대상이 같은 파일이면(같은 폴더로 복사) 겹침이에요.
@@ -915,7 +1021,26 @@ mod tests {
         fs::write(d.join("f.txt"), "1").unwrap();
         let s = transfer(false, &[d.join("f.txt")], &d, &HashMap::new(), &|_, _, _| {}).unwrap();
         assert_eq!(s.done, 1);
-        assert!(d.join("f (2).txt").exists());
+        assert!(d.join("f - 복사본.txt").exists());
+        let s = transfer(false, &[d.join("f.txt")], &d, &HashMap::new(), &|_, _, _| {}).unwrap();
+        assert_eq!(s.done, 1);
+        assert!(d.join("f - 복사본 (2).txt").exists());
+        // 폴더도 통째로 "폴더 - 복사본"
+        fs::create_dir_all(d.join("사진.2026")).unwrap();
+        fs::write(d.join("사진.2026/a.jpg"), "a").unwrap();
+        assert!(conflicts(&[d.join("사진.2026")], &d).is_empty());
+        transfer(false, &[d.join("사진.2026")], &d, &HashMap::new(), &|_, _, _| {}).unwrap();
+        assert!(d.join("사진.2026 - 복사본/a.jpg").exists());
+    }
+
+    #[test]
+    fn drop_files_round_trip() {
+        let ps = vec!["C:\\민원\\a.pptx".to_string(), "D:\\사진 1.jpg".to_string()];
+        let b = drop_files_bytes(&ps);
+        assert_eq!(&b[0..4], &20u32.to_le_bytes());
+        assert_eq!(parse_drop_files(&b), ps);
+        assert!(parse_drop_files(&drop_files_bytes(&[])).is_empty());
+        assert!(parse_drop_files(&[1, 2]).is_empty());
     }
 
     #[test]

@@ -4,7 +4,7 @@
 // - 우클릭(파일·폴더·빈 곳)은 윈도우 우클릭 메뉴 그대로(2안), 탭 우클릭만 기록 메뉴.
 // - 상태(탭·열 폭·정렬·보기·트리·즐겨찾기·찾기 조건·일괄 이름 바꾸기 설정)는 암호화 파일 kv "files.state".
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api } from "./api";
+import { api, inApp } from "./api";
 import { FileIcon } from "./FileIcon";
 import { ConflictDialog, Decision, DeleteDialog, NameDialog, RenameDialog } from "./FilesDialogs";
 import {
@@ -375,33 +375,85 @@ export default function FilesScreen() {
     } else setConflict({ ...conflict, i: to, dec });
   };
 
-  const transfer = async (pane: number, op: "copy" | "move", items?: Row[], destDir?: string) => {
-    if (!st) return;
+  const transfer = async (pane: number, op: "copy" | "move", items?: Row[], destDir?: string): Promise<boolean> => {
+    if (!st) return false;
     const src = items ?? selected(pane);
-    if (!src.length) return;
+    if (!src.length) return false;
     const dest = destDir ?? (() => {
       const tp = st.panes[targetOf(pane)];
       const t = activeTab(tp);
       return t.find ? "" : t.path;
     })();
-    if (!dest) return flash("대상 창이 찾기 결과예요. 폴더를 연 창으로 보내 주세요.");
-    if (isSpecial(dest)) return flash("대상 창이 내 PC·홈이에요. 폴더를 연 창으로 보내 주세요.");
+    if (!dest) return flash("대상 창이 찾기 결과예요. 폴더를 연 창으로 보내 주세요."), false;
+    if (isSpecial(dest)) return flash("대상 창이 내 PC·즐겨찾기예요. 폴더를 연 창으로 보내 주세요."), false;
     const sources = src.map((e) => e.path);
     try {
       const list = await fsApi.conflicts(sources, dest);
       const dec = await askConflicts(list, op);
-      if (!dec) return;
+      if (!dec) return false;
       setBusy({ done: 0, total: sources.length, name: "" });
       const sum = await fsApi.transfer(op, sources, dest, dec);
       setBusy(null);
       const verb = op === "copy" ? "복사" : "옮기기";
       flash(sum.errors.length ? `${verb} ${sum.done}개 · 못 한 것 ${sum.errors.length}개 — ${fsErrorText(sum.errors[0][1])}` : `${verb} ${sum.done}개${sum.skipped ? ` · 건너뜀 ${sum.skipped}개` : ""}`);
+      refreshAll();
+      return !sum.errors.length;
     } catch (e) {
       setBusy(null);
       flash(fsErrorText(e));
     }
     refreshAll();
+    return false;
   };
+
+  // ---------- 클립보드(Ctrl+C·X·V) — 윈도우 클립보드와 같이 써요 ----------
+  const [cut, setCut] = useState<Set<string>>(new Set());
+  const clipPut = async (pane: number, isCut: boolean) => {
+    if (!st) return;
+    const t = activeTab(st.panes[pane]);
+    if (!t.find && t.path === PC) return flash("드라이브는 복사할 수 없어요.");
+    const items = selected(pane);
+    if (!items.length) return;
+    const paths = items.map((r) => r.path);
+    try {
+      await fsApi.clipSet(paths, isCut);
+      setCut(isCut ? new Set(paths) : new Set());
+      flash(`${paths.length}개 ${isCut ? "잘라냈어요" : "복사했어요"}`);
+    } catch (e) {
+      flash(fsErrorText(e));
+    }
+  };
+  const clipPaste = async (pane: number) => {
+    if (!st) return;
+    const t = activeTab(st.panes[pane]);
+    if (t.find || isSpecial(t.path)) return flash("폴더를 연 창에서 붙여 주세요.");
+    let c: { paths: string[]; cut: boolean };
+    try {
+      c = await fsApi.clipGet();
+    } catch (e) {
+      return flash(fsErrorText(e));
+    }
+    if (!c.paths.length) return flash("붙여 넣을 파일이 없어요.");
+    const ok = await transfer(pane, c.cut ? "move" : "copy", c.paths.map((path) => ({ path }) as Row), t.path);
+    // 잘라낸 것을 다 옮겼으면 윈도우처럼 클립보드를 비워요(한 번만 붙여요).
+    if (ok && c.cut) {
+      setCut(new Set());
+      void fsApi.clipSet([], false).catch(() => {});
+    }
+  };
+  // 다른 프로그램에서 복사·잘라내기를 했을 수 있어 창으로 돌아올 때 흐린 표시를 맞춰요.
+  useEffect(() => {
+    const sync = () =>
+      void fsApi
+        .clipGet()
+        .then((c) => setCut((old) => {
+          const next = c.cut ? new Set(c.paths) : new Set<string>();
+          return next.size === old.size && [...next].every((p) => old.has(p)) ? old : next;
+        }))
+        .catch(() => {});
+    window.addEventListener("focus", sync);
+    return () => window.removeEventListener("focus", sync);
+  }, []);
 
   const refreshAll = () => listsRef.current.forEach((l, i) => l.path && void load(i, l.path, true));
 
@@ -702,6 +754,8 @@ export default function FilesScreen() {
       return handled();
     }
     if (ctrl && e.shiftKey && e.code === "KeyC") return handled(), copyPath(pane);
+    if (ctrl && !e.shiftKey && !e.altKey && (e.code === "KeyC" || e.code === "KeyX")) return handled(), void clipPut(pane, e.code === "KeyX");
+    if (ctrl && !e.shiftKey && !e.altKey && e.code === "KeyV") return handled(), void clipPaste(pane);
     if (ctrl && !e.shiftKey && e.code === "KeyE") {
       const t = activeTab(st.panes[pane]);
       const r = rows[idx];
@@ -981,6 +1035,68 @@ export default function FilesScreen() {
     void transfer(src.pane, op, src.rows, dest);
   };
 
+  // ---------- 윈도우(탐색기·바탕 화면)에서 끌어온 파일 놓기 (2026-10-20 사용자) ----------
+  // 앱 틀이 끌어다 놓기를 먼저 받아 파일 위치(paths)와 마우스 자리를 알려 줘요. 놓은 자리가 폴더 줄·트리 줄이면 그 폴더,
+  // 아니면 그 창이 연 폴더로. 같은 드라이브면 옮기기·다른 드라이브면 복사(윈도우 탐색기와 같게).
+  const [extHover, setExtHover] = useState<{ pane: number | null; dir: string | null } | null>(null);
+  const extRef = useRef<{ paths: string[] }>({ paths: [] });
+  const dropAtRef = useRef<(paths: string[], x: number, y: number) => void>(() => {});
+  const hitAt = (x: number, y: number) => {
+    const el = document.elementFromPoint(x, y) as HTMLElement | null;
+    if (!el) return { pane: null, dir: null };
+    const tree = el.closest<HTMLElement>("[data-tree-dir]");
+    if (tree) return { pane: null, dir: tree.dataset.treeDir || null };
+    const paneEl = el.closest<HTMLElement>("[data-pane]");
+    const pane = paneEl ? Number(paneEl.dataset.pane) : null;
+    const row = el.closest<HTMLElement>("[data-dir]");
+    return { pane, dir: row?.dataset.dir || null };
+  };
+  dropAtRef.current = (paths: string[], x: number, y: number) => {
+    if (!st || !paths.length) return;
+    const hit = hitAt(x, y);
+    let dest = hit.dir;
+    const pane = hit.pane ?? st.active;
+    if (!dest) {
+      if (hit.pane === null) return;
+      const t = activeTab(st.panes[hit.pane]);
+      if (t.find) return flash("찾기 결과에는 놓을 수 없어요. 폴더를 연 창에 놓아 주세요.");
+      dest = t.path;
+    }
+    if (!dest || isSpecial(dest)) return flash("폴더를 연 창에 놓아 주세요.");
+    const srcs = paths.filter((p) => p !== dest);
+    if (!srcs.length || srcs.every((p) => parentOf(p) === dest)) return;
+    const op = driveOf(srcs[0]) === driveOf(dest) ? "move" : "copy";
+    void transfer(pane, op, srcs.map((path) => ({ path }) as Row), dest);
+  };
+  useEffect(() => {
+    // 브라우저 미리 보기 시험용: window.__fxExtDrop(경로들, x, y)
+    if (!inApp) (window as unknown as { __fxExtDrop?: unknown }).__fxExtDrop = (paths: string[], x: number, y: number) => dropAtRef.current(paths, x, y);
+    if (!inApp) return;
+    let off: (() => void) | undefined;
+    let dead = false;
+    void import("@tauri-apps/api/webview").then(({ getCurrentWebview }) =>
+      getCurrentWebview()
+        .onDragDropEvent((ev) => {
+          const d = ev.payload;
+          const r = window.devicePixelRatio || 1;
+          if (d.type === "enter") extRef.current.paths = d.paths;
+          if (d.type === "enter" || d.type === "over") {
+            const h = hitAt(d.position.x / r, d.position.y / r);
+            setExtHover((o) => (o && o.pane === h.pane && o.dir === h.dir ? o : h));
+          } else if (d.type === "drop") {
+            setExtHover(null);
+            dropAtRef.current(d.paths, d.position.x / r, d.position.y / r);
+          } else setExtHover(null);
+        })
+        .then((u) => (dead ? u() : (off = u))),
+    );
+    return () => {
+      dead = true;
+      off?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   if (!st) return <div className="fx-root" />;
 
   const fmt = cfg.dateFmt;
@@ -1093,6 +1209,8 @@ export default function FilesScreen() {
       <section
         key={pane}
         className="fx-pane"
+        data-pane={pane}
+        data-extdrop={extHover && extHover.pane === pane && !extHover.dir ? "1" : "0"}
         data-on={on ? "1" : "0"}
         data-target={isTarget && st.four ? "1" : "0"}
         data-rest={!on && !isTarget ? "1" : "0"}
@@ -1416,7 +1534,9 @@ export default function FilesScreen() {
               id: `fx-row-${pane}-${i}`,
               "data-sel": isSel ? "1" : "0",
               "data-cur": s.cursor === r.path && on ? "1" : "0",
-              "data-hid": r.hidden ? "1" : "0",
+              "data-hid": r.hidden || cut.has(r.path) ? "1" : "0",
+              "data-dir": r.dir ? r.path : undefined,
+              "data-extdrop": r.dir && extHover?.dir === r.path ? "1" : "0",
               draggable: !inline,
               onMouseDown: (e: React.MouseEvent) => e.button === 0 && pick(r, e),
               onDoubleClick: () => openEntry(pane, r),
@@ -1719,6 +1839,8 @@ export default function FilesScreen() {
                         onMouseDown={(e) => e.detail > 1 && e.preventDefault()}
                         onClick={() => go(st.active, r.path)}
                         onDoubleClick={() => toggleTreeRow(r)}
+                        data-tree-dir={r.special ? undefined : r.path}
+                        data-extdrop={!r.special && extHover?.dir === r.path ? "1" : "0"}
                         onDragOver={(e) => dragSrc.current && e.preventDefault()}
                         onDrop={(e) => dropTo(st.active, e, r.path)}
                         onContextMenu={(e) => {
@@ -1865,6 +1987,7 @@ export default function FilesScreen() {
         <span className="fx-fk"><b>F6</b> 옮기기 → 대상</span>
         <span className="fx-fk"><b>F7</b> 새 폴더</span>
         <span className="fx-fk"><b>F8</b> 지우기</span>
+        <span className="fx-fk"><b>Ctrl+C·X·V</b> 복사·잘라내기·붙이기</span>
         <span className="fx-fk"><b>Space</b> 고르기</span>
         <span className="fx-fk"><b>Tab</b> {st.four ? "다음 창" : "반대 창"}</span>
         {st.four && <span className="fx-fk"><b>Ctrl+1~4</b> 창 고르기</span>}

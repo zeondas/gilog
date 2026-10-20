@@ -174,17 +174,29 @@ function fakeCall(cmd: string, a: Record<string, unknown>): unknown {
       const out: Conflict[] = [];
       for (const s of a.sources as string[]) {
         const d = joinPath(a.dest as string, baseName(s));
+        if (d === s) continue; // 같은 폴더에 붙여 넣기는 "- 복사본"이라 안 겹쳐요
         const se = fakeEntry(s);
         const de = fakeEntry(d);
         if (se && de && !se.dir && !de.dir) out.push({ src: se, dst: de });
       }
       return out;
     }
+    case "fs_clip_set":
+      fakeClip = { paths: [...(a.paths as string[])], cut: !!a.cut };
+      return null;
+    case "fs_clip_get":
+      return { paths: fakeClip.paths.filter((p) => fakeFs.has(p)), cut: fakeClip.cut };
     case "fs_transfer": {
       const dec = a.decisions as Record<string, string>;
       const sum: Summary = { done: 0, skipped: 0, errors: [] };
       for (const s of a.sources as string[]) {
         let d = joinPath(a.dest as string, baseName(s));
+        // 같은 폴더에 붙여 넣기 → "이름 - 복사본"(앱과 같게)
+        if (a.op === "move" && d === s) {
+          sum.skipped++;
+          continue;
+        }
+        if (a.op === "copy" && d === s) d = joinPath(a.dest as string, copyName(baseName(s), (n) => fakeFs.has(joinPath(a.dest as string, n))));
         if (fakeFs.has(d) || d === s) {
           const k = dec[d] ?? (d === s ? "both" : "skip");
           if (k === "skip") {
@@ -232,6 +244,16 @@ function fakeCall(cmd: string, a: Record<string, unknown>): unknown {
   }
 }
 
+let fakeClip: { paths: string[]; cut: boolean } = { paths: [], cut: false };
+
+function copyName(name: string, taken: (n: string) => boolean): string {
+  const i = name.lastIndexOf(".");
+  const [stem, ext] = i > 0 ? [name.slice(0, i), name.slice(i)] : [name, ""];
+  let c = `${stem} - 복사본${ext}`;
+  for (let n = 2; taken(c); n++) c = `${stem} - 복사본 (${n})${ext}`;
+  return c;
+}
+
 async function call<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {
   if (inApp) return invoke<T>(cmd, args);
   await new Promise((r) => setTimeout(r, 30));
@@ -269,6 +291,10 @@ export const fsApi = {
   transfer: (op: "copy" | "move", sources: string[], dest: string, decisions: Record<string, string>) =>
     call<Summary>("fs_transfer", { op, sources, dest, decisions }),
   cancel: () => call<null>("fs_cancel"),
+  /** Ctrl+C·X — 윈도우 클립보드에 파일을 넣어요(빈 목록이면 비우기) */
+  clipSet: (paths: string[], cut: boolean) => call<null>("fs_clip_set", { paths, cut }),
+  /** Ctrl+V — 윈도우 클립보드의 파일 목록 */
+  clipGet: () => call<{ paths: string[]; cut: boolean }>("fs_clip_get"),
   remove: (paths: string[], permanent: boolean) => call<null>("fs_delete", { paths, permanent }),
   open: (path: string) => (inApp ? call<null>("fs_open", { path }) : Promise.resolve(null)),
   explorer: (path: string, select: boolean) => (inApp ? call<null>("fs_explorer", { path, select }) : Promise.resolve(null)),
@@ -308,5 +334,6 @@ export function fsErrorText(e: unknown): string {
   if (s === "denied") return "권한이 없어 할 수 없어요.";
   if (s === "into_self") return "폴더를 그 안으로 옮기거나 복사할 수 없어요.";
   if (s.startsWith("trash")) return "휴지통으로 보내지 못했어요.";
+  if (s.startsWith("clipboard")) return "다른 프로그램이 클립보드를 쓰고 있어요. 다시 해 주세요.";
   return "하지 못했어요. 파일이 다른 프로그램에서 열려 있는지 확인해 주세요.";
 }
