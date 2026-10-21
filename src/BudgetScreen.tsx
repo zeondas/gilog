@@ -510,9 +510,12 @@ export default function BudgetScreen() {
 
   // ---------- 열 ----------
   // 세부사업 열도 다른 열처럼 정해진 폭 – "남는 폭 채우기"는 없앴어요(2026-10-20 사용자, 예산현황과 같게). 보이는 열(VC)은 공유를 끄면 "담당" 열이 빠져요
-  const cols = VC.map(([c]) => W[c] + "px").join(" ");
+  // 자리가 모자라면(팀 공유의 "담당" 열·세로 스크롤 막대) 세부사업 열만 그만큼 줄여 그려요 – 가장 좁게 160, 저장한 폭은 그대로(2026-10-21 사용자)
+  const over = boxW > 0 ? VC.reduce((a, [c]) => a + W[c], 0) + 2 + sbw - boxW : 0;
+  const Wv = over > 0 ? { ...W, name: Math.max(160, W.name - over) } : W;
+  const cols = VC.map(([c]) => Wv[c] + "px").join(" ");
   // 남는 폭이 있으면 늘 왼쪽으로 모아요: 머리 줄 끝(엑셀) = 메모 끝, 세로 스크롤은 메모 끝 바로 옆(2026-10-19 사용자)
-  const colSum = VC.reduce((a, [c]) => a + W[c], 0);
+  const colSum = VC.reduce((a, [c]) => a + Wv[c], 0);
   const packed = boxW > 0 && colSum + 2 + sbw <= boxW;
 
   const startDrag = (e: RMouseEvent, col: ColId) => {
@@ -933,7 +936,8 @@ export default function BudgetScreen() {
           setPop({ t: "owner", x: r.left, y: r.bottom + 4, id: p.id });
         }}
       >
-        {nm}
+        {/* 앞 3글자만(2026-10-21 사용자) – 전체 이름은 title */}
+        {[...nm].slice(0, 3).join("")}
       </button>
     );
   };
@@ -1056,6 +1060,11 @@ export default function BudgetScreen() {
     );
   };
 
+  const group = (k: string, id: number, kids: ReactNode[]) => (
+    <div key={k + id} className={"bd-" + k} role="presentation">
+      {kids}
+    </div>
+  );
   if (form?.level === "project" && form.id == null && form.after == null) rowsOut.push(nameRow("new-top", "project"));
   for (const p of list) {
     if (p.carry && !carryShown) {
@@ -1071,7 +1080,9 @@ export default function BudgetScreen() {
     const pOpen = p.open || !!q;
     const pEdit = form?.level === "project" && form.id === p.id;
     const pk = selKey("project", p.id);
-    rowsOut.push(
+    // 틀고정(2026-10-21 사용자 1안): 세부사업 묶음·부기사업 묶음을 감싸야 다음 묶음의 줄이 앞 줄을 밀어 올려요
+    const pOut: ReactNode[] = [];
+    pOut.push(
       <div
         key={pk}
         ref={pEdit ? formRow : undefined}
@@ -1111,9 +1122,12 @@ export default function BudgetScreen() {
         {sumCells(budgetOf("project", p), pRows(p), false, memoBtn("project", p.id, p.memo), pEdit && form?.level === "project" ? cell(moneyInput("budget", "예산", form.budget, true)) : undefined, ownerBadge(p))}
       </div>,
     );
-    if (form?.level === "project" && form.id == null && form.after === p.id) rowsOut.push(nameRow("new-after-" + p.id, "project"));
-    if (!pOpen) continue;
-    if (form?.level === "item" && form.id == null && form.project === p.id) rowsOut.push(nameRow("new-item-" + p.id, "item"));
+    if (form?.level === "project" && form.id == null && form.after === p.id) pOut.push(nameRow("new-after-" + p.id, "project"));
+    if (!pOpen) {
+      rowsOut.push(group("pg", p.id, pOut));
+      continue;
+    }
+    if (form?.level === "item" && form.id == null && form.project === p.id) pOut.push(nameRow("new-item-" + p.id, "item"));
     let n = 0;
     const items = p.items.filter((it) => !q || it.rows.some((r) => matchRow(r, q)));
     items.forEach((it, j) => {
@@ -1121,8 +1135,9 @@ export default function BudgetScreen() {
       const iOpen = it.open || !!q;
       n++;
       const ik = selKey("item", it.id);
+      const iOut: ReactNode[] = [];
       const iEdit = form?.level === "item" && form.id === it.id;
-      rowsOut.push(
+      iOut.push(
         <div
           key={ik}
           ref={iEdit ? formRow : undefined}
@@ -1162,18 +1177,21 @@ export default function BudgetScreen() {
           {sumCells(budgetOf("item", it), rowsOf(it), true, memoBtn("item", it.id, it.memo), iEdit && form?.level === "item" ? cell(moneyInput("budget", "예산", form.budget)) : undefined)}
         </div>,
       );
-      if (!iOpen) return;
-      if (form?.level === "row" && form.id == null && form.item === it.id) rowsOut.push(gunForm("new-row-" + it.id, last, null));
+      if (!iOpen) {
+        pOut.push(group("ig", it.id, iOut));
+        return;
+      }
+      if (form?.level === "row" && form.id == null && form.item === it.id) iOut.push(gunForm("new-row-" + it.id, last, null));
       const rs = sortRows(it.rows).filter((r) => matchRow(r, q));
       rs.forEach((r, k) => {
         n++;
         const gk = selKey("row", r.id);
         const rLines = [...(last ? [] : ["v1"]), "v2" + (k === rs.length - 1 ? " half" : ""), "h2"];
         if (form?.level === "row" && form.id === r.id) {
-          rowsOut.push(gunForm(gk, last, r));
+          iOut.push(gunForm(gk, last, r));
           return;
         }
-        rowsOut.push(
+        iOut.push(
           <div
             key={gk}
             data-sel={gk}
@@ -1220,7 +1238,9 @@ export default function BudgetScreen() {
           </div>,
         );
       });
+      pOut.push(group("ig", it.id, iOut));
     });
+    rowsOut.push(group("pg", p.id, pOut));
   }
 
   // ---------- 뜨는 것 그리기 ----------
@@ -1597,7 +1617,7 @@ export default function BudgetScreen() {
       VC.map(([c, label], i) => (
         <div
           key={c}
-          className={"bd-h" + (colHl === i ? " on" : "") + (c === "owner" ? " bs-oh" : "")}
+          className={"bd-h" + (colHl === i ? " on" : "")}
           role="columnheader"
           title="누르면 이 열을 칠해요"
           onClick={(e) => {
