@@ -248,7 +248,7 @@ function succeeded(path: Path, ms: number) {
   }
 }
 
-/** 웹 결과(없으면 null — 키 없음·쉬는 중·실패·못 찾음). */
+/** 웹 결과(없으면 null – 키 없음·쉬는 중·실패·못 찾음). */
 export async function webLookup(text: string): Promise<RoadLookup | null> {
   await load();
   if (!key || !looksRoad(text) || Date.now() < failedUntil) return null;

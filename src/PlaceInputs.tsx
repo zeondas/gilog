@@ -7,7 +7,7 @@
 //   번호가 표에 없으면 가까운 번호 후보(Tab 확정 · Esc 친 그대로), 법정동이 행정동 여럿에 걸치면 지역 고르기.
 //   바꾸기 전 글은 onRoad로 넘겨 마우스를 올리면 보여요(title). 칸에 다시 치면 지워요.
 // 웹 먼저(2026-10-21 사용자 2안, addressWeb.ts): 치다 멈추면(0.3초) 웹에 묻고, 내장 표 답은 바로 받아 둬요.
-//   웹 답이 오면 그것을 믿어요 — 칸을 이미 떠났어도(내장 답으로 바꿔 둔 그대로면) 웹 답으로 다시 바꿔요.
+//   웹 답이 오면 그것을 믿어요 – 칸을 이미 떠났어도(내장 답으로 바꿔 둔 그대로면) 웹 답으로 다시 바꿔요.
 //   후보 목록에는 출처 배지(웹·내장)가 붙어요.
 import { KeyboardEvent, Ref, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { areaFor, looksRoad, RoadHit, RoadLookup } from "./address";
@@ -90,7 +90,7 @@ export function PlaceInput({
     { kind: "cands"; list: RoadHit[]; original: string; src: Src } | { kind: "area"; name: string; areas: string[] } | null
   >(null);
   const [phi, setPhi] = useState(0);
-  // 웹 답은 칸 글이 바뀌어도 버리지 않아요(떠난 뒤에 와도 쓰게) — 늦게 온 답은 아래 onWeb이 맞춰요.
+  // 웹 답은 칸 글이 바뀌어도 버리지 않아요(떠난 뒤에 와도 쓰게) – 늦게 온 답은 아래 onWeb이 맞춰요.
   const now = useRef({ value, area, roadPick });
   now.current = { value, area, roadPick };
   const webReq = useRef(new Map<string, Promise<RoadLookup | null>>());
