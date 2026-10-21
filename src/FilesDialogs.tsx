@@ -2,6 +2,7 @@
 // 바깥을 누르기 시작했을 때만 닫혀요(onMouseDown + target === currentTarget – 글자를 끌어 고르다 밖에서 떼도 안 닫혀요).
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Conflict } from "./filesApi";
+import { overlayDown } from "./useOutsideClose";
 import {
   CaseMode,
   FsEntry,
@@ -18,12 +19,7 @@ import {
 
 function Overlay({ onClose, children, width }: { onClose: () => void; children: React.ReactNode; width: number }) {
   return (
-    <div
-      className="overlay"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
+    <div className="overlay" onMouseDown={overlayDown(onClose)}>
       <div className="dialog" role="dialog" aria-modal="true" style={{ width }}>
         {children}
       </div>

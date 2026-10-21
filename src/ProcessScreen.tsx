@@ -19,6 +19,7 @@ import { projectColor } from "./ContactsScreen";
 import { BLine, linesToText, parseLines, plainOf, stringifyLines } from "./bullets";
 import { BulletEditor, Mark } from "./BulletParts";
 import { DelIcon } from "./Icons";
+import { overlayDown, useOutsideClose } from "./useOutsideClose";
 import { koIndex, todayStr } from "./journal";
 import { PlaceInput } from "./PlaceInputs";
 import { webLookup } from "./addressWeb";
@@ -1532,20 +1533,16 @@ function NoteCell({ value, disabled, onSave }: { value: string; disabled: boolea
   );
 
   // 바깥을 누르거나 표를 굴리면 저장하고 접어요.
+  useOutsideClose(edit !== null, [popRef], () => close(true), { on: "window", capture: true });
   useEffect(() => {
     if (!edit) return;
-    const down = (e: MouseEvent) => {
-      if (!popRef.current?.contains(e.target as Node)) close(true);
-    };
     const scroll = (e: Event) => {
       if (!popRef.current?.contains(e.target as Node)) close(true);
     };
     const resize = () => close(true);
-    window.addEventListener("mousedown", down, true);
     window.addEventListener("scroll", scroll, true);
     window.addEventListener("resize", resize);
     return () => {
-      window.removeEventListener("mousedown", down, true);
       window.removeEventListener("scroll", scroll, true);
       window.removeEventListener("resize", resize);
     };
@@ -1615,17 +1612,8 @@ function Floating({ rect, align, onClose, children }: { rect: DOMRect; align: "l
     const left = align === "left" ? rect.left : rect.right - w;
     setPos({ top: Math.round(top), left: Math.round(Math.max(8, Math.min(left, window.innerWidth - w - 8))) });
   }, [rect, align]);
-  useEffect(() => {
-    const down = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
-    };
-    // 띄운 그 누르기가 바로 닫지 않게 한 박자 뒤에 들어요.
-    const t = window.setTimeout(() => window.addEventListener("mousedown", down), 0);
-    return () => {
-      window.clearTimeout(t);
-      window.removeEventListener("mousedown", down);
-    };
-  }, [onClose]);
+  // 띄운 그 누르기가 바로 닫지 않게 한 박자 뒤에 들어요.
+  useOutsideClose(true, [ref], () => onClose(), { on: "window", defer: true });
   // 화면 맨 위(body)에 띄워요 – 가운데 뜨는 창(.overlay) 안에 두면 창 자리 맞추기(snap.ts)가 이 상자까지 옮겨 화면 밖으로 밀려났어요(2026-10-19 공사 지우기 버그).
   return createPortal(
     <div ref={ref} className="pr-float" style={pos} onClick={(e) => e.stopPropagation()}>
@@ -1758,20 +1746,10 @@ function WorksDialog({
   }, [editing, edit, works, cd]);
 
   // 고치는 줄 바깥을 누르면 저장해요(누르기 시작한 곳 기준).
-  useEffect(() => {
-    if (editing == null) return;
-    const down = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (editRef.current?.contains(t)) return;
-      if ((t as HTMLElement).closest?.(".pr-float")) return;
-      saveEdit();
-    };
-    window.addEventListener("mousedown", down);
-    return () => window.removeEventListener("mousedown", down);
-  }, [editing, saveEdit]);
+  useOutsideClose(editing != null, [editRef], () => saveEdit(), { on: "window", ignore: ".pr-float" });
 
   return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && editing == null && onClose()}>
+    <div className="overlay" onMouseDown={overlayDown(() => editing == null && onClose())}>
       <div className="dialog pr-works" role="dialog" aria-modal="true" aria-label="공사 관리">
         <div className="dialog-head pr-works-head">
           <span className="dialog-title">공사 관리</span>
@@ -2139,7 +2117,7 @@ function MailDialog({ draft, files, from, onChange, onSend, onClose }: { draft: 
   useEffect(() => subjectRef.current?.focus(), []);
   const ok = draft.subject.trim() !== "" && draft.to !== "";
   return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="overlay" onMouseDown={overlayDown(onClose)}>
       <div
         className="dialog pr-mail"
         role="dialog"

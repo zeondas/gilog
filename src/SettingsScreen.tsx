@@ -11,6 +11,7 @@ import { DATE_FORMATS, FsDrive, HOME, PC } from "./files";
 import { FastStatus, fsApi } from "./filesApi";
 import Logo, { AppIcon } from "./Logo";
 import { VERSION } from "./version";
+import { useOutsideClose } from "./useOutsideClose";
 import { Action, conflicts, DEFAULT_KEYS, diffKeys, isRightAlt, KEY_GROUPS, KeyMap, mergeKeys, setKeyMap } from "./keys";
 import {
   connectGoogle,
@@ -1076,25 +1077,16 @@ export function ListGroup({
   const [draft, setDraft] = useState("");
   const [ask, setAsk] = useState<string | null>(null);
   const band = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (ask === null) return;
-    // Esc와 바깥 누르기는 묻는 띠만 접어요(창 전체의 Esc보다 먼저 받아요).
-    const key = (e: globalThis.KeyboardEvent) => {
-      if (e.key !== "Escape" || e.isComposing) return;
+  // Esc와 바깥 누르기는 묻는 띠만 접어요(창 전체의 Esc보다 먼저 받아요).
+  useOutsideClose(ask !== null, [band], () => setAsk(null), {
+    onEsc: (e) => {
+      if (e.isComposing) return;
       e.preventDefault();
       e.stopPropagation();
       setAsk(null);
-    };
-    const down = (e: MouseEvent) => {
-      if (!band.current?.contains(e.target as Node)) setAsk(null);
-    };
-    window.addEventListener("keydown", key, true);
-    document.addEventListener("mousedown", down);
-    return () => {
-      window.removeEventListener("keydown", key, true);
-      document.removeEventListener("mousedown", down);
-    };
-  }, [ask]);
+    },
+    escCapture: true,
+  });
   function add() {
     const v = draft.trim();
     if (!v || items.includes(v)) return;

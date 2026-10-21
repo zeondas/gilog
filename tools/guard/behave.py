@@ -68,6 +68,29 @@ async def c_settings_band(p):
     assert not await shown(p, ".list-ask"), "바깥 눌러도 띠가 남음"
 
 
+async def c_pjmenu_esc(p):
+    await shoot.nav(p, "업무연락처")
+    await shoot.s_contacts_pjmenu(p)
+    assert await shown(p, ".pjm-menu"), "메뉴 안 열림"
+    await p.keyboard.press("Escape")
+    await p.wait_for_timeout(250)
+    assert not await shown(p, ".pjm-menu"), "Esc로 메뉴가 안 닫힘"
+    assert await shown(p, ".dialog.pjm"), "Esc 한 번에 사업 관리 창까지 닫힘"
+    await p.locator(".pjm-row", has_text="방호벽 정비").first.click(button="right")
+    await p.wait_for_timeout(250)
+    await press_out(p, (760, 800))
+    assert not await shown(p, ".pjm-menu"), "창 안 다른 곳을 눌렀는데 메뉴가 안 닫힘"
+    assert await shown(p, ".dialog.pjm"), "메뉴 바깥을 눌렀는데 창까지 닫힘"
+
+
+async def c_settings_esc(p):
+    await shoot.nav(p, "설정")
+    await shoot.s_settings_list_ask(p)
+    await p.keyboard.press("Escape")
+    await p.wait_for_timeout(250)
+    assert not await shown(p, ".list-ask"), "Esc로 띠가 안 접힘"
+
+
 async def c_dialog(p):
     await shoot.nav(p, "캘린더")
     await shoot.s_calendar_kinds(p)
@@ -133,6 +156,8 @@ CASES = {
     "process_rowmenu": menu_case("민원처리", shoot.s_process_rowmenu, ".pr-rowmenu"),
     "calendar_kindpicker": menu_case("캘린더", shoot.s_calendar_kindpicker, ".cal-kp-list"),
     "contacts_band": c_contacts_band,
+    "contacts_pjmenu_esc": c_pjmenu_esc,
+    "settings_esc": c_settings_esc,
     "settings_band": c_settings_band,
     "calendar_dialog": c_dialog,
     "files_dialog": c_files_dialog,

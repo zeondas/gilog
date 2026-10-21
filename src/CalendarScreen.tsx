@@ -7,6 +7,7 @@
 // - 왼쪽: 종류 체크(보이기·숨기기), "관리"(색 24가지·새 종류·지우기), "주간일정"(앞으로 7일).
 import { CSSProperties, KeyboardEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { DelIcon } from "./Icons";
+import { overlayDown, useOutsideClose } from "./useOutsideClose";
 import { isKey, keyAction, rowKeys } from "./keys";
 import { api, CalEvent, CalKind, CalendarData, Complaint, errorText, EventInput, NotifyStatus, Repeat, Task } from "./api";
 import { BLine, parseLines, stringifyLines } from "./bullets";
@@ -578,7 +579,7 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
         />
       )}
       {dayOpen && (
-        <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && setDayOpen(null)}>
+        <div className="overlay" onMouseDown={overlayDown(() => setDayOpen(null))}>
           <div className="dialog cal-daydlg" role="dialog" aria-modal="true" aria-label={longDay(dayOpen) + " 일정"} onKeyDown={(e) => e.key === "Escape" && setDayOpen(null)}>
             <div className="dialog-head">
               <span className="dialog-title">{longDay(dayOpen)}</span>
@@ -1187,7 +1188,7 @@ function EventDialog({
   };
 
   return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && outside()}>
+    <div className="overlay" onMouseDown={overlayDown(outside)}>
       <div className="dialog cal-dialog" role="dialog" aria-modal="true" aria-label="일정 상세" onKeyDown={onKeyDown}>
         <div className="cal-dlg-title">
           <input
@@ -1525,7 +1526,7 @@ function KindsDialog({
   };
 
   return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="overlay" onMouseDown={overlayDown(onClose)}>
       <div
         className="dialog mgr"
         role="dialog"
@@ -1672,7 +1673,7 @@ function NotifyDialog({ onClose }: { onClose: () => void }) {
 
   const next = st?.nextAt ? new Date(st.nextAt) : null;
   return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="overlay" onMouseDown={overlayDown(onClose)}>
       <div className="dialog cal-notify" role="dialog" aria-modal="true" aria-label="알림 확인" onKeyDown={(e) => e.key === "Escape" && onClose()}>
         <div className="dialog-head">
           <span className="dialog-title">알림 확인</span>
@@ -1740,12 +1741,7 @@ function KindPicker({ kinds, value, onChange }: { kinds: CalKind[]; value: strin
     if (cur && cur.name !== value) onChange(cur.name);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cur?.name, value]);
-  useEffect(() => {
-    if (!open) return;
-    const off = (e: MouseEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
-    document.addEventListener("mousedown", off);
-    return () => document.removeEventListener("mousedown", off);
-  }, [open]);
+  useOutsideClose(open, [box], () => setOpen(false));
   const show = () => {
     setHi(Math.max(0, mine.findIndex((k) => k.name === cur?.name)));
     const r = box.current?.getBoundingClientRect();
@@ -1832,12 +1828,7 @@ function ColorButton({ label, value, auto, autoLabel, onPick }: { label: string;
   const [open, setOpen] = useState(false);
   const [at, setAt] = useState<CSSProperties>({});
   const box = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const off = (e: MouseEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
-    document.addEventListener("mousedown", off);
-    return () => document.removeEventListener("mousedown", off);
-  }, [open]);
+  useOutsideClose(open, [box], () => setOpen(false));
   const toggle = () => {
     const r = box.current?.getBoundingClientRect();
     if (r) {

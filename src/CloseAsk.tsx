@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { listen } from "@tauri-apps/api/event";
 import { api, inApp } from "./api";
+import { overlayDown } from "./useOutsideClose";
 
 export default function CloseAsk() {
   const [open, setOpen] = useState(() => !inApp && location.search.includes("closeask"));
@@ -39,7 +40,7 @@ export default function CloseAsk() {
 
   if (!open) return null;
   return createPortal(
-    <div className="overlay close-ask-ov" onMouseDown={(e) => e.target === e.currentTarget && setOpen(false)}>
+    <div className="overlay close-ask-ov" onMouseDown={overlayDown(() => setOpen(false))}>
       <div className="dialog close-ask" role="alertdialog" aria-modal="true" aria-labelledby="close-ask-title">
         <div className="xl-ask-body">
           <h2 id="close-ask-title" className="xl-ask-title">
