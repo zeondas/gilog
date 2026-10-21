@@ -112,7 +112,40 @@ pub(crate) fn upgrade(conn: &rusqlite::Connection) -> Result<()> {
     if !has {
         conn.execute_batch("ALTER TABLE complaints ADD COLUMN done TEXT NOT NULL DEFAULT '';")?;
     }
+    // 민원처리가 적은 지시 줄은 기본 머릿기호 ●로(2026-10-21 사용자: 불러온 항목만 □로 보여요).
+    // 민원처리가 예전 기본(□)을 그대로 "k":"sq"로 적었어요. 지시 줄 모양("… 지시(…-03 · 2)")인 □ 줄만 기호 종류를 빼요(빼면 ●).
+    let mut st = conn.prepare("SELECT id, action FROM complaints WHERE action LIKE '%\"sq\"%' AND action LIKE '% 지시(%'")?;
+    let rows: Vec<(i64, String)> = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<rusqlite::Result<_>>()?;
+    for (id, action) in rows {
+        if let Some(fixed) = order_lines_to_default(&action) {
+            conn.execute("UPDATE complaints SET action = ?1 WHERE id = ?2", rusqlite::params![fixed, id])?;
+        }
+    }
     Ok(())
+}
+
+/// 민원처리 지시 줄인지: "도로시설물 1지구 지시(1지구-03 · 2)" — " 지시(" 뒤가 "…-두 자리 · 숫자)"로 끝나요(process.ts `actionLine`).
+fn is_order_line(t: &str) -> bool {
+    let Some(at) = t.rfind(" 지시(") else { return false };
+    let Some(inner) = t[at + " 지시(".len()..].strip_suffix(')') else { return false };
+    let Some((tag, item)) = inner.rsplit_once(" · ") else { return false };
+    let Some((_, seq)) = tag.rsplit_once('-') else { return false };
+    seq.len() == 2 && seq.chars().all(|c| c.is_ascii_digit()) && !item.is_empty() && item.chars().all(|c| c.is_ascii_digit())
+}
+
+/// 조치내용 줄 목록에서 □ 지시 줄의 기호 종류를 빼요(바뀐 것이 없으면 None).
+fn order_lines_to_default(action: &str) -> Option<String> {
+    let serde_json::Value::Array(mut items) = serde_json::from_str::<serde_json::Value>(action).ok()? else { return None };
+    let mut changed = false;
+    for v in items.iter_mut() {
+        let Some(o) = v.as_object_mut() else { continue };
+        let is_sq = o.get("k").and_then(|x| x.as_str()) == Some("sq");
+        if is_sq && o.get("t").and_then(|x| x.as_str()).map(is_order_line).unwrap_or(false) {
+            o.remove("k");
+            changed = true;
+        }
+    }
+    changed.then(|| serde_json::Value::Array(items).to_string())
 }
 
 const COLS: &str = "id, no, intake, received, ctype, area, place, person, phone, body, action, due, status, memo, road, done";
@@ -371,6 +404,26 @@ mod tests {
             done: String::new(),
             road: String::new(),
         }
+    }
+
+    #[test]
+    fn order_lines_from_process_become_default_bullet() {
+        let d = tempfile::tempdir().unwrap();
+        let mut s = Store::create(d.path(), "1234").unwrap();
+        let order = r#"[{"t":"2026 동부 시설물(1차) 지시(시설물(1차)-02 · 3)","k":"sq"}]"#;
+        let typed = r#"[{"t":"현장 확인 지시(나중에)","k":"sq"},{"t":"도로시설물 1지구 지시(1지구-03 · 2)","k":"sq"}]"#;
+        let own = r#"[{"t":"포트홀 보수","k":"sq"}]"#;
+        let a = s.add_complaint(&ComplaintInput { action: order.into(), ..input("가") }).unwrap();
+        let b = s.add_complaint(&ComplaintInput { action: typed.into(), ..input("나") }).unwrap();
+        let c = s.add_complaint(&ComplaintInput { action: own.into(), ..input("다") }).unwrap();
+        upgrade(&s.conn).unwrap();
+        upgrade(&s.conn).unwrap(); // 두 번 돌아도 같아요
+        let all = s.complaints().unwrap();
+        let get = |id: i64| all.iter().find(|x| x.id == id).unwrap().action.clone();
+        assert_eq!(get(a.id), r#"[{"t":"2026 동부 시설물(1차) 지시(시설물(1차)-02 · 3)"}]"#);
+        // 지시 줄 모양이 아닌 □는 그대로(사용자가 일부러 친 □)
+        assert_eq!(get(b.id), r#"[{"k":"sq","t":"현장 확인 지시(나중에)"},{"t":"도로시설물 1지구 지시(1지구-03 · 2)"}]"#);
+        assert_eq!(get(c.id), r#"[{"k":"sq","t":"포트홀 보수"}]"#);
     }
 
     #[test]
