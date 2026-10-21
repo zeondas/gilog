@@ -6,11 +6,12 @@
 //   (한 장이 열 높이보다 크면 그 카드만 줄여 한 열에 맞춰요.)
 // - 머리 줄은 출근·교통·날씨·메모만. 메모 카드도 시각·"메모"와 본문을 찍어요. 머릿기호는 화면과 같은 그린 모양(.rte-view 규칙).
 // - 아래 여백에 "기록 업무일지"와 쪽 번호 "1 / 2".
-import { KeyboardEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { DayInfo, Entry, Project } from "./api";
 import { projectColor } from "./ContactsScreen";
 import { isMemo, parseDate, speakerColor, splitWho } from "./journal";
+import { DateInput } from "./DateInput";
 import { sanitize } from "./RichMemo";
 import { overlayDown } from "./useOutsideClose";
 
@@ -189,31 +190,23 @@ export function PrintDialog({
       <label className={"jp-field" + (active ? " on" : "")}>
         <span className="jp-field-l">{which === "from" ? "시작일" : "끝일"}</span>
         <span className={"jp-field-box" + (bad ? " invalid" : "")}>
-          <input
-            aria-label={which === "from" ? "시작일" : "끝일"}
-            aria-invalid={bad || undefined}
+          <DateInput
+            label={which === "from" ? "시작일" : "끝일"}
+            base=""
+            placeholder=""
+            invalid={bad}
+            boxInvalid
+            fixOnEnter
             value={text}
             onFocus={() => {
               setAct(which);
               setHov(null);
             }}
-            onChange={(e) => {
-              const v = e.target.value;
+            onChange={(v) => {
               set(v);
               setChip("");
               const p = parseDate(v);
               if (p) setBase(monthIndex(p) - (which === "to" ? 1 : 0));
-            }}
-            // 칸을 떠날 때(다른 곳 누르기·Tab·Enter) 읽은 날짜를 2026-10-12 모양으로 바꿔 써요. 치는 도중에는 그대로예요.
-            onBlur={(e) => {
-              const p = parseDate(e.target.value);
-              if (p && p !== e.target.value) set(p);
-            }}
-            onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
-              if (e.key === "Enter" && !e.nativeEvent.isComposing) {
-                const p = parseDate(e.currentTarget.value);
-                if (p) set(p);
-              }
             }}
           />
           <span className="jp-wd">{parsed ? wd(parsed) : ""}</span>

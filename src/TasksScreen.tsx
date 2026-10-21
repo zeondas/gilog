@@ -14,6 +14,7 @@ import { BLine, parseLines, stringifyLines } from "./bullets";
 import { BulletEditor, BulletView } from "./BulletParts";
 import { Hl } from "./ContactsScreen";
 import { parseDate, todayStr } from "./journal";
+import { DateInput, MiniCal } from "./DateInput";
 import { ANSWER_STATUS, DEFAULT_SETTINGS, isAnswered, loadSettings } from "./settingsStore";
 import { complaintItems, dueBadge, Item, openCount, split, treeOf } from "./tasks";
 import { AskBand } from "./AskBand";
@@ -773,23 +774,17 @@ function DueField({
             <path d="M3.5 10h17M8 3v4M16 3v4" />
           </svg>
         </button>
-        <input
-          ref={input}
+        <DateInput
+          inputRef={input}
           name="due"
-          inputMode="numeric"
-          className={"fld td-due-input" + (bad ? " invalid" : "")}
-          aria-label="마감일"
-          aria-invalid={bad || undefined}
+          base="fld td-due-input"
+          label="마감일"
+          invalid={bad}
           placeholder="날짜 1016"
           value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onBlur={() => {
-            // 칸을 떠날 때 8자리로 바꿔 쓰고, 읽을 수 없으면 친 그대로 두고 빨간 테두리(공통 규칙).
-            if (!value.trim()) return;
-            const d = parseDate(value);
-            if (d) onChange(d);
-            else onInvalid();
-          }}
+          onChange={onChange}
+          // 칸을 떠날 때 8자리로 바꿔 쓰고, 읽을 수 없으면 친 그대로 두고 빨간 테두리(공통 규칙).
+          onLeave={(d) => d === null && onInvalid()}
         />
         {children}
       </div>
@@ -809,64 +804,6 @@ function DueField({
   );
 }
 
-function MiniCal({ value, today, onPick, onClose }: { value: string; today: string; onPick: (d: string) => void; onClose: () => void }) {
-  const base = value || today;
-  const [ym, setYm] = useState<[number, number]>([Number(base.slice(0, 4)), Number(base.slice(5, 7)) - 1]);
-  const first = new Date(ym[0], ym[1], 1);
-  const dim = new Date(ym[0], ym[1] + 1, 0).getDate();
-  const move = (n: number) => {
-    const d = new Date(ym[0], ym[1] + n, 1);
-    setYm([d.getFullYear(), d.getMonth()]);
-  };
-  const cells: ReactNode[] = [];
-  for (let i = 0; i < first.getDay(); i++) cells.push(<span key={"e" + i} />);
-  for (let n = 1; n <= dim; n++) {
-    const key = todayStr(new Date(ym[0], ym[1], n));
-    const dow = (first.getDay() + n - 1) % 7;
-    cells.push(
-      <button
-        key={key}
-        type="button"
-        tabIndex={-1}
-        className={"td-cal-day" + (key === value ? " sel" : "") + (key === today ? " today" : "") + (dow === 0 ? " sun" : dow === 6 ? " sat" : "")}
-        aria-label={key}
-        aria-pressed={key === value}
-        onClick={() => onPick(key)}
-      >
-        {n}
-      </button>,
-    );
-  }
-  return (
-    <div className="td-cal" role="dialog" aria-label="날짜 고르기" onKeyDown={(e) => e.key === "Escape" && (e.stopPropagation(), onClose())}>
-      <div className="td-cal-head">
-        <span className="td-cal-title">
-          {ym[0]}년 {ym[1] + 1}월
-        </span>
-        <button type="button" tabIndex={-1} className="td-cal-nav" aria-label="이전 달" onClick={() => move(-1)}>
-          <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M15 5l-7 7 7 7" />
-          </svg>
-        </button>
-        <button type="button" tabIndex={-1} className="td-cal-nav" aria-label="다음 달" onClick={() => move(1)}>
-          <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
-      </div>
-      <div className="td-cal-week">
-        <span className="sun">일</span>
-        <span>월</span>
-        <span>화</span>
-        <span>수</span>
-        <span>목</span>
-        <span>금</span>
-        <span className="sat">토</span>
-      </div>
-      <div className="td-cal-grid">{cells}</div>
-    </div>
-  );
-}
 
 // ---------- 항목 한 줄 ----------
 

@@ -53,6 +53,7 @@ import {
 } from "./files";
 import { Conflict, FastStatus, Found, MenuExtra, MenuResult, Step, TreeDir, fsApi, fsErrorText, onFsChanged, onFsProgress } from "./filesApi";
 import { parseDate } from "./journal";
+import { DateInput } from "./DateInput";
 import { useOutsideClose } from "./useOutsideClose";
 import { DEFAULT_FILES_SETTINGS, FilesSettings, loadSettings, saveSettings } from "./settingsStore";
 
@@ -1034,16 +1035,6 @@ export default function FilesScreen() {
     const flat = !!t.find.flat;
     closeTab(pane, st.panes[pane].active);
     await runFind(form, flat);
-  };
-
-  const fixDate = (k: "from" | "to") => {
-    const v = form[k];
-    if (!v.trim()) return setFormBad((b) => ({ ...b, [k]: false }));
-    const d = parseDate(v);
-    if (d) {
-      setForm((f) => ({ ...f, [k]: d }));
-      setFormBad((b) => ({ ...b, [k]: false }));
-    } else setFormBad((b) => ({ ...b, [k]: true }));
   };
 
   // ---------- 키 ----------
@@ -2520,23 +2511,26 @@ export default function FilesScreen() {
                 </div>
                 <span className="fx-dim">수정한 날</span>
                 <div className="fx-hrow">
-                  <input
-                    className={formBad.from ? "input fx-date fx-bad-input" : "input fx-date"}
-                    aria-label="수정한 날 시작"
+                  <DateInput
+                    base="input fx-date"
+                    label="수정한 날 시작"
+                    placeholder=""
+                    fixOnEnter
+                    invalid={formBad.from}
                     value={form.from}
-                    onChange={(e) => setForm({ ...form, from: e.target.value })}
-                    onBlur={() => fixDate("from")}
-                    onKeyDown={(e) => e.key === "Enter" && fixDate("from")}
+                    onChange={(v) => setForm((f) => ({ ...f, from: v }))}
+                    onLeave={(d) => setFormBad((b) => ({ ...b, from: d === null }))}
                   />
                   <span>~</span>
-                  <input
-                    className={formBad.to ? "input fx-date fx-bad-input" : "input fx-date"}
-                    aria-label="수정한 날 끝"
+                  <DateInput
+                    base="input fx-date"
+                    label="수정한 날 끝"
                     placeholder="오늘"
+                    fixOnEnter
+                    invalid={formBad.to}
                     value={form.to}
-                    onChange={(e) => setForm({ ...form, to: e.target.value })}
-                    onBlur={() => fixDate("to")}
-                    onKeyDown={(e) => e.key === "Enter" && fixDate("to")}
+                    onChange={(v) => setForm((f) => ({ ...f, to: v }))}
+                    onLeave={(d) => setFormBad((b) => ({ ...b, to: d === null }))}
                   />
                 </div>
                 <span className="fx-dim">크기</span>

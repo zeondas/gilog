@@ -18,6 +18,7 @@ import {
 } from "./calendar";
 import { Hl } from "./ContactsScreen";
 import { parseDate, todayStr } from "./journal";
+import { DateInput } from "./DateInput";
 import { ANSWER_STATUS, DEFAULT_SETTINGS, isAnswered, loadSettings } from "./settingsStore";
 import { exportNow, GStatus, onGoogleStatus, REMOTE_CHANGE, whenText } from "./google";
 import { loadNotifyMode, refreshHolidaysDaily, saveNotifyMode, stamp, syncReminders, updateHolidays } from "./reminders";
@@ -1027,22 +1028,20 @@ function QuickRow({
 
   return (
     <div className="cal-quick" role="row" ref={row} onKeyDown={onKeyDown}>
-      <input
+      <DateInput
         name="date"
-        aria-label="날짜"
-        className={"cell-input num" + (bad === "date" ? " invalid" : "")}
+        label="날짜"
+        placeholder=""
+        invalid={bad === "date"}
         value={date}
-        onChange={(e) => {
-          setDate(e.target.value);
+        onChange={(v) => {
+          setDate(v);
           if (bad === "date") setBad("");
         }}
-        onBlur={() => {
-          // 칸을 떠나면 2026-10-12 꼴로 바꿔 써요. 읽을 수 없으면 친 그대로 두고 빨간 테두리.
-          const d = parseDate(date);
-          if (d) {
-            setDate(d);
-            if (d !== sel) onSel(d);
-          } else if (date.trim()) setBad("date");
+        // 칸을 떠나면 2026-10-12 꼴로 바꿔 써요(DateInput). 읽을 수 없으면 친 그대로 두고 빨간 테두리.
+        onLeave={(d) => {
+          if (d === null) setBad("date");
+          else if (d && d !== sel) onSel(d);
         }}
       />
       <input
@@ -1204,7 +1203,7 @@ function EventDialog({
         <div className="cal-dlg-grid">
           <span className="cal-dlg-label">일시</span>
           <div className="cal-dlg-line">
-            <input aria-label="시작 날짜" className={"cell-input num cal-in-date" + (bad.date ? " invalid" : "")} value={draft.date} onChange={(e) => set("date", e.target.value)} onBlur={() => dateFix("date")} />
+            <DateInput label="시작 날짜" placeholder="" className="cal-in-date" invalid={bad.date} value={draft.date} onChange={(v) => set("date", v)} onBlur={() => dateFix("date")} />
             {!draft.allDay && (
               <input
                 aria-label="시작 시간"
@@ -1234,12 +1233,13 @@ function EventDialog({
                 }}
               />
             )}
-            <input
-              aria-label="종료 날짜"
+            <DateInput
+              label="종료 날짜"
               placeholder={draft.date}
-              className={"cell-input num cal-in-date" + (bad.end ? " invalid" : "")}
+              className="cal-in-date"
+              invalid={bad.end}
               value={draft.end}
-              onChange={(e) => set("end", e.target.value)}
+              onChange={(v) => set("end", v)}
               onBlur={() => dateFix("end")}
             />
             <button
@@ -1270,12 +1270,13 @@ function EventDialog({
             {draft.repeat && (
               <>
                 <span className="cal-dlg-sub">종료일</span>
-                <input
-                  aria-label="반복 종료일"
+                <DateInput
+                  label="반복 종료일"
                   placeholder="날짜"
-                  className={"cell-input num cal-in-date" + (bad.until || !draft.until.trim() ? " invalid" : "")}
+                  className="cal-in-date"
+                  invalid={bad.until || !draft.until.trim()}
                   value={draft.until}
-                  onChange={(e) => set("until", e.target.value)}
+                  onChange={(v) => set("until", v)}
                   onBlur={() => dateFix("until")}
                 />
                 
