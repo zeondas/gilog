@@ -11805,3 +11805,100 @@ body.ew-dragging .pjm-colgrip:active::after {
   pointer-events: none;
   white-space: nowrap;
 }
+
+/* 판단 공사 "해당 없음"(2026-10-21 사용자, 시안 ProcessStatus의 회색 칩) · 민원대장에 넣을지 묻는 창 · ⋯ 메뉴 맨 위 사진 수 */
+.pr-row .pr-work.na {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.pr-dot.na {
+  box-sizing: border-box;
+  border: 1.5px solid var(--line);
+  background: transparent;
+}
+
+.pr-ask-btns > .btn-primary {
+  height: var(--size-mini);
+  border-radius: var(--radius-sm);
+  justify-content: center;
+}
+
+.pr-rowmenu-note {
+  margin: 0;
+  padding: 4px 10px 6px;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+
+/* 2026-10-21 민원처리: ⋯ 메뉴의 지시부 이름·"메일 · 폰 ▸" 같은 보조 글 */
+.pr-rowmenu {
+  min-width: 240px !important;
+}
+
+.pr-rowmenu-sub {
+  margin-left: auto;
+  padding-left: 12px;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.pr-rowmenu-sub.warn {
+  color: var(--urgent);
+}
+
+/* 머리 줄 전체 고르기 칸(2안) – 줄의 고르기 칸과 같은 자리 */
+.pr-headrow > div.pr-check {
+  align-items: center;
+  padding: 0 0 0 4px !important;
+}
+
+.pr-headrow .pr-check input:indeterminate {
+  accent-color: var(--accent);
+}
+
+/* 고려사항 칸: 첫 줄만(기호 + 글, 넘치면 "…"), 두 번 누르면 칸 아래로 펼쳐 고쳐요 */
+.pr-nc {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  cursor: default;
+}
+
+.pr-nc-t {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  line-height: round(1.5em, 1px);
+}
+
+.pr-nc-ph {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--muted);
+  opacity: 0.8;
+}
+
+.pr-nc.editing {
+  visibility: hidden;
+}
+
+.pr-nc-pop {
+  position: fixed;
+  z-index: 30;
+  border-radius: 6px;
+  corner-shape: squircle;
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+}
+
+.pr-nc-pop .bl-ed {
+  width: 100%;
+  max-height: 60vh;
+  overflow-y: auto;
+  background: var(--surface);
+}
