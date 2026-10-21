@@ -11988,3 +11988,34 @@ body.ew-dragging .pjm-colgrip:active::after {
 .cm-hbtn:not(.cm-fold):hover,
 .cm-hbtn:not(.cm-fold).on,
 .cm-hbtn:not(.cm-fold)[aria-expanded="true"] { padding-right: 22px; }
+
+/* 민원대장 줄 우클릭 메뉴 – 공통 "떠 있는 메뉴" 모양(결정 로그 2026-10-21 14:58) */
+.dmenu.cm-rowmenu {
+  min-width: 160px;
+  max-width: 340px;
+  padding: 4px;
+  gap: 0;
+  border-radius: 8px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-pop);
+}
+
+.cm-rowmenu .dmenu-item {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.cm-rowmenu .dmenu-sep {
+  margin: 4px 6px;
+  background: var(--line-row);
+}
+
+.dmenu.cm-rowmenu:has(.ask-band) {
+  max-width: none;
+}
+
+.cm-rowmenu .ask-band > span {
+  white-space: nowrap;
+}

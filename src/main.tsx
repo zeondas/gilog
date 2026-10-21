@@ -5,6 +5,7 @@ import CloseAsk from "./CloseAsk";
 import { installNoAutofill } from "./autofill";
 import { installIme, installImeForTest } from "./ime";
 import { installSnap } from "./snap";
+import { installNoContextMenu } from "./noContextMenu";
 import { installRuler } from "./ruler";
 import "./tokens.css";
 import "./app.css";
@@ -14,6 +15,7 @@ installIme();
 if (location.search.includes("imetest")) installImeForTest();
 installNoAutofill();
 installSnap();
+installNoContextMenu();
 // 입력칸 글자 기준선 재기(숨은 검사 모드): 주소 끝에 ?ruler
 if (location.search.includes("ruler")) installRuler();
 

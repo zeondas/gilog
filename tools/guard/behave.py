@@ -137,6 +137,29 @@ async def c_complaints_save(p):
     assert await p.locator(".cm-row", has_text="0000철").count() > 0, "바깥 눌렀는데 저장 안 됨"
 
 
+async def c_complaints_move(p):
+    """줄 우클릭 → 아래로 옮기기: 연번이 이웃과 바뀌고 그 민원이 한 줄 아래로 가요."""
+    await shoot.nav(p, "민원대장")
+    rows = p.locator(".cm-view")
+    first = await rows.nth(0).get_attribute("data-cid")
+    await rows.nth(0).click(button="right")
+    await p.wait_for_timeout(250)
+    assert await p.locator(".cm-rowmenu .dmenu-item", has_text="위로 옮기기").first.is_disabled(), "맨 위인데 위로 옮기기가 켜짐"
+    await p.locator(".cm-rowmenu .dmenu-item", has_text="아래로 옮기기").first.click()
+    await p.wait_for_timeout(300)
+    assert await rows.nth(1).get_attribute("data-cid") == first, "아래로 안 옮겨짐"
+
+
+async def c_no_browser_menu(p):
+    """빈 곳 우클릭은 기본 메뉴를 막고, 입력 칸 안은 그대로 둬요."""
+    await shoot.nav(p, "민원대장")
+    r = await p.evaluate("""() => {
+      const fire = (el) => { const e = new MouseEvent('contextmenu', {bubbles: true, cancelable: true}); el.dispatchEvent(e); return e.defaultPrevented; };
+      return [fire(document.querySelector('.cm-empty, .cm-head, h1, body')), fire(document.querySelector('input[name=received]'))];
+    }""")
+    assert r == [True, False], f"막기 결과 {r}"
+
+
 async def c_files_dialog(p):
     await shoot.nav(p, "탐색기")
     await shoot.s_files_delete(p)
@@ -151,6 +174,10 @@ CASES = {
     "journal_daymenu": menu_case("업무일지", shoot.s_journal_daymenu, ".dmenu"),
     "complaints_headmenu": menu_case("민원대장", shoot.s_complaints_headmenu, ".dmenu"),
     "complaints_filter": menu_case("민원대장", shoot.s_complaints_filter, ".cm-fdd"),
+    "complaints_rowmenu": menu_case("민원대장", shoot.s_complaints_rowmenu, ".cm-rowmenu"),
+    "complaints_rowmenu_ask": menu_case("민원대장", shoot.s_complaints_rowmenu_ask, ".cm-rowmenu"),
+    "complaints_move": c_complaints_move,
+    "no_browser_menu": c_no_browser_menu,
     "budget_menu": menu_case("집행현황", shoot.s_budget_menu, ".bd-pop"),
     "budgetstatus_menu": menu_case("예산현황", shoot.s_budgetstatus_menu, ".bd-pop", esc=False),
     "files_tabmenu": menu_case("탐색기", shoot.s_files_tabmenu, ".fx-tabmenu"),

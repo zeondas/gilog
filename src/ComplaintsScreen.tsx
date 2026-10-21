@@ -20,6 +20,7 @@ import {
 import { DelIcon } from "./Icons";
 import { isInside, overlayDown, useOutsideClose } from "./useOutsideClose";
 import { VirtualList, type VirtualHandle } from "./VirtualList";
+import { onSelection } from "./noContextMenu";
 import { isKey, rowKeys } from "./keys";
 import { ExcelMenu } from "./ExcelMenu";
 import { complaintImports, complaintRows } from "./excel";
@@ -100,6 +101,8 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
   const [editId, setEditId] = useState<number | null>(null);
   // 한 번 누른 줄(골라 둔 줄). 두 번 누르거나 Enter를 누르면 고쳐요.
   const [selId, setSelId] = useState<number | null>(null);
+  // 줄 우클릭 메뉴(2026-10-21 사용자 – 고치기·위로/아래로 옮기기·지우기). ask = 지우기를 눌러 붉은 띠로 바뀐 때.
+  const [rowMenu, setRowMenu] = useState<{ id: number; x: number; y: number; ask: boolean } | null>(null);
   const [memoId, setMemoId] = useState<number | null>(null);
   const [catsOpen, setCatsOpen] = useState(false);
   const [flash, setFlash] = useState<number | null>(null);
@@ -395,6 +398,10 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
                   statuses={statuses}
                   short={layout.short}
                   onSelect={() => setSelId(c.id)}
+                  onMenu={(x, y) => {
+                    setSelId(c.id);
+                    setRowMenu({ id: c.id, x, y, ask: false });
+                  }}
                   onEdit={() => {
                     setMemoId(null);
                     setSelId(c.id);
@@ -427,6 +434,51 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
           <div className="cm-empty muted small">맞는 민원이 없어요.</div>
         ) : null}
       </div>
+
+      {rowMenu &&
+        (() => {
+          const i = shown.findIndex((c) => c.id === rowMenu.id);
+          if (i < 0) return null;
+          const c = shown[i];
+          const close = () => setRowMenu(null);
+          // 거르기·검색 중이면 보이는 줄 기준 이웃과 연번을 맞바꿔요(2026-10-21 ① 1안).
+          const move = async (j: number) => {
+            close();
+            const o = shown[j];
+            if (!o) return;
+            const r = await run(api.swapComplaintNo(c.id, o.id));
+            if (!r) return;
+            setList((old) => {
+              const m = new Map(r.map((x) => [x.id, x]));
+              return (old ?? []).map((x) => m.get(x.id) ?? x).sort((a, b) => b.no - a.no || b.id - a.id);
+            });
+            setSelId(c.id);
+            requestAnimationFrame(() => vlRef.current?.scrollToIndex(j, { align: "nearest" }));
+          };
+          return (
+            <RowMenu
+              no={c.no}
+              x={rowMenu.x}
+              y={rowMenu.y}
+              ask={rowMenu.ask}
+              canUp={i > 0}
+              canDown={i < shown.length - 1}
+              onClose={close}
+              onEdit={() => {
+                close();
+                setMemoId(null);
+                setEditId(c.id);
+              }}
+              onUp={() => void move(i - 1)}
+              onDown={() => void move(i + 1)}
+              onAsk={() => setRowMenu({ ...rowMenu, ask: true })}
+              onDelete={async () => {
+                close();
+                if (await run(api.deleteComplaint(c.id).then(() => true))) setList((old) => (old ?? []).filter((x) => x.id !== c.id));
+              }}
+            />
+          );
+        })()}
 
       {memoOf && (
         <MemoDialog
@@ -700,6 +752,89 @@ function HeadMenu({ x, y, onClose, onReset }: { x: number; y: number; onClose: (
       <button type="button" role="menuitem" className="dmenu-item" onClick={onReset}>
         열 너비 초기화
       </button>
+    </div>
+  );
+}
+
+/** 보기 줄 우클릭 메뉴(2026-10-21 사용자, 시안 ComplaintMenu.dc.html) – 공통 "떠 있는 메뉴" 모양.
+ *  지우기는 메뉴가 그 자리에서 붉은 띠로 바뀌어요(업무일지 날짜 메뉴·민원처리와 같은 방식). */
+function RowMenu({
+  no,
+  x,
+  y,
+  ask,
+  canUp,
+  canDown,
+  onClose,
+  onEdit,
+  onUp,
+  onDown,
+  onAsk,
+  onDelete,
+}: {
+  no: number;
+  x: number;
+  y: number;
+  ask: boolean;
+  canUp: boolean;
+  canDown: boolean;
+  onClose: () => void;
+  onEdit: () => void;
+  onUp: () => void;
+  onDown: () => void;
+  onAsk: () => void;
+  onDelete: () => void;
+}) {
+  const box = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ left: x, top: y, visibility: "hidden" as "hidden" | "visible" });
+  useOutsideClose(true, [box], () => onClose(), {
+    onBlur: () => onClose(),
+    onEsc: (e) => {
+      e.preventDefault();
+      onClose();
+    },
+  });
+  // 그린 뒤 재서 화면 안 8px로 밀고, 아래가 모자라면 위로 열어요.
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const left = Math.max(8, Math.min(x, window.innerWidth - r.width - 8));
+    const top = y + r.height + 8 > window.innerHeight ? Math.max(8, y - r.height) : y;
+    setPos({ left, top, visibility: "visible" });
+  }, [x, y, ask]);
+  useEffect(() => {
+    box.current?.querySelector<HTMLButtonElement>(ask ? ".ask-band .btn" : ".dmenu-item:not(:disabled)")?.focus();
+  }, [ask]);
+  return (
+    <div ref={box} className="dmenu cm-rowmenu" role="menu" aria-label={`${no}번 민원`} style={pos} onContextMenu={(e) => e.preventDefault()}>
+      {!ask ? (
+        <>
+          <button type="button" role="menuitem" className="dmenu-item" onClick={onEdit}>
+            고치기
+          </button>
+          <button type="button" role="menuitem" className="dmenu-item" disabled={!canUp} onClick={onUp}>
+            위로 옮기기
+          </button>
+          <button type="button" role="menuitem" className="dmenu-item" disabled={!canDown} onClick={onDown}>
+            아래로 옮기기
+          </button>
+          <div className="dmenu-sep" />
+          <button type="button" role="menuitem" className="dmenu-item danger" onClick={onAsk}>
+            지우기
+          </button>
+        </>
+      ) : (
+        <div className="ask-band dmenu-ask" role="alertdialog" aria-label="민원 지우기 확인">
+          <span>{no}번 민원을 지울까요? 메모도 함께 지워져요.</span>
+          <button type="button" className="btn btn-xs" onClick={onClose}>
+            취소
+          </button>
+          <button type="button" className="btn btn-xs btn-danger" onClick={onDelete}>
+            지우기
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1445,6 +1580,7 @@ function ViewRow({
   statuses,
   short,
   onSelect,
+  onMenu,
   onEdit,
   onMemo,
   onStatus,
@@ -1463,6 +1599,8 @@ function ViewRow({
   /** 폭이 모자라 줄인 모양으로 보이는 열 */
   short: Set<ColKey>;
   onSelect: () => void;
+  /** 줄 우클릭 – 메뉴를 열 자리 */
+  onMenu: (x: number, y: number) => void;
   onEdit: () => void;
   onMemo: () => void;
   onStatus: (status: string) => void;
@@ -1490,6 +1628,12 @@ function ViewRow({
       className={"cm-row cm-view" + (alt ? " alt" : "") + (flash ? " flash" : "") + (selected ? " sel" : "") + (isClosed(c.status) ? " done" : "")}
       title="두 번 눌러서 고치기 (상태 배지는 바로 바꾸기, 민원인·위치는 복사, 줄인 마감일은 D-day를 두 번 눌러 고치기)"
       onClick={onSelect}
+      onContextMenu={(e) => {
+        // 글을 골라 두고 우클릭하면 복사 메뉴(앱 공통 – main.tsx)를 그대로 둬요.
+        if (onSelection(e.target as Node)) return;
+        e.preventDefault();
+        onMenu(e.clientX, e.clientY);
+      }}
       onDoubleClick={(e) => {
         // 두 번 누를 때 글자가 골라지는 것을 풀어요.
         window.getSelection()?.removeAllRanges();

@@ -735,6 +735,13 @@ function fakeComplaints(cmd: string, a: Record<string, unknown>): unknown {
       c.memo = a.memo as string;
       return structuredClone(c);
     }
+    case "swap_complaint_no": {
+      const x = fake.complaints.find((c) => c.id === a.a);
+      const y = fake.complaints.find((c) => c.id === a.b);
+      if (!x || !y || x === y) throw "not_found";
+      [x.no, y.no] = [y.no, x.no];
+      return [structuredClone(x), structuredClone(y)];
+    }
     case "delete_complaint":
       fake.complaints = fake.complaints.filter((x) => x.id !== a.id);
       return null;
@@ -1393,6 +1400,8 @@ export const api = {
   setComplaintStatus: (id: number, status: string, done?: string) =>
     call<Complaint>("set_complaint_status", done === undefined ? { id, status } : { id, status, done }),
   setComplaintMemo: (id: number, memo: string) => call<Complaint>("set_complaint_memo", { id, memo }),
+  /** 두 민원의 연번 맞바꾸기(줄 우클릭 위로·아래로 옮기기) */
+  swapComplaintNo: (a: number, b: number) => call<[Complaint, Complaint]>("swap_complaint_no", { a, b }),
   deleteComplaint: (id: number) => call<null>("delete_complaint", { id }),
   processData: () => call<ProcessData>("process_data"),
 
