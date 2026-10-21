@@ -53,6 +53,8 @@ import { koIndex, parseDate, todayStr } from "./journal";
 import { useJamoGuard } from "./koInput";
 import { PhoneInput } from "./PhoneInput";
 import { ChoiceInput, PlaceInput } from "./PlaceInputs";
+import { lookupMany } from "./addressWeb";
+import { areaFor } from "./address";
 import { finalizePhone } from "./phone";
 import { ListGroup } from "./SettingsScreen";
 import { DEFAULT_SETTINGS, isAnswered, isClosed, loadSettings, saveSettings, Settings, STATUS_RENAME, statusColor } from "./settingsStore";
@@ -337,9 +339,16 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
           build={() => ({ rows: complaintRows(all), intake: settings.intake, status: settings.status })}
           parse={complaintImports}
           onImport={async (rows) => {
-            const n = await api.importComplaints(rows);
+            // 위치가 도로명주소면 웹 먼저 바꿔 넣어요(한 번에 4줄, 웹이 안 되면 앱이 내장 표로 바꿔요 – 2026-10-21 사용자 2안).
+            const { found, web, table } = await lookupMany(rows.map((r) => r.place));
+            const conv = rows.map((r, i) => {
+              const f = found[i];
+              if (f?.kind !== "exact") return r;
+              return { ...r, place: f.hit.place, area: areaFor(f.hit, r.area), road: r.road || f.original };
+            });
+            const n = await api.importComplaints(conv);
             setList(await api.complaints());
-            return n;
+            return web + table ? { n, note: `주소 바꿈 웹 ${web} · 내장 ${table}` } : n;
           }}
         />
       </div>

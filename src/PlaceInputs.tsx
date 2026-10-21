@@ -6,9 +6,13 @@
 // 도로명주소(2026-10-18 사용자): 칸을 떠날 때 파주시 도로명주소면 "리·동 지번"으로 바꾸고 지역도 채워요.
 //   번호가 표에 없으면 가까운 번호 후보(Tab 확정 · Esc 친 그대로), 법정동이 행정동 여럿에 걸치면 지역 고르기.
 //   바꾸기 전 글은 onRoad로 넘겨 마우스를 올리면 보여요(title). 칸에 다시 치면 지워요.
+// 웹 먼저(2026-10-21 사용자 2안, addressWeb.ts): 치다 멈추면(0.3초) 웹에 묻고, 내장 표 답은 바로 받아 둬요.
+//   웹 답이 오면 그것을 믿어요 — 칸을 이미 떠났어도(내장 답으로 바꿔 둔 그대로면) 웹 답으로 다시 바꿔요.
+//   후보 목록에는 출처 배지(웹·내장)가 붙어요.
 import { KeyboardEvent, Ref, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { areaFor, looksRoad, RoadHit, RoadLookup } from "./address";
 import { api } from "./api";
+import { Src, webLookup } from "./addressWeb";
 import { useJamoGuard } from "./koInput";
 import { emdsOf, findNames, Place, PLACES, splitPlace } from "./paju";
 
@@ -79,33 +83,76 @@ export function PlaceInput({
   });
   guard.follow(value);
 
-  // 도로명주소: 치는 동안 미리 물어 둬요(칸을 떠나는 순간 바로 쓰게).
-  const look = useRef<{ text: string; r: RoadLookup } | null>(null);
+  // 도로명주소: 치는 동안 미리 물어 둬요(칸을 떠나는 순간 바로 쓰게). 웹 답이 있으면 웹, 아니면 내장 표.
+  const look = useRef<{ text: string; r: RoadLookup; src: Src } | null>(null);
   const done = useRef("");
   const [roadPick, setRoadPick] = useState<
-    { kind: "cands"; list: RoadHit[]; original: string } | { kind: "area"; name: string; areas: string[] } | null
+    { kind: "cands"; list: RoadHit[]; original: string; src: Src } | { kind: "area"; name: string; areas: string[] } | null
   >(null);
   const [phi, setPhi] = useState(0);
+  // 웹 답은 칸 글이 바뀌어도 버리지 않아요(떠난 뒤에 와도 쓰게) — 늦게 온 답은 아래 onWeb이 맞춰요.
+  const now = useRef({ value, area, roadPick });
+  now.current = { value, area, roadPick };
+  const webReq = useRef(new Map<string, Promise<RoadLookup | null>>());
+  const webAns = useRef(new Map<string, RoadLookup | null>());
+  /** 칸을 떠날 때 남긴 글(늦게 온 웹 답으로 다시 바꿀지 보려고) */
+  const left = useRef<{ text: string; value: string } | null>(null);
+
+  function askWeb(t: string) {
+    if (webReq.current.has(t)) return;
+    const p = webLookup(t);
+    webReq.current.set(t, p);
+    p.then((r) => onWeb(t, r), () => onWeb(t, null));
+  }
+
+  function onWeb(t: string, r: RoadLookup | null) {
+    webAns.current.set(t, r);
+    if (!r) return;
+    if (now.current.value.trim() === t) look.current = { text: t, r, src: "web" };
+    if (r.kind !== "exact") return;
+    const pick = now.current.roadPick;
+    // 내장 후보를 고르는 중이면 웹 답으로 바로 바꿔요.
+    if (pick?.kind === "cands" && pick.original === r.original) {
+      setRoadPick(null);
+      applyHit(r.hit, r.original, true);
+      return;
+    }
+    // 이미 떠났고 칸이 그대로면(내장 답 또는 친 그대로) 웹 답으로 바꿔요.
+    const L = left.current;
+    if (L && L.text === t && now.current.value.trim() === L.value && L.value !== r.hit.place) {
+      left.current = null;
+      applyHit(r.hit, r.original, false);
+    }
+  }
+
   useEffect(() => {
     const t = value.trim();
-    if (!looksRoad(t) || look.current?.text === t) return;
-    let live = true;
-    api.roadToJibun(t).then(
-      (r) => live && (look.current = { text: t, r }),
-      () => undefined,
-    );
-    return () => {
-      live = false;
-    };
+    if (!looksRoad(t)) return;
+    const w = webAns.current.get(t);
+    if (w) {
+      look.current = { text: t, r: w, src: "web" };
+      return;
+    }
+    if (look.current?.text !== t) {
+      api.roadToJibun(t).then(
+        (r) => {
+          if (now.current.value.trim() !== t || webAns.current.get(t)) return;
+          look.current = { text: t, r, src: "table" };
+        },
+        () => undefined,
+      );
+    }
+    const timer = window.setTimeout(() => askWeb(t), 300);
+    return () => window.clearTimeout(timer);
   }, [value]);
 
   /** 바꾼 위치를 넣어요. 지역을 골라야 하면 목록을 띄우고 true(칸에 남아요). */
   function applyHit(h: RoadHit, original: string, canStay: boolean): boolean {
-    done.current = value.trim();
+    done.current = now.current.value.trim();
     guard.sync(h.place);
     onChange(h.place);
     onRoad?.(original);
-    const a = areaFor(h, area);
+    const a = areaFor(h, now.current.area);
     onArea(a);
     setOpen(false);
     if (!a && h.areas.length > 1 && canStay) {
@@ -117,10 +164,17 @@ export function PlaceInput({
     return false;
   }
 
+  /** 떠나는 순간: 웹에 아직 안 물었으면 바로 묻고, 남는 글을 적어 둬요. */
+  function leaving(t: string, after: string) {
+    if (!looksRoad(t)) return;
+    askWeb(t);
+    left.current = { text: t, value: after };
+  }
+
   /** 지금 글의 찾은 결과(미리 물어 둔 것) */
   const lookNow = () => {
     const t = value.trim();
-    return t && t !== done.current && look.current?.text === t ? look.current.r : null;
+    return t && t !== done.current && look.current?.text === t ? look.current : null;
   };
 
   const { head, rest } = splitPlace(value);
@@ -194,13 +248,22 @@ export function PlaceInput({
           if (roadPick) return setRoadPick(null);
           // 방금 Tab·Enter로 바꿨으면(그리기 전에 떠나요) 다시 손대지 않아요.
           if (done.current && value.trim() === done.current) return;
-          const L = lookNow();
-          if (L?.kind === "exact") return void applyHit(L.hit, L.original, false);
-          if (L?.kind === "cands") return;
           const t = value.trim();
+          const F = lookNow();
+          const L = F?.r;
+          if (L?.kind === "exact") {
+            leaving(t, L.hit.place);
+            return void applyHit(L.hit, L.original, false);
+          }
+          if (L?.kind === "cands") return leaving(t, t);
           if (t && t !== done.current && looksRoad(t) && !look.current) {
-            // 아직 답이 오지 않았으면 받은 뒤 꼭 맞을 때만 바꿔요.
-            api.roadToJibun(t).then((r) => r.kind === "exact" && applyHit(r.hit, r.original, false), () => undefined);
+            // 아직 답이 오지 않았으면 받은 뒤 꼭 맞을 때만 바꿔요(웹 답이 오면 onWeb이 다시 맞춰요).
+            leaving(t, t);
+            api.roadToJibun(t).then((r) => {
+              if (r.kind !== "exact" || now.current.value.trim() !== t || webAns.current.get(t)) return;
+              if (left.current?.text === t) left.current = { text: t, value: r.hit.place };
+              applyHit(r.hit, r.original, false);
+            }, () => undefined);
             return;
           }
           settle();
@@ -223,15 +286,21 @@ export function PlaceInput({
           }
           if (!show) {
             if ((e.key === "Tab" && !e.shiftKey) || e.key === "Enter") {
-              const L = lookNow();
-              if (L?.kind === "cands" && L.list.length) {
+              const F = lookNow();
+              const L = F?.r;
+              const t = value.trim();
+              if (F && L?.kind === "cands" && L.list.length) {
                 e.preventDefault();
                 e.stopPropagation();
-                setRoadPick({ kind: "cands", list: L.list, original: L.original });
+                askWeb(t);
+                setRoadPick({ kind: "cands", list: L.list, original: L.original, src: F.src });
                 setPhi(0);
-              } else if (L?.kind === "exact" && applyHit(L.hit, L.original, true)) {
-                e.preventDefault();
-                e.stopPropagation();
+              } else if (L?.kind === "exact") {
+                leaving(t, L.hit.place);
+                if (applyHit(L.hit, L.original, true)) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }
               }
             }
             return;
@@ -272,11 +341,11 @@ export function PlaceInput({
         </div>
       )}
       {roadPick && (
-        <div className="pin-list pin-road" role="listbox" aria-label={roadPick.kind === "cands" ? "가까운 번호" : "지역 고르기"}>
+        <div className="pin-list pin-road" role="listbox" aria-label={roadPick.kind === "cands" ? (roadPick.src === "web" ? "맞는 주소" : "가까운 번호") : "지역 고르기"}>
           {roadPick.kind === "cands"
             ? roadPick.list.map((h, i) => (
                 <div
-                  key={h.road}
+                  key={h.road + h.place}
                   role="option"
                   aria-selected={i === phi}
                   className="pin-opt pin-place"
@@ -287,6 +356,7 @@ export function PlaceInput({
                 >
                   <span>{h.road}</span>
                   <span className="pin-sub">{[h.place, h.bldg].filter(Boolean).join(" · ")}</span>
+                  <span className={"pin-src" + (roadPick.src === "web" ? " pin-src-web" : "")}>{roadPick.src === "web" ? "웹" : "내장"}</span>
                 </div>
               ))
             : roadPick.areas.map((a, i) => (

@@ -65,7 +65,8 @@ export function ExcelMenu<T>({
   /** 읽은 시트 → 넣을 줄 */
   parse: (s: ExcelSheet) => T[];
   /** 넣고 넣은 수를 돌려줘요 */
-  onImport: (rows: T[]) => Promise<number>;
+  /** 가져온 수(또는 수 + 덧붙일 말, 예: "웹 3 · 내장 2") */
+  onImport: (rows: T[]) => Promise<number | { n: number; note: string }>;
   /** 메뉴 "가져오기" 설명 줄(업무일지는 겹친 기록을 건너뛰어요) */
   importHint?: string;
   /** 묻는 창 제목 아래 한 줄(건너뛰는 줄 수 등). 읽은 시트를 받아요. */
@@ -148,8 +149,10 @@ export function ExcelMenu<T>({
     if (!ask || busy) return;
     setBusy(true);
     try {
-      const n = await onImport(ask.rows);
-      setToast(`${n}건을 가져왔어요`);
+      const r = await onImport(ask.rows);
+      const n = typeof r === "number" ? r : r.n;
+      const extra = typeof r === "number" ? "" : r.note;
+      setToast(`${n}건을 가져왔어요${extra ? ` · ${extra}` : ""}`);
       setAsk(null);
     } catch (e) {
       setToast(errorText(e));

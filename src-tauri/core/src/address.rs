@@ -8,7 +8,7 @@
 //! - 파주시 표에 없는 도로명, 다른 시·군·구가 앞에 적힌 글은 바꾸지 않아요. 지하는 자료에 없어 "지하"라는 말만 건너뛰어요.
 use std::collections::HashMap;
 use std::io::Read;
-use std::sync::OnceLock;
+use std::sync::{Arc, RwLock};
 
 use serde::Serialize;
 
@@ -59,39 +59,96 @@ struct Row {
     adm: String,
 }
 
-fn table() -> &'static HashMap<String, Vec<Row>> {
-    static T: OnceLock<HashMap<String, Vec<Row>>> = OnceLock::new();
-    T.get_or_init(|| {
-        let mut text = String::new();
-        if let Ok(mut z) = zip::ZipArchive::new(std::io::Cursor::new(ZIP)) {
-            if let Ok(mut f) = z.by_index(0) {
-                let _ = f.read_to_string(&mut text);
-            }
+type Table = HashMap<String, Vec<Row>>;
+
+/// 지금 쓰는 표 — 처음엔 앱에 넣은 표, 설정 "파일로 바꾸기"를 하면 그 자료(2026-10-21 주소 변환 웹 세션).
+static T: RwLock<Option<Arc<Table>>> = RwLock::new(None);
+
+fn embedded_text() -> String {
+    let mut text = String::new();
+    if let Ok(mut z) = zip::ZipArchive::new(std::io::Cursor::new(ZIP)) {
+        if let Ok(mut f) = z.by_index(0) {
+            let _ = f.read_to_string(&mut text);
         }
-        let mut m: HashMap<String, Vec<Row>> = HashMap::new();
-        for line in text.lines() {
-            let c: Vec<&str> = line.split('|').collect();
-            if c.len() < 10 || c[1] != "0" {
-                continue; // 지하 건물은 받지 않아요
-            }
-            let (Ok(main), Ok(sub)) = (c[2].parse::<u32>(), c[3].parse::<u32>()) else { continue };
-            m.entry(c[0].to_string()).or_default().push(Row {
-                main,
-                sub,
-                emd: c[4].into(),
-                ri: c[5].into(),
-                san: c[6] == "1",
-                jmain: c[7].into(),
-                jsub: c[8].into(),
-                bldg: c[9].into(),
-                adm: c.get(10).copied().unwrap_or("").into(),
-            });
+    }
+    text
+}
+
+fn build(text: &str) -> Table {
+    let mut m: Table = HashMap::new();
+    for line in text.lines() {
+        let c: Vec<&str> = line.split('|').collect();
+        if c.len() < 10 || c[1] != "0" {
+            continue; // 지하 건물은 받지 않아요
         }
-        for v in m.values_mut() {
-            v.sort_by_key(|r| (r.main, r.sub));
+        let (Ok(main), Ok(sub)) = (c[2].parse::<u32>(), c[3].parse::<u32>()) else { continue };
+        m.entry(c[0].to_string()).or_default().push(Row {
+            main,
+            sub,
+            emd: c[4].into(),
+            ri: c[5].into(),
+            san: c[6] == "1",
+            jmain: c[7].into(),
+            jsub: c[8].into(),
+            bldg: c[9].into(),
+            adm: c.get(10).copied().unwrap_or("").into(),
+        });
+    }
+    for v in m.values_mut() {
+        v.sort_by_key(|r| (r.main, r.sub));
+    }
+    m
+}
+
+fn table() -> Arc<Table> {
+    if let Some(t) = T.read().ok().and_then(|g| g.clone()) {
+        return t;
+    }
+    let mut g = T.write().unwrap_or_else(|e| e.into_inner());
+    if let Some(t) = g.clone() {
+        return t;
+    }
+    let t = Arc::new(build(&embedded_text()));
+    *g = Some(t.clone());
+    t
+}
+
+/// 표를 바꿔요(`data/paju_roadaddr.txt` 모양의 글). 받아들인 곳 수를 돌려줘요 — 0이면 바꾸지 않아요.
+pub fn set_road_table(text: &str) -> usize {
+    let t = build(text);
+    let n: usize = t.values().map(|v| v.len()).sum();
+    if n > 0 {
+        *T.write().unwrap_or_else(|e| e.into_inner()) = Some(Arc::new(t));
+    }
+    n
+}
+
+/// 앱에 넣은 표로 되돌려요.
+pub fn reset_road_table() {
+    *T.write().unwrap_or_else(|e| e.into_inner()) = None;
+}
+
+/// 지금 표의 곳 수(지상 건물만)
+pub fn road_table_count() -> usize {
+    table().values().map(|v| v.len()).sum()
+}
+
+/// 주소정보누리집 "도로명주소 한글" 전체자료(경기도, 이미 글자로 푼 것)에서 파주시 줄만 뽑아
+/// 표 모양(`도로명|지하|건물본번|건물부번|읍면동|리|산|지번본|지번부|건물명|행정동`)으로 돌려줘요.
+/// `tools/address/extract.py`와 같은 일이에요.
+pub fn extract_paju(text: &str) -> String {
+    let mut out = String::new();
+    for line in text.lines() {
+        let c: Vec<&str> = line.trim_end_matches(['\r', '\n']).split('|').collect();
+        if c.len() < 23 || c[3] != "파주시" {
+            continue;
         }
-        m
-    })
+        let bldg = if c[22].trim().is_empty() { c[21].trim() } else { c[22].trim() }.replace('|', " ");
+        let row = [c[10], c[11], c[12], c[13], c[4], c[5], c[6], c[7], c[8], &bldg, c[15]];
+        out.push_str(&row.iter().map(|x| x.trim()).collect::<Vec<_>>().join("|"));
+        out.push('\n');
+    }
+    out
 }
 
 /// 바꾼 결과 하나
@@ -186,6 +243,7 @@ pub fn road_to_jibun(text: &str) -> RoadLookup {
     let original = text.split_whitespace().collect::<Vec<_>>().join(" ");
     let toks: Vec<&str> = original.split(' ').filter(|t| !t.is_empty()).collect();
     let t = table();
+    let t = &*t;
     for i in 0..toks.len() {
         // 도로명 후보: 이 낱말, 또는 앞 낱말과 이은 것("금정로 12번길" → "금정로12번길")
         let mut names: Vec<(String, usize)> = Vec::new();
@@ -285,6 +343,31 @@ mod tests {
         assert_eq!(exact("문향로 61-1").place, "문산리 8-4");
         // 산 지번
         assert!(exact("가나무로 107").place.starts_with("금촌동 산 25-4"));
+    }
+
+    #[test]
+    fn extract_and_replace() {
+        let mut cols = vec![""; 24];
+        cols[3] = "파주시";
+        cols[4] = "조리읍";
+        cols[5] = "봉일천리";
+        cols[6] = "0";
+        cols[7] = "5";
+        cols[8] = "31";
+        cols[10] = "통일로";
+        cols[11] = "0";
+        cols[12] = "136";
+        cols[13] = "0";
+        cols[15] = "조리읍";
+        cols[22] = "새건물";
+        let paju = cols.join("|");
+        cols[3] = "고양시";
+        let other = cols.join("|");
+        let got = extract_paju(&format!("{paju}\r\n{other}\n"));
+        assert_eq!(got, "통일로|0|136|0|조리읍|봉일천리|0|5|31|새건물|조리읍\n");
+        // 바꾸기 시험은 표를 건드리므로 빈 글(0곳)은 받지 않는 것만 봐요.
+        assert_eq!(set_road_table(""), 0);
+        assert!(road_table_count() > 40000);
     }
 
     #[test]

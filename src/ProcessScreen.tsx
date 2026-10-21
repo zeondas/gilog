@@ -21,6 +21,8 @@ import { BulletEditor, Mark } from "./BulletParts";
 import { DelIcon } from "./Icons";
 import { koIndex, todayStr } from "./journal";
 import { PlaceInput } from "./PlaceInputs";
+import { webLookup } from "./addressWeb";
+import { areaFor, looksRoad } from "./address";
 import { actionLine, aiGuide, fileName, mailDraft, mailGuide, md, orderLabel, orderTag, PORTAL_URL, processError, SAMPLE_WORKS, SAMPLES } from "./process";
 import { DEFAULT_PROCESS, DONE_STATUS, isAnswered, isClosed, loadSettings, ProcessSettings } from "./settingsStore";
 
@@ -322,6 +324,16 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   async function pullInbox(acc: { n: number; failed: Set<string>; missing: number; added: string[] }) {
     const r = await api.readInbox(ps.inbox, ps.downloads, ps.root);
     if (r.added.length) setCases((l) => [...l, ...r.added.filter((a) => !l.some((x) => x.no === a.no))]);
+    // 위치가 도로명주소면 웹 답을 먼저 믿어요(앱은 받을 때 내장 표로 바꿔 둠 – 2026-10-21 사용자 2안).
+    for (const a of r.added) {
+      const orig = (a.road || a.place).trim();
+      if (!looksRoad(orig)) continue;
+      webLookup(orig).then(async (w) => {
+        if (w?.kind !== "exact" || w.hit.place === a.place) return;
+        const c = await api.updateCase(a.no, { area: areaFor(w.hit, a.area), place: w.hit.place, road: orig });
+        setCases((l) => l.map((x) => (x.no === c.no ? c : x)));
+      }).catch(() => undefined);
+    }
     acc.n += r.added.length;
     acc.added.push(...r.added.map((a) => a.no));
     r.failed.forEach((f) => acc.failed.add(f));

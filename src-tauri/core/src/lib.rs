@@ -25,7 +25,7 @@ mod order;
 mod standard;
 mod process;
 mod tasks;
-pub use address::{road_to_jibun, RoadHit, RoadLookup};
+pub use address::{extract_paju, reset_road_table, road_table_count, road_to_jibun, set_road_table, RoadHit, RoadLookup};
 pub use bstatus::{BStatusExport, BStatusLine, BStatusSetup};
 pub use budget::{BudgetShareOp, BudgetImportItem, BudgetImportProject, BudgetImportRow, BudgetItem, BudgetLevel, BudgetProject, BudgetRow, BudgetRowInput, BUDGET_KINDS, BUDGET_STAGES};
 pub use calendar::{CalKind, CalendarData, Event, EventInput, Holiday, BUILTIN_HOLIDAYS, KIND_COLORS, REMIND_MAX, SYSTEM_KINDS};

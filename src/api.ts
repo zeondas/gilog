@@ -352,6 +352,11 @@ export type InboxResult = { added: Case[]; skipped: number; failed: string[]; mi
 export type RunStatus = { state: "idle" | "running" | "done" | "login" | "stopped" | "error"; total: number | null; done: number | null; message: string; log: string; skipped: string[]; skipCount?: number | null };
 export type OrderResult = { order: Order; cases: Case[]; works: Work[]; missing: string[]; /** 현장사진 없이 들어간 접수번호 */ noPhoto?: string[] };
 
+/** 내장 도로명주소 표 정보 */
+export type RoadTableInfo = { count: number; date: string; custom: boolean };
+const FAKE_TABLE: RoadTableInfo = { count: 55118, date: "2026-10-18", custom: false };
+let fakeTable: RoadTableInfo = { ...FAKE_TABLE };
+
 export const inApp = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 const fake = {
@@ -1376,6 +1381,12 @@ export const api = {
   complaints: () => call<Complaint[]>("complaints"),
   /** 위치 글이 파주시 도로명주소면 법정동 지번으로 (core address.rs) */
   roadToJibun: (text: string): Promise<RoadLookup> => (inApp ? invoke<RoadLookup>("road_to_jibun", { text }) : Promise.resolve(fakeRoadToJibun(text))),
+  /** 내장 도로명주소 표: 곳 수·자료 날짜·바꾼 표인지 (주소 변환 웹 2026-10-21) */
+  roadTableInfo: (): Promise<RoadTableInfo> => (inApp ? invoke<RoadTableInfo>("road_table_info") : Promise.resolve({ ...fakeTable })),
+  /** 경기도 전체자료 파일로 표를 바꿔요(파주시 줄만). 실패 "few:N"·"io" */
+  roadTableImport: (path: string): Promise<RoadTableInfo> =>
+    inApp ? invoke<RoadTableInfo>("road_table_import", { path }) : Promise.resolve((fakeTable = { count: 55200, date: new Date().toISOString().slice(0, 10), custom: true })),
+  roadTableReset: (): Promise<RoadTableInfo> => (inApp ? invoke<RoadTableInfo>("road_table_reset") : Promise.resolve((fakeTable = { ...FAKE_TABLE }))),
   addComplaint: (complaint: ComplaintInput) => call<Complaint>("add_complaint", { complaint }),
   updateComplaint: (id: number, complaint: ComplaintInput) => call<Complaint>("update_complaint", { id, complaint }),
   /** done을 주면 조치완료일도 함께 바꿔요(민원대장 배지). 주지 않으면 그대로예요(캘린더·할 일 체크). */
