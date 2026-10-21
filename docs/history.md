@@ -253,6 +253,9 @@
 
 ## 시안 판 목록 (원문)
 
+### 2026-10-21 지운 판
+- ComplaintCols(민원대장 열 폭 정리 – 지금/시안 4·5·최대화, 민원대장 세션) – 결정은 Main 판·사양서 "민원대장" 절·코드 `wip/complaints4`에 반영, 캔버스 판본 339에 남아 있어 되살릴 수 있음
+
 ### 2026-10-20 21:53 정리로 지운 판 52개(우두머리 세션, 사용자 1안 — 캔버스 판본 320 이전에 남아 있어 되살릴 수 있음)
 JournalCal1·JournalCal2·ComplaintFilter·BulletRule·JournalPdf·ProjectRename·ExcelImport·JournalPrint·Icons·ComplaintCols·KeySettings·FilesRename·Sidebar·SidebarIcons·FilesTree·FilesConflict·FilesMenu·FilesSettings·JournalNewCard·FilesActive·ProjectAlias·AddressConvert·FilesDrm·ProcessReg·BudgetEmpty·BudgetAdd·BudgetMenu·ProjectChips·UIAudit·UIUnified·FilesDrives·FilesToolbar·CloseAction·BudgetIcon·JournalRight·BudgetIconRef·ComplaintTop·TodoTop·ProcessOrder·ComplaintAnswer·ComplaintBadge·ProjectFilter·ProjectMgr·TaskbarIcon·TrayIcon·AppIconSet·BudgetStatusDetail·BudgetStatusIcon·BudgetStatusBag·TopBar·ProcessRows·ExplorerCompat. 남긴 16판: Main·Todo·Contacts·Journal·Calendar·Settings·Files·Process·Budget·BudgetStatus·Theme·Lock·ProjectGroups·ProcessStatus·BudgetShare·ProcessMail.
 
