@@ -117,13 +117,15 @@ export const COL_MIN = 40;
  * 표 폭(avail)에 맞춰 보이는 폭을 정해요 – 민원처리 화면이 써요. 고정 열 + 남는 폭 열 최소 폭이 표 폭을 넘으면
  * 고정 열을 같은 비율로 줄여요(가장 좁게 COL_MIN). 저장된 값은 그대로 두어 창을 넓히면 다시 원래 폭이에요.
  */
-export function fitWidths(ws: (number | null)[], avail: number): (number | null)[] {
+export function fitWidths(ws: (number | null)[], avail: number, fixed?: boolean[]): (number | null)[] {
   if (!(avail > 0)) return ws;
   const flex = ws.filter((w) => w === null).length * FLEX_MIN;
   const total = ws.reduce<number>((a, w) => a + (w ?? 0), 0);
   if (total + flex <= avail) return ws;
-  const k = Math.max(0, avail - flex) / total;
-  return ws.map((w) => (w === null ? w : Math.max(COL_MIN, Math.floor(w * k))));
+  // 고정 열(체크·칩·막대처럼 줄일 수 없는 것)은 그대로 두고 나머지만 줄여요(2026-10-21 화면 배율 – 큰 배율에서 넘치지 않게).
+  const keep = ws.reduce<number>((a, w, i) => a + (w !== null && fixed?.[i] ? w : 0), 0);
+  const k = Math.max(0, avail - flex - keep) / Math.max(1, total - keep);
+  return ws.map((w, i) => (w === null || fixed?.[i] ? w : Math.max(COL_MIN, Math.floor(w * k))));
 }
 
 export function gridTemplate(ws: (number | null)[], flexMin = FLEX_MIN): string {
@@ -145,6 +147,8 @@ export type ColNeed = { full: number; short?: number; more?: number };
 export const COL_SLACK = 28;
 /** 내용·조치내용이 이만큼(표 폭 비율) 못 받으면 하나씩 줄여요 */
 export const CONTENT_SHARE = 0.45;
+/** 칸 좌우 여백 합(app.css .cm-c padding 0 10px) */
+const CELL_PAD = 20;
 /** 다 줄여도 이보다 적으면 다른 열의 여유를 줄여요 */
 export const CONTENT_FLOOR = 0.4;
 /** 줄이는 순서(2026-10-21 사용자): 마감일 날짜 → 접수일 26-10-16 → 접수유형 두 글자 → 위치 읍면. 넓히면 거꾸로 풀려요. */
@@ -167,7 +171,7 @@ export type ColLayout = {
  * - 내용·조치내용을 뺀 열 = 들어갈 것의 폭 + 같은 여유 28. 끌어서 정한 열(ratio = 표 폭 비율)은 그 폭.
  * - 내용·조치내용이 표 폭의 45%를 못 받으면 SHORT_ORDER대로 하나씩 줄인 모양으로 바꿔요.
  * - 다 풀린 넓은 창이면 남는 폭(40% 넘는 만큼)을 민원인에 더 줘요(more까지).
- * - 다 줄여도 40%가 안 되면 다른 열의 여유를 8까지 줄이고, 그래도 모자라면 내용·조치내용이 80까지 줄어요.
+ * - 다 줄여도 40%가 안 되면 다른 열의 여유를 22(칸 여백 + 2)까지 줄이고, 그래도 모자라면 내용·조치내용이 80까지 줄어요.
  * - 끈 열은 그 폭이 들어갈 것보다 좁으면 줄인 모양이에요.
  */
 export function layoutCols(needs: Partial<Record<ColKey, ColNeed>>, avail: number, ratios: Partial<Record<ColKey, number>> = {}): ColLayout {
@@ -209,7 +213,8 @@ export function layoutCols(needs: Partial<Record<ColKey, ColNeed>>, avail: numbe
     const deficit = CONTENT_FLOOR * avail - content;
     if (deficit > 0) {
       const auto = fixed.filter((k) => user(k) === null);
-      const each = Math.min(COL_SLACK - 8, Math.ceil(deficit / Math.max(1, auto.length)));
+      // 칸 여백(좌우 10)보다 좁히면 열 제목·글자가 잘려요 – 여유는 CELL_PAD + 2까지만(2026-10-21 화면 배율).
+      const each = Math.min(COL_SLACK - CELL_PAD - 2, Math.ceil(deficit / Math.max(1, auto.length)));
       for (const k of auto) w[k] = w[k]! - each;
     }
   }

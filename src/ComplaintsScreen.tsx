@@ -591,7 +591,11 @@ function useColNeeds(all: Complaint[], statuses: string[], doneFolded: boolean, 
         short: max(all.map((c) => tw(c.place))),
       }),
       person: at("person", { full: tw(PHONE_SAMPLE), more: p90(all.map((c) => tw([c.person, c.phone].filter(Boolean).join(" ")))) }),
-      due: at("due", { full: date + (dday ? DUE_GAP + dday : 0), short: Math.max(dday, nw("D-day", 700, 11.5)) }),
+      // 줄인 모양에서도 답변 끝난 민원은 D-day 대신 짧은 날짜(26-10-16)를 보여서 그 폭도 넣어요(2026-10-21 화면 배율 – 잘림).
+      due: at("due", {
+        full: date + (dday ? DUE_GAP + dday : 0),
+        short: Math.max(dday, nw("D-day", 700, 11.5), all.some((c) => c.due && daysLeft(c, today) === null) ? nw("26-10-16") : 0),
+      }),
       status: at("status", { full: STATUS_BADGE }),
       done: doneFolded
         ? { full: FOLD_BTN }

@@ -105,10 +105,23 @@ pub fn apply_theme(app: &AppHandle, theme_pref: &str) {
     }
 }
 
+/// 화면 크기(설정 → 일반, prefs `fontSize` 12~17)를 창 전체 배율로 적용해요(2026-10-21 화면 배율 세션, 사용자 1안).
+/// 기준은 13 = 100%이고, 글자·칸·아이콘·여백이 모두 같은 비율로 커져요(13일 때 맞춘 모양이 그대로 유지돼요).
+/// Ctrl+휠·Ctrl+± 배율은 꺼 둬요(`zoomHotkeysEnabled` 없음) – 배율은 설정에서만 바꿔요.
+pub fn zoom_for(font_size: u32) -> f64 {
+    f64::from(font_size.clamp(12, 17)) / 13.0
+}
+
+pub fn apply_zoom(app: &AppHandle, font_size: u32) {
+    if let Some(w) = app.get_webview_window(LABEL) {
+        let _ = w.set_zoom(zoom_for(font_size));
+    }
+}
+
 /// 앱을 켤 때(setup) 창을 숨긴 채 만들고 자리·크기를 정해요.
 /// `tray_only`(윈도우 시작할 때 자동 실행 – 실행 인자 --autostart)면 화면이 준비돼도 보이지 않고 트레이에만 둬요.
 /// 트레이 아이콘·알림 누르기·한 번 더 켜기(`calendar::show_main`)가 창을 꺼내면 그때 잠금 화면이 보여요.
-pub fn create(app: &mut App, theme_pref: &str, tray_only: bool) -> tauri::Result<()> {
+pub fn create(app: &mut App, theme_pref: &str, font_size: u32, tray_only: bool) -> tauri::Result<()> {
     let handle = app.handle().clone();
     let config = app
         .config()
@@ -123,6 +136,8 @@ pub fn create(app: &mut App, theme_pref: &str, tray_only: bool) -> tauri::Result
         .theme(forced_theme(theme_pref))
         .background_color(bg_for(theme_pref, Theme::Light));
     let w = builder.build()?;
+    // 보이기 전에 배율부터 – 첫 그림이 이미 고른 크기로 나와요.
+    let _ = w.set_zoom(zoom_for(font_size));
     // 시스템 테마는 창을 만든 뒤에야 알 수 있어요.
     apply_theme(&handle, theme_pref);
     restore(&w);
