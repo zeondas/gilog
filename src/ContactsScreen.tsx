@@ -3,6 +3,7 @@ import { KeyboardEvent, RefObject, useCallback, useEffect, useLayoutEffect, useM
 import { ExcelMenu } from "./ExcelMenu";
 import { ProjectImport, contactImports, contactRows, samePerson } from "./excel";
 import { DelIcon } from "./Icons";
+import { VirtualList } from "./VirtualList";
 import { BLine, CYCLE, isBlank, kindOf, layout, newLineFor, NewLineMode, parseLines, stringifyLines, TRIGGERS, withKind } from "./bullets";
 import { isKey, keyAction, rowKeys } from "./keys";
 import { BulletView, Mark } from "./BulletParts";
@@ -101,10 +102,22 @@ export default function ContactsScreen() {
   const [askId, setAskId] = useState<number | null>(null);
   const [projOpen, setProjOpen] = useState(false);
   const [note, setNote] = useState("");
+  // 카드는 보이는 만큼만 그려요(2026-10-21 속도 최적화 – 연락처가 많으면 스크롤이 밀린다고 함).
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [gridW, setGridW] = useState(0);
 
   useEffect(() => {
     api.contactsData().then(setData, (e) => setNote(errorText(e)));
   }, []);
+
+  // 카드 폭이 바뀌면(창 크기·왼쪽 목록 폭) 줄바꿈이 달라져 재 둔 높이를 버려요.
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setGridW(Math.round(el.clientWidth)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [data === null]);
 
   /** 저장 쪽을 부르고 돌아온 자료로 다시 그려요. 실패하면 이유를 보여 주고 false를 돌려줘요. */
   const run = useCallback(async (p: Promise<ContactsData>) => {
@@ -206,52 +219,64 @@ export default function ContactsScreen() {
 
       <NewRow projects={projects} groups={data.groups ?? []} onAdd={(c) => run(api.addContact(c))} />
 
-      <div className="ct-grid">
-        {shown.map((c) =>
-          editId === c.id ? (
-            <EditCard
-              groups={data.groups ?? []}
-              key={c.id}
-              contact={c}
-              byId={byId}
-              projects={projects}
-              onCancel={() => setEditId(null)}
-              onSave={async (input) => {
-                if (await run(api.updateContact(c.id, input))) setEditId(null);
-              }}
-            />
-          ) : (
-            <ViewCard
-              key={c.id}
-              contact={c}
-              byId={byId}
-              q={query}
-              asking={askId === c.id}
-              memoOpen={memoId === c.id}
-              onEdit={() => {
-                setAskId(null);
-                setMemoId(null);
-                setEditId(c.id);
-              }}
-              onAsk={(on) => setAskId(on ? c.id : null)}
-              onRemove={async () => {
-                setAskId(null);
-                if (memoId === c.id) setMemoId(null);
-                await run(api.deleteContact(c.id));
-              }}
-              onMemoOpen={() => {
-                setEditId(null);
-                setMemoId(c.id);
-              }}
-              onMemoClose={() => setMemoId(null)}
-              onMemoSave={async (lines) => {
-                setMemoId(null);
-                const text = memoText(lines);
-                if (text !== c.memo) await run(api.setContactMemo(c.id, text));
-              }}
-            />
-          ),
-        )}
+      <div className="ct-grid" ref={gridRef}>
+        <VirtualList
+          grid
+          parentRef={gridRef}
+          count={shown.length}
+          getKey={(i) => shown[i].id}
+          estimate={(i) => cardEstimate(shown[i])}
+          pinned={[editId, askId, memoId].map((id) => (id == null ? null : shown.findIndex((c) => c.id === id)))}
+          resetKey={gridW}
+          render={(i) => {
+            const c = shown[i];
+            return (
+                editId === c.id ? (
+                  <EditCard
+                    vi={i}
+                    groups={data.groups ?? []}
+                    contact={c}
+                    byId={byId}
+                    projects={projects}
+                    onCancel={() => setEditId(null)}
+                    onSave={async (input) => {
+                      if (await run(api.updateContact(c.id, input))) setEditId(null);
+                    }}
+                  />
+                ) : (
+                  <ViewCard
+                    vi={i}
+                    contact={c}
+                    byId={byId}
+                    q={query}
+                    asking={askId === c.id}
+                    memoOpen={memoId === c.id}
+                    onEdit={() => {
+                      setAskId(null);
+                      setMemoId(null);
+                      setEditId(c.id);
+                    }}
+                    onAsk={(on) => setAskId(on ? c.id : null)}
+                    onRemove={async () => {
+                      setAskId(null);
+                      if (memoId === c.id) setMemoId(null);
+                      await run(api.deleteContact(c.id));
+                    }}
+                    onMemoOpen={() => {
+                      setEditId(null);
+                      setMemoId(c.id);
+                    }}
+                    onMemoClose={() => setMemoId(null)}
+                    onMemoSave={async (lines) => {
+                      setMemoId(null);
+                      const text = memoText(lines);
+                      if (text !== c.memo) await run(api.setContactMemo(c.id, text));
+                    }}
+                  />
+                )
+            );
+          }}
+        />
       </div>
 
       {all.length === 0 ? (
@@ -685,7 +710,14 @@ function ProjectChips({
 
 // ---------- 카드 ----------
 
+/** 아직 재지 않은 카드의 높이 추정(보이는 만큼만 그리기) – 이름 줄 + 번호 줄 + 프로젝트 줄 + 메모 줄. 그리면 재서 고쳐요. */
+function cardEstimate(c: Contact): number {
+  const n = [c.mobile, c.tel, c.email].filter(Boolean).length;
+  return 92 + 22 * n + (c.projects.length ? 28 : 0) + 20 * parseMemo(c.memo).length;
+}
+
 type ViewProps = {
+  vi?: number;
   contact: Contact;
   byId: Map<number, Project>;
   q: string;
@@ -699,7 +731,7 @@ type ViewProps = {
   onMemoSave: (lines: MemoLine[]) => void;
 };
 
-function ViewCard({ contact: c, byId, q, asking, memoOpen, onEdit, onAsk, onRemove, onMemoOpen, onMemoClose, onMemoSave }: ViewProps) {
+function ViewCard({ vi, contact: c, byId, q, asking, memoOpen, onEdit, onAsk, onRemove, onMemoOpen, onMemoClose, onMemoSave }: ViewProps) {
   const [copied, setCopied] = useState<string | null>(null);
   const timer = useRef<number>();
   useEffect(() => () => window.clearTimeout(timer.current), []);
@@ -740,6 +772,7 @@ function ViewCard({ contact: c, byId, q, asking, memoOpen, onEdit, onAsk, onRemo
   return (
     <article
       className="ccard"
+      data-vi={vi}
       aria-label={c.name}
       onDoubleClick={(e) => {
         // 복사되는 번호·메일 줄, 메모, 단추, 지우기 확인 줄은 빼고 카드를 두 번 누르면 고치는 카드(2026-10-18 사용자)
@@ -854,6 +887,7 @@ function ViewCard({ contact: c, byId, q, asking, memoOpen, onEdit, onAsk, onRemo
 }
 
 function EditCard({
+  vi,
   contact: c,
   byId,
   projects,
@@ -861,6 +895,7 @@ function EditCard({
   onCancel,
   onSave,
 }: {
+  vi?: number;
   contact: Contact;
   byId: Map<number, Project>;
   projects: Project[];
@@ -933,6 +968,7 @@ function EditCard({
     <div
       ref={ref}
       className="ccard ccard-edit"
+      data-vi={vi}
       onKeyDown={(e) => {
         if (e.defaultPrevented) return;
         if (isKey(e, "common.cancel")) {

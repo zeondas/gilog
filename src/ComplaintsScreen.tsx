@@ -17,6 +17,7 @@ import {
   useState,
 } from "react";
 import { DelIcon } from "./Icons";
+import { VirtualList, type VirtualHandle } from "./VirtualList";
 import { isKey, rowKeys } from "./keys";
 import { ExcelMenu } from "./ExcelMenu";
 import { complaintImports, complaintRows } from "./excel";
@@ -95,6 +96,9 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
   const [flash, setFlash] = useState<number | null>(null);
   const [note, setNote] = useState("");
   const [today, setToday] = useState(todayStr());
+  // 보이는 줄만 그려요(2026-10-21 속도 최적화). 그 줄로 가기는 vlRef.scrollToIndex.
+  const vlRef = useRef<VirtualHandle>(null);
+  const shownRef = useRef<Complaint[]>([]);
 
   useEffect(() => {
     api
@@ -132,7 +136,7 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
     setEditId(null);
     setFlash(focusId);
     onFocused?.();
-    window.setTimeout(() => document.querySelector(`[data-cid="${focusId}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" }), 60);
+    window.setTimeout(() => vlRef.current?.scrollToIndex(shownRef.current.findIndex((c) => c.id === focusId), { align: "center", behavior: "smooth" }), 60);
   }, [list, focusId, onFocused]);
 
   useEffect(() => {
@@ -232,6 +236,7 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
   const query = q.trim().toLowerCase();
   const found = all.filter((c) => matches(c, query));
   const shown = found.filter((c) => passes(c, filters));
+  shownRef.current = shown;
 
   // 상태 칩: 설정 목록 + 기록에만 남아 있는 상태
   const statuses = useMemo(() => {
@@ -381,58 +386,70 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
           }
           return !!c;
         }} />
-        {shown.map((c, i) =>
-          editId === c.id ? (
-            <EditRow
-              key={c.id}
-              c={c}
-              lists={settings}
-              onCancel={() => setEditId(null)}
-              onSave={async (input) => {
-                setEditId(null);
-                if (same(c, input)) return;
-                const r = await run(api.updateComplaint(c.id, input));
-                if (r) put(r);
-              }}
-              onRemove={async () => {
-                setEditId(null);
-                // delete_complaint는 성공해도 null을 돌려줘요 → true로 바꿔 실패(null)와 가려요(2026-10-19 사용자: 지우기가 안 먹음)
-                if (await run(api.deleteComplaint(c.id).then(() => true))) setList((old) => (old ?? []).filter((x) => x.id !== c.id));
-              }}
-              onMemo={() => setMemoId(c.id)}
-            />
-          ) : (
-            <ViewRow
-              key={c.id}
-              c={c}
-              alt={i % 2 === 1}
-              q={query}
-              today={today}
-              urgentDays={urgentDays}
-              flash={flash === c.id}
-              selected={selId === c.id}
-              statuses={statuses}
-              onSelect={() => setSelId(c.id)}
-              onEdit={() => {
-                setMemoId(null);
-                setSelId(c.id);
-                setEditId(c.id);
-              }}
-              onMemo={() => setMemoId(c.id)}
-              onStatus={async (status) => {
-                if (status === c.status) return;
-                // 완료·불가가 되면 조치완료일에 오늘(이미 있으면 그대로), 다른 상태로 돌리면 비워요(2026-10-19 사용자).
-                const done = isClosed(status) ? c.done || todayStr() : isClosed(c.status) ? "" : undefined;
-                const r = await run(api.setComplaintStatus(c.id, status, done));
-                if (r) put(r);
-              }}
-              onDone={async (done) => {
-                const r = await run(api.setComplaintStatus(c.id, c.status, done));
-                if (r) put(r);
-              }}
-            />
-          ),
-        )}
+        <VirtualList
+          ref={vlRef}
+          parentRef={tableRef}
+          count={shown.length}
+          getKey={(i) => shown[i].id}
+          estimate={(i) => rowEstimate(shown[i])}
+          pinned={[editId, selId, flash].map((id) => (id == null ? null : shown.findIndex((c) => c.id === id)))}
+          resetKey={tableStyle["--cm-cols" as keyof CSSProperties] as string}
+          render={(i) => {
+            const c = shown[i];
+            return (
+              editId === c.id ? (
+                <EditRow
+                  vi={i}
+                  c={c}
+                  lists={settings}
+                  onCancel={() => setEditId(null)}
+                  onSave={async (input) => {
+                    setEditId(null);
+                    if (same(c, input)) return;
+                    const r = await run(api.updateComplaint(c.id, input));
+                    if (r) put(r);
+                  }}
+                  onRemove={async () => {
+                    setEditId(null);
+                    // delete_complaint는 성공해도 null을 돌려줘요 → true로 바꿔 실패(null)와 가려요(2026-10-19 사용자: 지우기가 안 먹음)
+                    if (await run(api.deleteComplaint(c.id).then(() => true))) setList((old) => (old ?? []).filter((x) => x.id !== c.id));
+                  }}
+                  onMemo={() => setMemoId(c.id)}
+                />
+              ) : (
+                <ViewRow
+                  vi={i}
+                  c={c}
+                  alt={i % 2 === 1}
+                  q={query}
+                  today={today}
+                  urgentDays={urgentDays}
+                  flash={flash === c.id}
+                  selected={selId === c.id}
+                  statuses={statuses}
+                  onSelect={() => setSelId(c.id)}
+                  onEdit={() => {
+                    setMemoId(null);
+                    setSelId(c.id);
+                    setEditId(c.id);
+                  }}
+                  onMemo={() => setMemoId(c.id)}
+                  onStatus={async (status) => {
+                    if (status === c.status) return;
+                    // 완료·불가가 되면 조치완료일에 오늘(이미 있으면 그대로), 다른 상태로 돌리면 비워요(2026-10-19 사용자).
+                    const done = isClosed(status) ? c.done || todayStr() : isClosed(c.status) ? "" : undefined;
+                    const r = await run(api.setComplaintStatus(c.id, status, done));
+                    if (r) put(r);
+                  }}
+                  onDone={async (done) => {
+                    const r = await run(api.setComplaintStatus(c.id, c.status, done));
+                    if (r) put(r);
+                  }}
+                />
+              )
+            );
+          }}
+        />
         {all.length === 0 ? (
           <div className="cm-empty muted small">아직 민원이 없어요. 위 줄에 적고 상태 칸에서 Enter를 눌러 등록해요. 필수 칸은 내용 하나예요.</div>
         ) : shown.length === 0 ? (
@@ -456,6 +473,15 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
       {catsOpen && <CatsDialog lists={settings} onChange={saveLists} onClose={() => setCatsOpen(false)} />}
     </>
   );
+}
+
+/**
+ * 아직 재지 않은 줄의 높이 추정(보이는 만큼만 그리기). 내용·조치내용 줄 수로 셈해요 –
+ * 칸 위아래 여백 8 + 줄마다 20(13px × 1.5) + 줄 사이 3 + 아래 선 1. 줄바꿈으로 더 높아지면 그릴 때 재서 고쳐요.
+ */
+function rowEstimate(c: Complaint): number {
+  const n = Math.max(1, parseLines(c.body).length, parseLines(c.action).length);
+  return Math.max(37, 14 + 23 * n);
 }
 
 /** 고친 것이 없으면 저장하지 않아요. */
@@ -1167,6 +1193,7 @@ function NewRow({ lists, onAdd }: { lists: Lists; onAdd: (c: ComplaintInput) => 
 // ---------- 고치는 줄 ----------
 
 function EditRow({
+  vi,
   c,
   lists,
   onCancel,
@@ -1174,6 +1201,7 @@ function EditRow({
   onRemove,
   onMemo,
 }: {
+  vi?: number;
   c: Complaint;
   lists: Lists;
   onCancel: () => void;
@@ -1258,6 +1286,7 @@ function EditRow({
       ref={ref}
       role="row"
       data-cid={c.id}
+      data-vi={vi}
       className="cm-row cm-edit"
       onKeyDown={(e) => {
         if (e.defaultPrevented) return;
@@ -1313,6 +1342,7 @@ function Bullets({ text, q }: { text: string; q: string }) {
 }
 
 function ViewRow({
+  vi,
   c,
   alt,
   q,
@@ -1327,6 +1357,7 @@ function ViewRow({
   onStatus,
   onDone,
 }: {
+  vi?: number;
   c: Complaint;
   alt: boolean;
   q: string;
@@ -1351,6 +1382,7 @@ function ViewRow({
       role="row"
       tabIndex={0}
       data-cid={c.id}
+      data-vi={vi}
       aria-selected={selected}
       className={"cm-row cm-view" + (alt ? " alt" : "") + (flash ? " flash" : "") + (selected ? " sel" : "") + (isClosed(c.status) ? " done" : "")}
       title="두 번 눌러서 고치기 (상태 배지는 바로 바꾸기, 연락처·위치는 복사)"
