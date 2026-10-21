@@ -1,6 +1,7 @@
 import { FormEvent, Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { BudgetShareRows } from "./BudgetShareCard";
-import { ACCENTS, api, DEFAULT_PREFS, errorText, inApp, Prefs, Status } from "./api";
+import { PATH_NAME, setWebKey, testWeb, webKey, webStatus, WebStatus } from "./addressWeb";
+import { ACCENTS, api, DEFAULT_PREFS, errorText, inApp, Prefs, RoadTableInfo, Status } from "./api";
 import { splitJamo } from "./journal";
 import { DEFAULT_MAIL_BODY, DEFAULT_MAIL_SUBJECT, DEFAULT_SETTINGS, MAIL_FIELDS, Kind, loadSettings, MEMO_KIND, ProcessSettings, saveSettings, Settings, FilesSettings, STATUS_COLORS } from "./settingsStore";
 import { aiGuide, phoneGuide } from "./process";
@@ -393,7 +394,8 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
           ) : sc.id === "complaints" ? (
             <>
               <ListGroup title="접수유형" items={s.intake} onChange={(intake) => update({ ...s, intake })} />
-              <ListGroup title="민원유형" items={s.ctype} onChange={(ctype) => update({ ...s, ctype })} last />
+              <ListGroup title="민원유형" items={s.ctype} onChange={(ctype) => update({ ...s, ctype })} />
+              <AddressRows />
             </>
           ) : sc.id === "process" ? (
             <ProcessRows p={s.process} onChange={(process) => update({ ...s, process })} />
@@ -1564,6 +1566,117 @@ const PROCESS_DIRS: { key: "root" | "inbox" | "downloads" | "outbox"; label: str
   { key: "downloads", label: "다운로드 폴더", desc: "크롬이 신문고 첨부 사진을 받는 곳이에요." },
   { key: "outbox", label: "보낼 폴더", desc: "[폰 전송]이 지시부 JPG를 두는 곳이에요. Claude 앱 \"민원처리\" 대화가 폰으로 올려요." },
 ];
+
+// ---------- 주소 변환 (민원대장 · 2026-10-21 주소 변환 웹 세션, docs/qa/address-web.md 8절) ----------
+
+const hm = (iso?: string) => (iso ? iso.slice(5, 10) + " " + new Date(iso).toTimeString().slice(0, 5) : "");
+
+function AddressRows() {
+  const [key, setKey] = useState<string | null>(null);
+  const [st, setSt] = useState<(WebStatus & { cooling: boolean }) | null>(null);
+  const [tbl, setTbl] = useState<RoadTableInfo | null>(null);
+  const [msg, setMsg] = useState("");
+  const [tblMsg, setTblMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    webKey().then(setKey, () => setKey(""));
+    webStatus().then(setSt, () => undefined);
+    api.roadTableInfo().then(setTbl, () => undefined);
+  }, []);
+
+  async function saveKey(v: string) {
+    const t = v.trim();
+    if (t === (key ?? "")) return;
+    await setWebKey(t);
+    setKey(t);
+    setMsg("");
+    setSt(await webStatus());
+  }
+
+  async function test() {
+    if (busy) return;
+    setBusy(true);
+    setMsg("찾는 중…");
+    const r = await testWeb();
+    setMsg(r.ok ? `됐어요 · ${PATH_NAME[r.path]} · ${(r.ms / 1000).toFixed(1)}초${r.place ? ` · 시청로 50 → ${r.place}` : ""}` : `안 돼요 – ${r.why}`);
+    setSt(await webStatus());
+    setBusy(false);
+  }
+
+  async function pickFile() {
+    if (!inApp) {
+      setTbl(await api.roadTableImport(""));
+      return;
+    }
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const r = await open({ multiple: false, title: "주소 자료 (경기도 도로명주소 한글 전체자료)", filters: [{ name: "글자 파일", extensions: ["txt"] }] });
+    if (typeof r !== "string") return;
+    setBusy(true);
+    setTblMsg("바꾸는 중…");
+    try {
+      setTbl(await api.roadTableImport(r));
+      setTblMsg("");
+    } catch (e) {
+      const m = /^few:(\d+)$/.exec(String(e));
+      setTblMsg(m ? `파주시 주소가 ${Number(m[1]).toLocaleString()}곳뿐이에요 – 경기도 전체자료가 맞는지 봐 주세요` : errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const state = !key
+    ? "승인키가 없으면 내장 표만 써요"
+    : st?.cooling
+      ? `웹이 안 돼서 10분 동안 내장 표만 써요${st.failWhy ? ` (${st.failWhy})` : ""}`
+      : st?.okAt && (!st.failAt || st.okAt > st.failAt)
+        ? `마지막 성공 ${hm(st.okAt)} · ${PATH_NAME[st.okPath ?? "fetch"]}`
+        : st?.failAt
+          ? `마지막 실패 ${hm(st.failAt)}${st.failWhy ? ` – ${st.failWhy}` : ""}`
+          : "주소 글만 행안부 주소정보누리집으로 보내요";
+
+  return (
+    <>
+      <Row label="웹에서 주소 찾기" desc={msg || state} k="주소 변환 도로명 지번 승인키 주소정보누리집 juso">
+        <span className="proc-dir">
+          {key !== null && (
+            <input
+              key={key}
+              className="input"
+              data-ime="en"
+              aria-label="주소정보누리집 승인키"
+              placeholder="승인키 붙여 넣기"
+              spellCheck={false}
+              defaultValue={key}
+              onBlur={(e) => saveKey(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+            />
+          )}
+          <button type="button" className="btn btn-xs" onClick={test} disabled={busy || !key}>
+            시험
+          </button>
+        </span>
+      </Row>
+      <Row
+        label="주소 자료"
+        desc={tblMsg || (tbl ? `${tbl.custom ? "바꾼 자료" : "앱에 든 자료"} ${tbl.date} · 파주시 ${tbl.count.toLocaleString()}곳 · 웹이 안 될 때 써요` : "")}
+        k="주소 자료 갱신 전체자료 경기도"
+        last
+      >
+        <span className="proc-dir">
+          <button type="button" className="btn btn-xs" onClick={pickFile} disabled={busy}>
+            파일로 바꾸기
+          </button>
+          {tbl?.custom && (
+            <button type="button" className="btn btn-xs" onClick={async () => setTbl(await api.roadTableReset())} disabled={busy}>
+              앱 자료로
+            </button>
+          )}
+        </span>
+      </Row>
+    </>
+  );
+}
 
 function ProcessRows({ p, onChange }: { p: ProcessSettings; onChange: (p: ProcessSettings) => void }) {
   const [copied, setCopied] = useState<"ai" | "phone" | null>(null);

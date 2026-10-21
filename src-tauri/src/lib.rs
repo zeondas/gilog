@@ -1,4 +1,5 @@
 mod accent_icon;
+mod address_web;
 mod autostart;
 mod budget;
 mod bstatus;
@@ -629,10 +630,9 @@ pub fn run() {
             // 작업표시줄·창 제목·트레이 아이콘을 고른 강조색으로(2026-10-19 사용자).
             let accent = read_prefs(app.handle()).map(|p| p.accent).unwrap_or_default();
             accent_icon::apply(app.handle(), &accent);
-            // 도로명주소 표를 미리 풀어 둬요(처음 바꿀 때 기다리지 않게).
-            std::thread::spawn(|| {
-                gilog_core::road_to_jibun("");
-            });
+            // 도로명주소 표를 미리 풀어 둬요(처음 바꿀 때 기다리지 않게). 설정에서 바꾼 표가 있으면 그것을 써요.
+            let h = app.handle().clone();
+            std::thread::spawn(move || address_web::load_saved(&h));
             Ok(())
         })
         .on_window_event(|w, e| {
@@ -685,6 +685,10 @@ pub fn run() {
             update_complaint,
             set_complaint_status,
             road_to_jibun,
+            address_web::juso_http,
+            address_web::road_table_info,
+            address_web::road_table_import,
+            address_web::road_table_reset,
             set_complaint_memo,
             delete_complaint,
             excel_write,
