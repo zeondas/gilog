@@ -16,11 +16,13 @@ import { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, useCallback, u
 import { api, Case, Complaint, Contact, ContactsData, errorText, inApp, Order, OrderResult, previewInbox, RunStatus, Work, WorkInput } from "./api";
 import { COL_MIN, daysBetween, fitWidths, gridTemplate, maxWidthOf } from "./complaints";
 import { projectColor } from "./ContactsScreen";
+import { BLine, linesToText, parseLines, plainOf, stringifyLines } from "./bullets";
+import { BulletEditor, Mark } from "./BulletParts";
 import { DelIcon } from "./Icons";
 import { koIndex, todayStr } from "./journal";
 import { PlaceInput } from "./PlaceInputs";
 import { actionLine, aiGuide, fileName, mailDraft, mailGuide, md, orderLabel, orderTag, PORTAL_URL, processError, SAMPLE_WORKS, SAMPLES } from "./process";
-import { DEFAULT_PROCESS, isAnswered, isClosed, loadSettings, ProcessSettings } from "./settingsStore";
+import { DEFAULT_PROCESS, DONE_STATUS, isAnswered, isClosed, loadSettings, ProcessSettings } from "./settingsStore";
 
 type Props = { urgentDays: number; onOpenComplaint: (id: number) => void };
 
@@ -36,8 +38,8 @@ const FETCHED_KEY = "process.fetched";
 /** 마지막 불러오기 결과(아래 줄 "새 민원 N건 · 건너뜀 N건 · 걸린 시간 · [로그 열기]") */
 const LAST_RUN_KEY = "process.lastRun";
 type LastRun = { at: string; added: number; skipped: number | null; secs: number; log: string };
-// 2026-10-20 진행 막대(시안 ProcessStatus)로 열이 바뀌어 새 키 – 예전에 끈 폭은 버려요
-const COLS_KEY = "process.colWidths3";
+// 2026-10-21 고려사항 기본 폭 220 → 300(머릿기호 여러 줄)으로 새 키 – 예전에 끈 폭은 버려요
+const COLS_KEY = "process.colWidths4";
 const MAIL_BOX = "https://mail.korea.kr";
 /** 판단 공사 "해당 없음"(2026-10-21 사용자) – core NA_WORK와 같은 값 */
 const NA_WORK = 0;
@@ -51,7 +53,7 @@ const COLUMNS: { label: string; w: number | null; center?: boolean; fixed?: bool
   { label: "위치", w: 170 },
   { label: "민원 요약", w: null },
   { label: "판단 공사", w: 160, fixed: true },
-  { label: "고려사항", w: 220 },
+  { label: "고려사항", w: 300 },
   { label: "진행", w: 190, fixed: true },
 ];
 const defaultWidths = () => COLUMNS.map((c) => c.w);
@@ -111,6 +113,10 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   const [mailRun, setMailRun] = useState<{ id: number; label: string; n: number } | null>(null);
   // "해당 없음"을 고른 뒤 민원대장에 넣을지 묻는 창
   const [naAsk, setNaAsk] = useState<{ no: string; rect: DOMRect } | null>(null);
+  /** "완료로 이동"인데 민원대장에 없는 건: 등록할지 물어요 */
+  const [doneAsk, setDoneAsk] = useState<{ no: string; rect: DOMRect } | null>(null);
+  /** 이 화면에서 완료로 바꾼 민원대장 줄의 그 전 상태(완료 풀기용) */
+  const [prevStatus, setPrevStatus] = useState<Record<number, string>>({});
   // 줄 끝 ⋯ 메뉴(줄 우클릭도) · 보낸 증거 카드 · 민원 요약에 마우스를 올리면 판단 이유
   const [menu, setMenu] = useState<{ no: string; rect: DOMRect } | null>(null);
   const [proof, setProof] = useState<{ id: number; rect: DOMRect } | null>(null);
@@ -211,11 +217,60 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   async function register(c: Case) {
     const old = linked(c);
     if (old) return onOpenComplaint(old.id);
+    const m = await addToLedger(c);
+    if (m) setNote(`민원대장 ${m.no}번에 등록했어요`);
+  }
+
+  async function addToLedger(c: Case): Promise<Complaint | null> {
     try {
       const m = await api.addComplaint(complaintOf(c, ""));
       setComplaints((l) => [...l, m]);
       putCase(await api.updateCase(c.no, { complaint: m.id }));
-      setNote(`민원대장 ${m.no}번에 등록했어요`);
+      return m;
+    } catch (e) {
+      setNote(errText(e));
+      return null;
+    }
+  }
+
+  /**
+   * ⋯ 메뉴 "완료로 이동"(2026-10-21 사용자 1안): 민원대장에 이어진 건이면 묻지 않고 그 줄을 완료로,
+   * 없으면 "민원대장에 등록할까요?"를 물어 [예]일 때 등록한 뒤 완료로 바꿔요.
+   * 조치완료일은 민원대장처럼 오늘(이미 있으면 그대로)이에요.
+   */
+  async function moveDone(c: Case, add = false) {
+    let m = linked(c);
+    let added = false;
+    if (!m && add) {
+      m = (await addToLedger(c)) ?? undefined;
+      added = !!m;
+    }
+    if (!m) return;
+    const prev = m.status;
+    try {
+      const n = await api.setComplaintStatus(m.id, DONE_STATUS, m.done || todayStr());
+      setComplaints((l) => l.map((x) => (x.id === n.id ? n : x)));
+      setPrevStatus((p) => ({ ...p, [n.id]: prev }));
+      setSel(null);
+      setNote(added ? `민원대장 ${n.no}번에 등록하고 완료로 바꿨어요` : `민원대장 ${n.no}번을 완료로 바꿨어요`);
+    } catch (e) {
+      setNote(errText(e));
+    }
+  }
+
+  /** "완료 풀기": 이번에 완료로 바꾼 건은 그 전 상태로, 모르면 접수로 돌리고 조치완료일을 비워요. */
+  async function undoDone(c: Case) {
+    const m = linked(c);
+    if (!m) return;
+    const back = prevStatus[m.id] && !isClosed(prevStatus[m.id]) ? prevStatus[m.id] : "접수";
+    try {
+      const n = await api.setComplaintStatus(m.id, back, "");
+      setComplaints((l) => l.map((x) => (x.id === n.id ? n : x)));
+      setPrevStatus((p) => {
+        const { [n.id]: _, ...rest } = p;
+        return rest;
+      });
+      setNote(`민원대장 ${n.no}번을 ${back}(으)로 되돌렸어요`);
     } catch (e) {
       setNote(errText(e));
     }
@@ -257,7 +312,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   const found = useMemo(() => {
     const s = q.trim();
     if (!s) return cases;
-    return cases.filter((c) => [c.no, c.area, c.place, c.summary, c.reason, c.note].some((t) => koIndex(t, s) >= 0));
+    return cases.filter((c) => [c.no, c.area, c.place, c.summary, c.reason, plainOf(c.note)].some((t) => koIndex(t, s) >= 0));
   }, [cases, q]);
   const open = found.filter((c) => !isDone(c));
   const done = found.filter((c) => isDone(c));
@@ -416,7 +471,8 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     let fixed = 0;
     const list = [...complaints];
     for (const c of r.cases) {
-      const action = JSON.stringify([{ t: actionLine(w?.name ?? "", r.order.seq, c.item), k: "sq" }]);
+      // 기본 기호(●)로 적어요(2026-10-21 민원대장 세션 – □는 일부러 친 위계라 빼요).
+      const action = JSON.stringify([{ t: actionLine(w?.name ?? "", r.order.seq, c.item) }]);
       const old = c.complaint != null ? list.find((x) => x.id === c.complaint) : undefined;
       let m: Complaint;
       if (old) {
@@ -484,19 +540,13 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     }
   }
 
-  /** 접수번호 누르기: 신문고는 민원마다 바로 열리는 주소가 없어서(주소에 번호가 없어요), 신문고를 열고 번호를 복사해 둬요. */
-  async function openCase(no: string) {
+  /** 접수번호 누르기: 1AA로 시작하는 전체 번호를 복사만 해요(2026-10-21 사용자 – 신문고는 열지 않아요). */
+  async function copyNo(no: string) {
     try {
       await navigator.clipboard.writeText(no);
+      setNote(`접수번호를 복사했어요(${no})`);
     } catch {
-      /* 복사가 막혀도 신문고는 열어요 */
-    }
-    try {
-      if (inApp) await api.openPortal(PORTAL_URL);
-      else window.open(PORTAL_URL, "_blank");
-      setNote(`접수번호를 복사했어요(${no}) · 신문고 검색 칸에 붙여 넣으세요`);
-    } catch (e) {
-      setNote(errText(e));
+      setNote(`접수번호를 복사하지 못했어요(${no})`);
     }
   }
 
@@ -563,11 +613,11 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
 
   // 바깥 누르기·Esc로 뜨는 것 닫기
   useEffect(() => {
-    if (!pick && !ask && !menu && !proof && !naAsk) return;
-    const key = (e: KeyboardEvent) => e.key === "Escape" && (setPick(null), setAsk(null), setMenu(null), setProof(null), setNaAsk(null));
+    if (!pick && !ask && !menu && !proof && !naAsk && !doneAsk && !sendMenu) return;
+    const key = (e: KeyboardEvent) => e.key === "Escape" && (setPick(null), setAsk(null), setMenu(null), setProof(null), setNaAsk(null), setDoneAsk(null), setSendMenu(null));
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [pick, ask, menu, proof, naAsk]);
+  }, [pick, ask, menu, proof, naAsk, doneAsk, sendMenu]);
 
   // 목록 안쪽 폭과 스크롤 막대 폭을 재요(창 크기·줄 수가 바뀌면 다시).
   useEffect(() => {
@@ -594,19 +644,17 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   }
 
   const pickCase = pick && cases.find((c) => c.no === pick.no);
-  // 고른 줄의 공사(같은 공사만 함께 골라요)와 새 지시부 이름
-  // 지시부에 든 줄을 고르면 그 지시부의 줄이 함께 골라지고 위 띠가 그 지시부를 다뤄요(2026-10-20 시안 ProcessRows).
+  // 고르기 칸은 "새 지시부로 묶을 민원 고르기" 하나만(2026-10-21 사용자 1안): 지시부에 든 줄·끝난 줄은 고르지 않고
+  // 진행 막대나 ⋯ 메뉴로 다뤄요. 같은 공사만 함께 골라요.
   const first = chosen.length ? cases.find((c) => c.no === chosen[0]) : undefined;
-  const chosenOrder = first?.order != null ? orders.find((o) => o.id === first.order) : undefined;
-  const chosenWork = first ? works.find((w) => w.id === (chosenOrder ? chosenOrder.work : first.work)) : undefined;
-  const canChoose = (c: Case) => c.order != null || (c.work != null && c.work !== NA_WORK && !isDone(c) && (!chosenWork || !!chosenOrder || c.work === chosenWork.id));
-  const toggle = (c: Case) =>
-    setChosen((l) => {
-      if (c.order != null) return chosenOrder?.id === c.order ? [] : cases.filter((x) => x.order === c.order).map((x) => x.no);
-      if (l.includes(c.no)) return l.filter((n) => n !== c.no);
-      if (!canChoose(c)) return l;
-      return chosenOrder ? [c.no] : [...l, c.no];
-    });
+  const chosenWork = first ? works.find((w) => w.id === first.work) : undefined;
+  const pickable = (c: Case) => c.order == null && c.work != null && c.work !== NA_WORK && !isDone(c);
+  const canChoose = (c: Case) => pickable(c) && (!chosenWork || c.work === chosenWork.id);
+  const toggle = (c: Case) => setChosen((l) => (l.includes(c.no) ? l.filter((n) => n !== c.no) : canChoose(c) ? [...l, c.no] : l));
+  // 머리 줄 전체 고르기(2안): 한 줄을 고른 뒤 누르면 보이는 줄 중 같은 공사의 고를 수 있는 민원을 모두, 다 골랐으면 모두 풀어요.
+  const sameWork = chosenWork ? found.filter((c) => pickable(c) && c.work === chosenWork.id) : [];
+  const allState: "none" | "some" | "all" = !chosen.length ? "none" : sameWork.every((c) => chosen.includes(c.no)) ? "all" : "some";
+  const toggleAll = () => setChosen(allState === "all" ? [] : [...new Set([...chosen, ...sameWork.map((c) => c.no)])]);
   const total = cases.filter((c) => !isDone(c)).length;
   const shownWidths = fitWidths(widths, avail);
   const tableStyle = { "--pr-cols": gridTemplate(shownWidths), "--pr-gutter": `${gutter}px` } as CSSProperties;
@@ -682,9 +730,11 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
             checked={picked}
             disabled={!picked && !canChoose(c)}
             title={
-              c.order != null
-                ? "이 지시부 고르기(같은 지시부 줄이 함께 골라져요)"
-                : c.work == null
+              c.order != null || isD
+                ? "지시부에 든 민원이에요 – 진행 막대나 ⋯ 메뉴로 다뤄요"
+                : c.work === NA_WORK
+                  ? "해당 없음 민원은 지시부로 묶지 않아요"
+                  : c.work == null
                   ? "먼저 공사를 골라요"
                   : !picked && !canChoose(c)
                     ? "같은 공사만 함께 고를 수 있어요"
@@ -697,10 +747,10 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
           <button
             type="button"
             className="pr-no-link"
-            title={`${c.no} · 누르면 전체 번호를 복사하고 신문고를 열어요`}
+            title={`${c.no} · 누르면 전체 번호 복사`}
             onClick={(e) => {
               e.stopPropagation();
-              openCase(c.no);
+              copyNo(c.no);
             }}
           >
             {shortNo(c.no)}
@@ -748,9 +798,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
             {w ? w.name : na ? "해당 없음" : "– 공사 고르기"}
           </button>
         </div>
-        <div onClick={(e) => e.stopPropagation()}>
-          <TextCell value={c.note} disabled={isD} placeholder={isD ? "" : "예: 야간 작업, 교통 통제 협의"} onSave={(v) => patch(c.no, { note: v })} />
-        </div>
+        <NoteCell value={c.note} disabled={isD} onSave={(v) => patch(c.no, { note: v })} />
         <div className="pr-prog" onClick={(e) => e.stopPropagation()}>
           <Gauge
             p={p}
@@ -768,7 +816,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                     : undefined
             }
           />
-          <button type="button" className={"pr-more" + (menu?.no === c.no ? " on" : "")} aria-label="이 민원 메뉴" aria-haspopup="menu" aria-expanded={menu?.no === c.no} title="지시부 · 저장 폴더 · 민원대장 · 지우기" onClick={(e) => openMenu(c, e.currentTarget.getBoundingClientRect())}>
+          <button type="button" className={"pr-more" + (menu?.no === c.no ? " on" : "")} aria-label="이 민원 메뉴" aria-haspopup="menu" aria-expanded={menu?.no === c.no} title="지시부 · 보내기 · 저장 폴더 · 민원대장 · 완료 · 지우기" onClick={(e) => openMenu(c, e.currentTarget.getBoundingClientRect())}>
             <MoreIcon />
           </button>
         </div>
@@ -836,7 +884,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
         </div>
       )}
 
-      {chosen.length > 0 && chosenWork && !chosenOrder && (
+      {chosen.length > 0 && chosenWork && (
         <div className="pr-pickbar" role="status">
           <WorkTag w={chosenWork} cd={cd} />
           <span>
@@ -852,86 +900,8 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
         </div>
       )}
 
-      {chosenOrder &&
-        chosenWork &&
-        (() => {
-          const o = chosenOrder;
-          const b = busy[o.id];
-          const n = cases.filter((c) => c.order === o.id).length;
-          const sending = mailRun?.id === o.id || o.stage === "queued";
-          return (
-            <div className="pr-pickbar" role="status">
-              <WorkTag w={chosenWork} cd={cd} />
-              <span>
-                지시부 <b>{orderTag(chosenWork.name, o.seq)}</b> · {n}건
-              </span>
-              {b ? (
-                <span className="pr-stat busy">{b}</span>
-              ) : o.dirty ? (
-                <span className="pr-stat warn">든 민원을 고쳤어요 · 다시 만들어요</span>
-              ) : mailRun?.id === o.id ? (
-                <span className="pr-stat busy">
-                  <MailIcon />
-                  메일 보내는 중
-                </span>
-              ) : o.stage === "queued" ? (
-                <span className="pr-stat busy" title="보낼 폴더에 있어요. Claude 앱 “민원처리” 대화에 “보내”라고 하면 내 폰으로 올려 주고 전송 완료로 바뀌어요">
-                  <PhoneIcon />
-                  폰으로 보내는 중
-                </span>
-              ) : o.mailedAt ? (
-                <span className="pr-stat done" title={o.mailTo}>
-                  <CheckIcon />
-                  메일 보냄 {o.mailedAt.slice(5)}
-                </span>
-              ) : o.stage === "sent" ? (
-                <span className="pr-stat done">
-                  <CheckIcon />
-                  폰 전송 완료{o.sentAt ? ` ${o.sentAt.slice(5, 16)}` : ""}
-                </span>
-              ) : (
-                <span className="pr-stat">보내기 전</span>
-              )}
-              <button type="button" className="btn btn-ctrl btn-text pr-push pr-ibtn" disabled={!o.file} onClick={() => openFile(o.file)}>
-                <DocIcon />
-                지시부 열기
-              </button>
-              <button
-                type="button"
-                className={o.dirty ? "btn-primary btn-ctrl" : "btn btn-ctrl btn-text"}
-                disabled={!!b}
-                title="같은 연번·같은 파일로 다시 만들어요"
-                onClick={() => remakeOrder(o.id)}
-              >
-                다시 만들기
-              </button>
-              <button type="button" className="btn btn-ctrl btn-text" onClick={() => setChosen([])}>
-                선택 해제
-              </button>
-              <button
-                type="button"
-                className="btn-primary btn-ctrl pr-ibtn"
-                disabled={!!b || o.dirty || sending}
-                aria-haspopup="menu"
-                aria-expanded={sendMenu?.id === o.id}
-                title={o.dirty ? "다시 만든 뒤에 보내요" : "메일(현장대리인) 또는 폰으로 보내요"}
-                onClick={(e) => {
-                  setPick(null);
-                  setAsk(null);
-                  setSendMenu(sendMenu?.id === o.id ? null : { id: o.id, rect: e.currentTarget.getBoundingClientRect() });
-                }}
-              >
-                {o.mailedAt || o.stage === "sent" ? "다시 보내기" : "보내기"}
-                <span className="pr-caret" aria-hidden="true">
-                  ▾
-                </span>
-              </button>
-            </div>
-          );
-        })()}
-
       <div className="pr-table" role="table" aria-label="민원처리 목록" style={tableStyle}>
-        <HeadRow widths={shownWidths} avail={avail} onResize={setWidths} onResized={saveWidths} onReset={() => saveWidths(defaultWidths())} />
+        <HeadRow all={allState} onAll={toggleAll} widths={shownWidths} avail={avail} onResize={setWidths} onResized={saveWidths} onReset={() => saveWidths(defaultWidths())} />
         <div className="pr-body" ref={bodyRef}>
           {open.length === 0 && (
             <p className="pr-empty">{cases.length === 0 ? "[민원 불러오기]를 누르면 Claude가 신문고에서 기록에 없는 민원을 가져와요." : q ? "찾는 민원이 없어요." : "처리할 민원이 없어요."}</p>
@@ -1008,10 +978,47 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                   {` · 위치도 ${isPath(c.map) ? "있음" : c.map ? "못 찾음" : "없음"}`}
                 </p>
                 {o ? (
-                  <button type="button" role="menuitem" className="dmenu-item" disabled={!o.file} onClick={() => (close(), openFile(o.file))}>
-                    <DocIcon />
-                    지시부 열기
-                  </button>
+                  (() => {
+                    // 지시부 띠에 있던 단추를 메뉴 맨 위로(2026-10-21 사용자 1안): 지시부 열기 · 다시 만들기 · 보내기 ▸
+                    const ow = works.find((x) => x.id === o.work);
+                    const n = cases.filter((x) => x.order === o.id).length;
+                    const b = busy[o.id];
+                    const sending = mailRun?.id === o.id || o.stage === "queued";
+                    return (
+                      <>
+                        <button type="button" role="menuitem" className="dmenu-item" disabled={!o.file} onClick={() => (close(), openFile(o.file))}>
+                          <DocIcon />
+                          지시부 열기
+                          <span className="pr-rowmenu-sub">
+                            {ow ? orderTag(ow.name, o.seq) : o.seq} · {n}건
+                          </span>
+                        </button>
+                        <button type="button" role="menuitem" className="dmenu-item" disabled={!!b} title={o.dirty ? "든 민원을 고쳤어요 · 다시 만들어요" : "같은 연번·같은 파일로 다시 만들어요"} onClick={() => (close(), remakeOrder(o.id))}>
+                          <RedoIcon />
+                          다시 만들기
+                          {o.dirty && <span className="pr-rowmenu-sub warn">고친 것 있음</span>}
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="dmenu-item"
+                          aria-haspopup="menu"
+                          disabled={!!b || o.dirty || sending}
+                          title={o.dirty ? "다시 만든 뒤에 보내요" : sending ? "보내는 중이에요" : "메일(현장대리인) 또는 폰으로 보내요"}
+                          onClick={(e) => {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            close();
+                            setSendMenu({ id: o.id, rect });
+                          }}
+                        >
+                          <SendIcon />
+                          {o.mailedAt || o.stage === "sent" ? "다시 보내기" : "보내기"}
+                          <span className="pr-rowmenu-sub">메일 · 폰 ▸</span>
+                        </button>
+                        <div className="dmenu-sep" />
+                      </>
+                    );
+                  })()
                 ) : (
                   <button
                     type="button"
@@ -1029,6 +1036,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                     이 건만 지시부 만들기
                   </button>
                 )}
+                {!o && <div className="dmenu-sep" />}
                 <button
                   type="button"
                   role="menuitem"
@@ -1046,6 +1054,27 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                   <TableIcon add={!m} />
                   {m ? `민원대장 ${m.no}번 보기` : "민원대장에 추가"}
                 </button>
+                {isD ? (
+                  <button type="button" role="menuitem" className="dmenu-item" title={`민원대장 ${m?.no ?? ""}번을 ${m && prevStatus[m.id] && !isClosed(prevStatus[m.id]) ? prevStatus[m.id] : "접수"}(으)로 되돌려요`} onClick={() => (close(), undoDone(c))}>
+                    <UndoIcon />
+                    완료 풀기
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="dmenu-item"
+                    title={m ? `민원대장 ${m.no}번을 완료로 바꿔요` : "민원대장에 등록한 뒤 완료로 바꿔요"}
+                    onClick={() => {
+                      close();
+                      if (m) moveDone(c);
+                      else setDoneAsk({ no: c.no, rect: menu.rect });
+                    }}
+                  >
+                    <CheckIcon size={14} />
+                    완료로 이동
+                  </button>
+                )}
                 <div className="dmenu-sep" />
                 <button type="button" role="menuitem" className="dmenu-item danger" onClick={() => (close(), setAsk({ no: c.no, rect: menu.rect }))}>
                   <DelIcon />
@@ -1187,6 +1216,35 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
           );
         })()}
 
+      {doneAsk &&
+        (() => {
+          const c = cases.find((x) => x.no === doneAsk.no);
+          if (!c) return null;
+          return (
+            <Floating rect={doneAsk.rect} align="right" onClose={() => setDoneAsk(null)}>
+              <div className="pr-ask" role="dialog" aria-label="민원대장에 등록">
+                <span className="pr-ask-t">민원대장에 등록할까요?</span>
+                <div className="pr-ask-btns">
+                  <button type="button" className="btn" onClick={() => setDoneAsk(null)}>
+                    아니요
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    autoFocus
+                    onClick={() => {
+                      setDoneAsk(null);
+                      moveDone(c, true);
+                    }}
+                  >
+                    예
+                  </button>
+                </div>
+              </div>
+            </Floating>
+          );
+        })()}
+
       {ask && (
         <Floating rect={ask.rect} align="right" onClose={() => setAsk(null)}>
           <div className="pr-ask" role="dialog" aria-label="민원 지우기">
@@ -1263,12 +1321,16 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
 // ---------- 열 제목 줄 (끌어서 열 너비, 우클릭 열 너비 초기화 – 민원대장과 같아요) ----------
 
 function HeadRow({
+  all,
+  onAll,
   widths,
   avail,
   onResize,
   onResized,
   onReset,
 }: {
+  all: "none" | "some" | "all";
+  onAll: () => void;
   widths: (number | null)[];
   avail: number;
   onResize: (w: (number | null)[]) => void;
@@ -1314,8 +1376,22 @@ function HeadRow({
       }}
     >
       {COLUMNS.map((col, i) => (
-        <div role="columnheader" key={col.label} className={col.center ? "pr-c" : undefined}>
-          {col.label}
+        <div role="columnheader" key={col.label || "check"} className={i === 0 ? "pr-check" : col.center ? "pr-c" : undefined}>
+          {i === 0 ? (
+            <input
+              type="checkbox"
+              aria-label="같은 공사 민원 모두 고르기"
+              checked={all === "all"}
+              ref={(el) => {
+                if (el) el.indeterminate = all === "some";
+              }}
+              disabled={all === "none"}
+              title={all === "none" ? "먼저 한 줄을 고르면 같은 공사 민원을 모두 골라요" : all === "all" ? "모두 풀기" : "같은 공사 민원 모두 고르기"}
+              onChange={onAll}
+            />
+          ) : (
+            col.label
+          )}
           {/* 남는 폭을 쓰는 열(민원 요약)은 끌지 않아요 – 옆 열을 끌면 따라 바뀌어요. */}
           {i < COLUMNS.length - 1 && col.w !== null && !col.fixed && <span className="cm-grip" aria-hidden="true" title="끌어서 열 너비 바꾸기" onMouseDown={(e) => start(e, i)} />}
         </div>
@@ -1412,50 +1488,103 @@ function PlaceCell({ c, disabled, onSave }: { c: Case; disabled: boolean; onSave
   );
 }
 
-// ---------- 그 자리 글자 칸 (떠날 때 저장) ----------
+// ---------- 고려사항 칸 (2026-10-21 사용자 – 머릿기호 여러 줄) ----------
 
-function TextCell({
-  value,
-  onSave,
-  placeholder,
-  disabled,
-  center,
-  title,
-  clean,
-}: {
-  value: string;
-  onSave: (v: string) => void;
-  placeholder?: string;
-  disabled?: boolean;
-  center?: boolean;
-  title?: string;
-  clean?: (v: string) => string;
-}) {
-  const [v, setV] = useState(value);
-  useEffect(() => setV(value), [value]);
-  const save = () => {
-    const nv = clean ? clean(v) : v.trim();
-    setV(nv);
-    if (nv !== value) onSave(nv);
-  };
+const NOTE_HINT = "예: 야간 작업, 교통 통제 협의";
+
+/**
+ * 줄에는 첫 줄(기호 + 글)만 보여요. 긴 글은 칸 끝에서 "…", 다음 줄이 있으면 첫 줄 뒤에 "…".
+ * 마우스를 올리면 전체 글. 두 번 누르면 칸 아래로 펼쳐 여러 줄로 고쳐요(줄 높이 44는 그대로) –
+ * 바깥 누르기·Tab은 저장하고 접기, Esc는 버리고 접기. 키는 민원대장 내용 칸과 같아요.
+ */
+function NoteCell({ value, disabled, onSave }: { value: string; disabled: boolean; onSave: (v: string) => void }) {
+  const cellRef = useRef<HTMLDivElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  const [edit, setEdit] = useState<{ lines: BLine[]; rect: DOMRect } | null>(null);
+  const now = useRef<BLine[]>([]);
+  if (edit) now.current = edit.lines;
+
+  const ls = parseLines(value);
+  const at = ls.findIndex((l) => l.t.trim());
+  const first = at >= 0 ? ls[at] : null;
+  const more = at >= 0 && ls.slice(at + 1).some((l) => l.t.trim());
+
+  const close = useCallback(
+    (save: boolean) => {
+      setEdit(null);
+      if (!save) return;
+      const v = stringifyLines(now.current);
+      if (v !== stringifyLines(parseLines(value))) onSave(v);
+    },
+    [value, onSave],
+  );
+
+  // 바깥을 누르거나 표를 굴리면 저장하고 접어요.
+  useEffect(() => {
+    if (!edit) return;
+    const down = (e: MouseEvent) => {
+      if (!popRef.current?.contains(e.target as Node)) close(true);
+    };
+    const scroll = (e: Event) => {
+      if (!popRef.current?.contains(e.target as Node)) close(true);
+    };
+    const resize = () => close(true);
+    window.addEventListener("mousedown", down, true);
+    window.addEventListener("scroll", scroll, true);
+    window.addEventListener("resize", resize);
+    return () => {
+      window.removeEventListener("mousedown", down, true);
+      window.removeEventListener("scroll", scroll, true);
+      window.removeEventListener("resize", resize);
+    };
+  }, [edit !== null, close]);
+
   return (
-    <input
-      className={"cell-input pr-in" + (center ? " center" : "")}
-      value={v}
-      placeholder={placeholder}
-      disabled={disabled}
-      title={title}
-      onChange={(e) => setV(e.target.value)}
-      onBlur={save}
-      onKeyDown={(e) => {
-        if (e.nativeEvent.isComposing) return;
-        if (e.key === "Enter") (e.currentTarget as HTMLInputElement).blur();
-        if (e.key === "Escape") {
-          setV(value);
-          (e.currentTarget as HTMLInputElement).blur();
-        }
+    <div
+      ref={cellRef}
+      className={"pr-nc" + (edit ? " editing" : "")}
+      title={first ? linesToText(ls.slice(at)) : disabled ? undefined : "두 번 누르면 고려사항을 적어요"}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        if (disabled || !cellRef.current) return;
+        const l = ls.length ? ls : [{ t: "" }];
+        // 줄 높이 가운데에 입력 칸(28)을 두고 글 시작을 보기 글자와 맞춰요(칸 안쪽 여백 10 − 입력 칸 여백 6 − 테두리 1).
+        const cell = cellRef.current.getBoundingClientRect();
+        const row = cellRef.current.closest(".pr-row")?.getBoundingClientRect() ?? cell;
+        setEdit({ lines: l, rect: new DOMRect(cell.left + 3, row.top + (row.height - 28) / 2, cell.width - 6, 28) });
       }}
-    />
+    >
+      {first ? (
+        <>
+          <Mark line={first} lv={0} />
+          <span className="pr-nc-t">{first.t + (more ? " …" : "")}</span>
+        </>
+      ) : (
+        !disabled && <span className="pr-nc-ph">{NOTE_HINT}</span>
+      )}
+      {edit &&
+        createPortal(
+          <div
+            ref={popRef}
+            className="pr-nc-pop"
+            style={{ top: Math.round(edit.rect.top), left: Math.round(edit.rect.left), width: Math.round(edit.rect.width) }}
+            onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+              if (e.key === "Tab") {
+                e.preventDefault();
+                close(true);
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                e.stopPropagation();
+                close(false);
+              }
+            }}
+          >
+            <BulletEditor name="note" label="고려사항" placeholder={NOTE_HINT} lines={edit.lines} onChange={(lines) => setEdit((x) => (x ? { ...x, lines } : x))} autoFocusEnd />
+          </div>,
+          document.body,
+        )}
+    </div>
   );
 }
 
@@ -1960,6 +2089,34 @@ function CheckIcon({ size = 13 }: { size?: number }) {
   return (
     <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
       <path d="M5 12l5 5 9-10" />
+    </svg>
+  );
+}
+
+/** 다시 만들기 – 둥근 화살표 */
+function RedoIcon() {
+  return (
+    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5" />
+    </svg>
+  );
+}
+
+/** 완료 풀기 – 되돌리는 화살표 */
+function UndoIcon() {
+  return (
+    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 14L4 9l5-5" />
+      <path d="M4 9h11a5 5 0 0 1 0 10h-3" />
+    </svg>
+  );
+}
+
+/** 보내기 – 종이비행기 */
+function SendIcon() {
+  return (
+    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 3L10 14M21 3l-7 18-4-7-7-4z" />
     </svg>
   );
 }

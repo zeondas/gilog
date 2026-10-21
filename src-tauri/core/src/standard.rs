@@ -174,7 +174,8 @@ pub fn fill_standard(tpl: Option<&Path>, out: &Path, header: &BTreeMap<String, S
     let mut body = String::new();
     for (n, it) in items.iter().enumerate() {
         let mut b = block.clone();
-        if it.note.trim().is_empty() {
+        let note = note_text(&it.note);
+        if note.is_empty() {
             // ○ 고려사항 문단을 빼요(바깥 문단 중 {고려사항}이 든 것).
             if let Some(&(a, e)) = elements(&b, "hp:p").iter().find(|&&(a, e)| b[a..e].contains("{고려사항}") && !b[a..e].contains("<hp:tbl")) {
                 b.replace_range(a..e, "");
@@ -204,7 +205,7 @@ pub fn fill_standard(tpl: Option<&Path>, out: &Path, header: &BTreeMap<String, S
         text.insert("번호".to_string(), (n + 1).to_string());
         text.insert("공사내용".to_string(), it.title.trim().to_string());
         text.insert("주소".to_string(), it.address.trim().to_string());
-        text.insert("고려사항".to_string(), it.note.trim().to_string());
+        text.insert("고려사항".to_string(), note.clone());
         let mut u = Vec::new();
         body.push_str(&fill_text(&b, "hp:p", "hp:t", &text, &mut u));
     }
@@ -245,6 +246,66 @@ pub fn fill_standard(tpl: Option<&Path>, out: &Path, header: &BTreeMap<String, S
 }
 
 /// 지시일 "2026년 10월 19일"
+/// 고려사항(머릿기호 JSON 줄 또는 예전 한 줄 글) → 양식의 "○ {고려사항}" 자리에 넣을 글.
+/// 첫 줄은 양식의 ○ 뒤에 글만, 다음 줄부터는 "  " + 위계 들여쓰기(두 칸씩) + 기호(● → ○, □, -) + 글 (2026-10-21 사용자 – 복사 규칙과 같게).
+pub fn note_text(raw: &str) -> String {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return String::new();
+    }
+    // (글, 기호: 0 □ · 1 ● · 2 - · 3 없음, 없음일 때 단계)
+    let mut lines: Vec<(String, u8, Option<usize>)> = Vec::new();
+    match serde_json::from_str::<serde_json::Value>(raw) {
+        Ok(serde_json::Value::Array(items)) if raw.starts_with('[') => {
+            for v in items {
+                let t = v["t"].as_str().unwrap_or("").trim().to_string();
+                let k = match v["k"].as_str() {
+                    Some("sq") => 0,
+                    Some("da") => 2,
+                    Some("none") => 3,
+                    _ => 1,
+                };
+                lines.push((t, k, v["lv"].as_u64().map(|x| x.min(2) as usize)));
+            }
+        }
+        _ => lines.extend(raw.lines().map(|l| (l.trim().to_string(), 1, None))),
+    }
+    // 위계 들여쓰기(bullets.ts layout과 같은 규칙): 자기보다 높은 위계가 위에 있을 때만 들여써요. 빈 줄은 묶음을 나눠요.
+    let mut stack: Vec<u8> = Vec::new();
+    let mut prev = 0usize;
+    let mut out: Vec<String> = Vec::new();
+    for (t, k, lv) in lines {
+        if t.is_empty() {
+            stack.clear();
+            prev = 0;
+            continue;
+        }
+        let level = if k == 3 {
+            lv.unwrap_or(prev).min(2)
+        } else {
+            while stack.last().is_some_and(|&r| r >= k) {
+                stack.pop();
+            }
+            let l = stack.len().min(2);
+            stack.push(k);
+            l
+        };
+        prev = level;
+        if out.is_empty() {
+            out.push(t);
+        } else {
+            let sym = match k {
+                0 => "□ ",
+                1 => "○ ",
+                2 => "- ",
+                _ => "",
+            };
+            out.push(format!("  {}{}{}", "  ".repeat(level), sym, t));
+        }
+    }
+    out.join("\n")
+}
+
 pub fn korean_date(d: &str) -> String {
     let p: Vec<&str> = d.trim().split('-').collect();
     match p.as_slice() {
@@ -314,6 +375,14 @@ mod tests {
         let i = s.find("binaryItemIDRef=\"BIN0002\"").unwrap();
         let sz = &s[i..i + 200];
         assert!(sz.contains("<hp:sz width=\"14295\" height=\"19061\""), "{sz}");
+    }
+
+    #[test]
+    fn note_lines_become_marked_lines() {
+        assert_eq!(note_text(""), "");
+        assert_eq!(note_text("야간 작업"), "야간 작업");
+        let j = r#"[{"t":"야간 작업"},{"t":"교통 통제 협의"},{"t":"경찰서 통보","k":"da"},{"t":""},{"t":"포장 범위","k":"sq"},{"t":"절삭"}]"#;
+        assert_eq!(note_text(j), "야간 작업\n  ○ 교통 통제 협의\n    - 경찰서 통보\n  □ 포장 범위\n    ○ 절삭");
     }
 
     /// 견본 만들기: GILOG_ORDER_SAMPLE=<폴더>(map.png·photo.jpg·photo2.jpg가 있는 곳) cargo test --lib order_sample

@@ -544,7 +544,8 @@ impl Store {
             c.stage = "new".into();
         }
         if let Some(v) = &p.note {
-            let v = one_line(v);
+            // 고려사항은 머릿기호 여러 줄(2026-10-21 사용자 – 민원대장 내용 칸과 같은 JSON 줄). 예전 한 줄 글은 그대로.
+            let v = if v.trim_start().starts_with('[') { crate::complaints::lines(v) } else { one_line(v) };
             changed |= v != c.note;
             c.note = v;
         }
