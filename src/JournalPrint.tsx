@@ -12,6 +12,7 @@ import type { DayInfo, Entry, Project } from "./api";
 import { projectColor } from "./ContactsScreen";
 import { isMemo, parseDate, speakerColor, splitWho } from "./journal";
 import { sanitize } from "./RichMemo";
+import { overlayDown } from "./useOutsideClose";
 
 const WEEK = ["일", "월", "화", "수", "목", "금", "토"];
 const p2 = (n: number) => String(n).padStart(2, "0");
@@ -228,7 +229,7 @@ export function PrintDialog({
 
   return (
     <>
-      <div className="overlay jp-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="overlay jp-overlay" onMouseDown={overlayDown(onClose)}>
         <div className="dialog jp-dlg" role="dialog" aria-modal="true" aria-label="업무일지 인쇄">
           <div className="jp-head">
             <h2 className="jp-title">업무일지 인쇄</h2>

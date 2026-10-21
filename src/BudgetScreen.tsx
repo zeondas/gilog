@@ -35,6 +35,7 @@ import { BudgetStatusSend, SendTarget } from "./BudgetStatusSend";
 import { Setup } from "./budgetStatus";
 import { todayStr } from "./journal";
 import { keyAction, rowKeys } from "./keys";
+import { overlayDown, useOutsideClose } from "./useOutsideClose";
 import { isEmptyMemo, MemoEditor, sanitize } from "./RichMemo";
 import {
   AUTO_MS,
@@ -411,35 +412,12 @@ export default function BudgetScreen() {
   }, [formKey]);
 
   // 바깥 누르기 = 저장(뜨는 목록 안은 빼요)
-  useEffect(() => {
-    if (!form) return;
-    const down = (e: MouseEvent) => {
-      const t = e.target as Element;
-      if (formRow.current?.contains(t) || t.closest?.(".bd-pop")) return;
-      void commit();
-    };
-    document.addEventListener("mousedown", down, true);
-    return () => document.removeEventListener("mousedown", down, true);
-  }, [form, commit]);
+  useOutsideClose(!!form, [formRow], () => void commit(), { ignore: ".bd-pop", capture: true });
 
   const setF = (patch: Partial<Form>) => setForm((f) => (f ? ({ ...f, ...patch } as Form) : f));
 
   // ---------- 뜨는 것 ----------
-  useEffect(() => {
-    if (!pop || pop.t === "memo") return;
-    const down = (e: MouseEvent) => {
-      const t = e.target as Element;
-      if (t.closest?.(".bd-pop") || t.closest?.("[data-pick]")) return;
-      setPop(null);
-    };
-    const blur = () => setPop(null);
-    document.addEventListener("mousedown", down, true);
-    window.addEventListener("blur", blur);
-    return () => {
-      document.removeEventListener("mousedown", down, true);
-      window.removeEventListener("blur", blur);
-    };
-  }, [pop]);
+  useOutsideClose(!!pop && pop.t !== "memo", [], () => setPop(null), { ignore: ".bd-pop, [data-pick]", capture: true, onBlur: () => setPop(null) });
 
   // 키: Esc 닫기·취소, Del = 고른 공사 지우기
   useEffect(() => {
@@ -1449,17 +1427,9 @@ export default function BudgetScreen() {
     await run(() => api.setBudgetMemo(level, id, clean));
   };
   // 메모 창: 바깥 누르기 = 저장(목업과 같게), Esc = 취소
-  useEffect(() => {
-    if (pop?.t !== "memo") return;
-    const { level, id } = pop;
-    const down = (e: MouseEvent) => {
-      if ((e.target as Element).closest?.(".bd-pop")) return;
-      void saveMemo(level, id);
-    };
-    document.addEventListener("mousedown", down, true);
-    return () => document.removeEventListener("mousedown", down, true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pop]);
+  useOutsideClose(pop?.t === "memo", [], () => {
+    if (pop?.t === "memo") void saveMemo(pop.level, pop.id);
+  }, { ignore: ".bd-pop", capture: true });
 
   function popBody(): ReactNode {
     if (!pop) return null;
@@ -1905,7 +1875,7 @@ export default function BudgetScreen() {
         );
       })()}
       {ask && (
-        <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && setAsk(null)}>
+        <div className="overlay" onMouseDown={overlayDown(() => setAsk(null))}>
           <div className="dialog xl-ask" role="dialog" aria-modal="true" aria-label="엑셀 가져오기">
             <div className="xl-ask-body">
               <h2 className="xl-ask-title">

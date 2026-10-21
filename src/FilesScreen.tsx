@@ -53,6 +53,7 @@ import {
 } from "./files";
 import { Conflict, FastStatus, Found, MenuExtra, MenuResult, Step, TreeDir, fsApi, fsErrorText, onFsChanged, onFsProgress } from "./filesApi";
 import { parseDate } from "./journal";
+import { useOutsideClose } from "./useOutsideClose";
 import { DEFAULT_FILES_SETTINGS, FilesSettings, loadSettings, saveSettings } from "./settingsStore";
 
 const STATE_KEY = "files.state";
@@ -1250,19 +1251,16 @@ export default function FilesScreen() {
   }, []);
 
   // 바깥을 누르면 작은 메뉴가 닫혀요.
-  useEffect(() => {
-    if (!menu && !findOpen && !pop) return;
-    const f = (e: MouseEvent) => {
-      const t = e.target as HTMLElement;
-      if (!t.closest(".fx-menu, .fx-menu-btn")) {
-        setMenu(null);
-        setPop(null);
-        if (!t.closest(".fx-findbox")) setFindOpen(false);
-      }
-    };
-    window.addEventListener("mousedown", f);
-    return () => window.removeEventListener("mousedown", f);
-  }, [menu, findOpen, pop]);
+  useOutsideClose(
+    !!(menu || findOpen || pop),
+    [],
+    (e) => {
+      setMenu(null);
+      setPop(null);
+      if (!(e.target as HTMLElement).closest(".fx-findbox")) setFindOpen(false);
+    },
+    { ignore: ".fx-menu, .fx-menu-btn", on: "window" },
+  );
 
   // Ctrl+휠: 보기 크기 바꾸기(자세히 ↔ 간단히 ↔ 큰 아이콘 ↔ 썸네일, 호환 B)
   const wheelAt = useRef(0);

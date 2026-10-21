@@ -2,6 +2,7 @@
 // 누가 언제 무슨 말을 했는지 남기는 곳이라, 손을 키보드에서 떼지 않고 한 건을 끝낼 수 있게 만들었어요.
 import { KeyboardEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { DelIcon } from "./Icons";
+import { useOutsideClose } from "./useOutsideClose";
 import { api, Complaint, Contact, ContactsData, DayInfo, Entry, EntryInput, errorText, JournalData, Project, Task, TaskList, TasksData } from "./api";
 import { firstLineOf } from "./bullets";
 import { daysBetween, daysLeft, ddayText, dueSoon, isUrgent } from "./complaints";
@@ -786,27 +787,13 @@ function DayMenu({
   onDelete: () => void;
 }) {
   const box = useRef<HTMLDivElement>(null);
-  const close = useRef(onClose);
-  close.current = onClose;
-  useEffect(() => {
-    const down = (e: MouseEvent) => {
-      if (!box.current?.contains(e.target as Node)) close.current();
-    };
-    const key = (e: globalThis.KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        close.current();
-      }
-    };
-    document.addEventListener("mousedown", down);
-    window.addEventListener("keydown", key);
-    window.addEventListener("blur", close.current);
-    return () => {
-      document.removeEventListener("mousedown", down);
-      window.removeEventListener("keydown", key);
-      window.removeEventListener("blur", close.current);
-    };
-  }, []);
+  useOutsideClose(true, [box], () => onClose(), {
+    onBlur: () => onClose(),
+    onEsc: (e) => {
+      e.preventDefault();
+      onClose();
+    },
+  });
   // 메뉴가 열리면 첫 항목(묻는 중이면 취소)에 커서를 둬요.
   useEffect(() => {
     box.current?.querySelector<HTMLButtonElement>(ask ? ".dmenu-ask .btn" : ".dmenu-item")?.focus();
@@ -1414,22 +1401,10 @@ function PillarTel({ value }: { value: string }) {
 /** 프로젝트를 고르는 작은 목록 */
 function ProjectMenu({ ctx, current, onPick, onClose }: { ctx: Ctx; current: number | null; onPick: (id: number | null) => void; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
-  const close = useRef(onClose);
-  close.current = onClose;
+  // 프로젝트 버튼을 다시 누르는 것은 버튼이 닫아요. 그 밖을 누르면 여기서 닫아요.
+  useOutsideClose(true, [() => ref.current?.parentElement], () => onClose(), { onEsc: () => onClose() });
   useEffect(() => {
-    // 프로젝트 버튼을 다시 누르는 것은 버튼이 닫아요. 그 밖을 누르면 여기서 닫아요.
-    const down = (e: MouseEvent) => {
-      const wrap = ref.current?.parentElement;
-      if (!wrap?.contains(e.target as Node)) close.current();
-    };
-    const key = (e: globalThis.KeyboardEvent) => e.key === "Escape" && close.current();
-    document.addEventListener("mousedown", down);
-    window.addEventListener("keydown", key);
     ref.current?.querySelector<HTMLButtonElement>('[aria-pressed="true"]')?.focus();
-    return () => {
-      document.removeEventListener("mousedown", down);
-      window.removeEventListener("keydown", key);
-    };
   }, []);
   const opts: (Project | null)[] = [null, ...ctx.projects];
   return (
@@ -1632,16 +1607,11 @@ function EditCard({
   latest.current = { save };
 
   // 바깥(다른 카드, 빈 곳)을 누르면 저장해요. "지울까요?"가 펼쳐져 있었으면 지우지 않고 접혀요.
-  useEffect(() => {
-    const down = (ev: MouseEvent) => {
-      if (ref.current && !ref.current.contains(ev.target as Node)) {
-        setAsking(false);
-        latest.current.save(true);
-      }
-    };
-    document.addEventListener("mousedown", down);
-    return () => document.removeEventListener("mousedown", down);
-  }, []);
+  useOutsideClose(true, [ref], () => {
+    if (!ref.current) return;
+    setAsking(false);
+    latest.current.save(true);
+  });
 
   const caretStart = useRef(false);
   useEffect(() => {

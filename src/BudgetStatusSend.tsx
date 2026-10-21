@@ -11,6 +11,7 @@ import { useEffect, useState, type MouseEvent as RMouseEvent } from "react";
 import { api } from "./api";
 import { BudgetProject } from "./budget";
 import { defaultSetup, isCarryName, Manual, rowShares, Setup, SOURCES } from "./budgetStatus";
+import { overlayDown } from "./useOutsideClose";
 
 const X = "M6 6l12 12M18 6L6 18";
 const ICON = (d: string, s = 14, w = 2) => (
@@ -496,7 +497,7 @@ export function BudgetStatusSend({
   );
 
   return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="overlay" onMouseDown={overlayDown(onClose)}>
       <div className="dialog bss2" role="dialog" aria-modal="true" aria-label="예산현황 설정" style={{ width }}>
         <div className="dialog-head bss2-head">
           <span className="dialog-title">{setup ? "예산현황 설정" : "예산현황으로 보내기"}</span>

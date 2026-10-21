@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, errorText, inApp } from "./api";
 import { ExcelExport, ExcelSheet, SHEET_TITLE, SheetKind, defaultName } from "./excel";
 import { todayStr } from "./journal";
+import { overlayDown, useOutsideClose } from "./useOutsideClose";
 
 export const DIR_KEY = "excel.lastDir";
 
@@ -81,19 +82,7 @@ export function ExcelMenu<T>({
   const wrap = useRef<HTMLDivElement>(null);
   const title = SHEET_TITLE[kind];
 
-  useEffect(() => {
-    if (!open) return;
-    const down = (e: MouseEvent) => {
-      if (!wrap.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const key = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("mousedown", down);
-    window.addEventListener("keydown", key);
-    return () => {
-      document.removeEventListener("mousedown", down);
-      window.removeEventListener("keydown", key);
-    };
-  }, [open]);
+  useOutsideClose(open, [wrap], () => setOpen(false), { onEsc: () => setOpen(false) });
 
   useEffect(() => {
     if (!toast) return;
@@ -184,7 +173,7 @@ export function ExcelMenu<T>({
       )}
 
       {ask && (
-        <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && setAsk(null)}>
+        <div className="overlay" onMouseDown={overlayDown(() => setAsk(null))}>
           <div className="dialog xl-ask" role="dialog" aria-modal="true" aria-label="엑셀 가져오기">
             <div className="xl-ask-body">
               <h2 className="xl-ask-title">{count(ask.rows) ? `${title} ${count(ask.rows)}건을 가져올까요?` : "가져올 줄이 없어요"}</h2>

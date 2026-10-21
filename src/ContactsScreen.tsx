@@ -4,6 +4,7 @@ import { ExcelMenu } from "./ExcelMenu";
 import { ProjectImport, contactImports, contactRows, samePerson } from "./excel";
 import { DelIcon } from "./Icons";
 import { VirtualList } from "./VirtualList";
+import { overlayDown, useOutsideClose } from "./useOutsideClose";
 import { BLine, CYCLE, isBlank, kindOf, layout, newLineFor, NewLineMode, parseLines, stringifyLines, TRIGGERS, withKind } from "./bullets";
 import { isKey, keyAction, rowKeys } from "./keys";
 import { BulletView, Mark } from "./BulletParts";
@@ -739,18 +740,7 @@ function ViewCard({ vi, contact: c, byId, q, asking, memoOpen, onEdit, onAsk, on
   // "이 연락처를 지울까요?"가 펼쳐진 동안 그 줄 바깥(다른 카드, 빈 곳 등)을 누르면 접어요.
   const askRef = useRef<HTMLDivElement>(null);
   const trashRef = useRef<HTMLButtonElement>(null);
-  const onAskRef = useRef(onAsk);
-  onAskRef.current = onAsk;
-  useEffect(() => {
-    if (!asking) return;
-    const down = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (askRef.current?.contains(t) || trashRef.current?.contains(t)) return;
-      onAskRef.current(false);
-    };
-    document.addEventListener("mousedown", down);
-    return () => document.removeEventListener("mousedown", down);
-  }, [asking]);
+  useOutsideClose(asking, [askRef, trashRef], () => onAsk(false));
 
   const memo = parseMemo(c.memo);
   const lines = (
@@ -940,14 +930,10 @@ function EditCard({
   }
 
   // 바깥을 누르면 저장해요.
-  useEffect(() => {
-    const down = (e: MouseEvent) => {
-      // 누른 것이 그 사이 사라졌어도(배지 × 등) 누를 때의 자리로 판단해요.
-      if (ref.current && !e.composedPath().includes(ref.current)) latest.current.save(true);
-    };
-    document.addEventListener("mousedown", down);
-    return () => document.removeEventListener("mousedown", down);
-  }, []);
+  // 누른 것이 그 사이 사라졌어도(배지 × 등) 누를 때의 자리로 판단해요(isInside가 composedPath로 봐요).
+  useOutsideClose(true, [ref], () => {
+    if (ref.current) latest.current.save(true);
+  });
 
   const field = (key: keyof typeof v, label: string, ph: string, extra = "") => (
     <input
@@ -1045,14 +1031,9 @@ export function MemoEditor({
   }, []);
 
   // 바깥을 누르면 저장해요.
-  useEffect(() => {
-    const down = (e: MouseEvent) => {
-      const inside = boundary?.current ?? box.current;
-      if (inside && !inside.contains(e.target as Node)) latest.current.onSave(latest.current.lines);
-    };
-    document.addEventListener("mousedown", down);
-    return () => document.removeEventListener("mousedown", down);
-  }, []);
+  useOutsideClose(true, [() => boundary?.current ?? box.current], () => {
+    if (boundary?.current ?? box.current) latest.current.onSave(latest.current.lines);
+  });
 
   const cur = lines[focus] ?? { t: "" };
   const lv = layout(lines);
@@ -1332,25 +1313,17 @@ function PjMenu({
     if (!r) return;
     setPos({ x: Math.min(x, window.innerWidth - r.width - 8), y: Math.min(y, window.innerHeight - r.height - 8) });
   }, [x, y]);
-  useEffect(() => {
-    const down = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && onClose();
-    const key = (e: globalThis.KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        e.stopPropagation();
-        if (sub) {
-          setSub(false);
-          subBtn.current?.focus();
-        } else onClose();
-      }
-    };
-    document.addEventListener("mousedown", down);
-    window.addEventListener("keydown", key, true);
-    return () => {
-      document.removeEventListener("mousedown", down);
-      window.removeEventListener("keydown", key, true);
-    };
-  }, [onClose, sub]);
+  useOutsideClose(true, [ref], () => onClose(), {
+    escCapture: true,
+    onEsc: (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (sub) {
+        setSub(false);
+        subBtn.current?.focus();
+      } else onClose();
+    },
+  });
   const pick = (f: () => void) => () => {
     onClose();
     f();
@@ -1537,7 +1510,7 @@ function ProjectDialog({
   return (
     <div
       className="overlay"
-      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+      onMouseDown={overlayDown(onClose)}
     >
       <div className="dialog mgr pjm" role="dialog" aria-modal="true" aria-label="사업 관리" style={colVars}>
         <EdgeGrip side="l" width={pjmW} onWidth={(w) => setNameW(w - fixed - cols.short)} onFit={fit} />
@@ -1924,22 +1897,14 @@ function GroupRename({ name, placeholder, taken, onDone }: { name: string; place
 /** 작은 우클릭 메뉴(화면 기준 자리). 바깥을 누르거나 Esc면 닫혀요. */
 function CtxMenu({ x, y, items, onClose }: { x: number; y: number; items: { label: string; run: () => void; disabled?: boolean; danger?: boolean }[]; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const down = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && onClose();
-    const key = (e: globalThis.KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        e.stopPropagation();
-        onClose();
-      }
-    };
-    document.addEventListener("mousedown", down);
-    window.addEventListener("keydown", key, true);
-    return () => {
-      document.removeEventListener("mousedown", down);
-      window.removeEventListener("keydown", key, true);
-    };
-  }, [onClose]);
+  useOutsideClose(true, [ref], () => onClose(), {
+    escCapture: true,
+    onEsc: (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onClose();
+    },
+  });
   return (
     <div ref={ref} className="dmenu" role="menu" style={{ position: "fixed", left: x, top: y }}>
       {items.map((it) => (
@@ -2071,24 +2036,16 @@ function ColorPick({ name, current, auto, onPick }: { name: string; current: num
     if (!open) return;
     const r = box.current?.getBoundingClientRect();
     if (r) setAt({ top: r.bottom + 6, right: window.innerWidth - r.right });
-    const down = (e: MouseEvent) => {
-      if (!box.current?.contains(e.target as Node)) setOpen(false);
-    };
-    // 창 전체의 Esc(관리 창 닫기)보다 먼저 받아서 펼친 목록만 닫아요.
-    const key = (e: globalThis.KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        e.stopPropagation();
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", down);
-    window.addEventListener("keydown", key, true);
-    return () => {
-      document.removeEventListener("mousedown", down);
-      window.removeEventListener("keydown", key, true);
-    };
   }, [open]);
+  // 창 전체의 Esc(관리 창 닫기)보다 먼저 받아서 펼친 목록만 닫아요.
+  useOutsideClose(open, [box], () => setOpen(false), {
+    escCapture: true,
+    onEsc: (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setOpen(false);
+    },
+  });
   const pick = (c: number | null) => {
     setOpen(false);
     onPick(c);

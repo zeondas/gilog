@@ -12,6 +12,7 @@ import { isEmptyMemo, MemoEditor, sanitize } from "./RichMemo";
 import { memoToText } from "./budget";
 import { todayStr } from "./journal";
 import { keyAction } from "./keys";
+import { overlayDown, useOutsideClose } from "./useOutsideClose";
 
 const ICON = (d: string, s = 14, w = 2) => (
   <svg aria-hidden="true" width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={w} strokeLinecap="round" strokeLinejoin="miter">
@@ -229,16 +230,7 @@ export default function BudgetStatusScreen() {
     saveSetup(f.name, { ...s, rows: { ...s.rows, [`${f.year}:${f.src}`]: m } });
     setForm(null);
   }, [form, setups, unit]);
-  useEffect(() => {
-    if (!form) return;
-    const h = (e: MouseEvent) => {
-      const t = e.target as Element;
-      if (formRow.current?.contains(t) || t.closest?.(".bd-pop")) return;
-      save();
-    };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, [form, save]);
+  useOutsideClose(!!form, [formRow], () => save(), { ignore: ".bd-pop" });
 
   // ---------- 뜨는 상자 ----------
   useLayoutEffect(() => {
@@ -249,15 +241,7 @@ export default function BudgetStatusScreen() {
     const r = popRef.current.getBoundingClientRect();
     setPopPos({ left: Math.max(8, Math.min(pop.x, innerWidth - r.width - 8)), top: Math.max(8, Math.min(pop.y, innerHeight - r.height - 8)) });
   }, [pop]);
-  useEffect(() => {
-    if (!pop) return;
-    const h = (e: MouseEvent) => {
-      if ((e.target as Element).closest?.(".bd-pop")) return;
-      setPop(null);
-    };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, [pop]);
+  useOutsideClose(!!pop, [], () => setPop(null), { ignore: ".bd-pop" });
 
   const view = detail ? "detail" : "summary";
   const base = detail ? DET_COLS : SUM_COLS;
@@ -483,17 +467,10 @@ export default function BudgetStatusScreen() {
     const { name } = pop;
     memoHtml.current = setups[name]?.memo ?? "";
     const t = window.setTimeout(() => popRef.current?.querySelector<HTMLElement>(".rte-area")?.focus(), 0);
-    const down = (e: MouseEvent) => {
-      if ((e.target as Element).closest?.(".bd-pop")) return;
-      saveMemo(name);
-    };
-    document.addEventListener("mousedown", down, true);
-    return () => {
-      window.clearTimeout(t);
-      document.removeEventListener("mousedown", down, true);
-    };
+    return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pop]);
+  useOutsideClose(pop?.t === "memo", [], () => pop?.t === "memo" && saveMemo(pop.name), { ignore: ".bd-pop", capture: true });
 
   // ---------- 엑셀 ----------
   /** 보이는 해의 모든 줄(접힌 것도 펼쳐서) */
@@ -887,7 +864,7 @@ export default function BudgetStatusScreen() {
         );
       })()}
       {ask && (
-        <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && setAsk(null)}>
+        <div className="overlay" onMouseDown={overlayDown(() => setAsk(null))}>
           <div className="dialog xl-ask" role="dialog" aria-modal="true" aria-label="엑셀 가져오기">
             <div className="xl-ask-body">
               <h2 className="xl-ask-title">{ask.cells.length ? `${ask.cells.length}줄의 직접 적는 값을 가져올까요?` : "가져올 줄이 없어요"}</h2>

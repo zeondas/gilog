@@ -17,6 +17,7 @@ import {
   useState,
 } from "react";
 import { DelIcon } from "./Icons";
+import { isInside, overlayDown, useOutsideClose } from "./useOutsideClose";
 import { VirtualList, type VirtualHandle } from "./VirtualList";
 import { isKey, rowKeys } from "./keys";
 import { ExcelMenu } from "./ExcelMenu";
@@ -623,25 +624,14 @@ function HeadRow({
 /** 열 제목 줄 우클릭 메뉴 */
 function HeadMenu({ x, y, onClose, onReset }: { x: number; y: number; onClose: () => void; onReset: () => void }) {
   const box = useRef<HTMLDivElement>(null);
-  const close = useRef(onClose);
-  close.current = onClose;
+  useOutsideClose(true, [box], () => onClose(), {
+    onEsc: (e) => {
+      e.preventDefault();
+      onClose();
+    },
+  });
   useEffect(() => {
-    const down = (e: MouseEvent) => {
-      if (!box.current?.contains(e.target as Node)) close.current();
-    };
-    const key = (e: globalThis.KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        close.current();
-      }
-    };
-    document.addEventListener("mousedown", down);
-    window.addEventListener("keydown", key);
     box.current?.querySelector<HTMLElement>(".dmenu-item")?.focus();
-    return () => {
-      document.removeEventListener("mousedown", down);
-      window.removeEventListener("keydown", key);
-    };
   }, []);
   const style = { left: Math.min(x, window.innerWidth - 200), top: Math.min(y, window.innerHeight - 80) };
   return (
@@ -752,28 +742,15 @@ function FilterMenu({
   const box = useRef<HTMLDivElement>(null);
   const [fq, setFq] = useState("");
   const guard = useJamoGuard(setFq);
-  const close = useRef(onClose);
-  close.current = onClose;
-  useEffect(() => {
-    const down = (e: MouseEvent) => {
-      const t = e.target as HTMLElement;
-      // 같은 열 제목 단추는 그 단추가 여닫아요.
-      if (box.current?.contains(t) || t.closest?.(".cm-hbtn[aria-expanded='true']")) return;
-      close.current();
-    };
-    const key = (e: globalThis.KeyboardEvent) => {
-      if (e.key === "Escape" && !e.isComposing) {
-        e.preventDefault();
-        close.current();
-      }
-    };
-    document.addEventListener("mousedown", down);
-    window.addEventListener("keydown", key);
-    return () => {
-      document.removeEventListener("mousedown", down);
-      window.removeEventListener("keydown", key);
-    };
-  }, []);
+  // 같은 열 제목 단추는 그 단추가 여닫아요.
+  useOutsideClose(true, [box], () => onClose(), {
+    ignore: ".cm-hbtn[aria-expanded='true']",
+    onEsc: (e) => {
+      if (e.isComposing) return;
+      e.preventDefault();
+      onClose();
+    },
+  });
 
   const count = (v: string) => pool.filter((c) => c[k] === v).length;
   const vals = k === "status" ? values : values.slice().sort((a, b) => count(b) - count(a) || (a === "" ? 1 : b === "" ? -1 : a.localeCompare(b, "ko")));
@@ -1278,15 +1255,10 @@ function EditRow({
   }, []);
 
   // 바깥을 누르면 저장해요. 묻는 띠가 펼쳐져 있으면 줄 안의 다른 곳을 눌렀을 때 띠만 접어요.
-  useEffect(() => {
-    const down = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (!ref.current?.contains(t)) return latest.current.save(true);
-      if (latest.current.asking && !askRef.current?.contains(t) && !trashRef.current?.contains(t)) setAsking(false);
-    };
-    document.addEventListener("mousedown", down);
-    return () => document.removeEventListener("mousedown", down);
-  }, []);
+  useOutsideClose(true, [], (e) => {
+    if (!isInside(e, ref)) return latest.current.save(true);
+    if (latest.current.asking && !isInside(e, askRef, trashRef)) setAsking(false);
+  });
 
   const hasMemo = parseMemo(c.memo).length > 0;
 
@@ -1534,14 +1506,7 @@ function StatusPick({
   const box = useRef<HTMLSpanElement>(null);
   const opts = statuses.includes(status) ? statuses : [...statuses, status];
 
-  useEffect(() => {
-    if (!open) return;
-    const down = (e: MouseEvent) => {
-      if (!box.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", down);
-    return () => document.removeEventListener("mousedown", down);
-  }, [open]);
+  useOutsideClose(open, [box], () => setOpen(false));
 
   function pick(s: string) {
     setOpen(false);
@@ -1642,14 +1607,11 @@ function TakenPick({ c, taken, onSave }: { c: Complaint; taken: number; onSave: 
     if (!open) return;
     input.current?.focus();
     input.current?.select();
-    const down = (e: MouseEvent) => {
-      if (box.current?.contains(e.target as Node)) return;
-      if (!commit()) setOpen(false);
-    };
-    document.addEventListener("mousedown", down);
-    return () => document.removeEventListener("mousedown", down);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+  useOutsideClose(open, [box], () => {
+    if (!commit()) setOpen(false);
+  });
 
   return (
     <span ref={box} className="cm-tpick" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
@@ -1737,7 +1699,7 @@ function CatsDialog({ lists, onChange, onClose }: { lists: Lists; onChange: (l: 
 
   const cur = { status: lists.status, intake: lists.intake, ctype: lists.ctype };
   return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="overlay" onMouseDown={overlayDown(onClose)}>
       <div className="dialog mgr" role="dialog" aria-modal="true" aria-label="분류 관리">
         <div className="dialog-head">
           <span className="dialog-title">분류 관리</span>
