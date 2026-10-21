@@ -348,7 +348,8 @@ export type Order = {
 
 export type CasePatch = Partial<Pick<Case, "work" | "area" | "place" | "road" | "note" | "short" | "seq" | "stage" | "complaint" | "folder" | "orderFile" | "orderJpg" | "outboxFile" | "sentAt">>;
 export type ProcessData = { works: Work[]; cases: Case[]; orders: Order[] };
-export type InboxResult = { added: Case[]; skipped: number; failed: string[]; missingFiles: string[] };
+/** held: 첨부가 아직 안 내려와 다음 번으로 미룬 파일 수(hold일 때만, 2026-10-21 신속 자동화) */
+export type InboxResult = { added: Case[]; skipped: number; failed: string[]; missingFiles: string[]; held: number };
 export type RunStatus = { state: "idle" | "running" | "done" | "login" | "stopped" | "error"; total: number | null; done: number | null; message: string; log: string; skipped: string[]; skipCount?: number | null };
 export type OrderResult = { order: Order; cases: Case[]; works: Work[]; missing: string[]; /** 현장사진 없이 들어간 접수번호 */ noPhoto?: string[] };
 
@@ -1053,7 +1054,7 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
         added.push(structuredClone(c));
       }
       fake.inbox = [];
-      return { added, skipped, failed: [], missingFiles: [] };
+      return { added, skipped, failed: [], missingFiles: [], held: 0 };
     }
     case "make_order": {
       const r = a.req as unknown as { nos: string[]; order: number | null; root: string; date: string };
@@ -1429,7 +1430,7 @@ export const api = {
   deleteWork: (id: number) => call<Work[]>("delete_work", { id }),
   updateCase: (no: string, patch: CasePatch) => call<Case>("update_case", { no, patch }),
   deleteCase: (no: string) => call<null>("delete_case", { no }),
-  readInbox: (inbox: string, downloads: string, root: string) => call<InboxResult>("read_inbox", { inbox, downloads, root }),
+  readInbox: (inbox: string, downloads: string, root: string, hold = false) => call<InboxResult>("read_inbox", { inbox, downloads, root, hold }),
   makeOrder: (req: { nos: string[]; order: number | null; root: string; date: string; tpl: string; inbox?: string; downloads?: string }) => call<OrderResult>("make_order", { req }),
   orderJpg: (id: number) => call<Order>("order_jpg", { id }),
   sendOrder: (id: number, outbox: string) => call<Order>("send_order", { id, outbox }),
