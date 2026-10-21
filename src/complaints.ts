@@ -69,7 +69,8 @@ export function matches(c: Complaint, q: string): boolean {
   if (hay.includes(q)) return true;
   if (/[ㄱ-ㅎ]/.test(q) && c.person && koIndex(c.person, q) >= 0) return true;
   const digits = q.replace(/[^0-9]/g, "");
-  return digits.length >= 3 && digits === q.replace(/[-\s]/g, "") && c.phone.replace(/[^0-9]/g, "").includes(digits);
+  // 번호는 민원인 칸에 함께 적어요(2026-10-21 민원인 한 칸) – 민원인·예전 연락처 칸 숫자에서 찾아요.
+  return digits.length >= 3 && digits === q.replace(/[-\s]/g, "") && (c.person + " " + c.phone).replace(/[^0-9]/g, "").includes(digits);
 }
 
 /** 민원유형 칸에 초성만 적고 떠났을 때, 초성이 똑같은 유형이 하나뿐이면 그것으로 바꿔요(ㅍㅌㅎ → 포트홀). */
@@ -85,61 +86,35 @@ export function expandType(v: string, options: string[]): string {
 // ---------- 열 ----------
 
 export type ColKey =
-  | "no" | "intake" | "received" | "ctype" | "area" | "place" | "person"
-  | "phone" | "body" | "action" | "due" | "status" | "done" | "memo";
+  | "no" | "intake" | "received" | "ctype" | "place" | "person"
+  | "body" | "action" | "due" | "status" | "done" | "memo";
 
 /**
- * 사양서 순서 14열(2026-10-19 상태 뒤에 조치완료일). w가 null인 열(내용·조치내용)은 남는 폭을 반씩 나눠 가져요.
- * 기본 폭은 1600×900 창 기준(2026-10-17 사용자 1안, 시안 ComplaintCols.dc.html): 열마다 글 폭에 맞춰 줄이고
- * 위치·내용·조치내용의 긴 글은 칸 안에서 다음 줄로 넘겨요. 가로 스크롤이 없어야 해요.
+ * 사양서 순서 12열(2026-10-21 사용자 – 지역은 위치 칸에 합치고, 민원인·연락처는 "민원인" 한 칸).
+ * w가 null인 열(내용·조치내용)은 남는 폭을 반씩 나눠 가져요. 다른 열 폭은 `layoutCols`가 글 폭으로 정해요.
+ * w 숫자는 민원처리 화면이 같이 쓰는 `fitWidths`가 볼 때만 쓰는 예전 값이에요.
  */
 export const COLUMNS: { key: ColKey; label: string; w: number | null; fixed?: boolean }[] = [
   { key: "no", label: "연번", w: 52 },
   { key: "intake", label: "접수유형", w: 92 },
   { key: "received", label: "접수일", w: 96 },
   { key: "ctype", label: "민원유형", w: 84 },
-  { key: "area", label: "지역", w: 64 },
-  { key: "place", label: "위치", w: 116 },
-  { key: "person", label: "민원인", w: 60 },
-  { key: "phone", label: "연락처", w: 120 },
+  { key: "place", label: "위치", w: 140 },
+  { key: "person", label: "민원인", w: 120 },
   { key: "body", label: "내용", w: null },
   { key: "action", label: "조치내용", w: null },
   { key: "due", label: "마감일", w: 130 },
-  { key: "status", label: "상태", w: 72 },
+  { key: "status", label: "상태", w: 80 },
   { key: "done", label: "조치완료일", w: 130 },
-  { key: "memo", label: "메모", w: 40 },
+  { key: "memo", label: "메모", w: 48 },
 ];
 
 /** 내용·조치내용의 가장 좁은 폭 */
 export const FLEX_MIN = 140;
 export const COL_MIN = 40;
 
-export const defaultWidths = () => COLUMNS.map((c) => c.w);
-
-/** 0.6.x~0.9.x의 처음 폭. "열 너비 초기화"로 이 값이 저장돼 있으면 새 처음 폭으로 읽어요. */
-const OLD_DEFAULT = [52, 108, 106, 100, 76, 132, 76, 128, null, null, 150, 100, 48];
-
-/** 저장해 둔 열 너비를 읽어요. 모양이 맞지 않거나 예전 처음 폭이면 새 처음 폭이에요. */
-export function readWidths(raw: string | null): (number | null)[] {
-  try {
-    const v = JSON.parse(raw ?? "");
-    // 조치완료일이 생기기 전(13열)에 저장한 폭이면 상태 뒤에 처음 폭을 끼워요(예전 처음 폭이면 새 처음 폭).
-    if (Array.isArray(v) && v.length === COLUMNS.length - 1) {
-      if (v.every((x, i) => x === OLD_DEFAULT[i])) return defaultWidths();
-      v.splice(12, 0, 130);
-    }
-    if (Array.isArray(v) && v.length === COLUMNS.length && v.every((x) => x === null || (typeof x === "number" && x >= COL_MIN))) {
-      // 폭 고정 열은 2026-10-19 23:04 사용자가 되돌렸어요(고정이 오히려 불편) – 모든 열을 끌어 바꿀 수 있어요.
-      return v;
-    }
-  } catch {
-    /* 처음 폭으로 */
-  }
-  return defaultWidths();
-}
-
 /**
- * 표 폭(avail)에 맞춰 보이는 폭을 정해요. 고정 열 + 내용·조치내용 최소 폭이 표 폭을 넘으면
+ * 표 폭(avail)에 맞춰 보이는 폭을 정해요 – 민원처리 화면이 써요. 고정 열 + 남는 폭 열 최소 폭이 표 폭을 넘으면
  * 고정 열을 같은 비율로 줄여요(가장 좁게 COL_MIN). 저장된 값은 그대로 두어 창을 넓히면 다시 원래 폭이에요.
  */
 export function fitWidths(ws: (number | null)[], avail: number): (number | null)[] {
@@ -147,48 +122,143 @@ export function fitWidths(ws: (number | null)[], avail: number): (number | null)
   const flex = ws.filter((w) => w === null).length * FLEX_MIN;
   const total = ws.reduce<number>((a, w) => a + (w ?? 0), 0);
   if (total + flex <= avail) return ws;
-  // 폭이 정해진 열은 줄이지 않고, 나머지 열만 같은 비율로 줄여요.
-  const locked = ws.reduce<number>((a, w, i) => a + (COLUMNS[i]?.fixed && w !== null ? w : 0), 0);
-  const free = total - locked;
-  if (free <= 0) return ws;
-  const k = Math.max(0, avail - flex - locked) / free;
-  return ws.map((w, i) => (w === null || COLUMNS[i]?.fixed ? w : Math.max(COL_MIN, Math.floor(w * k))));
+  const k = Math.max(0, avail - flex) / total;
+  return ws.map((w) => (w === null ? w : Math.max(COL_MIN, Math.floor(w * k))));
 }
 
 export function gridTemplate(ws: (number | null)[], flexMin = FLEX_MIN): string {
   return ws.map((w) => (w === null ? `minmax(${flexMin}px, 1fr)` : `${w}px`)).join(" ");
 }
 
-/** 민원대장 내용·조치내용이 모자랄 때 줄어들 수 있는 가장 좁은 폭(2026-10-19 사용자: 모자라면 내용·조치내용도 줄어야지) */
-export const FLEX_SQUEEZE = 80;
-
-/**
- * 민원대장 열 맞추기(2026-10-19 사용자): 표 폭이 모자라면 먼저 내용·조치내용을 140 → 80까지 줄이고,
- * 그래도 모자랄 때만 다른 열(폭 고정 열 빼고)을 같은 비율로 줄여요 – 다른 칸이 두 줄로 넘어가는 일을 가장 늦게.
- */
-export function fitComplaintCols(ws: (number | null)[], avail: number): { ws: (number | null)[]; flexMin: number } {
-  const nFlex = ws.filter((w) => w === null).length;
-  if (!(avail > 0) || nFlex === 0) return { ws, flexMin: FLEX_MIN };
-  const total = ws.reduce<number>((a, w) => a + (w ?? 0), 0);
-  const each = Math.floor((avail - total) / nFlex);
-  if (each >= FLEX_SQUEEZE) return { ws, flexMin: Math.min(FLEX_MIN, each) };
-  const locked = ws.reduce<number>((a, w, i) => a + (COLUMNS[i]?.fixed && w !== null ? w : 0), 0);
-  const free = total - locked;
-  if (free <= 0) return { ws, flexMin: FLEX_SQUEEZE };
-  const k = Math.max(0, avail - nFlex * FLEX_SQUEEZE - locked) / free;
-  return {
-    ws: ws.map((w, i) => (w === null || COLUMNS[i]?.fixed ? w : Math.max(COL_MIN, Math.floor(w * k)))),
-    flexMin: FLEX_SQUEEZE,
-  };
-}
-
-export const minWidth = (ws: (number | null)[]) => ws.reduce<number>((a, w) => a + (w ?? FLEX_MIN), 0);
-
-/** 열 하나를 끌어 넓힐 수 있는 가장 큰 폭(다른 열과 내용·조치내용 최소 폭을 빼고) */
+/** 열 하나를 끌어 넓힐 수 있는 가장 큰 폭(다른 열과 남는 폭 열 최소 폭을 빼고) – 민원처리 화면이 써요. */
 export function maxWidthOf(ws: (number | null)[], i: number, avail: number, base: number[]): number {
   const others = ws.reduce<number>((a, w, j) => a + (j === i ? 0 : w === null ? FLEX_MIN : base[j]), 0);
   return Math.max(COL_MIN, Math.floor(avail - others));
 }
+
+// ---------- 민원대장 열 폭(2026-10-21 사용자 결정 – 시안 ComplaintCols.dc.html 시안 4·5·최대화) ----------
+
+/** 열마다 들어갈 것의 폭(칸 여백 빼고). short = 줄인 모양, more = 넓은 창에서 더 받을 수 있는 폭(민원인). */
+export type ColNeed = { full: number; short?: number; more?: number };
+
+/** 기본 창에서 열마다 같은 여유(칸 여백 좌우 10 포함, 2026-10-21 15:35 사용자) */
+export const COL_SLACK = 28;
+/** 내용·조치내용이 이만큼(표 폭 비율) 못 받으면 하나씩 줄여요 */
+export const CONTENT_SHARE = 0.45;
+/** 다 줄여도 이보다 적으면 다른 열의 여유를 줄여요 */
+export const CONTENT_FLOOR = 0.4;
+/** 줄이는 순서(2026-10-21 사용자): 마감일 날짜 → 접수일 26-10-16 → 접수유형 두 글자 → 위치 읍면. 넓히면 거꾸로 풀려요. */
+export const SHORT_ORDER: ColKey[] = ["due", "received", "intake", "place"];
+const FLEXED: ColKey[] = ["body", "action"];
+/** 내용·조치내용 가장 좁은 폭 */
+export const CONTENT_MIN = 80;
+
+export type ColLayout = {
+  /** COLUMNS 순서, 내용·조치내용은 null(남는 폭 반씩) */
+  ws: (number | null)[];
+  /** 줄인 모양으로 보이는 열 */
+  short: Set<ColKey>;
+  /** 내용·조치내용 칸 하나의 가장 좁은 폭 */
+  flexMin: number;
+};
+
+/**
+ * 민원대장 열 폭을 정해요(2026-10-21 사용자 ①~⑨).
+ * - 내용·조치내용을 뺀 열 = 들어갈 것의 폭 + 같은 여유 28. 끌어서 정한 열(ratio = 표 폭 비율)은 그 폭.
+ * - 내용·조치내용이 표 폭의 45%를 못 받으면 SHORT_ORDER대로 하나씩 줄인 모양으로 바꿔요.
+ * - 다 풀린 넓은 창이면 남는 폭(40% 넘는 만큼)을 민원인에 더 줘요(more까지).
+ * - 다 줄여도 40%가 안 되면 다른 열의 여유를 8까지 줄이고, 그래도 모자라면 내용·조치내용이 80까지 줄어요.
+ * - 끈 열은 그 폭이 들어갈 것보다 좁으면 줄인 모양이에요.
+ */
+export function layoutCols(needs: Partial<Record<ColKey, ColNeed>>, avail: number, ratios: Partial<Record<ColKey, number>> = {}): ColLayout {
+  const keys = COLUMNS.map((c) => c.key);
+  const fixed = keys.filter((k) => !FLEXED.includes(k));
+  const need = (k: ColKey): ColNeed => needs[k] ?? { full: 40 };
+  const user = (k: ColKey) => (ratios[k] && avail > 0 ? Math.max(COL_MIN, Math.round(ratios[k]! * avail)) : null);
+  const widthAt = (k: ColKey, short: Set<ColKey>) => {
+    const u = user(k);
+    if (u !== null) return u;
+    const n = need(k);
+    return Math.ceil((short.has(k) && n.short != null ? n.short : n.full) + COL_SLACK);
+  };
+  const sumOf = (short: Set<ColKey>) => fixed.reduce((a, k) => a + widthAt(k, short), 0);
+
+  let short = new Set<ColKey>();
+  let level = 0;
+  if (avail > 0) {
+    for (level = 0; level <= SHORT_ORDER.length; level++) {
+      short = new Set(SHORT_ORDER.slice(0, level));
+      if (avail - sumOf(short) >= CONTENT_SHARE * avail) break;
+    }
+    if (level > SHORT_ORDER.length) level = SHORT_ORDER.length;
+    short = new Set(SHORT_ORDER.slice(0, level));
+  }
+  const w: Partial<Record<ColKey, number>> = {};
+  for (const k of fixed) w[k] = widthAt(k, short);
+
+  if (avail > 0) {
+    let content = avail - sumOf(short);
+    // 다 풀린 넓은 창: 민원인에 조금 더(최대화에서 "김영수 010-4321-8765"가 생략 없이).
+    const p = need("person");
+    if (level === 0 && user("person") === null && p.more && p.more > p.full) {
+      const extra = Math.max(0, Math.min(p.more - p.full, content - CONTENT_FLOOR * avail));
+      w.person! += Math.floor(extra);
+      content -= Math.floor(extra);
+    }
+    // 다 줄여도 모자라요: 끌지 않은 열의 여유를 8까지 같이 줄여요.
+    const deficit = CONTENT_FLOOR * avail - content;
+    if (deficit > 0) {
+      const auto = fixed.filter((k) => user(k) === null);
+      const each = Math.min(COL_SLACK - 8, Math.ceil(deficit / Math.max(1, auto.length)));
+      for (const k of auto) w[k] = w[k]! - each;
+    }
+  }
+  // 끈 열은 그 폭에 다 안 들어가면 줄인 모양이에요.
+  for (const k of fixed) {
+    const n = need(k);
+    if (user(k) !== null && n.short != null && w[k]! < n.full + 12) short.add(k);
+  }
+  const content = avail > 0 ? (avail - fixed.reduce((a, k) => a + w[k]!, 0)) / FLEXED.length : FLEX_MIN;
+  return {
+    ws: keys.map((k) => (FLEXED.includes(k) ? null : w[k]!)),
+    short,
+    flexMin: Math.max(CONTENT_MIN, Math.min(FLEX_MIN, Math.floor(content))),
+  };
+}
+
+/** 저장해 둔 끈 폭(열마다 표 폭 비율). 모양이 맞지 않으면 없음(자동)이에요. */
+export function readRatios(raw: string | null): Partial<Record<ColKey, number>> {
+  try {
+    const v = JSON.parse(raw ?? "");
+    if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+    const out: Partial<Record<ColKey, number>> = {};
+    for (const c of COLUMNS) {
+      const x = v[c.key];
+      if (typeof x === "number" && x > 0 && x < 0.6 && c.w !== null) out[c.key] = x;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+/** 열 하나를 끌 때 가장 넓게(내용·조치내용이 80씩은 남게) */
+export function maxDragWidth(ws: (number | null)[], i: number, avail: number): number {
+  const others = ws.reduce<number>((a, w, j) => a + (j === i ? 0 : w === null ? CONTENT_MIN : w), 0);
+  return Math.max(COL_MIN, Math.floor(avail - others));
+}
+
+/** 90%가 들어가는 폭(드문 긴 글 때문에 열이 넓어지지 않게) */
+export function p90(ws: number[]): number {
+  const v = ws.filter((x) => x > 0).sort((a, b) => a - b);
+  if (!v.length) return 0;
+  return v[Math.max(0, Math.ceil(v.length * 0.9) - 1)];
+}
+
+/** 접수유형 줄인 모양: 앞 두 글자 + "…" */
+export const shortIntake = (s: string) => ([...s].length > 2 ? [...s].slice(0, 2).join("") + "…" : s);
+/** 2026-10-16 → 26-10-16 */
+export const shortDate = (s: string) => (/^\d{4}-\d{2}-\d{2}$/.test(s) ? s.slice(2) : s);
 
 // ---------- 열 필터 (2026-10-17 사용자 확정, 시안 ComplaintFilter.dc.html) ----------
 

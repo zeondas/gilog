@@ -8,6 +8,7 @@
 import { KeyboardEvent, useEffect, useRef, useState } from "react";
 import { BKind, BLine, layout, newLineFor, NewLineMode, tabKind } from "./bullets";
 import { keyAction } from "./keys";
+import { useOutsideClose } from "./useOutsideClose";
 
 // ---------- 정리 ----------
 
@@ -909,15 +910,7 @@ export function MemoEditor({
 function GridPicker({ onPick, onClose }: { onPick: (r: number, c: number) => void; onClose: () => void }) {
   const [hover, setHover] = useState<[number, number]>([2, 3]);
   const ref = useRef<HTMLDivElement>(null);
-  const close = useRef(onClose);
-  close.current = onClose;
-  useEffect(() => {
-    const down = (e: MouseEvent) => {
-      if (!ref.current?.parentElement?.contains(e.target as Node)) close.current();
-    };
-    document.addEventListener("mousedown", down);
-    return () => document.removeEventListener("mousedown", down);
-  }, []);
+  useOutsideClose(true, [() => ref.current?.parentElement], () => onClose());
   return (
     <div ref={ref} className="rte-grid" onMouseDown={(e) => e.preventDefault()}>
       <div className="rte-grid-cells">

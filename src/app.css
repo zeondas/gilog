@@ -11954,3 +11954,37 @@ body.ew-dragging .pjm-colgrip:active::after {
 .pr-body .pr-place.two > .pr-sub {
   margin-right: 0;
 }
+
+/* 민원대장 열 폭 정리(2026-10-21 사용자, 시안 ComplaintCols.dc.html) */
+/* ⑨ 열 제목 거르기 아이콘은 자리를 잡지 않고, 마우스를 올렸을 때·거르는 중일 때만 제목 오른쪽 여유 자리에 겹쳐 보여요. */
+.cm-hbtn { position: relative; }
+.cm-hbtn > .cm-funnel {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  translate: 0 -50%;
+  opacity: 0;
+  pointer-events: none;
+}
+.cm-hbtn:hover > .cm-funnel,
+.cm-hbtn.on > .cm-funnel,
+.cm-hbtn[aria-expanded="true"] > .cm-funnel { opacity: 1; }
+/* 민원인 한 칸: 넘치면 한 줄로 두고 "…"(마우스를 올리면 전체) */
+.cm-person { min-width: 0; }
+.cm-person .cm-copy { min-width: 0; overflow: hidden; }
+.cm-person .cm-copy-v {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* 마감일을 줄여 D-day만: 두 번 누르면 날짜 칸 */
+.cm-due-btn { font-variant-numeric: tabular-nums; }
+/* 복사 칸(위치·민원인)의 눌림 상자(좌우 4)는 칸 여백으로 나가요 – 글이 칸 폭을 다 쓰고 열마다 남는 공간이 같게 */
+.cm-view .cm-copy { max-width: calc(100% + 8px); }
+/* 아이콘이 보일 때 좁은 열이면 제목 글자 끝을 "…"로 접어 아이콘과 겹치지 않게 */
+.cm-hbtn > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.cm-hbtn:not(.cm-fold):hover,
+.cm-hbtn:not(.cm-fold).on,
+.cm-hbtn:not(.cm-fold)[aria-expanded="true"] { padding-right: 22px; }

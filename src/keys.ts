@@ -204,6 +204,22 @@ const composing = (n: KeyboardEvent) => n.isComposing || n.keyCode === 229;
 // 화면 전체에서 하나로 봐요.
 let lastTab = { at: -1, ev: null as KeyboardEvent | null };
 
+/** 한글 조합 중 Tab을 받아 둔 칸(조합이 이 칸에 확정되면 다시 보내요 – rowKeys) */
+let pendingTab: { from: HTMLElement; cancel: () => void } | null = null;
+/** 다시 보내는 Tab을 처리하는 중 */
+let replaying = false;
+
+/** 받아 둔 Tab을 같은 칸에 다시 보내요(칸의 키 처리 – 후보 확정 등 – 와 줄의 다음 칸 옮기기를 평소처럼 거쳐요). */
+function replayTab(from: HTMLElement, shift: boolean) {
+  if (!from.isConnected || document.activeElement !== from) return;
+  replaying = true;
+  try {
+    from.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", code: "Tab", keyCode: 9, shiftKey: shift, bubbles: true, cancelable: true }));
+  } finally {
+    replaying = false;
+  }
+}
+
 /**
  * 이 키가 이 쓰는 곳(scope)에서 무슨 동작인지. 그 묶음 동작이 먼저, 없으면 공통 동작이에요.
  * - 한글 조합 중 Enter·Esc는 null(입력기가 글자를 마친 뒤 Enter가 한 번 더 들어와요).
@@ -216,7 +232,10 @@ export function keyAction(e: AnyKey, scope: Scope): Action | null {
   const isTab = name.endsWith("Tab");
   if (composing(n) && !isTab) return null;
   if (isTab) {
-    if (lastTab.ev === n) {
+    if (replaying) {
+      // 조합을 마친 뒤 다시 보낸 Tab이에요(rowKeys) – 두 번 들어온 Tab으로 막지 않아요.
+      lastTab = { at: n.timeStamp, ev: n };
+    } else if (lastTab.ev === n) {
       // 같은 키를 다른 칸이 다시 보는 것(위로 올라온 것)이에요.
     } else if (n.timeStamp - lastTab.at < 25) {
       e.preventDefault();
@@ -294,7 +313,41 @@ export function rowKeys(e: RKeyboardEvent, row: HTMLElement | null, submit: () =
   if (!row || e.defaultPrevented) return false;
   // 단추 등 칸이 아닌 곳은 브라우저 기본(단추 Enter = 누르기, Tab = 다음 단추)이에요.
   if (!(e.target instanceof Element) || !e.target.matches("input, textarea, select, [contenteditable='true']")) return false;
+  const from = e.target as HTMLElement;
+  if (pendingTab && pendingTab.from === from && !composing(e.nativeEvent) && keyName(e)?.endsWith("Tab")) {
+    // 같은 Tab이 한 번 더 들어왔어요(조합 중 Tab 뒤에 오는 것) – 글자가 이 칸에 확정된 뒤 다시 보내는 Tab이 움직여요.
+    e.preventDefault();
+    return true;
+  }
   const a = keyAction(e, fieldScope(e.target));
+  // 한글 조합 중 Tab(2026-10-21 사용자 신고 – 접수유형 "국"을 치고 Tab → 접수일 칸에 "2026-10-21국"):
+  // 윈도우는 Tab 키(229)를 화면에 먼저 주고, 그 뒤에 조합하던 글자를 "지금 커서가 있는 칸"에 확정해요.
+  // 그 사이에 칸을 옮기면 마지막 글자가 다음 칸으로 따라가요. 그래서 조합 중 Tab은 칸을 바로 옮기지 않고,
+  // 글자가 이 칸에 확정된 뒤(compositionend) 같은 Tab을 한 번 더 보내 평소처럼 움직여요(그때는 칸의 최신 값으로).
+  if ((a === "common.next" || a === "single.next" || a === "common.prev") && composing(e.nativeEvent)) {
+    e.preventDefault();
+    if (pendingTab?.from !== from) {
+      pendingTab?.cancel();
+      const shift = e.shiftKey;
+      const done = () => {
+        if (pendingTab?.from !== from) return;
+        pendingTab.cancel();
+        // 확정한 글자가 화면 값에 들어간 다음에 보내요.
+        window.setTimeout(() => replayTab(from, shift), 0);
+      };
+      const timer = window.setTimeout(done, 150);
+      from.addEventListener("compositionend", done, { once: true });
+      pendingTab = {
+        from,
+        cancel: () => {
+          window.clearTimeout(timer);
+          from.removeEventListener("compositionend", done);
+          pendingTab = null;
+        },
+      };
+    }
+    return true;
+  }
   if (a === "common.next" || a === "single.next") {
     e.preventDefault();
     if (!moveField(row, e.target as Element, 1)) submit();

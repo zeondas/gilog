@@ -6,6 +6,7 @@
 //   체크하면 민원대장의 상태가 완료로 바뀌고, 체크를 풀면 그 전 상태로 돌아가요. 제목·마감일은 민원대장에서만 고쳐요.
 import { KeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DelIcon } from "./Icons";
+import { isInside, useOutsideClose } from "./useOutsideClose";
 import { isKey, rowKeys } from "./keys";
 import { REMOTE_CHANGE } from "./google";
 import { api, Complaint, errorText, Task, TaskEdit, TaskInput, TaskList, TasksData } from "./api";
@@ -519,25 +520,12 @@ function ListMenu({
 }) {
   const box = useRef<HTMLDivElement>(null);
   const [name, setName] = useState(list.name);
-  const close = useRef(onClose);
-  close.current = onClose;
-  useEffect(() => {
-    const down = (e: MouseEvent) => {
-      if (!box.current?.contains(e.target as Node)) close.current();
-    };
-    const key = (e: globalThis.KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        close.current();
-      }
-    };
-    document.addEventListener("mousedown", down);
-    window.addEventListener("keydown", key);
-    return () => {
-      document.removeEventListener("mousedown", down);
-      window.removeEventListener("keydown", key);
-    };
-  }, []);
+  useOutsideClose(true, [box], () => onClose(), {
+    onEsc: (e) => {
+      e.preventDefault();
+      onClose();
+    },
+  });
   useEffect(() => {
     const el = box.current?.querySelector<HTMLElement>(mode === "rename" ? "input" : mode === "ask" ? ".dmenu-ask .btn" : ".dmenu-item:not(:disabled)");
     el?.focus();
@@ -689,14 +677,7 @@ function AddForm({
   latest.current = submit;
 
   // 바깥을 누르면 저장하고 접어요(공통 규칙 "바깥을 누르면 저장"). 제목이 비어 있으면 접기만 해요.
-  useEffect(() => {
-    if (!open) return;
-    const down = (e: MouseEvent) => {
-      if (!box.current?.contains(e.target as Node)) void latest.current(true);
-    };
-    document.addEventListener("mousedown", down);
-    return () => document.removeEventListener("mousedown", down);
-  }, [open]);
+  useOutsideClose(open, [box], () => void latest.current(true));
 
   // 엔터규칙(keys.ts): 제목 Enter·Tab 다음 칸, 세부정보는 여러 줄 칸 규칙, 마지막 칸(날짜)에서 Enter·Tab 등록, Esc 닫기.
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
@@ -934,14 +915,7 @@ function ItemRow({
   const rowRef = useRef<HTMLDivElement>(null);
 
   // "지울까요?"가 펼쳐진 동안 그 띠 바깥을 누르면 지우지 않고 접어요.
-  useEffect(() => {
-    if (!asking) return;
-    const down = (e: MouseEvent) => {
-      if (!askRef.current?.contains(e.target as Node)) setAsking(false);
-    };
-    document.addEventListener("mousedown", down);
-    return () => document.removeEventListener("mousedown", down);
-  }, [asking]);
+  useOutsideClose(asking, [askRef], () => setAsking(false));
 
   if (editing && it.task) {
     return <TaskEditor task={it.task} sub={sub} today={today} onSave={onSave} onCancel={onCancelEdit} onRemove={onRemove} />;
@@ -1130,15 +1104,10 @@ function TaskEditor({
   latest.current = { save, asking };
 
   // 바깥을 누르면 저장해요. 묻는 띠가 펼쳐져 있으면 안쪽 다른 곳을 눌렀을 때 띠만 접어요.
-  useEffect(() => {
-    const down = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (!ref.current?.contains(t)) return void latest.current.save();
-      if (latest.current.asking && !askRef.current?.contains(t) && !trashRef.current?.contains(t)) setAsking(false);
-    };
-    document.addEventListener("mousedown", down);
-    return () => document.removeEventListener("mousedown", down);
-  }, []);
+  useOutsideClose(true, [], (e) => {
+    if (!isInside(e, ref)) return void latest.current.save();
+    if (latest.current.asking && !isInside(e, askRef, trashRef)) setAsking(false);
+  });
 
   return (
     <div
