@@ -40,8 +40,8 @@ const FETCHED_KEY = "process.fetched";
 /** 마지막 불러오기 결과(아래 줄 "새 민원 N건 · 건너뜀 N건 · 걸린 시간 · [로그 열기]") */
 const LAST_RUN_KEY = "process.lastRun";
 type LastRun = { at: string; added: number; skipped: number | null; secs: number; log: string };
-// 2026-10-21 고려사항 기본 폭 220 → 300(머릿기호 여러 줄)으로 새 키 – 예전에 끈 폭은 버려요
-const COLS_KEY = "process.colWidths4";
+// 2026-10-21 열 폭을 글자에 맞추는 방식(자동)으로 새 키 – 예전에 끈 폭은 버려요. 값이 없으면 자동이에요.
+const COLS_KEY = "process.colWidths5";
 const MAIL_BOX = "https://mail.korea.kr";
 /** 판단 공사 "해당 없음"(2026-10-21 사용자) – core NA_WORK와 같은 값 */
 const NA_WORK = 0;
@@ -49,26 +49,56 @@ const NA_WORK = 0;
 /** 열 제목과 처음 폭. null은 남는 폭을 쓰는 열(민원 요약)이에요. 끌어서 바꾼 폭은 COLS_KEY에 저장해요. */
 const COLUMNS: { label: string; w: number | null; center?: boolean; fixed?: boolean }[] = [
   { label: "", w: 36, fixed: true },
-  { label: "번호", w: 96 },
-  { label: "접수", w: 58 },
-  { label: "기한", w: 112 },
-  { label: "위치", w: 170 },
+  // 번호·접수·기한·위치·판단 공사는 글자에 맞춰 다시 재요(AUTO_COLS) – 아래는 재기 전 처음 폭
+  { label: "번호", w: 80 },
+  { label: "접수", w: 62 },
+  { label: "기한", w: 105 },
+  { label: "위치", w: 151 },
   { label: "민원 요약", w: null },
-  { label: "판단 공사", w: 160, fixed: true },
+  { label: "판단 공사", w: 164, fixed: true },
   { label: "고려사항", w: 300 },
   { label: "진행", w: 190, fixed: true },
 ];
-const defaultWidths = () => COLUMNS.map((c) => c.w);
 
-function readWidths(raw: string | null): (number | null)[] {
+/** 끌어서 바꿔 저장한 폭. 없거나 맞지 않으면 null(자동 – 글자에 맞춰요). */
+function readWidths(raw: string | null): (number | null)[] | null {
   try {
     const v = JSON.parse(raw ?? "");
     if (Array.isArray(v) && v.length === COLUMNS.length && v.every((x, i) => (COLUMNS[i].w === null ? x === null : typeof x === "number" && x >= COL_MIN))) return v;
   } catch {
-    /* 처음 폭으로 */
+    /* 자동으로 */
   }
-  return defaultWidths();
+  return null;
 }
+
+/**
+ * 열 폭 자동 맞춤(2026-10-21 사용자 1안): 번호·접수·기한·위치·판단 공사는 그 열의 가장 긴 글자(머리 글자 포함) + COL_GAP –
+ * 글자 끝에서 다음 열 글자까지 빈 칸이 모두 같아요. 민원 요약이 나머지, 고려사항·진행은 처음 폭 그대로.
+ */
+const AUTO_COLS = [1, 2, 3, 4, 6];
+const COL_GAP = 24;
+/** 위치 열은 이만큼까지만 넓히고, 더 긴 주소는 그 줄만 두 줄(지역 위·위치 아래)로 써요. */
+const PLACE_MAX = 260;
+
+/** 글자들이 한 줄로 놓일 때의 폭(가로로 늘어놓은 자식들 + 사이 간격). 위치 칸은 지역 + 4 + 위치예요. */
+function textWidth(el: Element): number {
+  const rangeW = (n: Node) => {
+    const r = document.createRange();
+    r.selectNodeContents(n);
+    return r.getBoundingClientRect().width;
+  };
+  if (el.classList.contains("pr-place")) {
+    const kids = [...el.children];
+    return kids.reduce((a, k) => a + rangeW(k), 0) + (kids.length - 1) * PLACE_SPACE;
+  }
+  const kids = [...el.children].filter((k) => !k.classList.contains("cm-grip"));
+  if (!kids.length) return rangeW(el);
+  const left = Math.min(...kids.map((k) => k.getBoundingClientRect().left));
+  const right = Math.max(...kids.map((k) => k.getBoundingClientRect().right));
+  return right - left;
+}
+/** 위치 칸 한 줄일 때 지역과 위치 사이(.pr-sub margin-right) */
+const PLACE_SPACE = 5;
 
 const UNKNOWN = "주소불명";
 
@@ -90,7 +120,9 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   const [ps, setPs] = useState<ProcessSettings>(DEFAULT_PROCESS);
   const [fetched, setFetched] = useState("");
   const [lastRun, setLastRun] = useState<LastRun | null>(null);
-  const [widths, setWidths] = useState<(number | null)[]>(defaultWidths);
+  const [widths, setWidths] = useState<(number | null)[] | null>(null);
+  // 자동 맞춤으로 잰 폭(열 번호 → 폭)
+  const [auto, setAuto] = useState<Record<number, number>>({});
   // 목록 안쪽 폭과 세로 스크롤 막대 폭(열 제목 줄 오른쪽을 그만큼 비워 세로선을 맞춰요)
   const [avail, setAvail] = useState(0);
   const [gutter, setGutter] = useState(0);
@@ -191,9 +223,10 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     }
   };
 
-  function saveWidths(ws: (number | null)[]) {
+  /** ws가 null이면 자동으로 돌아가요(우클릭 "열 너비 초기화"). */
+  function saveWidths(ws: (number | null)[] | null) {
     setWidths(ws);
-    api.set(COLS_KEY, JSON.stringify(ws)).catch((e) => setNote(errorText(e)));
+    api.set(COLS_KEY, ws ? JSON.stringify(ws) : "").catch((e) => setNote(errorText(e)));
   }
 
   /** 이어 둔 민원대장 줄(지워졌으면 없음) */
@@ -646,6 +679,39 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     return () => ro.disconnect();
   }, [works === null, rows.length]);
 
+  // 열 폭 자동 맞춤: 그려진 줄의 글자 폭을 재요(줄·민원대장·공사가 바뀌거나 글꼴을 다 받은 뒤 다시).
+  useLayoutEffect(() => {
+    const measure = () => {
+      const body = bodyRef.current;
+      const head = body?.parentElement?.querySelector(".pr-headrow");
+      if (!body || !head) return;
+      const lines = [...body.querySelectorAll(":scope > .pr-row")];
+      const next: Record<number, number> = {};
+      for (const i of AUTO_COLS) {
+        let m = 0;
+        const h = head.children[i];
+        const t = h && [...h.childNodes].find((n) => n.nodeType === 3);
+        if (t) {
+          const r = document.createRange();
+          r.selectNodeContents(t);
+          m = r.getBoundingClientRect().width;
+        }
+        for (const row of lines) {
+          const c = row.children[i];
+          if (c && !c.classList.contains("pr-place-edit")) m = Math.max(m, textWidth(c));
+        }
+        if (m > 0) next[i] = Math.min(i === 4 ? PLACE_MAX : Infinity, Math.ceil(m) + COL_GAP);
+      }
+      setAuto((old) => (AUTO_COLS.every((i) => old[i] === next[i]) ? old : next));
+    };
+    measure();
+    let alive = true;
+    document.fonts?.ready.then(() => alive && measure());
+    return () => {
+      alive = false;
+    };
+  }, [rows, complaints, works]);
+
   if (!works) {
     return (
       <>
@@ -668,7 +734,8 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   const allState: "none" | "some" | "all" = !chosen.length ? "none" : sameWork.every((c) => chosen.includes(c.no)) ? "all" : "some";
   const toggleAll = () => setChosen(allState === "all" ? [] : [...new Set([...chosen, ...sameWork.map((c) => c.no)])]);
   const total = cases.filter((c) => !isDone(c)).length;
-  const shownWidths = fitWidths(widths, avail);
+  const baseWidths = widths ?? COLUMNS.map((c, i) => auto[i] ?? c.w);
+  const shownWidths = fitWidths(baseWidths, avail);
   const tableStyle = { "--pr-cols": gridTemplate(shownWidths), "--pr-gutter": `${gutter}px` } as CSSProperties;
 
   /** 진행 막대 한 칸(2026-10-20 1안): 채움·단계(색 진하기)·글자·아이콘 – 민원대장 답변·완료가 지시부보다 앞서요. */
@@ -913,7 +980,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
       )}
 
       <div className="pr-table" role="table" aria-label="민원처리 목록" style={tableStyle}>
-        <HeadRow all={allState} onAll={toggleAll} widths={shownWidths} avail={avail} onResize={setWidths} onResized={saveWidths} onReset={() => saveWidths(defaultWidths())} />
+        <HeadRow all={allState} onAll={toggleAll} widths={shownWidths} avail={avail} onResize={setWidths} onResized={saveWidths} onReset={() => saveWidths(null)} />
         <div className="pr-body" ref={bodyRef}>
           {open.length === 0 && (
             <p className="pr-empty">{cases.length === 0 ? "[민원 불러오기]를 누르면 Claude가 신문고에서 기록에 없는 민원을 가져와요." : q ? "찾는 민원이 없어요." : "처리할 민원이 없어요."}</p>
@@ -1445,10 +1512,25 @@ function PlaceCell({ c, disabled, onSave }: { c: Case; disabled: boolean; onSave
   }, [c.place, c.area, c.road]);
 
   const [editing, setEditing] = useState(false);
+  // 한 줄(지역 위치)이 위치 열 끝(PLACE_MAX)을 넘으면 이 줄만 두 줄로 – "…"로 줄이지 않아요(2026-10-21 사용자).
+  const viewRef = useRef<HTMLDivElement>(null);
+  const [two, setTwo] = useState(false);
+  useLayoutEffect(() => {
+    const el = viewRef.current;
+    if (!el) return;
+    const fit = () => setTwo(textWidth(el) + COL_GAP > PLACE_MAX);
+    fit();
+    let alive = true;
+    document.fonts?.ready.then(() => alive && fit());
+    return () => {
+      alive = false;
+    };
+  }, [c.area, c.place, editing]);
   if (disabled || !editing) {
     return (
       <div
-        className="pr-place"
+        ref={viewRef}
+        className={"pr-place" + (two ? " two" : " one")}
         title={[`${c.area} ${c.place}`.trim(), c.road ? `원래 주소 ${c.road}` : "", disabled ? "" : "두 번 누르면 주소를 고쳐요"].filter(Boolean).join("\n")}
         onDoubleClick={(e) => {
           if (disabled) return;

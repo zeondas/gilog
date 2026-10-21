@@ -11936,3 +11936,21 @@ body.ew-dragging .pjm-colgrip:active::after {
   overflow-y: auto;
   background: var(--surface);
 }
+
+/* 2026-10-21 민원처리 위치 칸: 지역·위치 한 줄(열이 글자에 맞춰 넓어져 "…" 없음), 열 끝(260)을 넘는 주소만 그 줄을 두 줄로 */
+.pr-body .pr-place.one {
+  text-overflow: clip;
+}
+
+.pr-body .pr-place.two {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0;
+  white-space: normal;
+  line-height: 1.35;
+}
+
+.pr-body .pr-place.two > .pr-sub {
+  margin-right: 0;
+}
