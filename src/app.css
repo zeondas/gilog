@@ -9178,6 +9178,27 @@ body.col-dragging * {
 .bd-rw.it > .bd-c:first-child {
   font-weight: 600;
 }
+/* 틀고정(2026-10-21 사용자 1안): 세부사업 줄은 머리 줄(40) 아래, 부기사업 줄은 그 아래(세부사업 줄 40)에 붙어요 – 묶음(.bd-pg·.bd-ig)이 끝나면 다음 묶음 줄이 밀어 올려요 */
+.bd-pg > .bd-rw.pj {
+  position: sticky;
+  top: 40px;
+  z-index: 2;
+}
+.bd-ig > .bd-rw.it {
+  position: sticky;
+  top: 80px;
+  z-index: 1;
+}
+/* 고른 줄로 스크롤할 때 붙은 줄에 가리지 않게 */
+.bd-pg > .bd-rw {
+  scroll-margin-top: 40px;
+}
+.bd-ig > .bd-rw.it {
+  scroll-margin-top: 80px;
+}
+.bd-ig > .bd-rw:not(.it) {
+  scroll-margin-top: 116px;
+}
 .bd-rw.gun > .bd-c:first-child {
   font-weight: 500;
 }
@@ -11396,7 +11417,6 @@ body.ew-dragging .pjm-colgrip:active::after {
 .bs-or { color: var(--cs-reply-bg); }
 .bs-mut { color: var(--muted); }
 .bs-v { font-variant-numeric: tabular-nums; font-weight: 600; }
-.bd-h.bs-oh { justify-content: center; }
 .bd-c.bs-oc { justify-content: center; padding: 0 4px; }
 .bs-own { display: inline-flex; align-items: center; justify-content: center; max-width: 100%; height: 22px; padding: 0 8px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--ink-2); font: inherit; font-size: 11.5px; font-weight: 600; line-height: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; box-sizing: border-box; }
 .bs-own.none { width: 100%; }
