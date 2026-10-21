@@ -4681,7 +4681,7 @@ body.col-dragging * {
 
 .cal-quick {
   display: grid;
-  grid-template-columns: 120px 76px 76px minmax(200px, 1fr) 150px 92px 48px;
+  grid-template-columns: 120px 76px 76px minmax(120px, 1fr) 150px 92px 48px;
   align-items: center;
   gap: var(--space-2);
   min-height: 46px;

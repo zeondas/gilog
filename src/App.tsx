@@ -22,6 +22,9 @@ import { firstOn, isOn, Modules, onScreens, SCREENS, SETTINGS, ScreenId } from "
 import { loadSettings } from "./settingsStore";
 import { setKeyMap } from "./keys";
 
+/** 화면 글자 크기 기준(13px). 설정 "화면 크기"는 창 배율로 바뀌어요. */
+const BASE_FS = 13;
+
 
 
 export default function App() {
@@ -85,19 +88,23 @@ export default function App() {
     })();
   }, [refresh]);
 
-  // 테마와 글자 크기를 화면 전체에 적용해요.
+  // 테마를 화면 전체에 적용해요.
+  // 화면 크기(prefs.fontSize)는 앱(Rust)이 창 전체 배율로 적용해요(2026-10-21 화면 배율) – 화면 쪽 글자 크기는 늘 13이에요.
   useEffect(() => {
     const root = document.documentElement;
     if (prefs.theme === "system") root.removeAttribute("data-theme");
     else root.setAttribute("data-theme", prefs.theme);
     applyAccent(prefs.accent);
-    root.style.setProperty("--fs", prefs.fontSize + "px");
-    // 머릿기호를 한글 글자 정중앙에, 들여쓰기를 띄어쓰기 두 칸에 맞추려고 그 PC 글꼴로 재요(글꼴을 다 읽은 뒤 한 번 더).
-    measureBullets(prefs.fontSize);
-    document.fonts?.ready.then(() => measureBullets(prefs.fontSize));
+  }, [prefs.theme, prefs.accent]);
+
+  // 머릿기호를 한글 글자 정중앙에, 들여쓰기를 띄어쓰기 두 칸에 맞추려고 그 PC 글꼴로 재요(글꼴을 다 읽은 뒤 한 번 더).
+  // 배율은 창 전체에 걸려 잰 값도 함께 커지니 늘 13px 기준으로 재요.
+  useEffect(() => {
+    measureBullets(BASE_FS);
+    document.fonts?.ready.then(() => measureBullets(BASE_FS));
     // 앱에 넣은 Pretendard는 처음 쓰일 때 읽혀요. 다 읽은 뒤 머릿기호 위치를 다시 재요.
-    document.fonts?.load(`${prefs.fontSize}px Pretendard`, "가").then(() => measureBullets(prefs.fontSize)).catch(() => {});
-  }, [prefs.theme, prefs.accent, prefs.fontSize]);
+    document.fonts?.load(`${BASE_FS}px Pretendard`, "가").then(() => measureBullets(BASE_FS)).catch(() => {});
+  }, []);
 
   const savePrefs = useCallback(async (p: Prefs) => {
     await api.setPrefs(p);

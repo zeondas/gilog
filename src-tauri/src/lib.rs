@@ -172,6 +172,9 @@ fn set_prefs(app: AppHandle, state: State<AppState>, prefs: Prefs) -> Result<(),
     }
     write_prefs(&app, &prefs)?;
     window::apply_theme(&app, &prefs.theme);
+    if prefs.font_size != old.font_size {
+        window::apply_zoom(&app, prefs.font_size);
+    }
     if prefs.accent != old.accent {
         accent_icon::apply(&app, &prefs.accent);
     }
@@ -625,7 +628,8 @@ pub fn run() {
             // 창은 숨긴 채 만들고, 화면이 처음 그려지면(window_ready) 보여요.
             let theme = theme_pref(app.handle());
             // 자동 실행(--autostart)으로 켜지면 창을 보이지 않고 트레이에만 둬요(2026-10-19 사용자 2안).
-            window::create(app, &theme, autostart::launched())?;
+            let font_size = read_prefs(app.handle()).map(|p| p.font_size).unwrap_or(13);
+            window::create(app, &theme, font_size, autostart::launched())?;
             calendar::setup_tray(app)?;
             // 작업표시줄·창 제목·트레이 아이콘을 고른 강조색으로(2026-10-19 사용자).
             let accent = read_prefs(app.handle()).map(|p| p.accent).unwrap_or_default();

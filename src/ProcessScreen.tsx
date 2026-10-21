@@ -61,6 +61,9 @@ const COLUMNS: { label: string; w: number | null; center?: boolean; fixed?: bool
   { label: "진행", w: 190, fixed: true },
 ];
 
+/** 창이 좁을 때(큰 화면 크기) 줄이지 않는 열 */
+const FIXED_COLS = COLUMNS.map((c) => !!c.fixed);
+
 /** 끌어서 바꿔 저장한 폭. 없거나 맞지 않으면 null(자동 – 글자에 맞춰요). */
 function readWidths(raw: string | null): (number | null)[] | null {
   try {
@@ -736,7 +739,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   const toggleAll = () => setChosen(allState === "all" ? [] : [...new Set([...chosen, ...sameWork.map((c) => c.no)])]);
   const total = cases.filter((c) => !isDone(c)).length;
   const baseWidths = widths ?? COLUMNS.map((c, i) => auto[i] ?? c.w);
-  const shownWidths = fitWidths(baseWidths, avail);
+  const shownWidths = fitWidths(baseWidths, avail, FIXED_COLS);
   const tableStyle = { "--pr-cols": gridTemplate(shownWidths), "--pr-gutter": `${gutter}px` } as CSSProperties;
 
   /** 진행 막대 한 칸(2026-10-20 1안): 채움·단계(색 진하기)·글자·아이콘 – 민원대장 답변·완료가 지시부보다 앞서요. */

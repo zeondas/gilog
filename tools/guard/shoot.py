@@ -222,9 +222,21 @@ SCENES.update({
 })
 
 
+# 화면 크기(창 배율) 장면 – 2026-10-21 화면 배율: 설정 "화면 크기" 15·17을 앱(WebView2 확대)과 같은 방식으로 흉내 내요.
+# CSS 화면을 1600÷z × 900÷z로 줄이고 점 배율 z로 찍어 그림은 늘 1600×900이에요. 기준(13·100%) 장면과 따로 비교돼요.
+ZOOMS = (15, 17)
+ZOOM_OF = {}
+for _z in ZOOMS:
+    for _i, _n in enumerate(SCREENS):
+        SCENES[f"zoom{_z}_{_i:02d}"] = (_n, None)
+        ZOOM_OF[f"zoom{_z}_{_i:02d}"] = _z
+
+
 async def one(br, url, out, name):
     screen, act = SCENES[name]
-    ctx = await br.new_context(viewport={"width": 1600, "height": 900}, device_scale_factor=1, locale="ko-KR", timezone_id="Asia/Seoul")
+    z = ZOOM_OF.get(name, 13) / 13
+    vp = {"width": round(1600 / z), "height": round(900 / z)}
+    ctx = await br.new_context(viewport=vp, device_scale_factor=z, locale="ko-KR", timezone_id="Asia/Seoul")
     ctx.set_default_timeout(5000)
     p = await ctx.new_page()
     await p.clock.set_fixed_time("2026-10-21T10:00:00+09:00")
@@ -237,7 +249,7 @@ async def one(br, url, out, name):
         await nav(p, screen)
         if act:
             await act(p)
-        await p.mouse.move(1599, 899)
+        await p.mouse.move(vp["width"] - 1, vp["height"] - 1)
         await p.wait_for_timeout(500)
         await p.evaluate("() => document.fonts.ready")
         await p.screenshot(path=os.path.join(out, name + ".png"))

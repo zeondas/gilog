@@ -13,6 +13,16 @@ import Logo, { AppIcon } from "./Logo";
 import { VERSION } from "./version";
 import { useOutsideClose } from "./useOutsideClose";
 import { Action, conflicts, DEFAULT_KEYS, diffKeys, isRightAlt, KEY_GROUPS, KeyMap, mergeKeys, setKeyMap } from "./keys";
+
+/** 화면 크기 단계(2026-10-21 화면 배율, 사용자 ② 1안) – 값은 prefs.fontSize 그대로, 13 = 100% */
+const SCREEN_SIZES: [number, string][] = [
+  [12, "작게"],
+  [13, "보통"],
+  [14, "조금 크게"],
+  [15, "크게"],
+  [16, "더 크게"],
+  [17, "아주 크게"],
+];
 import {
   connectGoogle,
   DEFAULT_OPTS,
@@ -272,17 +282,18 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
             ))}
           </select>
         </Row>
-        <Row k="폰트 글꼴" label="글자 크기" desc="모든 화면에 함께 적용돼요.">
+        <Row k="폰트 글꼴 글자 크기 배율 확대" label="화면 크기" desc="글자·칸·아이콘이 함께 커져요. 모든 화면에 적용돼요.">
           <select
             id="font-size"
             className="input"
             value={prefs.fontSize}
             onChange={(e) => setPref("fontSize", Number(e.target.value))}
           >
-            <option value={12}>작게 (12)</option>
-            <option value={13}>보통 (13)</option>
-            <option value={14}>크게 (14)</option>
-            <option value={15}>아주 크게 (15)</option>
+            {SCREEN_SIZES.map(([v, name]) => (
+              <option key={v} value={v}>
+                {name} ({Math.round((v / 13) * 100)}%)
+              </option>
+            ))}
           </select>
         </Row>
         <Row
