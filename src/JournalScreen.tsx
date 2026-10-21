@@ -42,6 +42,7 @@ import { PrintDialog } from "./JournalPrint";
 import { ExcelMenu } from "./ExcelMenu";
 import { journalDayRows, journalImports, journalRows } from "./excel";
 import { DEFAULT_SETTINGS, Kind, loadSettings } from "./settingsStore";
+import { AskBand } from "./AskBand";
 
 const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
 
@@ -814,17 +815,17 @@ function DayMenu({
           </button>
         </>
       ) : (
-        <div className="ask-band dmenu-ask" role="alertdialog" aria-label="이 날 일지 지우기 확인">
-          <span>
-            {m}월 {d}일 {what || "일지"}{head || !what ? "를" : "을"} 모두 지울까요? 되돌릴 수 없어요.
-          </span>
-          <button type="button" className="btn btn-xs" onClick={onClose}>
-            취소
-          </button>
-          <button type="button" className="btn btn-xs btn-danger" onClick={onDelete}>
-            지우기
-          </button>
-        </div>
+        <AskBand
+          className="dmenu-ask"
+          label="이 날 일지 지우기 확인"
+          text={
+            <>
+              {m}월 {d}일 {what || "일지"}{head || !what ? "를" : "을"} 모두 지울까요? 되돌릴 수 없어요.
+            </>
+          }
+          onNo={onClose}
+          onYes={onDelete}
+        />
       )}
     </div>
   );
@@ -1800,26 +1801,7 @@ function EditCard({
         </>
         )}
         {asking ? (
-          <div
-            className="ask-band jask"
-            role="alertdialog"
-            aria-label="기록 지우기 확인"
-            onKeyDown={(ev) => {
-              if (ev.key === "Escape") {
-                ev.preventDefault();
-                ev.stopPropagation();
-                setAsking(false);
-              }
-            }}
-          >
-            <span>이 기록을 지울까요?</span>
-            <button type="button" className="btn btn-xs" autoFocus onClick={() => setAsking(false)}>
-              취소
-            </button>
-            <button type="button" className="btn btn-xs btn-danger" onClick={onRemove}>
-              지우기
-            </button>
-          </div>
+          <AskBand className="jask" label="기록 지우기 확인" text="이 기록을 지울까요?" onNo={() => setAsking(false)} onYes={onRemove} />
         ) : (
           <div className="jedit-foot">
             {memo ? (

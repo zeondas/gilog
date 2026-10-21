@@ -62,6 +62,7 @@ import { lookupMany } from "./addressWeb";
 import { areaFor } from "./address";
 import { ListGroup } from "./SettingsScreen";
 import { DEFAULT_SETTINGS, isAnswered, isClosed, loadSettings, saveSettings, Settings, STATUS_RENAME, statusColor } from "./settingsStore";
+import { AskBand } from "./AskBand";
 
 const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
 
@@ -1398,15 +1399,7 @@ function EditRow({
       </div>
       <div className="cm-edit-foot">
         {asking ? (
-          <div ref={askRef} className="ask-band cm-ask" role="alertdialog" aria-label="민원 지우기 확인">
-            <span>{c.no}번 민원을 지울까요? 메모도 함께 지워져요.</span>
-            <button type="button" className="btn btn-xs" autoFocus onClick={() => setAsking(false)}>
-              취소
-            </button>
-            <button type="button" className="btn btn-xs btn-danger" onClick={onRemove}>
-              지우기
-            </button>
-          </div>
+          <AskBand bandRef={askRef} className="cm-ask" label="민원 지우기 확인" text={<>{c.no}번 민원을 지울까요? 메모도 함께 지워져요.</>} onNo={() => setAsking(false)} onYes={onRemove} />
         ) : (
           <button ref={trashRef} type="button" className="tool-box cm-del" aria-label={`${c.no}번 민원 지우기`} onClick={() => setAsking(true)}>
             <span className="cm-del-x" aria-hidden="true">

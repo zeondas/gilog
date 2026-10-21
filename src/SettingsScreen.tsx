@@ -13,6 +13,7 @@ import Logo, { AppIcon } from "./Logo";
 import { VERSION } from "./version";
 import { useOutsideClose } from "./useOutsideClose";
 import { Action, conflicts, DEFAULT_KEYS, diffKeys, isRightAlt, KEY_GROUPS, KeyMap, mergeKeys, setKeyMap } from "./keys";
+import { AskBand } from "./AskBand";
 import {
   connectGoogle,
   DEFAULT_OPTS,
@@ -1142,22 +1143,17 @@ export function ListGroup({
         )}
       </div>
       {ask !== null && (
-        <div ref={band} className="ask-band list-ask" role="alertdialog" aria-label={`${title} 지우기 확인`}>
-          <span>{`"${ask}"${eulReul(ask)} 지울까요? 이미 적은 민원은 그대로예요.`}</span>
-          <button type="button" className="btn btn-xs" autoFocus onClick={() => setAsk(null)}>
-            취소
-          </button>
-          <button
-            type="button"
-            className="btn btn-xs btn-danger"
-            onClick={() => {
-              onChange(items.filter((x) => x !== ask));
-              setAsk(null);
-            }}
-          >
-            지우기
-          </button>
-        </div>
+        <AskBand
+          bandRef={band}
+          className="list-ask"
+          label={`${title} 지우기 확인`}
+          text={`"${ask}"${eulReul(ask)} 지울까요? 이미 적은 민원은 그대로예요.`}
+          onNo={() => setAsk(null)}
+          onYes={() => {
+            onChange(items.filter((x) => x !== ask));
+            setAsk(null);
+          }}
+        />
       )}
       {stack && (
         <div className="padd mgr-addrow">

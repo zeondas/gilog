@@ -146,6 +146,23 @@ async def c_files_dialog(p):
     assert not await shown(p, ".dialog"), "바탕을 눌렀는데 안 닫힘"
 
 
+def band_esc(screen, opener, sel, keep=None):
+    """지울까요 띠: 열리면 취소에 커서, Esc는 띠만 접고(감싼 창·카드는 남음)."""
+    async def run(p):
+        await shoot.nav(p, screen)
+        await opener(p)
+        await p.wait_for_timeout(250)
+        assert await shown(p, sel), "띠 안 열림"
+        f = await p.evaluate("() => document.activeElement && document.activeElement.textContent")
+        assert f == "취소", f"커서가 취소에 없음({f})"
+        await p.keyboard.press("Escape")
+        await p.wait_for_timeout(250)
+        assert not await shown(p, sel), "Esc로 띠가 안 접힘"
+        if keep:
+            assert await shown(p, keep), "Esc 한 번에 감싼 것까지 닫힘"
+    return run
+
+
 CASES = {
     "tasks_listmenu": menu_case("할 일", shoot.s_tasks_listmenu, ".dmenu"),
     "journal_daymenu": menu_case("업무일지", shoot.s_journal_daymenu, ".dmenu"),
@@ -156,6 +173,15 @@ CASES = {
     "files_tabmenu": menu_case("탐색기", shoot.s_files_tabmenu, ".fx-tabmenu"),
     "process_rowmenu": menu_case("민원처리", shoot.s_process_rowmenu, ".pr-rowmenu"),
     "calendar_kindpicker": menu_case("캘린더", shoot.s_calendar_kindpicker, ".cal-kp-list"),
+    "band_tasks_item": band_esc("할 일", shoot.s_tasks_item_ask, ".ask-band"),
+    "band_tasks_edit": band_esc("할 일", shoot.s_tasks_edit_ask, ".ask-band"),
+    "band_journal_edit": band_esc("업무일지", shoot.s_journal_edit_ask, ".ask-band", keep=".jcard-edit"),
+    "band_complaints_edit": band_esc("민원대장", shoot.s_complaints_edit_ask, ".ask-band"),
+    "band_calendar_event": band_esc("캘린더", shoot.s_calendar_event_ask, ".ask-band"),
+    "band_contacts_card": band_esc("업무연락처", shoot.s_contacts_card_ask, ".ask-band"),
+    "band_process_row": band_esc("민원처리", shoot.s_process_ask, ".ask-band"),
+    "band_process_works": band_esc("민원처리", shoot.s_process_works_ask, ".ask-band", keep=".dialog.pr-works"),
+    "band_budget": band_esc("집행현황", shoot.s_budget_confirm, ".ask-band"),
     "contacts_band": c_contacts_band,
     "contacts_pjmenu_esc": c_pjmenu_esc,
     "settings_esc": c_settings_esc,

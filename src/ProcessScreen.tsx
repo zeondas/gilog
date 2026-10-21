@@ -26,6 +26,7 @@ import { webLookup } from "./addressWeb";
 import { areaFor, looksRoad } from "./address";
 import { actionLine, aiGuide, fileName, mailDraft, mailGuide, md, orderLabel, orderTag, PORTAL_URL, processError, SAMPLE_WORKS, SAMPLES } from "./process";
 import { DEFAULT_PROCESS, DONE_STATUS, isAnswered, isClosed, loadSettings, ProcessSettings } from "./settingsStore";
+import { AskBand } from "./AskBand";
 
 type Props = { urgentDays: number; onOpenComplaint: (id: number) => void };
 
@@ -1048,7 +1049,15 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
           const w = works.find((x) => x.id === c.work);
           const isD = isDone(c);
           const m = linked(c);
-          const close = () => setMenu(null);
+          const close = () => (setMenu(null), setAsk(null));
+          if (ask?.no === c.no)
+            return (
+              <Floating rect={menu.rect} align="right" onClose={close}>
+                <div className="dmenu pr-rowmenu pr-rowask">
+                  <AskBand className="dmenu-ask" label="민원 지우기 확인" text="이 민원을 지울까요?" onNo={close} onYes={() => (close(), void remove(c.no))} />
+                </div>
+              </Floating>
+            );
           return (
             <Floating rect={menu.rect} align="right" onClose={close}>
               <div className="dmenu pr-rowmenu" role="menu" aria-label="이 민원">
@@ -1156,7 +1165,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                   </button>
                 )}
                 <div className="dmenu-sep" />
-                <button type="button" role="menuitem" className="dmenu-item danger" onClick={() => (close(), setAsk({ no: c.no, rect: menu.rect }))}>
+                <button type="button" role="menuitem" className="dmenu-item danger" onClick={() => setAsk({ no: c.no, rect: menu.rect })}>
                   <DelIcon />
                   지우기
                 </button>
@@ -1324,22 +1333,6 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
             </Floating>
           );
         })()}
-
-      {ask && (
-        <Floating rect={ask.rect} align="right" onClose={() => setAsk(null)}>
-          <div className="pr-ask" role="dialog" aria-label="민원 지우기">
-            <span className="pr-ask-t">이 민원을 지울까요?</span>
-            <div className="pr-ask-btns">
-              <button type="button" className="btn" onClick={() => setAsk(null)}>
-                취소
-              </button>
-              <button type="button" className="btn btn-danger" onClick={() => remove(ask.no)}>
-                지우기
-              </button>
-            </div>
-          </div>
-        </Floating>
-      )}
 
       {sendMenu &&
         (() => {
@@ -1933,29 +1926,21 @@ function WorksDialog({
       </div>
       {ask && (
         <Floating rect={ask.rect} align="right" onClose={() => setAsk(null)}>
-          <div className="pr-ask" role="dialog" aria-label="공사 지우기">
-            <span className="pr-ask-t">이 공사를 지울까요?</span>
-            <div className="pr-ask-btns">
-              <button type="button" className="btn" onClick={() => setAsk(null)}>
-                취소
-              </button>
-              <button
-                type="button"
-                className="btn btn-danger"
-                onClick={async () => {
-                  const id = ask.id;
-                  setAsk(null);
-                  try {
-                    await onDelete(id);
-                  } catch (e) {
-                    setErr(errorText(e));
-                  }
-                }}
-              >
-                지우기
-              </button>
-            </div>
-          </div>
+          <AskBand
+            className="pr-askfloat"
+            label="공사 지우기 확인"
+            text="이 공사를 지울까요?"
+            onNo={() => setAsk(null)}
+            onYes={async () => {
+              const id = ask.id;
+              setAsk(null);
+              try {
+                await onDelete(id);
+              } catch (e) {
+                setErr(errorText(e));
+              }
+            }}
+          />
         </Floating>
       )}
     </div>

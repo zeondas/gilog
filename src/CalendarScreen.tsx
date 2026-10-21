@@ -21,6 +21,7 @@ import { parseDate, todayStr } from "./journal";
 import { ANSWER_STATUS, DEFAULT_SETTINGS, isAnswered, loadSettings } from "./settingsStore";
 import { exportNow, GStatus, onGoogleStatus, REMOTE_CHANGE, whenText } from "./google";
 import { loadNotifyMode, refreshHolidaysDaily, saveNotifyMode, stamp, syncReminders, updateHolidays } from "./reminders";
+import { AskBand } from "./AskBand";
 
 const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
 const plainEnter = (e: KeyboardEvent) => e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey;
@@ -1309,15 +1310,13 @@ function EventDialog({
           />
         </div>
         {asking && (
-          <div className="ask-band cal-ask" role="alertdialog" aria-label="일정 지우기 확인">
-            <span>{draft.repeat ? "반복 일정 전체를 지울까요?" : "이 일정을 지울까요?"}</span>
-            <button type="button" className="btn btn-xs" autoFocus onClick={() => setAsking(false)}>
-              취소
-            </button>
-            <button type="button" className="btn btn-danger btn-xs" onClick={onDelete}>
-              지우기
-            </button>
-          </div>
+          <AskBand
+            className="cal-ask"
+            label="일정 지우기 확인"
+            text={draft.repeat ? "반복 일정 전체를 지울까요?" : "이 일정을 지울까요?"}
+            onNo={() => setAsking(false)}
+            onYes={onDelete}
+          />
         )}
         <div className="dialog-foot cal-dlg-foot">
           {!isNew && (
@@ -1503,23 +1502,17 @@ function KindsDialog({
           </button>
         )}
         {asking === k.id && (
-          <div className="ask-band ask-wide" role="alertdialog" aria-label="종류 지우기 확인">
-            <span>{count(k.id) ? `"${k.name}"과 그 일정 ${count(k.id)}건을 지울까요?` : `"${k.name}"을 지울까요?`}</span>
-            <button type="button" className="btn btn-xs" autoFocus onClick={() => setAsking(null)}>
-              취소
-            </button>
-            <button
-              type="button"
-              className="btn btn-danger btn-xs"
-              onClick={async () => {
-                const n = await run(api.deleteCalKind(k.id));
-                setAsking(null);
-                if (n !== null) onDeleted(k.id);
-              }}
-            >
-              지우기
-            </button>
-          </div>
+          <AskBand
+            className="ask-wide"
+            label="종류 지우기 확인"
+            text={count(k.id) ? `"${k.name}"과 그 일정 ${count(k.id)}건을 지울까요?` : `"${k.name}"을 지울까요?`}
+            onNo={() => setAsking(null)}
+            onYes={async () => {
+              const n = await run(api.deleteCalKind(k.id));
+              setAsking(null);
+              if (n !== null) onDeleted(k.id);
+            }}
+          />
         )}
       </div>
     );

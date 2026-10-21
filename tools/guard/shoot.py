@@ -183,6 +183,12 @@ async def s_process_ask(p):
     await p.locator(".dmenu-item.danger, .pr-rowmenu .danger").last.click()
 
 
+async def s_process_works_ask(p):
+    await p.locator("button", has_text="공사 관리").first.click()
+    await p.wait_for_timeout(300)
+    await p.locator(".dialog.pr-works button[aria-label$=' 지우기']").first.click()
+
+
 async def s_settings_list_ask(p):
     await p.locator(".chip-x").first.click()
 
@@ -218,6 +224,7 @@ SCENES.update({
     "files_delete": ("탐색기", s_files_delete),
     "process_rowmenu": ("민원처리", s_process_rowmenu),
     "process_ask": ("민원처리", s_process_ask),
+    "process_works_ask": ("민원처리", s_process_works_ask),
     "settings_list_ask": ("설정", s_settings_list_ask),
 })
 

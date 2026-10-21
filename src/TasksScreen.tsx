@@ -16,6 +16,7 @@ import { Hl } from "./ContactsScreen";
 import { parseDate, todayStr } from "./journal";
 import { ANSWER_STATUS, DEFAULT_SETTINGS, isAnswered, loadSettings } from "./settingsStore";
 import { complaintItems, dueBadge, Item, openCount, split, treeOf } from "./tasks";
+import { AskBand } from "./AskBand";
 
 const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
 
@@ -582,17 +583,13 @@ function ListMenu({
         </div>
       )}
       {mode === "ask" && (
-        <div className="ask-band dmenu-ask" role="alertdialog" aria-label="목록 지우기 확인">
-          <span>
-            {count ? `할 일 ${count}건이 들어 있어요. 목록과 함께 모두 지울까요?` : `"${list.name}" 목록을 지울까요?`} 되돌릴 수 없어요.
-          </span>
-          <button type="button" className="btn btn-xs" onClick={onClose}>
-            취소
-          </button>
-          <button type="button" className="btn btn-xs btn-danger" onClick={onDelete}>
-            지우기
-          </button>
-        </div>
+        <AskBand
+          className="dmenu-ask"
+          label="목록 지우기 확인"
+          text={<>{count ? `할 일 ${count}건이 들어 있어요. 목록과 함께 모두 지울까요?` : `"${list.name}" 목록을 지울까요?`} 되돌릴 수 없어요.</>}
+          onNo={onClose}
+          onYes={onDelete}
+        />
       )}
     </div>
   );
@@ -1019,15 +1016,14 @@ function ItemRow({
                 )}
                 <span className="td-acts-gap" />
                 {asking ? (
-                  <div ref={askRef} className="ask-band td-ask" role="alertdialog" aria-label="할 일 지우기 확인">
-                    <span>{childCount && t && !t.parent ? `하위 항목 ${childCount}개도 함께 지워져요. 지울까요?` : "이 할 일을 지울까요?"}</span>
-                    <button type="button" className="btn btn-xs" autoFocus onClick={() => setAsking(false)}>
-                      취소
-                    </button>
-                    <button type="button" className="btn btn-xs btn-danger" onClick={onRemove}>
-                      지우기
-                    </button>
-                  </div>
+                  <AskBand
+                    bandRef={askRef}
+                    className="td-ask"
+                    label="할 일 지우기 확인"
+                    text={childCount && t && !t.parent ? `하위 항목 ${childCount}개도 함께 지워져요. 지울까요?` : "이 할 일을 지울까요?"}
+                    onNo={() => setAsking(false)}
+                    onYes={onRemove}
+                  />
                 ) : (
                   <button type="button" className="tool-box" aria-label="이 할 일 지우기" title="이 할 일 지우기" onClick={() => setAsking(true)}>
                     <DelIcon />
@@ -1140,15 +1136,7 @@ function TaskEditor({
         <BulletEditor lines={lines} onChange={setLines} name="detail" label="세부정보" placeholder="세부정보" />
         <DueField value={due} onChange={(v) => { setDue(v); if (bad === "due") setBad(""); }} onInvalid={() => setBad("due")} bad={bad === "due"} today={today}>
           {asking ? (
-            <div ref={askRef} className="ask-band td-ask" role="alertdialog" aria-label="할 일 지우기 확인">
-              <span>이 할 일을 지울까요?</span>
-              <button type="button" className="btn btn-xs" autoFocus onClick={() => setAsking(false)}>
-                취소
-              </button>
-              <button type="button" className="btn btn-xs btn-danger" onClick={onRemove}>
-                지우기
-              </button>
-            </div>
+            <AskBand bandRef={askRef} className="td-ask" label="할 일 지우기 확인" text="이 할 일을 지울까요?" onNo={() => setAsking(false)} onYes={onRemove} />
           ) : (
             <button ref={trashRef} type="button" tabIndex={-1} className="tool-box" aria-label="이 할 일 지우기" title="이 할 일 지우기" onClick={() => setAsking(true)}>
               <DelIcon />
