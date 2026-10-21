@@ -9614,18 +9614,17 @@ button.bd-chip:hover {
 .bd-stlist .bd-chip[class*="s-"] {
   width: 52px;
 }
-.bd-confirm {
+/* 지울까요 띠(✔2, 2026-10-21 공통 부품 – 메뉴가 그 자리에서 띠로 바뀜) */
+.ask-band.bd-ask {
   width: 300px;
-  padding: 10px;
+  box-sizing: border-box;
 }
-.bd-confirm p {
-  margin: 0 0 12px;
+.ask-band.bd-ask > span {
+  flex-basis: 100%;
   line-height: round(1.55em, 1px);
 }
-.bd-crow {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-2);
+.ask-band.bd-ask > .btn:first-of-type {
+  margin-left: auto;
 }
 .btn.bd-dg {
   background: var(--danger);
@@ -11988,3 +11987,25 @@ body.ew-dragging .pjm-colgrip:active::after {
 .cm-hbtn:not(.cm-fold):hover,
 .cm-hbtn:not(.cm-fold).on,
 .cm-hbtn:not(.cm-fold)[aria-expanded="true"] { padding-right: 22px; }
+
+/* 민원처리 지울까요 띠(✔2, 2026-10-21 공통 부품): ⋯ 메뉴가 그 자리에서 띠로, 공사 관리 창 ×는 떠 있는 작은 띠 */
+.pr-float > .dmenu.pr-rowask {
+  min-width: 0 !important;
+  width: max-content;
+  padding: 4px;
+}
+.pr-rowask .ask-band {
+  flex-wrap: nowrap;
+}
+.pr-rowask .ask-band > span,
+.ask-band.pr-askfloat > span {
+  flex: none;
+  white-space: nowrap;
+}
+.ask-band.pr-askfloat {
+  margin: 0;
+  width: max-content;
+  max-width: 360px;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-pop);
+}

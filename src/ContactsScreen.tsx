@@ -13,6 +13,7 @@ import { useJamoGuard } from "./koInput";
 import { PhoneInput } from "./PhoneInput";
 import { finalizePhone } from "./phone";
 import { api, Contact, ContactInput, ContactsData, errorText, Project, ProjectGroup } from "./api";
+import { AskBand } from "./AskBand";
 
 // ---------- 메모 ----------
 // 메모 한 줄은 머릿기호 규칙(bullets.ts)의 줄 모양이에요. b 굵게, s 취소선, k 머릿기호 종류.
@@ -798,26 +799,7 @@ function ViewCard({ vi, contact: c, byId, q, asking, memoOpen, onEdit, onAsk, on
           </div>
         )}
         {asking && (
-          <div
-            ref={askRef}
-            className="ask-band"
-            role="alertdialog"
-            aria-label="연락처 지우기 확인"
-            onKeyDown={(e) => {
-              if (e.key === "Escape") {
-                e.preventDefault();
-                onAsk(false);
-              }
-            }}
-          >
-            <span>이 연락처를 지울까요?</span>
-            <button type="button" className="btn btn-xs" autoFocus onClick={() => onAsk(false)}>
-              취소
-            </button>
-            <button type="button" className="btn btn-xs btn-danger" onClick={onRemove}>
-              지우기
-            </button>
-          </div>
+          <AskBand bandRef={askRef} label="연락처 지우기 확인" text="이 연락처를 지울까요?" onNo={() => onAsk(false)} onYes={onRemove} />
         )}
       </div>
 
@@ -1641,24 +1623,19 @@ function ProjectDialog({
                     </button>
                   )}
                   {askGroup === sec.id && sec.id !== null && (
-                    <div className="ask-band ask-wide pjm-ask" role="alertdialog" aria-label="그룹 지우기 확인">
-                      <span>{sec.projects.length ? `그룹만 지워요. 프로젝트 ${sec.projects.length}개는 "그룹 없음"으로 가요.` : "빈 그룹이에요. 지울까요?"}</span>
-                      <button type="button" className="btn btn-xs" autoFocus onClick={() => setAskGroup(null)}>
-                        취소
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-xs btn-danger"
-                        onClick={async () => {
-                          const id = sec.id as number;
-                          setAskGroup(null);
-                          if (groupName(id) === draftGroup) setDraftGroup("");
-                          await run(api.deleteProjectGroup(id));
-                        }}
-                      >
-                        그룹 지우기
-                      </button>
-                    </div>
+                    <AskBand
+                      className="ask-wide pjm-ask"
+                      label="그룹 지우기 확인"
+                      text={sec.projects.length ? `그룹만 지워요. 프로젝트 ${sec.projects.length}개는 "그룹 없음"으로 가요.` : "빈 그룹이에요. 지울까요?"}
+                      yes="그룹 지우기"
+                      onNo={() => setAskGroup(null)}
+                      onYes={async () => {
+                        const id = sec.id as number;
+                        setAskGroup(null);
+                        if (groupName(id) === draftGroup) setDraftGroup("");
+                        await run(api.deleteProjectGroup(id));
+                      }}
+                    />
                   )}
                 </div>
                 {open && sec.rows.map(rowOf)}
@@ -1750,23 +1727,17 @@ function ProjectDialog({
           />
         )}
         {ask === p.id && (
-          <div className="ask-band ask-wide pjm-ask" role="alertdialog" aria-label="프로젝트 지우기 확인">
-            <span>{users ? `${users}명에게 붙어 있어요. 지워도 사람은 남고 배지만 빠져요.` : "아무에게도 붙어 있지 않아요. 지울까요?"}</span>
-            <button type="button" className="btn btn-xs" autoFocus onClick={() => setAsk(null)}>
-              취소
-            </button>
-            <button
-              type="button"
-              className="btn btn-xs btn-danger"
-              onClick={async () => {
-                setAsk(null);
-                await run(api.deleteProject(p.id));
-                inputRef.current?.focus();
-              }}
-            >
-              지우기
-            </button>
-          </div>
+          <AskBand
+            className="ask-wide pjm-ask"
+            label="프로젝트 지우기 확인"
+            text={users ? `${users}명에게 붙어 있어요. 지워도 사람은 남고 배지만 빠져요.` : "아무에게도 붙어 있지 않아요. 지울까요?"}
+            onNo={() => setAsk(null)}
+            onYes={async () => {
+              setAsk(null);
+              await run(api.deleteProject(p.id));
+              inputRef.current?.focus();
+            }}
+          />
         )}
       </div>
     );

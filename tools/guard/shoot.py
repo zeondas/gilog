@@ -183,6 +183,34 @@ async def s_process_ask(p):
     await p.locator(".dmenu-item.danger, .pr-rowmenu .danger").last.click()
 
 
+async def s_process_works_ask(p):
+    await p.locator("button", has_text="공사 관리").first.click()
+    await p.wait_for_timeout(300)
+    await p.locator(".dialog.pr-works button[aria-label$=' 지우기']").first.click()
+
+
+async def s_calendar_quick_baddate(p):
+    i = p.locator(".cal-quick input[name=date]").first
+    await i.fill("abc")
+    await i.press("Shift+Tab")
+
+
+async def s_calendar_dlg_baddate(p):
+    await p.locator(".cal-ev", has_text="방호벽 협의").first.dblclick()
+    await p.wait_for_timeout(300)
+    i = p.locator("input[aria-label='종료 날짜']").first
+    await i.fill("abc")
+    await i.press("Shift+Tab")
+
+
+async def s_files_find_baddate(p):
+    await p.keyboard.press("Control+f")
+    await p.wait_for_timeout(300)
+    i = p.locator("input[aria-label='수정한 날 시작']").first
+    await i.fill("abc")
+    await i.press("Shift+Tab")
+
+
 async def s_settings_list_ask(p):
     await p.locator(".chip-x").first.click()
 
@@ -218,6 +246,10 @@ SCENES.update({
     "files_delete": ("탐색기", s_files_delete),
     "process_rowmenu": ("민원처리", s_process_rowmenu),
     "process_ask": ("민원처리", s_process_ask),
+    "process_works_ask": ("민원처리", s_process_works_ask),
+    "calendar_quick_baddate": ("캘린더", s_calendar_quick_baddate),
+    "calendar_dlg_baddate": ("캘린더", s_calendar_dlg_baddate),
+    "files_find_baddate": ("탐색기", s_files_find_baddate),
     "settings_list_ask": ("설정", s_settings_list_ask),
 })
 

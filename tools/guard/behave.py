@@ -146,6 +146,79 @@ async def c_files_dialog(p):
     assert not await shown(p, ".dialog"), "바탕을 눌렀는데 안 닫힘"
 
 
+def band_esc(screen, opener, sel, keep=None):
+    """지울까요 띠: 열리면 취소에 커서, Esc는 띠만 접고(감싼 창·카드는 남음)."""
+    async def run(p):
+        await shoot.nav(p, screen)
+        await opener(p)
+        await p.wait_for_timeout(250)
+        assert await shown(p, sel), "띠 안 열림"
+        f = await p.evaluate("() => document.activeElement && document.activeElement.textContent")
+        assert f == "취소", f"커서가 취소에 없음({f})"
+        await p.keyboard.press("Escape")
+        await p.wait_for_timeout(250)
+        assert not await shown(p, sel), "Esc로 띠가 안 접힘"
+        if keep:
+            assert await shown(p, keep), "Esc 한 번에 감싼 것까지 닫힘"
+    return run
+
+
+DATE_OK = ["261015", "26-10-15", "26.10.15", "26/10/15", "1015", "10/15", "2026-10-15", "20261015"]
+
+
+def date_case(screen, opener, sel, box_sel=None):
+    """날짜 칸: 보기 값 여덟 개는 떠날 때 2026-10-15로, abc는 그대로 + 빨강(aria-invalid)."""
+    async def run(p):
+        await shoot.nav(p, screen)
+        if opener:
+            await opener(p)
+            await p.wait_for_timeout(250)
+        i = p.locator(sel).first
+
+        async def put(v):
+            # 줄여 보이는 칸(민원대장)은 커서가 들어가야 온 값이 보여서, 들어간 뒤 모두 골라 쳐요.
+            await i.focus()
+            await p.wait_for_timeout(30)
+            await p.keyboard.press("Control+a")
+            await p.keyboard.type(v)
+
+        for v in DATE_OK:
+            await put(v)
+            assert await i.input_value() == v, f"치는 도중에 바뀜({v})"
+            await i.blur()
+            await p.wait_for_timeout(60)
+            await i.focus()
+            await p.wait_for_timeout(30)
+            got = await i.input_value()
+            assert got == "2026-10-15", f"{v} → {got}"
+        await put("abc")
+        await i.blur()
+        await p.wait_for_timeout(100)
+        assert await i.input_value() == "abc", "읽을 수 없는 글을 지움"
+        assert await i.get_attribute("aria-invalid") == "true", "읽을 수 없는데 빨강 아님"
+        await put("1015")
+        await i.blur()
+        await p.wait_for_timeout(100)
+        assert await i.get_attribute("aria-invalid") != "true", "고친 뒤에도 빨강"
+    return run
+
+
+async def open_tasks_add(p):
+    await p.get_by_placeholder("할 일 추가").first.click()
+
+
+async def open_print(p):
+    await p.locator("button", has_text="인쇄").first.click()
+
+
+async def open_find(p):
+    await p.keyboard.press("Control+f")
+
+
+async def open_cal_dialog(p):
+    await p.locator(".cal-ev", has_text="방호벽 협의").first.dblclick()
+
+
 CASES = {
     "tasks_listmenu": menu_case("할 일", shoot.s_tasks_listmenu, ".dmenu"),
     "journal_daymenu": menu_case("업무일지", shoot.s_journal_daymenu, ".dmenu"),
@@ -156,6 +229,22 @@ CASES = {
     "files_tabmenu": menu_case("탐색기", shoot.s_files_tabmenu, ".fx-tabmenu"),
     "process_rowmenu": menu_case("민원처리", shoot.s_process_rowmenu, ".pr-rowmenu"),
     "calendar_kindpicker": menu_case("캘린더", shoot.s_calendar_kindpicker, ".cal-kp-list"),
+    "band_tasks_item": band_esc("할 일", shoot.s_tasks_item_ask, ".ask-band"),
+    "band_tasks_edit": band_esc("할 일", shoot.s_tasks_edit_ask, ".ask-band"),
+    "band_journal_edit": band_esc("업무일지", shoot.s_journal_edit_ask, ".ask-band", keep=".jcard-edit"),
+    "band_complaints_edit": band_esc("민원대장", shoot.s_complaints_edit_ask, ".ask-band"),
+    "band_calendar_event": band_esc("캘린더", shoot.s_calendar_event_ask, ".ask-band"),
+    "band_contacts_card": band_esc("업무연락처", shoot.s_contacts_card_ask, ".ask-band"),
+    "band_process_row": band_esc("민원처리", shoot.s_process_ask, ".ask-band"),
+    "band_process_works": band_esc("민원처리", shoot.s_process_works_ask, ".ask-band", keep=".dialog.pr-works"),
+    "band_budget": band_esc("집행현황", shoot.s_budget_confirm, ".ask-band"),
+    "date_complaints_received": date_case("민원대장", None, "input[name=received]"),
+    "date_complaints_due": date_case("민원대장", None, "input[name=due]"),
+    "date_calendar_quick": date_case("캘린더", None, ".cal-quick input[name=date]"),
+    "date_calendar_end": date_case("캘린더", open_cal_dialog, "input[aria-label='종료 날짜']"),
+    "date_tasks_due": date_case("할 일", open_tasks_add, "input[name=due]"),
+    "date_journal_print": date_case("업무일지", open_print, "input[aria-label='시작일']"),
+    "date_files_find": date_case("탐색기", open_find, "input[aria-label='수정한 날 시작']"),
     "contacts_band": c_contacts_band,
     "contacts_pjmenu_esc": c_pjmenu_esc,
     "settings_esc": c_settings_esc,

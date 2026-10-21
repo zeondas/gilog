@@ -6,6 +6,7 @@
 // - 열 제목: 누르면 그 열 칠하기(다시 누르면 풀기), 끝선 끌기 = 너비, 끝선 두 번 = 내용에 맞춤, 우클릭 = 처음 너비.
 //   구분·집행률·단계·메모는 고정 폭. 모든 줄이 같은 px 틀을 써요(세부사업 열을 1fr로 두면 긴 이름 줄만 넓어져 열이 밀려요).
 // - 금액 단위 원/천원(천원은 반올림한 정수만 보여요, 저장은 늘 원). 손대지 않은 금액 칸은 원래 원 값 그대로 저장해요.
+import { AskBand } from "./AskBand";
 import { Fragment, KeyboardEvent as RKeyboardEvent, MouseEvent as RMouseEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, errorText, inApp } from "./api";
 import {
@@ -1404,17 +1405,7 @@ export default function BudgetScreen() {
       );
     }
     return (
-      <div className="bd-confirm">
-        <p>{msg}</p>
-        <div className="bd-crow">
-          <button type="button" className="btn btn-xs" autoFocus onClick={() => setPop(null)}>
-            취소
-          </button>
-          <button type="button" className="btn btn-xs bd-dg" onClick={() => void doDelete(level, id)}>
-            지우기
-          </button>
-        </div>
-      </div>
+      <AskBand className="dmenu-ask bd-ask" label="지우기 확인" text={msg} onNo={() => setPop(null)} onYes={() => void doDelete(level, id)} />
     );
   }
 

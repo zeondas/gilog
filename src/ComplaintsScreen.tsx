@@ -62,6 +62,8 @@ import { lookupMany } from "./addressWeb";
 import { areaFor } from "./address";
 import { ListGroup } from "./SettingsScreen";
 import { DEFAULT_SETTINGS, isAnswered, isClosed, loadSettings, saveSettings, Settings, STATUS_RENAME, statusColor } from "./settingsStore";
+import { AskBand } from "./AskBand";
+import { DateInput } from "./DateInput";
 
 const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
 
@@ -1131,17 +1133,7 @@ function Cells({
         />
       </div>
       <div role="cell" className="cm-c cm-done-in">
-        <input
-          name="done"
-          aria-label="조치완료일"
-          aria-invalid={bad.done || undefined}
-          className={"cell-input num" + (bad.done ? " invalid" : "")}
-          placeholder="연-월-일"
-          inputMode="numeric"
-          value={d.done ?? ""}
-          onChange={(e) => set({ done: e.target.value })}
-          onBlur={() => onDateBlur("done")}
-        />
+        <DateField name="done" label="조치완료일" bad={bad.done} value={d.done ?? ""} onChange={(done) => set({ done })} onBlur={() => onDateBlur("done")} />
       </div>
     </>
   );
@@ -1170,26 +1162,8 @@ function DateField({
   onChange: (v: string) => void;
   onBlur: () => void;
 }) {
-  const [focus, setFocus] = useState(false);
-  const shown = !focus && shortOf ? shortOf(value) : value;
-  return (
-    <input
-      name={name}
-      aria-label={label}
-      aria-invalid={bad || undefined}
-      className={"cell-input num" + (bad ? " invalid" : "")}
-      placeholder={placeholder}
-      inputMode="numeric"
-      title={shown !== value ? value : undefined}
-      value={shown}
-      onFocus={() => setFocus(true)}
-      onChange={(e) => onChange(e.target.value)}
-      onBlur={() => {
-        setFocus(false);
-        onBlur();
-      }}
-    />
-  );
+  // 공통 날짜 칸(DateInput)이 떠날 때 8자리로 바꿔 쓰고, 빨간 테두리는 이 줄의 규칙(onDateBlur)이 정해요.
+  return <DateInput name={name} label={label} invalid={bad} placeholder={placeholder} shortOf={shortOf} value={value} onChange={onChange} onBlur={onBlur} />;
 }
 
 /** 칸 이름으로 그 칸에 커서를 둬요. */
@@ -1398,15 +1372,7 @@ function EditRow({
       </div>
       <div className="cm-edit-foot">
         {asking ? (
-          <div ref={askRef} className="ask-band cm-ask" role="alertdialog" aria-label="민원 지우기 확인">
-            <span>{c.no}번 민원을 지울까요? 메모도 함께 지워져요.</span>
-            <button type="button" className="btn btn-xs" autoFocus onClick={() => setAsking(false)}>
-              취소
-            </button>
-            <button type="button" className="btn btn-xs btn-danger" onClick={onRemove}>
-              지우기
-            </button>
-          </div>
+          <AskBand bandRef={askRef} className="cm-ask" label="민원 지우기 확인" text={<>{c.no}번 민원을 지울까요? 메모도 함께 지워져요.</>} onNo={() => setAsking(false)} onYes={onRemove} />
         ) : (
           <button ref={trashRef} type="button" className="tool-box cm-del" aria-label={`${c.no}번 민원 지우기`} onClick={() => setAsking(true)}>
             <span className="cm-del-x" aria-hidden="true">
@@ -1758,16 +1724,13 @@ function DuePick({ c, text, urgent, onSave }: { c: Complaint; text: string; urge
       {open && (
         <span className="cm-tpick-pop" role="dialog" aria-label="마감일 고치기">
           <span className="cm-tpick-label">마감일</span>
-          <input
-            ref={input}
-            aria-label="마감일"
-            aria-invalid={bad || undefined}
-            className={"cell-input num" + (bad ? " invalid" : "")}
-            inputMode="numeric"
-            placeholder="연-월-일"
+          <DateInput
+            inputRef={input}
+            label="마감일"
+            invalid={bad}
             value={v}
-            onChange={(e) => {
-              setV(e.target.value);
+            onChange={(x) => {
+              setV(x);
               setBad(false);
             }}
             onKeyDown={(e) => {
@@ -1844,16 +1807,13 @@ function TakenPick({ c, taken, onSave }: { c: Complaint; taken: number; onSave: 
       {open && (
         <span className="cm-tpick-pop" role="dialog" aria-label="조치완료일 고치기">
           <span className="cm-tpick-label">조치완료일</span>
-          <input
-            ref={input}
-            aria-label="조치완료일"
-            aria-invalid={bad || undefined}
-            className={"cell-input num" + (bad ? " invalid" : "")}
-            inputMode="numeric"
-            placeholder="연-월-일"
+          <DateInput
+            inputRef={input}
+            label="조치완료일"
+            invalid={bad}
             value={v}
-            onChange={(e) => {
-              setV(e.target.value);
+            onChange={(x) => {
+              setV(x);
               setBad(false);
             }}
             onKeyDown={(e) => {
