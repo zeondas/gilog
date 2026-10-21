@@ -11805,3 +11805,29 @@ body.ew-dragging .pjm-colgrip:active::after {
   pointer-events: none;
   white-space: nowrap;
 }
+
+/* 판단 공사 "해당 없음"(2026-10-21 사용자, 시안 ProcessStatus의 회색 칩) · 민원대장에 넣을지 묻는 창 · ⋯ 메뉴 맨 위 사진 수 */
+.pr-row .pr-work.na {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.pr-dot.na {
+  box-sizing: border-box;
+  border: 1.5px solid var(--line);
+  background: transparent;
+}
+
+.pr-ask-btns > .btn-primary {
+  height: var(--size-mini);
+  border-radius: var(--radius-sm);
+  justify-content: center;
+}
+
+.pr-rowmenu-note {
+  margin: 0;
+  padding: 4px 10px 6px;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}

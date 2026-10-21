@@ -126,6 +126,8 @@ fn unzip_images(z: &Path, into: &Path) -> std::io::Result<Vec<String>> {
 }
 
 /// 이름만 적힌 첨부를 찾아요: 절대 경로면 그대로, 아니면 가져올 폴더 → 다운로드 폴더 → 내 폴더\Downloads.
+/// 받은 첨부를 찾아요: 이름 그대로 → 대소문자만 다른 것 → 크롬이 같은 이름에 붙인 " (1)" 꼴(가장 새 것).
+/// 2026-10-21 사용자: 지시부에 사진이 안 들어감 – Claude가 적은 이름과 크롬이 받은 이름이 조금 다르면 못 찾아 사진 없이 들어갔어요.
 fn find_file(name: &str, dirs: &[&Path]) -> Option<PathBuf> {
     let n = name.trim();
     if n.is_empty() {
@@ -133,9 +135,45 @@ fn find_file(name: &str, dirs: &[&Path]) -> Option<PathBuf> {
     }
     let p = Path::new(n);
     if p.is_absolute() {
-        return p.is_file().then(|| p.to_path_buf());
+        if p.is_file() {
+            return Some(p.to_path_buf());
+        }
     }
-    dirs.iter().map(|d| d.join(n)).find(|p| p.is_file())
+    let base = p.file_name().and_then(|f| f.to_str()).unwrap_or(n);
+    if let Some(hit) = dirs.iter().map(|d| d.join(base)).find(|p| p.is_file()) {
+        return Some(hit);
+    }
+    let want = base.to_lowercase();
+    let mut best: Option<(std::time::SystemTime, PathBuf)> = None;
+    for d in dirs {
+        let Ok(rd) = fs::read_dir(d) else { continue };
+        for e in rd.flatten() {
+            let path = e.path();
+            let Some(fname) = path.file_name().and_then(|f| f.to_str()) else { continue };
+            if !path.is_file() || !same_download(&fname.to_lowercase(), &want) {
+                continue;
+            }
+            let t = e.metadata().and_then(|m| m.modified()).unwrap_or(std::time::UNIX_EPOCH);
+            if best.as_ref().map_or(true, |(bt, _)| t > *bt) {
+                best = Some((t, path));
+            }
+        }
+    }
+    best.map(|(_, p)| p)
+}
+
+/// `got`이 `want`와 같거나 크롬 중복 이름("사진 (2).jpg")인지(둘 다 소문자)
+fn same_download(got: &str, want: &str) -> bool {
+    if got == want {
+        return true;
+    }
+    let (ws, we) = match want.rfind('.') {
+        Some(i) => (&want[..i], &want[i..]),
+        None => (want, ""),
+    };
+    let Some(mid) = got.strip_prefix(ws).and_then(|r| r.strip_suffix(we)) else { return false };
+    let mid = mid.trim_start();
+    mid.len() > 2 && mid.starts_with('(') && mid.ends_with(')') && mid[1..mid.len() - 1].chars().all(|c| c.is_ascii_digit())
 }
 
 #[derive(Debug, Serialize)]
@@ -232,10 +270,11 @@ pub fn read_inbox(state: State<AppState>, inbox: String, downloads: String, root
                         }
                     }
                     None => {
+                        // 못 찾은 이름은 남겨 둬요 – [지시부 만들기] 때 한 번 더 찾아요(2026-10-21).
                         if !name.trim().is_empty() {
                             res.missing_files.push(name.trim().to_string());
                         }
-                        String::new()
+                        name.trim().to_string()
                     }
                 }
             };
@@ -268,6 +307,11 @@ pub struct OrderRequest {
     /// 표준 양식 파일(설정). 비우면 앱에 넣어 둔 양식.
     #[serde(default)]
     pub tpl: String,
+    /// 가져올 폴더·다운로드 폴더(설정) – 불러올 때 못 찾은 사진을 다시 찾는 곳
+    #[serde(default)]
+    pub inbox: String,
+    #[serde(default)]
+    pub downloads: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -279,6 +323,8 @@ pub struct OrderResult {
     pub works: Vec<Work>,
     /// 양식에 없던 자리
     pub missing: Vec<String>,
+    /// 현장사진 없이 들어간 민원 접수번호(2026-10-21 – 화면이 알려요)
+    pub no_photo: Vec<String>,
 }
 
 /// 양식의 {주소}: 지역 + 위치. 주소불명이면 그 말만.
@@ -362,16 +408,39 @@ pub fn make_order(state: State<AppState>, req: OrderRequest) -> Result<OrderResu
     header.insert("지시일".to_string(), korean_date(&date));
     header.insert("현장대리인".to_string(), agent);
     header.insert("시공사".to_string(), work.co.clone());
+    // 사진 경로가 없으면(불러올 때 못 찾음·옮겨짐) 민원 폴더·가져올 폴더·다운로드 폴더에서 이름으로 한 번 더 찾아요.
+    let user_dl = std::env::var_os("USERPROFILE").map(|h| PathBuf::from(h).join("Downloads"));
+    let (inbox_dir, dl_dir) = (PathBuf::from(req.inbox.trim()), PathBuf::from(req.downloads.trim()));
+    let mut dirs: Vec<&Path> = vec![folder.as_path()];
+    for d in [inbox_dir.as_path(), dl_dir.as_path()] {
+        if !d.as_os_str().is_empty() {
+            dirs.push(d);
+        }
+    }
+    if let Some(d) = user_dl.as_deref() {
+        dirs.push(d);
+    }
+    let pic = |p: &String| -> String {
+        let p = p.trim();
+        if p.is_empty() {
+            return String::new();
+        }
+        if Path::new(p).is_file() {
+            return p.to_string();
+        }
+        find_file(p, &dirs).map(|f| f.display().to_string()).unwrap_or_default()
+    };
     let items: Vec<StdItem> = cases
         .iter()
         .map(|c| StdItem {
             title: if c.short.trim().is_empty() { c.summary.clone() } else { c.short.clone() },
             address: address(c),
             note: c.note.clone(),
-            map: c.map.clone(),
-            photo: c.photos.first().cloned().unwrap_or_default(),
+            map: pic(&c.map),
+            photo: c.photos.iter().map(|p| pic(p)).find(|p| !p.is_empty()).unwrap_or_default(),
         })
         .collect();
+    let no_photo: Vec<String> = cases.iter().zip(&items).filter(|(_, it)| it.photo.is_empty()).map(|(c, _)| c.no.clone()).collect();
     let report = fill_standard((!tpl.is_empty()).then(|| Path::new(tpl)), &out, &header, &items).map_err(crate::code)?;
 
     let file = out.display().to_string();
@@ -394,7 +463,7 @@ pub fn make_order(state: State<AppState>, req: OrderRequest) -> Result<OrderResu
         let cases = s.order_cases(order.id)?;
         Ok((order, cases, s.process_data()?.works))
     })?;
-    Ok(OrderResult { order, cases, works, missing: report.missing })
+    Ok(OrderResult { order, cases, works, missing: report.missing, no_photo })
 }
 
 /// PowerShell 글자 안에 넣을 경로('는 두 번).
@@ -658,6 +727,22 @@ mod tests {
         assert!(a.ends_with("261015_봉일천리 209-10_포트홀.pptx"));
         fs::write(d.join("261015_봉일천리 209-10_포트홀.jpg"), b"x").unwrap();
         assert!(order_path(&d, "261015_봉일천리 209-10_포트홀", "pptx").ends_with("261015_봉일천리 209-10_포트홀 (2).pptx"));
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn finds_chrome_renamed_download() {
+        assert!(same_download("사진.jpg", "사진.jpg"));
+        assert!(same_download("사진 (2).jpg", "사진.jpg"));
+        assert!(same_download("img(12).jpeg", "img.jpeg"));
+        assert!(!same_download("사진2.jpg", "사진.jpg"));
+        assert!(!same_download("사진 (a).jpg", "사진.jpg"));
+        let d = std::env::temp_dir().join(format!("gilog_ff_{}", std::process::id()));
+        let _ = fs::create_dir_all(&d);
+        fs::write(d.join("Photo (1).JPG"), b"x").unwrap();
+        assert_eq!(find_file("photo.jpg", &[d.as_path()]), Some(d.join("Photo (1).JPG")));
+        assert_eq!(find_file("C:/없는/photo.jpg", &[d.as_path()]), Some(d.join("Photo (1).JPG")));
+        assert_eq!(find_file("other.jpg", &[d.as_path()]), None);
         let _ = fs::remove_dir_all(&d);
     }
 

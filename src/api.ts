@@ -350,7 +350,7 @@ export type CasePatch = Partial<Pick<Case, "work" | "area" | "place" | "road" | 
 export type ProcessData = { works: Work[]; cases: Case[]; orders: Order[] };
 export type InboxResult = { added: Case[]; skipped: number; failed: string[]; missingFiles: string[] };
 export type RunStatus = { state: "idle" | "running" | "done" | "login" | "stopped" | "error"; total: number | null; done: number | null; message: string; log: string; skipped: string[]; skipCount?: number | null };
-export type OrderResult = { order: Order; cases: Case[]; works: Work[]; missing: string[] };
+export type OrderResult = { order: Order; cases: Case[]; works: Work[]; missing: string[]; /** 현장사진 없이 들어간 접수번호 */ noPhoto?: string[] };
 
 export const inApp = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -1065,7 +1065,7 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
         fake.orders.push(o);
       } else Object.assign(o, { jpgs: [], stage: "made", outbox: [], sentAt: "", dirty: false });
       list.forEach((c, i) => Object.assign(c, { order: o!.id, item: i + 1, stage: "made", seq: String(o!.seq), orderFile: o!.file, orderJpg: "" }));
-      return structuredClone({ order: o, cases: list, works: fake.works, missing: [] });
+      return structuredClone({ order: o, cases: list, works: fake.works, missing: [], noPhoto: list.filter((c) => !c.photos.length).map((c) => c.no) });
     }
     case "order_jpg": {
       const o = fake.orders.find((x) => x.id === a.id);
@@ -1419,7 +1419,7 @@ export const api = {
   updateCase: (no: string, patch: CasePatch) => call<Case>("update_case", { no, patch }),
   deleteCase: (no: string) => call<null>("delete_case", { no }),
   readInbox: (inbox: string, downloads: string, root: string) => call<InboxResult>("read_inbox", { inbox, downloads, root }),
-  makeOrder: (req: { nos: string[]; order: number | null; root: string; date: string; tpl: string }) => call<OrderResult>("make_order", { req }),
+  makeOrder: (req: { nos: string[]; order: number | null; root: string; date: string; tpl: string; inbox?: string; downloads?: string }) => call<OrderResult>("make_order", { req }),
   orderJpg: (id: number) => call<Order>("order_jpg", { id }),
   sendOrder: (id: number, outbox: string) => call<Order>("send_order", { id, outbox }),
   checkSent: (now: string) => call<Order[]>("check_sent", { now }),

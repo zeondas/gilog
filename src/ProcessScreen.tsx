@@ -39,6 +39,8 @@ type LastRun = { at: string; added: number; skipped: number | null; secs: number
 // 2026-10-20 진행 막대(시안 ProcessStatus)로 열이 바뀌어 새 키 – 예전에 끈 폭은 버려요
 const COLS_KEY = "process.colWidths3";
 const MAIL_BOX = "https://mail.korea.kr";
+/** 판단 공사 "해당 없음"(2026-10-21 사용자) – core NA_WORK와 같은 값 */
+const NA_WORK = 0;
 
 /** 열 제목과 처음 폭. null은 남는 폭을 쓰는 열(민원 요약)이에요. 끌어서 바꾼 폭은 COLS_KEY에 저장해요. */
 const COLUMNS: { label: string; w: number | null; center?: boolean; fixed?: boolean }[] = [
@@ -107,6 +109,8 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   const [sendMenu, setSendMenu] = useState<{ id: number; rect: DOMRect } | null>(null);
   const [mailAsk, setMailAsk] = useState<MailDraft | null>(null);
   const [mailRun, setMailRun] = useState<{ id: number; label: string; n: number } | null>(null);
+  // "해당 없음"을 고른 뒤 민원대장에 넣을지 묻는 창
+  const [naAsk, setNaAsk] = useState<{ no: string; rect: DOMRect } | null>(null);
   // 줄 끝 ⋯ 메뉴(줄 우클릭도) · 보낸 증거 카드 · 민원 요약에 마우스를 올리면 판단 이유
   const [menu, setMenu] = useState<{ no: string; rect: DOMRect } | null>(null);
   const [proof, setProof] = useState<{ id: number; rect: DOMRect } | null>(null);
@@ -436,7 +440,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     setBusyOf(key, "만드는 중");
     let r: OrderResult;
     try {
-      r = await api.makeOrder({ ...req, root: ps.root, date: today, tpl: ps.tpl });
+      r = await api.makeOrder({ ...req, root: ps.root, date: today, tpl: ps.tpl, inbox: ps.inbox, downloads: ps.downloads });
       setWorks(r.works);
       setCases((l) => l.map((x) => r.cases.find((y) => y.no === x.no) ?? x));
       putOrder(r.order);
@@ -447,7 +451,8 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
         `지시부 ${tag}(${r.cases.length}건)를 ${req.order != null ? "다시 " : ""}만들었어요` +
           (n.added ? ` · 민원대장 ${n.added}건 등록` : "") +
           (n.fixed ? ` · 민원대장 ${n.fixed}건 고침` : "") +
-          (r.missing.length ? ` · 양식에 없는 자리 ${r.missing.join(" ")}` : ""),
+          (r.missing.length ? ` · 양식에 없는 자리 ${r.missing.join(" ")}` : "") +
+          (r.noPhoto?.length ? ` · 사진을 못 찾은 민원 ${r.noPhoto.length}건(${r.noPhoto.map(shortNo).join(", ")}) – 사진 없이 넣었어요` : ""),
       );
     } catch (e) {
       setNote(errText(e));
@@ -504,11 +509,14 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   }
 
   async function changeWork(c: Case, id: number) {
+    const rect = pick?.rect;
     setPick(null);
     if (c.work === id) return;
     setChosen((l) => l.filter((n) => n !== c.no));
     // 지시부에 든 건이면 그 지시부에서 빠지고(남은 건으로 다시 만들어요), 새 공사로 다시 골라 만들어요.
-    await patch(c.no, { work: id });
+    const n = await patch(c.no, { work: id });
+    // 해당 없음: 아직 민원대장에 없으면 넣을지 물어요(2026-10-21 사용자).
+    if (n && id === NA_WORK && !linked(n) && rect) setNaAsk({ no: n.no, rect });
   }
 
   async function remove(no: string) {
@@ -555,11 +563,11 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
 
   // 바깥 누르기·Esc로 뜨는 것 닫기
   useEffect(() => {
-    if (!pick && !ask && !menu && !proof) return;
-    const key = (e: KeyboardEvent) => e.key === "Escape" && (setPick(null), setAsk(null), setMenu(null), setProof(null));
+    if (!pick && !ask && !menu && !proof && !naAsk) return;
+    const key = (e: KeyboardEvent) => e.key === "Escape" && (setPick(null), setAsk(null), setMenu(null), setProof(null), setNaAsk(null));
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [pick, ask, menu, proof]);
+  }, [pick, ask, menu, proof, naAsk]);
 
   // 목록 안쪽 폭과 스크롤 막대 폭을 재요(창 크기·줄 수가 바뀌면 다시).
   useEffect(() => {
@@ -591,7 +599,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   const first = chosen.length ? cases.find((c) => c.no === chosen[0]) : undefined;
   const chosenOrder = first?.order != null ? orders.find((o) => o.id === first.order) : undefined;
   const chosenWork = first ? works.find((w) => w.id === (chosenOrder ? chosenOrder.work : first.work)) : undefined;
-  const canChoose = (c: Case) => c.order != null || (c.work != null && !isDone(c) && (!chosenWork || !!chosenOrder || c.work === chosenWork.id));
+  const canChoose = (c: Case) => c.order != null || (c.work != null && c.work !== NA_WORK && !isDone(c) && (!chosenWork || !!chosenOrder || c.work === chosenWork.id));
   const toggle = (c: Case) =>
     setChosen((l) => {
       if (c.order != null) return chosenOrder?.id === c.order ? [] : cases.filter((x) => x.order === c.order).map((x) => x.no);
@@ -630,6 +638,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
 
   const renderRow = (c: Case) => {
     const w = works.find((x) => x.id === c.work);
+    const na = c.work === NA_WORK;
     const isD = isDone(c);
     const left = c.due ? daysBetween(today, c.due) : null;
     const k = workColor(w, cd);
@@ -725,10 +734,10 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
         <div>
           <button
             type="button"
-            className={"pr-work" + (w ? "" : " none")}
+            className={"pr-work" + (w ? "" : na ? " na" : " none")}
             style={w ? ({ "--wc": `var(--pj-${k}-line)`, "--wf": `var(--pj-${k}-fg)` } as CSSProperties) : undefined}
             disabled={isD || !!b}
-            title={isD ? w?.name : c.order == null ? (w ? `${w.name}\n눌러서 공사 바꾸기` : "눌러서 공사 고르기") : `${w?.name ?? ""}\n공사를 바꾸면 이 지시부에서 빠져요(남은 건으로 다시 만들어요)`}
+            title={isD ? w?.name : na ? "공사 대상이 아니에요\n눌러서 공사 바꾸기" : c.order == null ? (w ? `${w.name}\n눌러서 공사 바꾸기` : "눌러서 공사 고르기") : `${w?.name ?? ""}\n공사를 바꾸면 이 지시부에서 빠져요(남은 건으로 다시 만들어요)`}
             onClick={(e) => {
               e.stopPropagation();
               setAsk(null);
@@ -736,7 +745,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
               setPick(pick?.no === c.no ? null : { no: c.no, rect: e.currentTarget.getBoundingClientRect() });
             }}
           >
-            {w ? w.name : "– 공사 고르기"}
+            {w ? w.name : na ? "해당 없음" : "– 공사 고르기"}
           </button>
         </div>
         <div onClick={(e) => e.stopPropagation()}>
@@ -993,6 +1002,11 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
           return (
             <Floating rect={menu.rect} align="right" onClose={close}>
               <div className="dmenu pr-rowmenu" role="menu" aria-label="이 민원">
+                <p className="dmenu-note pr-rowmenu-note">
+                  {`사진 ${c.photos.filter(isPath).length}장`}
+                  {c.photos.some((x) => !isPath(x)) ? ` (못 찾음 ${c.photos.filter((x) => !isPath(x)).length})` : ""}
+                  {` · 위치도 ${isPath(c.map) ? "있음" : c.map ? "못 찾음" : "없음"}`}
+                </p>
                 {o ? (
                   <button type="button" role="menuitem" className="dmenu-item" disabled={!o.file} onClick={() => (close(), openFile(o.file))}>
                     <DocIcon />
@@ -1004,7 +1018,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                     role="menuitem"
                     className="dmenu-item"
                     disabled={!w || isD || !!busy[`c${c.no}`]}
-                    title={!w ? "먼저 공사를 골라요" : isD ? "민원대장에서 끝난 건이에요" : `${w.name}-${String(w.nextSeq).padStart(2, "0")}`}
+                    title={c.work === NA_WORK ? "해당 없음 민원은 지시부를 만들지 않아요" : !w ? "먼저 공사를 골라요" : isD ? "민원대장에서 끝난 건이에요" : `${w.name}-${String(w.nextSeq).padStart(2, "0")}`}
                     onClick={() => {
                       close();
                       setChosen((l) => l.filter((n) => n !== c.no));
@@ -1021,7 +1035,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                   className="dmenu-item"
                   onClick={() => {
                     close();
-                    const f = o?.file || c.photos[0] || c.map;
+                    const f = o?.file || c.photos.find(isPath) || (isPath(c.map) ? c.map : "");
                     openFile(f || c.folder || ps.root, !!f);
                   }}
                 >
@@ -1134,9 +1148,44 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
               </button>
             ))}
             {works.length === 0 && <p className="pr-menu-empty">공사 관리에서 공사를 먼저 등록해요.</p>}
+            <div className="dmenu-sep" />
+            <button type="button" role="option" aria-selected={pickCase.work === NA_WORK} className="pr-opt" onClick={() => changeWork(pickCase, NA_WORK)}>
+              <span className="pr-dot na" />
+              <span className="pr-opt-name">해당 없음</span>
+              <span className="pr-sub">공사 대상 아님</span>
+            </button>
           </div>
         </Floating>
       )}
+
+      {naAsk &&
+        (() => {
+          const c = cases.find((x) => x.no === naAsk.no);
+          if (!c) return null;
+          return (
+            <Floating rect={naAsk.rect} align="left" onClose={() => setNaAsk(null)}>
+              <div className="pr-ask" role="dialog" aria-label="민원대장에 추가">
+                <span className="pr-ask-t">민원대장에 추가할까요?</span>
+                <div className="pr-ask-btns">
+                  <button type="button" className="btn" onClick={() => setNaAsk(null)}>
+                    아니요
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    autoFocus
+                    onClick={() => {
+                      setNaAsk(null);
+                      register(c);
+                    }}
+                  >
+                    예
+                  </button>
+                </div>
+              </div>
+            </Floating>
+          );
+        })()}
 
       {ask && (
         <Floating rect={ask.rect} align="right" onClose={() => setAsk(null)}>
@@ -1990,6 +2039,9 @@ type Prog = {
   warn?: boolean;
   kind: "new" | "busy" | "order" | "sending" | "proof" | "answer" | "done";
 };
+
+/** 찾아 둔 파일 경로인지(불러올 때 못 찾은 사진은 이름만 남아요 – 2026-10-21) */
+const isPath = (p: string) => /[\\/]/.test(p);
 
 /** 접수번호 마지막 묶음 7자리(1AA-2610-0527749 → 0527749) */
 const shortNo = (no: string) => no.split(/[\s/]/)[0].split("-").pop() || no;

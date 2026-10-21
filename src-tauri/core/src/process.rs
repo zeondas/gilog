@@ -273,6 +273,8 @@ pub(crate) fn upgrade(conn: &rusqlite::Connection) -> Result<()> {
 
 /// 주소가 분명하지 않으면 적는 말(사용자 2026-10-17)
 pub const UNKNOWN_PLACE: &str = "주소불명";
+/// 판단 공사 "해당 없음"(2026-10-21 사용자) – 공사 번호 자리에 0을 둬요. 지시부로 묶지 않아요.
+pub const NA_WORK: i64 = 0;
 
 const WORK_COLS: &str = "id, name, co, contact, project, scope, next_seq, tpl, full";
 const ORDER_COLS: &str = "id, work, seq, date, file, jpgs, stage, outbox, sent_at, dirty, mail_to, mailed_at, mail_subject, mail_ok";
@@ -626,6 +628,9 @@ impl Store {
         list.dedup_by(|a, b| a.no == b.no);
         let first = list.first().ok_or_else(|| bad("고른 민원이 없어요"))?;
         let work = first.work.ok_or_else(|| bad("공사를 먼저 골라 주세요"))?;
+        if work == NA_WORK {
+            return Err(bad("해당 없음 민원은 지시부로 묶지 않아요"));
+        }
         if list.iter().any(|c| c.work != Some(work)) {
             return Err(bad("같은 공사 민원만 함께 묶을 수 있어요"));
         }
@@ -873,6 +878,17 @@ mod tests {
 #[cfg(test)]
 mod mail_tests {
     use super::*;
+
+    #[test]
+    fn na_work_is_kept_and_not_ordered() {
+        let d = tempfile::tempdir().unwrap();
+        let mut s = Store::create(d.path(), "1234").unwrap();
+        s.add_cases(&[CaseInput { no: "1AA-1".into(), ..Default::default() }]).unwrap();
+        let c = s.update_case("1AA-1", &CasePatch { work: Some(Some(NA_WORK)), ..Default::default() }).unwrap();
+        assert_eq!(c.work, Some(NA_WORK));
+        assert_eq!(s.case("1AA-1").unwrap().work, Some(NA_WORK));
+        assert!(s.plan_order(&["1AA-1".into()]).is_err());
+    }
 
     #[test]
     fn order_mailed_is_saved() {
