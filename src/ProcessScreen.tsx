@@ -40,7 +40,8 @@ const phoneOf = (c: Contact | undefined) => (c ? c.mobile || c.tel : "");
 const FETCHED_KEY = "process.fetched";
 /** 마지막 불러오기 결과(아래 줄 "새 민원 N건 · 건너뜀 N건 · 걸린 시간 · [로그 열기]") */
 const LAST_RUN_KEY = "process.lastRun";
-type LastRun = { at: string; added: number; skipped: number | null; secs: number; log: string };
+/** per: 건당 걸린 시간(초, 2026-10-21 신속 자동화 – 전후 비교용) */
+type LastRun = { at: string; added: number; skipped: number | null; secs: number; log: string; per?: number };
 // 2026-10-21 열 폭을 글자에 맞추는 방식(자동)으로 새 키 – 예전에 끈 폭은 버려요. 값이 없으면 자동이에요.
 const COLS_KEY = "process.colWidths5";
 const MAIL_BOX = "https://mail.korea.kr";
@@ -355,8 +356,9 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   const rows = showDone ? [...open, ...done] : open;
 
   // ---------- 민원 불러오기: Claude가 신문고를 읽어 가져올 폴더에 놓고, 2초마다 표에 넣어요 ----------
-  async function pullInbox(acc: { n: number; failed: Set<string>; missing: number; added: string[] }) {
-    const r = await api.readInbox(ps.inbox, ps.downloads, ps.root);
+  // hold: 실행 중엔 첨부가 아직 안 내려온 민원을 다음 번으로 미뤄요(Claude는 받기만 누르고 다음 건으로 – 2026-10-21 ②1안).
+  async function pullInbox(acc: { n: number; failed: Set<string>; missing: number; added: string[] }, hold = false) {
+    const r = await api.readInbox(ps.inbox, ps.downloads, ps.root, hold);
     if (r.added.length) setCases((l) => [...l, ...r.added.filter((a) => !l.some((x) => x.no === a.no))]);
     // 위치가 도로명주소면 웹 답을 먼저 믿어요(앱은 받을 때 내장 표로 바꿔 둠 – 2026-10-21 사용자 2안).
     for (const a of r.added) {
@@ -372,6 +374,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     acc.added.push(...r.added.map((a) => a.no));
     r.failed.forEach((f) => acc.failed.add(f));
     acc.missing += r.missingFiles.length;
+    return r.held;
   }
 
   async function fetchCases() {
@@ -395,15 +398,24 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     for (;;) {
       await new Promise((r) => setTimeout(r, inApp ? 2000 : 700));
       st = await api.claudeStatus(ps.inbox).catch(() => ({ state: "error", total: null, done: null, message: "", log: "", skipped: [] }) as RunStatus);
-      await pullInbox(acc).catch(() => {});
+      await pullInbox(acc, true).catch(() => 0);
       setRun({ n: st.done ?? acc.n, total: st.total });
       if (st.skipCount != null) skipped = st.skipCount;
       if (st.state !== "running") break;
     }
-    await pullInbox(acc).catch(() => {});
-    setRun(null);
     const secs = Math.round((Date.now() - t0) / 1000);
-    const tail = [acc.failed.size ? `못 읽은 파일 ${[...acc.failed].join(", ")}` : "", acc.missing ? `못 찾은 사진 ${acc.missing}개` : ""].filter(Boolean);
+    // 끝난 뒤 늦게 내려오는 첨부를 조금 더 기다려요(최대 20초) – 그래도 없으면 이름만 남기고 넣어요.
+    for (let i = 0; i < 10; i++) {
+      const held = await pullInbox(acc, true).catch(() => 0);
+      if (!held) break;
+      await new Promise((r) => setTimeout(r, inApp ? 2000 : 300));
+    }
+    await pullInbox(acc).catch(() => 0);
+    setRun(null);
+    const tail = [
+      acc.failed.size ? `못 읽은 파일 ${[...acc.failed].join(", ")}` : "",
+      acc.missing ? `못 찾은 사진 ${acc.missing}개 – 설정 "다운로드 폴더"가 크롬이 받는 곳과 같은지 봐 주세요` : "",
+    ].filter(Boolean);
     const head =
       st.state === "login"
         ? "신문고 로그인이 풀려 있어요. [신문고 열기]로 로그인한 뒤 다시 눌러 주세요"
@@ -417,7 +429,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     if (st.state === "error" || st.state === "stopped") setNoteLog(st.log);
     const f = `${stamp()} · 새 민원 ${acc.n}건`;
     setFetched(f);
-    const lr: LastRun = { at: stamp(), added: acc.n, skipped, secs, log: st.log };
+    const lr: LastRun = { at: stamp(), added: acc.n, skipped, secs, log: st.log, per: acc.n ? Math.round(secs / acc.n) : undefined };
     setLastRun(lr);
     await api.set(FETCHED_KEY, f);
     await api.set(LAST_RUN_KEY, JSON.stringify(lr));
@@ -1006,7 +1018,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
         {lastRun && (
           <>
             <span className="pr-lastrun">
-              새 민원 {lastRun.added}건{lastRun.skipped != null ? ` · 건너뜀 ${lastRun.skipped}건` : ""} · {duration(lastRun.secs)}
+              새 민원 {lastRun.added}건{lastRun.skipped != null ? ` · 건너뜀 ${lastRun.skipped}건` : ""} · {duration(lastRun.secs)}{lastRun.per ? ` (건당 ${duration(lastRun.per)})` : ""}
             </span>
             {lastRun.log && (
               <button type="button" className="btn btn-xs" title="Claude 실행 기록(_claude.log)을 탐색기에서 보여 줘요" onClick={() => openFile(lastRun.log, true)}>

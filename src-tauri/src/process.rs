@@ -186,6 +186,16 @@ pub struct InboxResult {
     pub failed: Vec<String>,
     /// 찾지 못한 첨부 파일 이름
     pub missing_files: Vec<String>,
+    /// 첨부가 아직 안 내려와 다음 번으로 미룬 파일 수(`hold`일 때만)
+    pub held: usize,
+}
+
+/// 첨부를 기다리는 동안 민원 파일을 미루는 가장 긴 시간(2026-10-21 신속 자동화 ②1안 – Claude는 받기만 누르고 다음 건으로 가요)
+pub const HOLD_SECS: u64 = 90;
+
+/// 적힌 첨부 중 아직 받기 폴더에 없는 것이 있는지(빈 이름은 셈하지 않아요)
+fn waiting_for_files(names: &[&str], dirs: &[&Path]) -> bool {
+    names.iter().any(|n| !n.trim().is_empty() && find_file(n, dirs).is_none())
 }
 
 /// 가져올 폴더 파일 하나에 민원 하나, 또는 여러 건의 배열이 들어 있어요.
@@ -200,7 +210,8 @@ fn parse_inbox_file(text: &str) -> Option<Vec<CaseInput>> {
 }
 
 #[tauri::command]
-pub fn read_inbox(state: State<AppState>, inbox: String, downloads: String, root: String) -> Result<InboxResult, String> {
+pub fn read_inbox(state: State<AppState>, inbox: String, downloads: String, root: String, hold: Option<bool>) -> Result<InboxResult, String> {
+    let hold = hold.unwrap_or(false);
     let inbox = PathBuf::from(inbox.trim());
     let downloads = PathBuf::from(downloads.trim());
     let root = PathBuf::from(root.trim());
@@ -217,7 +228,7 @@ pub fn read_inbox(state: State<AppState>, inbox: String, downloads: String, root
         .collect();
     files.sort();
 
-    let mut res = InboxResult { added: vec![], skipped: 0, failed: vec![], missing_files: vec![] };
+    let mut res = InboxResult { added: vec![], skipped: 0, failed: vec![], missing_files: vec![], held: 0 };
     for file in files {
         let fname = file.file_name().and_then(|n| n.to_str()).unwrap_or("").to_string();
         let Some(list) = fs::read_to_string(&file).ok().and_then(|t| parse_inbox_file(&t)) else {
@@ -228,6 +239,20 @@ pub fn read_inbox(state: State<AppState>, inbox: String, downloads: String, root
             }
             continue;
         };
+        // 실행 중에는 첨부가 다 내려올 때까지(최대 HOLD_SECS) 이 파일을 다음 번으로 미뤄요 – 사진 없이 들어가지 않게.
+        if hold {
+            let young = fs::metadata(&file).and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok()).is_some_and(|d| d.as_secs() < HOLD_SECS);
+            let user_dl = std::env::var_os("USERPROFILE").map(|h| PathBuf::from(h).join("Downloads"));
+            let mut dirs = vec![inbox.as_path(), downloads.as_path()];
+            if let Some(d) = user_dl.as_deref() {
+                dirs.push(d);
+            }
+            let names: Vec<&str> = list.iter().flat_map(|c| c.photos.iter().map(|x| x.as_str()).chain(std::iter::once(c.map.as_str()))).collect();
+            if young && waiting_for_files(&names, &dirs) {
+                res.held += 1;
+                continue;
+            }
+        }
         let mut ready = Vec::new();
         for mut c in list {
             let known = with_store(&state, |s| s.has_case(&c.no))?;
@@ -747,6 +772,33 @@ mod tests {
     }
 
     #[test]
+    fn waits_until_attachments_arrive() {
+        let d = std::env::temp_dir().join(format!("gilog_wait_{}", std::process::id()));
+        let _ = fs::create_dir_all(&d);
+        let dirs = [d.as_path()];
+        // 아직 안 내려옴 → 기다림, 빈 이름(위치도 없음)은 셈하지 않음
+        assert!(waiting_for_files(&["현장1.jpg", ""], &dirs));
+        fs::write(d.join("현장1 (1).jpg"), b"x").unwrap();
+        assert!(!waiting_for_files(&["현장1.jpg", ""], &dirs));
+        assert!(waiting_for_files(&["현장1.jpg", "MAPIMG.png"], &dirs));
+        assert!(!waiting_for_files(&[], &dirs));
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn counts_case_writes_and_timing() {
+        let w = |p: &str| serde_json::json!({"type":"assistant","message":{"content":[{"type":"tool_use","name":"Write","input":{"file_path":p}}]}});
+        assert!(writes_case(&w("D:\\민원처리\\가져오기\\1AA-2610-0645798.json")));
+        assert!(writes_case(&w("/tmp/1AA-2610-0645798.JSON")));
+        assert!(!writes_case(&w("D:\\민원처리\\가져오기\\_진행.json")));
+        assert!(!writes_case(&w("D:\\a\\note.txt")));
+        assert!(!writes_case(&serde_json::json!({"type":"user"})));
+        assert_eq!(timing_line(&[], 12.0), "## 걸린 시간 12초 · 민원 0건");
+        assert_eq!(timing_line(&[50.0], 70.0), "## 걸린 시간 70초 · 민원 1건 · 첫 건까지 50초");
+        assert_eq!(timing_line(&[50.0, 60.0, 80.0], 90.0), "## 걸린 시간 90초 · 민원 3건 · 첫 건까지 50초 · 건당 평균 15.0초");
+    }
+
+    #[test]
     fn final_answer_states() {
         assert_eq!(final_state("LOGIN_REQUIRED", false).0, "login");
         assert_eq!(final_state("새 민원 3건을 가져왔어요", false).0, "done");
@@ -886,6 +938,35 @@ pub const PROGRESS_FILE: &str = "_진행.json";
 pub const LOG_FILE: &str = "_claude.log";
 /// Claude가 열어 보고 건너뛴 접수번호 목록 {"nos":[…]}(돌릴 때마다 지우고 새로)
 pub const SKIPPED_FILE: &str = "_건너뜀.json";
+
+/// stream-json 한 줄이 민원 파일(`<접수번호>.json`, `_`로 시작하지 않는 것)을 쓰는 Write인지
+fn writes_case(v: &serde_json::Value) -> bool {
+    if v["type"] != "assistant" {
+        return false;
+    }
+    v["message"]["content"].as_array().is_some_and(|a| {
+        a.iter().any(|b| {
+            b["type"] == "tool_use"
+                && b["name"] == "Write"
+                && b["input"]["file_path"].as_str().is_some_and(|p| {
+                    let f = p.rsplit(['\\', '/']).next().unwrap_or(p);
+                    f.to_ascii_lowercase().ends_with(".json") && !f.starts_with('_')
+                })
+        })
+    })
+}
+
+/// 로그 끝 "걸린 시간" 줄: 전체 · 첫 건까지 · 건당 평균(둘째 건부터)
+fn timing_line(case_at: &[f64], total: f64) -> String {
+    match case_at {
+        [] => format!("## 걸린 시간 {total:.0}초 · 민원 0건"),
+        [one] => format!("## 걸린 시간 {total:.0}초 · 민원 1건 · 첫 건까지 {one:.0}초"),
+        [first, .., last] => {
+            let n = case_at.len();
+            format!("## 걸린 시간 {total:.0}초 · 민원 {n}건 · 첫 건까지 {first:.0}초 · 건당 평균 {:.1}초", (last - first) / (n - 1) as f64)
+        }
+    }
+}
 
 /// stream-json 한 줄을 로그에 남길 모양으로 줄여요(개인정보가 들어갈 수 있는 글·도구 결과는 길이만).
 /// `seen`: 브라우저 고르기 도구(list_connected_browsers·select_browser·switch_browser)의 tool_use id –
@@ -1153,6 +1234,8 @@ pub fn run_claude(run: State<ClaudeRun>, req: RunRequest) -> Result<(), String> 
         let mut last: Option<(String, String)> = None;
         let mut result_text = String::new();
         let mut browser_ids = std::collections::HashSet::new();
+        // 민원 파일(<접수번호>.json)을 쓴 때 – 끝에 "건당 평균"을 남겨요(2026-10-21 신속 자동화)
+        let mut case_at: Vec<f64> = Vec::new();
         if let Some(out) = stdout {
             for line in std::io::BufReader::new(out).lines().map_while(Result::ok) {
                 let Ok(v) = serde_json::from_str::<serde_json::Value>(&line) else {
@@ -1160,6 +1243,12 @@ pub fn run_claude(run: State<ClaudeRun>, req: RunRequest) -> Result<(), String> 
                     continue;
                 };
                 w(&log, &log_line(&v, &line, &mut browser_ids));
+                if writes_case(&v) {
+                    let now = t0.elapsed().as_secs_f64();
+                    let gap = case_at.last().map_or(now, |p| now - p);
+                    case_at.push(now);
+                    w(&log, &format!("## 민원 {}건째 씀 (이번 건 {gap:.1}초)", case_at.len()));
+                }
                 if v["type"] == "result" {
                     result_text = v["result"].as_str().unwrap_or("").to_string();
                     last = Some(final_state(&result_text, v["is_error"].as_bool().unwrap_or(false)));
@@ -1169,6 +1258,7 @@ pub fn run_claude(run: State<ClaudeRun>, req: RunRequest) -> Result<(), String> 
         let Ok(mut g) = inner.lock() else { return };
         let code = g.child.as_mut().and_then(|c| c.wait().ok()).and_then(|s| s.code());
         w(&log, "");
+        w(&log, &timing_line(&case_at, t0.elapsed().as_secs_f64()));
         w(&log, &format!("exit: {}", code.map(|c| c.to_string()).unwrap_or_else(|| "없음".into())));
         if g.status.state != "running" {
             w(&log, "state: stopped(사용자가 멈춤)");
