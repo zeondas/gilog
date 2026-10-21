@@ -1573,6 +1573,18 @@ export default function BudgetScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [memoOpenKey]);
 
+  // 잔액 기준 세 열(원인행위·고른 기준 열·잔액)은 옅게 칠하고 머리 글자 보라(2026-10-21 사용자 2안) – 열 머리를 눌러 칠한 열과 겹치면 두 겹으로
+  const colStyle = (() => {
+    const basisCols = new Set((["cmt", basis, "bal"] as ColId[]).map((c) => VC.findIndex(([x]) => x === c)).filter((i) => i >= 0));
+    const hl = "linear-gradient(var(--bd-col-hl),var(--bd-col-hl))";
+    const out: string[] = [];
+    for (let i = 0; i < VC.length; i++) {
+      const n = (basisCols.has(i) ? 1 : 0) + (colHl === i ? 1 : 0);
+      if (n) out.push(`.bd-body .bd-rw>.bd-c:nth-child(${i + 1}){background-image:${Array(n).fill(hl).join(",")}}`);
+      if (basisCols.has(i)) out.push(`.bd-hd>.bd-h:nth-child(${i + 1}):not(.on){background:var(--accent-tint);color:var(--accent);font-weight:700}`);
+    }
+    return out.join("");
+  })();
   const head = useMemo(
     () =>
       VC.map(([c, label], i) => (
@@ -1769,7 +1781,7 @@ export default function BudgetScreen() {
       )}
       <div className="bd-tbl" style={packed ? { width: colSum + 2 + sbw } : undefined}>
         <style>{shareStyle}</style>
-        <style>{colHl == null ? "" : `.bd-body .bd-rw>.bd-c:nth-child(${colHl + 1}){background-image:linear-gradient(var(--bd-col-hl),var(--bd-col-hl))}`}</style>
+        <style>{colStyle}</style>
         <style>{csStyle}</style>
         <div className="bd-scroll" ref={scroller}>
           <div className="bd-hd" role="row" onContextMenu={resetCols}>
