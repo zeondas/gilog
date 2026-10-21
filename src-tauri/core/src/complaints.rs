@@ -344,6 +344,23 @@ impl Store {
         self.complaint(id)
     }
 
+    /// 두 민원의 연번을 맞바꿔요(민원대장 줄 우클릭 "위로·아래로 옮기기", 2026-10-21 사용자 1안).
+    /// 연번 순서가 표·엑셀·업무일지·캘린더의 순서라 함께 바뀌어요. 바뀐 두 민원을 돌려줘요.
+    pub fn swap_complaint_no(&mut self, a: i64, b: i64) -> Result<(Complaint, Complaint)> {
+        if a == b {
+            return Err(bad("같은 민원이에요"));
+        }
+        let tx = self.conn.transaction()?;
+        let no = |id: i64| -> Result<i64> {
+            tx.query_row("SELECT no FROM complaints WHERE id = ?1", params![id], |r| r.get(0)).optional()?.ok_or(Error::NotFound)
+        };
+        let (na, nb) = (no(a)?, no(b)?);
+        tx.execute("UPDATE complaints SET no = ?2 WHERE id = ?1", params![a, nb])?;
+        tx.execute("UPDATE complaints SET no = ?2 WHERE id = ?1", params![b, na])?;
+        tx.commit()?;
+        Ok((self.complaint(a)?, self.complaint(b)?))
+    }
+
     pub fn delete_complaint(&self, id: i64) -> Result<()> {
         self.conn.execute("DELETE FROM complaints WHERE id = ?1", params![id])?;
         Ok(())
@@ -408,6 +425,23 @@ mod tests {
             done: String::new(),
             road: String::new(),
         }
+    }
+
+    #[test]
+    fn swap_no_exchanges_order() {
+        let d = tempfile::tempdir().unwrap();
+        let mut s = Store::create(d.path(), "1234").unwrap();
+        let a = s.add_complaint(&input("가")).unwrap();
+        let b = s.add_complaint(&input("나")).unwrap();
+        let (a2, b2) = s.swap_complaint_no(a.id, b.id).unwrap();
+        assert_eq!((a2.no, b2.no), (b.no, a.no));
+        assert_eq!(a2.body, a.body);
+        let order: Vec<String> = s.complaints().unwrap().iter().map(|c| c.body.clone()).collect();
+        assert_eq!(order, vec![a.body.clone(), b.body.clone()]);
+        assert!(s.swap_complaint_no(a.id, 9999).is_err());
+        assert_eq!(s.complaints().unwrap().iter().map(|c| c.no).collect::<Vec<_>>(), vec![2, 1]);
+        // 새 민원은 여전히 가장 큰 연번 + 1
+        assert_eq!(s.add_complaint(&input("다")).unwrap().no, 3);
     }
 
     #[test]

@@ -104,6 +104,15 @@ async def s_complaints_headmenu(p):
     await rclick(p, ".cm-head")
 
 
+async def s_complaints_rowmenu(p):
+    await rclick(p, ".cm-view >> nth=1")
+
+
+async def s_complaints_rowmenu_ask(p):
+    await s_complaints_rowmenu(p)
+    await p.locator(".cm-rowmenu .dmenu-item.danger").first.click()
+
+
 async def s_complaints_filter(p):
     await p.locator(".cm-hbtn").first.click()
 
@@ -230,6 +239,8 @@ SCENES.update({
     "journal_print_bad": ("업무일지", s_journal_print_bad),
     "complaints_headmenu": ("민원대장", s_complaints_headmenu),
     "complaints_filter": ("민원대장", s_complaints_filter),
+    "complaints_rowmenu": ("민원대장", s_complaints_rowmenu),
+    "complaints_rowmenu_ask": ("민원대장", s_complaints_rowmenu_ask),
     "complaints_edit_ask": ("민원대장", s_complaints_edit_ask),
     "complaints_newrow_baddate": ("민원대장", s_complaints_newrow_baddate),
     "contacts_card_ask": ("업무연락처", s_contacts_card_ask),
