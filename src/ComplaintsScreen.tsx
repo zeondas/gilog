@@ -1395,7 +1395,8 @@ function ViewRow({
       <div role="cell" className="cm-c cm-multi">
         <Bullets text={c.body} q={q} />
       </div>
-      <div role="cell" className="cm-c cm-multi cm-ink2">
+      {/* 조치내용도 내용과 같은 글자색(2026-10-21 사용자 1안) */}
+      <div role="cell" className="cm-c cm-multi">
         <Bullets text={c.action} q={q} />
       </div>
       <div role="cell" className="cm-c cm-num cm-due">
