@@ -112,6 +112,10 @@ pub(crate) fn upgrade(conn: &rusqlite::Connection) -> Result<()> {
     if !has {
         conn.execute_batch("ALTER TABLE complaints ADD COLUMN done TEXT NOT NULL DEFAULT '';")?;
     }
+    // 민원인·연락처를 "민원인" 한 칸으로(2026-10-21 사용자 ⑦⑧): 예전 민원은 "이름 연락처"로 합쳐 옮겨요. 연락처 칸은 비워 둬요.
+    conn.execute_batch(
+        "UPDATE complaints SET person = TRIM(TRIM(person) || ' ' || TRIM(phone)), phone = '' WHERE TRIM(phone) <> '';",
+    )?;
     // 민원처리가 적은 지시 줄은 기본 머릿기호 ●로(2026-10-21 사용자: 불러온 항목만 □로 보여요).
     // 민원처리가 예전 기본(□)을 그대로 "k":"sq"로 적었어요. 지시 줄 모양("… 지시(…-03 · 2)")인 □ 줄만 기호 종류를 빼요(빼면 ●).
     let mut st = conn.prepare("SELECT id, action FROM complaints WHERE action LIKE '%\"sq\"%' AND action LIKE '% 지시(%'")?;
@@ -407,6 +411,22 @@ mod tests {
     }
 
     #[test]
+    fn person_and_phone_merge_into_one_cell() {
+        let d = tempfile::tempdir().unwrap();
+        let mut s = Store::create(d.path(), "1234").unwrap();
+        let a = s.add_complaint(&ComplaintInput { person: "김영수".into(), phone: "010-4321-8765".into(), ..input("가") }).unwrap();
+        let b = s.add_complaint(&ComplaintInput { person: "".into(), phone: "031-940-5521".into(), ..input("나") }).unwrap();
+        let c = s.add_complaint(&ComplaintInput { person: "서울지방경찰청".into(), phone: "".into(), ..input("다") }).unwrap();
+        upgrade(&s.conn).unwrap();
+        upgrade(&s.conn).unwrap(); // 두 번 돌아도 같아요
+        let all = s.complaints().unwrap();
+        let get = |id: i64| all.iter().find(|x| x.id == id).map(|x| (x.person.clone(), x.phone.clone())).unwrap();
+        assert_eq!(get(a.id), ("김영수 010-4321-8765".to_string(), String::new()));
+        assert_eq!(get(b.id), ("031-940-5521".to_string(), String::new()));
+        assert_eq!(get(c.id), ("서울지방경찰청".to_string(), String::new()));
+    }
+
+    #[test]
     fn order_lines_from_process_become_default_bullet() {
         let d = tempfile::tempdir().unwrap();
         let mut s = Store::create(d.path(), "1234").unwrap();
@@ -569,7 +589,9 @@ mod tests {
         }
         let s = Store::open(tmp.path(), "abcd1234").unwrap();
         let all = s.complaints().unwrap();
-        assert_eq!(all[0].person, "PERSON-MARKER");
+        // 다시 열면 연락처가 민원인 칸으로 합쳐져요(2026-10-21 민원인 한 칸).
+        assert_eq!(all[0].person, "PERSON-MARKER 010-9999-PHONE");
+        assert_eq!(all[0].phone, "");
         assert_eq!(all[0].no, 1);
     }
 }

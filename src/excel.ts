@@ -14,7 +14,8 @@ export type SheetKind = "complaints" | "contacts" | "journal";
 export const SHEET_TITLE: Record<SheetKind, string> = { complaints: "민원대장", contacts: "업무연락처", journal: "업무일지" };
 
 /** 양식의 열 순서(3행 제목) */
-export const COMPLAINT_HEADERS = ["연번", "접수유형", "접수일", "민원유형", "지역", "위치", "민원인", "연락처", "내용", "조치내용", "마감일", "상태", "조치완료일", "메모"];
+/** 13열(2026-10-21 사용자 ⑧ – 민원인·연락처를 "민원인" 한 칸으로) */
+export const COMPLAINT_HEADERS = ["연번", "접수유형", "접수일", "민원유형", "지역", "위치", "민원인", "내용", "조치내용", "마감일", "상태", "조치완료일", "메모"];
 export const CONTACT_HEADERS = ["연번", "이름", "소속", "직위", "무선", "유선", "이메일", "프로젝트", "메모", "그룹", "축약 공사명", "색"];
 
 export type ExcelExport = { rows: string[][]; intake: string[]; status: string[]; days?: string[][] };
@@ -65,7 +66,7 @@ export function complaintRows(list: Complaint[]): string[][] {
   return [...list]
     .sort((a, b) => a.no - b.no || a.id - b.id)
     .map((c) => [
-      String(c.no), c.intake, c.received, c.ctype, c.area, c.place, c.person, c.phone,
+      String(c.no), c.intake, c.received, c.ctype, c.area, c.place, [c.person, c.phone].filter(Boolean).join(" "),
       cellOfLines(c.body), cellOfLines(c.action), c.due, c.status, c.done ?? "", cellOfLines(c.memo),
     ]);
 }
@@ -102,8 +103,9 @@ export function complaintImports(sheet: ExcelSheet): ComplaintImport[] {
     ctype: get(r, "민원유형"),
     area: get(r, "지역"),
     place: get(r, "위치"),
-    person: get(r, "민원인"),
-    phone: get(r, "연락처"),
+    // 민원인 한 칸 – 예전 두 열(민원인·연락처) 엑셀도 합쳐 읽어요.
+    person: [get(r, "민원인"), get(r, "연락처")].filter(Boolean).join(" "),
+    phone: "",
     body: linesOfCell(get(r, "내용")),
     action: linesOfCell(get(r, "조치내용")),
     due: dateOf(get(r, "마감일")),

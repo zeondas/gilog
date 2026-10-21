@@ -133,7 +133,8 @@ async def c_complaints_save(p):
     await p.keyboard.press("End")
     await p.keyboard.type("철")
     await press_out(p, (1400, 860))
-    assert await p.locator(".cm-row", has_text="홍길동철").count() > 0, "바깥 눌렀는데 저장 안 됨"
+    # 민원인 한 칸(2026-10-21) – 예전 연락처가 민원인 칸 끝에 붙어 있어 "…0000철"로 저장돼요.
+    assert await p.locator(".cm-row", has_text="0000철").count() > 0, "바깥 눌렀는데 저장 안 됨"
 
 
 async def c_files_dialog(p):

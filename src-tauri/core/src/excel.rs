@@ -46,8 +46,8 @@ impl SheetKind {
                 ("민원유형", 11.0, false),
                 ("지역", 9.0, false),
                 ("위치", 18.0, true),
-                ("민원인", 9.0, false),
-                ("연락처", 14.0, false),
+                // 민원인 한 칸(2026-10-21 사용자 ⑧ – 이름·기관·연락처를 친 그대로)
+                ("민원인", 18.0, false),
                 ("내용", 34.0, true),
                 ("조치내용", 34.0, true),
                 ("마감일", 11.0, false),
@@ -247,7 +247,7 @@ fn write_sheet(wb: &mut Workbook, kind: SheetKind, rows: &[Vec<String>], data: &
 
     // 목록 칸(민원대장 접수유형·상태) — 자료 행까지만, 안내 메시지 끔, 틀린 값도 막지 않음
     if kind == SheetKind::Complaints && !rows.is_empty() {
-        for (col, list) in [(1u16, &data.intake), (11u16, &data.status)] {
+        for (col, list) in [(1u16, &data.intake), (10u16, &data.status)] {
             let list: Vec<&str> = list.iter().map(String::as_str).filter(|s| !s.is_empty()).collect();
             if list.is_empty() {
                 continue;
@@ -378,7 +378,7 @@ mod tests {
     use super::*;
 
     fn complaint_row(no: &str, body: &str) -> Vec<String> {
-        [no, "전화", "2026-10-15", "포트홀", "조리읍", "봉일천리 113 일원", "홍길동", "010-1234-5678", body, "□ 현장 확인\n  ○ 보수 완료", "2026-10-20", "처리중", "2026-10-21", ""]
+        [no, "전화", "2026-10-15", "포트홀", "조리읍", "봉일천리 113 일원", "홍길동 010-1234-5678", body, "□ 현장 확인\n  ○ 보수 완료", "2026-10-20", "처리중", "2026-10-21", ""]
             .iter()
             .map(|s| s.to_string())
             .collect()
@@ -393,12 +393,13 @@ mod tests {
         write_xlsx(&path, SheetKind::Complaints, &data).unwrap();
         let back = read_xlsx(&path, SheetKind::Complaints).unwrap();
         assert_eq!(back.headers[0], "연번");
-        assert_eq!(back.headers[12], "조치완료일");
-        assert_eq!(back.headers[13], "메모");
+        assert_eq!(back.headers[6], "민원인");
+        assert_eq!(back.headers[11], "조치완료일");
+        assert_eq!(back.headers[12], "메모");
         assert_eq!(back.rows.len(), 2);
-        // 빈 칸은 calamine이 줄 끝에서 자를 수 있어 앞 13칸만 비교해요.
-        assert_eq!(back.rows[0][..13], rows[0][..13]);
-        assert_eq!(back.rows[1][8], "○ 한 줄");
+        // 빈 칸은 calamine이 줄 끝에서 자를 수 있어 앞 12칸만 비교해요.
+        assert_eq!(back.rows[0][..12], rows[0][..12]);
+        assert_eq!(back.rows[1][7], "○ 한 줄");
     }
 
     #[test]
