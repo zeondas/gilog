@@ -122,20 +122,28 @@ export function koIndex(text: string, q: string): number {
 
 // ---------- 상대 ----------
 
+/** 상대 여러 명을 나누는 글자(2026-10-25 사용자: "," → "/"). 예전 기록의 ","도 나눠요. */
+export const WHO_SEP = " / ";
+const WHO_SPLIT = /[,/]/;
+
+/** 상대 칸을 사람마다 나눠요(빈 것 뺌). */
+export function splitPeople(who: string): string[] {
+  return who.split(WHO_SPLIT).map((s) => s.trim()).filter(Boolean);
+}
+
 /** 상대 칸을 이름과 나머지로 나눠요. 한 사람이고 "이름 직위 · 소속" 모양일 때만 나눠요. */
 export function splitWho(who: string): { name: string; rest: string } {
   const w = who.trim();
-  if (w.includes(",") || !w.includes(" · ")) return { name: w, rest: "" };
+  // 여러 명은 예전 ","로 적었어도 " / "로 보여요.
+  if (WHO_SPLIT.test(w)) return { name: splitPeople(w).join(WHO_SEP), rest: "" };
+  if (!w.includes(" · ")) return { name: w, rest: "" };
   const name = w.split(/\s+/)[0];
   return { name, rest: w.slice(name.length).trim().replace(/^·\s*/, "") };
 }
 
 /** 상대 칸에 적힌 사람 이름들 ("김○○ 주무관 · 경기도청, 팀장" → ["김○○", "팀장"]) */
 export function whoNames(who: string): string[] {
-  return who
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean)
+  return splitPeople(who)
     .map((s) => s.split(" · ")[0].trim().split(/\s+/)[0])
     .filter(Boolean);
 }
@@ -145,7 +153,7 @@ export function contactLabel(c: Contact): string {
   return c.name + (c.role ? " " + c.role : "") + (c.org ? " · " + c.org : "");
 }
 
-/** 적은 글자 하나(쉼표 사이)에 맞는 연락처. 이름만 적었으면 그 이름인 사람이 한 명일 때만이에요. */
+/** 적은 글자 하나("/" 사이)에 맞는 연락처. 이름만 적었으면 그 이름인 사람이 한 명일 때만이에요. */
 export function findContact(segment: string, contacts: Contact[]): Contact | null {
   const s = segment.trim();
   if (!s) return null;
@@ -163,7 +171,7 @@ export function findContact(segment: string, contacts: Contact[]): Contact | nul
 
 /** 상대 칸의 사람들 가운데 업무연락처에 있는 첫 사람 */
 export function firstContact(who: string, contacts: Contact[]): Contact | null {
-  for (const seg of who.split(",")) {
+  for (const seg of splitPeople(who)) {
     const c = findContact(seg, contacts);
     if (c) return c;
   }

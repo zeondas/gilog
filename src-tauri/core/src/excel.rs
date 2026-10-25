@@ -77,7 +77,7 @@ impl SheetKind {
                 ("구분", 10.0, false),
                 ("상대", 22.0, false),
                 ("연락처", 14.0, false),
-                ("프로젝트", 20.0, false),
+                ("사업", 20.0, false),
                 ("내용", 64.0, true),
             ],
             SheetKind::JournalDays => &[
