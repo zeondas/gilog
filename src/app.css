@@ -12103,3 +12103,7 @@ body.ew-dragging .pjm-colgrip:active::after {
 }
 .dialog-x:hover { background: var(--surface-band); color: var(--ink); }
 .memo-bar .tb-del { margin-left: 0; }
+/* "+"도 다른 칸처럼 첫 줄 높이에(2026-10-25 사용자 – 가운데에 있어 두 줄 줄에서 어긋났어요). 두 번 누르는 자리는 칸 전체 그대로 */
+.cm-done-add { display: flex; align-items: flex-start; justify-content: center; padding: 0; background: transparent !important; }
+.cm-done-add > span { display: inline-block; min-width: 18px; height: 18px; line-height: 18px; border-radius: var(--radius-sm); }
+.cm-done-add:hover > span { background: var(--surface-band); }
