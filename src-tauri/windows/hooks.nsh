@@ -5,6 +5,11 @@
 ; 앱을 지우면 도우미가 10분 안에 스스로 빠져요(지울 때 관리자 허용을 묻지 않게).
 !include LogicLib.nsh
 
+; 기록 설치 창 꾸미기(2026-10-25 공통 ✔6): 그림 폴더와 창 꾸미기 파일 자리 – installer.nsi가 써요.
+; Tauri가 이 파일을 절대 경로로 불러서, 이 파일이 있는 폴더(windows) 기준으로 잡아요.
+!define GILOG_ASSETS "${__FILEDIR__}\installer"
+!define GILOG_UI "${__FILEDIR__}\gilog-ui.nsh"
+
 !macro NSIS_HOOK_POSTINSTALL
   ${If} ${FileExists} "$INSTDIR\gilog-search.exe"
     StrCpy $0 1

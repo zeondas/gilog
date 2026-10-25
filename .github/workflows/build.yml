@@ -49,6 +49,23 @@ jobs:
           mkdir -p src-tauri/bin
           cp src-tauri/fastfind/target/release/gilog-search.exe src-tauri/bin/
 
+      # 설치·제거 창 그림(2026-10-25 공통 ✔6): 저장소엔 PNG만 두고, NSIS가 읽는 BMP(24비트)로 여기서 바꿔요.
+      # 원본·만드는 법은 src-tauri/windows/installer/src(assets.html·make.py), 창 꾸미기는 src-tauri/windows/gilog-ui.nsh.
+      - name: 설치 창 그림 BMP로
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Drawing
+          $n = 0
+          Get-ChildItem src-tauri/windows/installer/*.png | ForEach-Object {
+            $img = [System.Drawing.Image]::FromFile($_.FullName)
+            $bmp = New-Object System.Drawing.Bitmap($img.Width, $img.Height, [System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
+            $g = [System.Drawing.Graphics]::FromImage($bmp); $g.DrawImage($img, 0, 0, $img.Width, $img.Height); $g.Dispose()
+            $bmp.Save([System.IO.Path]::ChangeExtension($_.FullName, '.bmp'), [System.Drawing.Imaging.ImageFormat]::Bmp)
+            $bmp.Dispose(); $img.Dispose(); $n++
+          }
+          if ($n -lt 40) { throw "설치 창 그림이 모자라요: $n" }
+          Write-Host "설치 창 그림 $n장"
+
       # bash 칸에서는 Git에 딸린 perl이 먼저 잡히는데, 2026-10 러너부터 OpenSSL 설정에 필요한 모듈이 빠져 실패해요.
       # 그래서 윈도우용 Strawberry Perl을 쓰게 해요(openssl-src는 PERL 값을 먼저 봐요).
       - name: 설치 파일 만들기
