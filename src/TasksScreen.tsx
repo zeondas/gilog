@@ -21,6 +21,9 @@ import { AskBand } from "./AskBand";
 
 const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
 
+/** 체크 움직임 시간(ms) – app.css `.td-check.pop`의 td-check-pop과 같게 */
+const CHECK_MS = 400;
+
 
 type Props = {
   urgentDays: number;
@@ -53,6 +56,13 @@ export default function TasksScreen({ urgentDays, focusId, onFocused, onOpenComp
   const [cardMenu, setCardMenu] = useState<{ id: number; x: number; y: number; mode: "menu" | "rename" | "ask" } | null>(null);
   /** 이번에 체크한 민원의 그 전 상태. 체크를 풀면 이 상태로 돌려요. */
   const prevStatus = useRef(new Map<number, string>());
+  /**
+   * 방금 직접 눌러 체크한 항목(key). 체크 움직임(약 0.4초) 동안 남은 일 자리에 두고, 끝나면 지워 "완료됨"으로 내려가요.
+   * 저장은 누르자마자 해요 – 이 값은 화면만 바꿔요(2026-10-25 할 일 ①~④ 1안, 시안 Todo.dc.html).
+   */
+  const [justDone, setJustDone] = useState<string | null>(null);
+  const justTimer = useRef(0);
+  useEffect(() => () => window.clearTimeout(justTimer.current), []);
 
   useEffect(() => {
     api.tasksData().then(setData, (e) => setNote(errorText(e)));
@@ -151,9 +161,30 @@ export default function TasksScreen({ urgentDays, focusId, onFocused, onOpenComp
     return true;
   }
 
-  async function toggleTask(t: Task) {
+  async function toggleTask(t: Task): Promise<boolean> {
     const r = await run(api.setTaskDone(t.id, !t.done, todayStr()));
     if (r) putTasks(r);
+    return !!r;
+  }
+
+  /**
+   * 체크 상자를 눌렀을 때(마우스·Space 같아요). 체크하는 쪽이면 움직임을 켜고, 저장이 끝나고 움직임 시간이 지나면 내려보내요.
+   * 체크를 푸는 쪽·움직임 줄이기 설정이면 움직임 없이 바로 바뀌어요.
+   */
+  function check(it: Item) {
+    const save = () => (it.task ? toggleTask(it.task) : it.complaint ? toggleComplaint(it.complaint) : Promise.resolve(false));
+    if (it.done || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      void save();
+      return;
+    }
+    const started = Date.now();
+    window.clearTimeout(justTimer.current);
+    setJustDone(it.key);
+    const clear = () => setJustDone((k) => (k === it.key ? null : k));
+    void save().then((ok) => {
+      if (!ok) return clear();
+      justTimer.current = window.setTimeout(clear, Math.max(0, CHECK_MS - (Date.now() - started)));
+    });
   }
 
   async function removeTask(id: number) {
@@ -168,7 +199,7 @@ export default function TasksScreen({ urgentDays, focusId, onFocused, onOpenComp
    * 민원 체크: 마감일은 법정 답변기한이라 체크 = 상태 "답변"(그 전 상태를 기억해요).
    * 답변이 끝난 민원(답변·완료·보류·장기)은 체크된 것으로 보이고, 풀면 그 전 상태(모르면 답변 전 첫 상태)로 돌려요.
    */
-  async function toggleComplaint(c: Complaint) {
+  async function toggleComplaint(c: Complaint): Promise<boolean> {
     let next: string;
     if (isAnswered(c.status)) {
       next = prevStatus.current.get(c.id) ?? statuses.find((s) => !isAnswered(s)) ?? "접수";
@@ -178,6 +209,7 @@ export default function TasksScreen({ urgentDays, focusId, onFocused, onOpenComp
     }
     const r = await run(api.setComplaintStatus(c.id, next));
     if (r) setComplaints((list) => list.map((x) => (x.id === r.id ? r : x)));
+    return !!r;
   }
 
   async function addList(name: string): Promise<boolean> {
@@ -250,7 +282,7 @@ export default function TasksScreen({ urgentDays, focusId, onFocused, onOpenComp
           {shown.length ? (
             <div className="td-cards">
               {shown.map((l) => {
-                const { open, done } = split(itemsOf.get(l.id) ?? [], lq);
+                const { open, done } = split(itemsOf.get(l.id) ?? [], lq, justDone);
                 const doneOpen = openDone.has(l.id) || (!!lq && done.length > 0);
                 const row = (it: Item, sub: boolean, inDone: boolean): ReactNode => (
                   <ItemRow
@@ -272,7 +304,8 @@ export default function TasksScreen({ urgentDays, focusId, onFocused, onOpenComp
                         setEditId(it.task.id);
                       }
                     }}
-                    onCheck={() => (it.task ? toggleTask(it.task) : it.complaint && toggleComplaint(it.complaint))}
+                    pop={justDone === it.key}
+                    onCheck={() => check(it)}
                     onOpenComplaint={() => it.complaint && onOpenComplaint?.(it.complaint.id)}
                     onSub={() => it.task && setSubFor(it.task.id)}
                     onSave={(e) => (it.task ? saveTask(it.task.id, e) : Promise.resolve(false))}
@@ -817,6 +850,7 @@ function ItemRow({
   selected,
   flash,
   editing,
+  pop,
   onSelect,
   onEdit,
   onCheck,
@@ -835,6 +869,8 @@ function ItemRow({
   selected: boolean;
   flash: boolean;
   editing: boolean;
+  /** 방금 직접 눌러 체크했어요 – 체크 움직임을 보이고, 끝날 때까지 남은 일 자리에 있어요. */
+  pop: boolean;
   onSelect: () => void;
   onEdit: () => void;
   onCheck: () => void;
@@ -860,6 +896,10 @@ function ItemRow({
   const badge = !inDone && it.due ? dueBadge(it.due, today, urgentDays) : null;
   const hasDetail = it.detail.length > 0;
   const childCount = it.children.length;
+  // 저장이 돌아오기 전에도 누른 순간부터 체크된 모양이에요.
+  const on = it.done || pop;
+  // 남은 일 자리에 잠깐 머무는 완료 항목(방금 체크한 것과 함께 완료된 하위 항목): 글자만 완료 모양, 줄 높이는 그대로.
+  const settling = !inDone && on;
 
   return (
     <div
@@ -867,7 +907,7 @@ function ItemRow({
       data-key={it.key}
       tabIndex={0}
       aria-selected={selected}
-      className={"td-row" + (sub ? " sub" : "") + (inDone ? " done" : "") + (selected ? " sel" : "") + (flash ? " flash" : "")}
+      className={"td-row" + (sub ? " sub" : "") + (inDone ? " done" : "") + (settling ? " settling" : "") + (selected ? " sel" : "") + (flash ? " flash" : "")}
       title={c ? "눌러서 내용 보기 · 두 번 누르면 민원대장에서 보기" : "눌러서 세부정보 보기 · 두 번 누르면 고치기"}
       onClick={(e: ReactMouseEvent) => {
         if ((e.target as HTMLElement).closest("button, .td-row-acts, .bl-list")) return;
@@ -891,13 +931,16 @@ function ItemRow({
     >
       <button
         type="button"
-        className={"td-check" + (it.done ? " on" : "") + (c ? " linked" : "")}
-        aria-pressed={it.done}
-        aria-label={c ? (it.done ? "답변 취소 (민원대장 상태를 되돌려요)" : "답변으로 표시 (민원대장 상태가 답변으로 바뀌어요)") : it.done ? "완료 취소" : "완료로 표시"}
-        title={c ? (it.done ? "체크를 풀면 민원대장의 상태를 그 전으로 되돌려요" : "체크하면 민원대장의 상태가 답변으로 바뀌어요") : undefined}
-        onClick={onCheck}
+        className={"td-check" + (on ? " on" : "") + (pop ? " pop" : "") + (c ? " linked" : "")}
+        aria-pressed={on}
+        aria-label={c ? (on ? "답변 취소 (민원대장 상태를 되돌려요)" : "답변으로 표시 (민원대장 상태가 답변으로 바뀌어요)") : on ? "완료 취소" : "완료로 표시"}
+        title={c ? (on ? "체크를 풀면 민원대장의 상태를 그 전으로 되돌려요" : "체크하면 민원대장의 상태가 답변으로 바뀌어요") : undefined}
+        onClick={() => {
+          // 움직이는 동안 한 번 더 누르면 무시해요(저장이 두 번 가지 않게).
+          if (!pop) onCheck();
+        }}
       >
-        {it.done && <Tick />}
+        <Tick />
       </button>
       <div className="td-row-main">
         <div className="td-row-title">
@@ -1095,9 +1138,10 @@ function TaskEditor({
 
 // ---------- 아이콘 ----------
 
+/** 체크 표시. 목록 줄의 체크 상자에는 늘 그려 두고, 체크 전엔 감췄다가 마우스를 올리면 연하게 미리 보여요(app.css `.td-tick`). */
 function Tick() {
   return (
-    <svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round">
+    <svg className="td-tick" aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round">
       <path d="M5 12.5l4.5 4.5L19 7.5" />
     </svg>
   );

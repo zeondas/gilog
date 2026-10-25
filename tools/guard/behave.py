@@ -124,6 +124,88 @@ async def c_tasks_add(p):
     assert await p.locator(".td-row", has_text="바깥 저장 시험").count() > 0, "바깥 눌렀는데 등록 안 됨"
 
 
+# ---------- 할 일 체크 움직임 (2026-10-25 할 일 ①~④ 1안) ----------
+def _row(p, title):
+    return p.locator(".td-row", has_text=title).first
+
+
+async def _in_open(p, title):
+    return await p.locator(".td-items .td-row", has_text=title).count() > 0
+
+
+async def c_tasks_check(p):
+    await shoot.nav(p, "할 일")
+    btn = _row(p, "행정사무감사 자료").locator("button.td-check")
+    # ① 올리면 연한 체크가 미리 보임
+    await btn.hover()
+    await p.wait_for_timeout(100)
+    op = await btn.locator(".td-tick").evaluate("e => getComputedStyle(e).opacity")
+    assert abs(float(op) - 0.4) < 0.01, f"올렸을 때 미리 보기 투명도 {op}"
+    # ② 누르면 바로 체크 모양 + 움직임, ③ 움직이는 동안 제자리
+    await btn.click()
+    await p.wait_for_timeout(120)
+    assert await _row(p, "행정사무감사 자료").locator("button.td-check.pop[aria-pressed=true]").count() == 1, "누른 직후 체크·움직임이 없음"
+    assert await _in_open(p, "행정사무감사 자료"), "움직이는 동안 제자리에 없음"
+    await p.wait_for_timeout(600)
+    assert not await _in_open(p, "행정사무감사 자료"), "움직임이 끝났는데 완료됨으로 안 내려감"
+    assert await p.locator(".td-check.pop").count() == 0, "움직임 표시가 남음"
+    # 저장됐는지: 다른 화면에 갔다 와도 완료
+    await shoot.nav(p, "업무일지")
+    await shoot.nav(p, "할 일")
+    assert not await _in_open(p, "행정사무감사 자료"), "다시 열었더니 완료가 저장 안 됨"
+    # ④ 되돌리기는 움직임 없이 바로
+    await p.locator(".td-card", has_text="행정업무").locator(".td-done-toggle").click()
+    await _row(p, "행정사무감사 자료").locator("button.td-check").click()
+    await p.wait_for_timeout(80)
+    assert await p.locator(".td-check.pop").count() == 0, "되돌리기에 움직임이 있음"
+    assert await _in_open(p, "행정사무감사 자료"), "되돌렸는데 남은 일로 안 돌아옴"
+
+
+async def c_tasks_check_parent(p):
+    await shoot.nav(p, "할 일")
+    await _row(p, "예산 요구서 작성").locator("button.td-check").click()
+    await p.wait_for_timeout(120)
+    kid = _row(p, "증감 내역 정리")
+    assert await _in_open(p, "증감 내역 정리"), "위 항목이 움직이는 동안 하위 항목이 먼저 내려감"
+    assert await kid.locator("button.td-check[aria-pressed=true]").count() == 1, "하위 항목이 함께 체크 안 됨"
+    assert await kid.locator("button.td-check.pop").count() == 0, "하위 항목도 움직임(④ 1안은 직접 누른 것만)"
+    await p.wait_for_timeout(600)
+    assert not await _in_open(p, "예산 요구서 작성") and not await _in_open(p, "증감 내역 정리"), "위·하위 항목이 함께 안 내려감"
+
+
+async def c_tasks_check_space(p):
+    await shoot.nav(p, "할 일")
+    await _row(p, "행정사무감사 자료").locator("button.td-check").focus()
+    await p.keyboard.press("Space")
+    await p.wait_for_timeout(120)
+    assert await p.locator(".td-check.pop").count() == 1, "Space로 체크해도 움직임이 없음"
+    await p.wait_for_timeout(600)
+    assert not await _in_open(p, "행정사무감사 자료"), "Space 체크 뒤 안 내려감"
+
+
+async def c_tasks_check_complaint(p):
+    await shoot.nav(p, "할 일")
+    btn = p.locator(".td-items button.td-check.linked[aria-pressed=false]").first
+    title = (await btn.locator("xpath=..").locator(".td-title-t").inner_text()).strip()
+    n0 = await p.locator(".td-items .td-row", has_text=title).count()
+    await btn.click()
+    await p.wait_for_timeout(120)
+    assert await p.locator(".td-check.linked.pop").count() == 1, "민원 체크에 움직임이 없음"
+    await p.wait_for_timeout(600)
+    assert await p.locator(".td-items .td-row", has_text=title).count() == n0 - 1, "민원이 완료됨으로 안 내려감"
+    await shoot.nav(p, "민원대장")
+    assert await p.locator(".cm-row", has_text="답변").count() > 0, "민원대장 상태가 답변으로 안 바뀜"
+
+
+async def c_tasks_check_reduced(p):
+    await p.emulate_media(reduced_motion="reduce")
+    await shoot.nav(p, "할 일")
+    await _row(p, "행정사무감사 자료").locator("button.td-check").click()
+    await p.wait_for_timeout(80)
+    assert await p.locator(".td-check.pop").count() == 0, "움직임 줄이기인데 움직임이 있음"
+    assert not await _in_open(p, "행정사무감사 자료"), "움직임 줄이기면 바로 내려가야 함"
+
+
 async def c_complaints_save(p):
     await shoot.nav(p, "민원대장")
     await shoot.s_complaints_edit(p)
@@ -281,6 +363,11 @@ CASES = {
     "files_dialog": c_files_dialog,
     "journal_save": c_journal_save,
     "tasks_add_save": c_tasks_add,
+    "tasks_check": c_tasks_check,
+    "tasks_check_parent": c_tasks_check_parent,
+    "tasks_check_space": c_tasks_check_space,
+    "tasks_check_complaint": c_tasks_check_complaint,
+    "tasks_check_reduced": c_tasks_check_reduced,
     "complaints_save": c_complaints_save,
 }
 
