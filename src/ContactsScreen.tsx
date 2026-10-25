@@ -196,17 +196,15 @@ export default function ContactsScreen() {
           parse={(sheet) => [contactImports(sheet)]}
           count={(rows) => rows[0]?.contacts.length ?? 0}
           note={(sheet) => {
-            const r = contactImports(sheet);
-            const same = r.contacts.filter((c) => all.some((x) => samePerson(x, c))).length;
-            const n = r.projects.length;
-            return [same ? `이미 있는 사람 ${same}명은 새로 만들지 않고 사업만 붙여요` : "", n ? `사업 ${n}개의 축약 공사명·그룹·색도 맞춰요` : ""]
-              .filter(Boolean)
-              .join(" · ");
+            const n = contactImports(sheet).projects.length;
+            return n ? `사업 ${n}개의 축약 공사명·그룹·색도 맞춰요` : "";
           }}
-          onImport={async ([r]) => {
+          // 덮어쓰기의 "같은 사람" = 이름 + 소속 + 무선(숫자만) – 칸 값도 파일로 덮고 사업은 더 붙여요(공통 ✔5)
+          preview={([r]) => ({ same: r ? r.contacts.filter((c) => all.some((x) => samePerson(x, c))).length : 0, total: all.length })}
+          onImport={async ([r], mode) => {
             // 프로젝트(숨긴 열의 그룹·축약 공사명·색)를 먼저 넣어야 연락처의 프로젝트 칸이 그 프로젝트로 이어져요.
             await importProjects(r.projects);
-            await api.importContacts(r.contacts);
+            await api.importContacts(r.contacts, mode === "replace");
             setData(await api.contactsData());
             // "N건을 가져왔어요" – 묻는 창의 N건과 같게(이미 있는 사람에게 프로젝트만 붙인 것도 셈)
             return r.contacts.length;

@@ -317,20 +317,24 @@ export default function JournalScreen({
             parse={(sheet) => [journalImports(sheet, data.entries, cdata.projects, myName)]}
             note={(sheet) => {
               const r = journalImports(sheet, data.entries, cdata.projects, myName);
-              const parts = [r.dup ? `이미 있는 기록 ${r.dup}건` : "", r.bad ? `날짜·시각·내용을 읽지 못한 줄 ${r.bad}건` : ""].filter(Boolean);
+              const parts = [r.dup ? `파일 안에서 겹친 줄 ${r.dup}건` : "", r.bad ? `날짜·시각·내용을 읽지 못한 줄 ${r.bad}건` : ""].filter(Boolean);
               return parts.length ? parts.join(" · ") + "은 건너뛰어요" : "";
             }}
-            importHint="같은 기록이 이미 있으면 건너뛰어요"
             count={(rows) => rows[0]?.entries.length ?? 0}
-            onImport={async ([r]) => {
+            // 덮어쓰기의 "같은 기록" = 날짜 + 시각 + 상대(2026-10-25 사용자 ②3안, 공통 ✔5)
+            preview={([r]) => ({ same: r ? r.same.filter((x) => x !== null).length : 0, total: data.entries.length })}
+            onImport={async ([r], mode) => {
+              // 대체하기: 기록·날짜 머리 줄을 한 번에 모두 지운 뒤 넣어요.
+              if (mode === "replace") await api.clearJournal();
               let n = 0;
-              for (const e of r.entries) {
-                await api.addEntry(e);
+              for (const [i, e] of r.entries.entries()) {
+                const id = mode === "merge" ? r.same[i] : null;
+                if (id !== null) await api.updateEntry(id, e);
+                else await api.addEntry(e);
                 n++;
               }
-              // 날짜별 머리 줄은 그 날 머리 줄이 비어 있을 때만 채워요(적어 둔 것은 그대로).
-              const has = new Set(data.days.filter((d) => d.arrive || d.transport || d.weather || d.note).map((d) => d.date));
-              for (const d of r.days) if (!has.has(d.date)) await api.setDay(d);
+              // 날짜별 머리 줄: 파일에 적힌 날은 파일 값으로(덮어쓰기·대체하기 모두).
+              for (const d of r.days) await api.setDay(d);
               setData(await api.journalData());
               return n;
             }}

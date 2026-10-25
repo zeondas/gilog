@@ -455,6 +455,11 @@ fn delete_journal_day(state: State<AppState>, date: String) -> Result<usize, Str
 }
 
 #[tauri::command]
+fn clear_journal(state: State<AppState>) -> Result<usize, String> {
+    with_store(&state, |s| s.clear_journal())
+}
+
+#[tauri::command]
 fn set_journal_day(state: State<AppState>, day: DayInfo) -> Result<DayInfo, String> {
     with_store(&state, |s| s.set_day(&day))
 }
@@ -512,13 +517,13 @@ fn excel_read(path: String, kind: SheetKind) -> Result<ExcelSheet, String> {
 }
 
 #[tauri::command]
-fn import_complaints(state: State<AppState>, rows: Vec<ComplaintImport>) -> Result<usize, String> {
-    with_store(&state, |s| s.import_complaints(&rows))
+fn import_complaints(state: State<AppState>, rows: Vec<ComplaintImport>, replace: Option<bool>) -> Result<(usize, usize), String> {
+    with_store(&state, |s| s.import_complaints(&rows, replace.unwrap_or(false)))
 }
 
 #[tauri::command]
-fn import_contacts(state: State<AppState>, rows: Vec<ContactImport>) -> Result<usize, String> {
-    with_store(&state, |s| s.import_contacts(&rows))
+fn import_contacts(state: State<AppState>, rows: Vec<ContactImport>, replace: Option<bool>) -> Result<(usize, usize), String> {
+    with_store(&state, |s| s.import_contacts(&rows, replace.unwrap_or(false)))
 }
 
 // ---------- 할 일 목록 ----------
@@ -709,6 +714,7 @@ pub fn run() {
             delete_journal_entry,
             set_journal_day,
             delete_journal_day,
+            clear_journal,
             complaints,
             add_complaint,
             update_complaint,

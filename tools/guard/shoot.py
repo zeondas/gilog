@@ -237,6 +237,32 @@ async def s_settings_list_ask(p):
     await p.locator(".chip-x").first.click()
 
 
+async def s_complaints_import(p):
+    # 엑셀 가져오기 – 방식 고르기 창(2026-10-25 공통 ✔5). 미리 보기는 먼저 내보낸 파일만 읽어서 내보내기부터 해요.
+    await p.locator(".xl-btn").first.click()
+    await p.locator(".xl-item", has_text="내보내기").first.click()
+    await p.wait_for_timeout(300)
+    await p.locator(".xl-btn").first.click()
+    await p.locator(".xl-item", has_text="가져오기").first.click()
+    await p.wait_for_timeout(400)
+
+
+async def s_complaints_import_merge(p):
+    await s_complaints_import(p)
+    await p.locator(".xl-pk", has_text="덮어쓰기").first.click()
+
+
+async def s_complaints_import_replace(p):
+    await s_complaints_import(p)
+    await p.locator(".xl-pk", has_text="대체하기").first.click()
+
+
+async def s_settings_calendar(p):
+    # 설정 "캘린더" 카드 안 구글 연동 묶음(2026-10-25 공통 ✔3)
+    await p.locator("section[aria-label='캘린더']").first.scroll_into_view_if_needed()
+    await p.wait_for_timeout(200)
+
+
 SCREENS = ["탐색기", "민원대장", "민원처리", "집행현황", "예산현황", "캘린더", "할 일", "업무일지", "업무연락처", "설정"]
 SCENES = {f"screen_{i:02d}": (n, None) for i, n in enumerate(SCREENS)}
 SCENES.update({
@@ -276,6 +302,10 @@ SCENES.update({
     "calendar_dlg_baddate": ("캘린더", s_calendar_dlg_baddate),
     "files_find_baddate": ("탐색기", s_files_find_baddate),
     "settings_list_ask": ("설정", s_settings_list_ask),
+    "complaints_import": ("민원대장", s_complaints_import),
+    "complaints_import_merge": ("민원대장", s_complaints_import_merge),
+    "complaints_import_replace": ("민원대장", s_complaints_import_replace),
+    "settings_calendar": ("설정", s_settings_calendar),
 })
 
 

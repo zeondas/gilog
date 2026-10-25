@@ -760,21 +760,34 @@ function fakeComplaints(cmd: string, a: Record<string, unknown>): unknown {
       return null;
     case "import_complaints": {
       // 엑셀 가져오기: 판단하지 않고 그대로 넣어요(core import_complaints와 같게).
+      // 덮어쓰기: 접수일 + 접수유형 + 위치가 같으면 덮고 나머지는 더해요 · 대체하기(replace): 모두 지우고 넣어요(공통 ✔5).
       const rows = a.rows as (ComplaintInput & { memo: string })[];
+      if (a.replace) fake.complaints = [];
       let no = fake.complaints.reduce((m, x) => Math.max(m, x.no), 0);
+      let updated = 0;
+      let added = 0;
       for (const r of rows) {
         const t = (s: string) => (s ?? "").trim();
         // 위치가 파주시 도로명주소면 바꿔요(core convert와 같게)
         const L = fakeRoadToJibun(t(r.place));
         const conv = L.kind === "exact" ? { area: areaFor(L.hit, t(r.area)), place: L.hit.place, road: L.original } : { area: t(r.area), place: t(r.place), road: "" };
-        fake.complaints.push({
-          id: fake.nextComplaintId++, no: ++no, intake: t(r.intake), received: t(r.received), ctype: t(r.ctype), area: conv.area,
+        const fields = {
+          intake: t(r.intake), received: t(r.received), ctype: t(r.ctype), area: conv.area,
           place: conv.place, road: conv.road, person: t(r.person), phone: t(r.phone), body: lines(r.body), action: lines(r.action), due: t(r.due), done: t(r.done ?? ""),
           status: t(r.status) || "접수", memo: t(r.memo),
-        });
+        };
+        const keyed = !a.replace && (fields.intake || fields.received || fields.place);
+        const same = keyed ? fake.complaints.find((c) => c.received === fields.received && c.intake === fields.intake && c.place === fields.place) : undefined;
+        if (same) {
+          Object.assign(same, fields);
+          updated++;
+          continue;
+        }
+        fake.complaints.push({ id: fake.nextComplaintId++, no: ++no, ...fields });
+        added++;
       }
       renumber();
-      return rows.length;
+      return [updated, added];
     }
   }
   return undefined;
@@ -812,6 +825,12 @@ function fakeJournal(cmd: string, a: Record<string, unknown>): unknown {
     case "delete_journal_entry":
       fake.entries = fake.entries.filter((x) => x.id !== a.id);
       return null;
+    case "clear_journal": {
+      const n = fake.entries.length;
+      fake.entries = [];
+      fake.days = [];
+      return n;
+    }
     case "delete_journal_day": {
       const date = a.date as string;
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw "invalid";
@@ -874,24 +893,31 @@ function fakeContacts(cmd: string, a: Record<string, unknown>): ContactsData | n
       return data();
     case "import_contacts": {
       const rows = a.rows as (ContactInput & { memo: string })[];
+      // 대체하기(replace): 연락처를 모두 지워요(사업 표는 남김) · 덮어쓰기: 같은 사람은 칸 값도 덮어요(공통 ✔5).
+      if (a.replace) fake.contacts = [];
+      let updated = 0;
+      let added = 0;
       for (const r of rows) {
         const t = (s: string) => (s ?? "").trim();
         const names = [...new Set(r.projects.map((p) => p.trim()).filter(Boolean))];
         const dg = (x: string) => (x ?? "").replace(/\D/g, "");
         const same = t(r.name) ? fake.contacts.find((c) => c.name === t(r.name) && c.org === t(r.org) && dg(c.mobile) === dg(r.mobile)) : undefined;
         if (same) {
+          Object.assign(same, { role: t(r.role), mobile: t(r.mobile), tel: t(r.tel), email: t(r.email), memo: t(r.memo) });
           for (const n of names) {
             const id = projectId(n);
             if (!same.projects.includes(id)) same.projects.push(id);
           }
+          updated++;
           continue;
         }
         fake.contacts.push({
           id: fake.nextId++, name: t(r.name), org: t(r.org), role: t(r.role), mobile: t(r.mobile), tel: t(r.tel), email: t(r.email),
           memo: t(r.memo), projects: names.map(projectId),
         });
+        added++;
       }
-      return rows.length as unknown as ContactsData;
+      return [updated, added] as unknown as ContactsData;
     }
     case "add_contact":
       fake.contacts.push({ id: fake.nextId++, memo: "", ...clean(a.contact as ContactInput) });
@@ -1398,6 +1424,8 @@ export const api = {
   setDay: (day: DayInfo) => call<DayInfo>("set_journal_day", { day }),
   /** 그 날의 기록과 머리 줄을 모두 지워요. 지운 기록 수를 돌려줘요. */
   deleteDay: (date: string) => call<number>("delete_journal_day", { date }),
+  /** 엑셀 가져오기 "대체하기" – 모든 기록·날짜 머리 줄을 지워요(공통 ✔5) */
+  clearJournal: () => call<number>("clear_journal"),
 
   complaints: () => call<Complaint[]>("complaints"),
   /** 위치 글이 파주시 도로명주소면 법정동 지번으로 (core address.rs) */
@@ -1465,8 +1493,9 @@ export const api = {
   stopClaude: () => call<null>("stop_claude"),
   claudeStatus: (inbox: string) => call<RunStatus>("claude_status", { inbox }),
   /** 엑셀에서 읽은 줄을 그대로 넣고 넣은 수를 돌려줘요. */
-  importComplaints: (rows: (ComplaintInput & { memo: string })[]) => call<number>("import_complaints", { rows }),
-  importContacts: (rows: (ContactInput & { memo: string })[]) => call<number>("import_contacts", { rows }),
+  /** 엑셀 가져오기 – 돌려주는 값은 [덮은 수, 더한 수]. replace = 대체하기(모두 지우고 넣기, 공통 ✔5) */
+  importComplaints: (rows: (ComplaintInput & { memo: string })[], replace = false) => call<[number, number]>("import_complaints", { rows, replace }),
+  importContacts: (rows: (ContactInput & { memo: string })[], replace = false) => call<[number, number]>("import_contacts", { rows, replace }),
   /** 엑셀 파일 쓰기·읽기(kind: "complaints" | "contacts") */
   excelWrite: (path: string, kind: string, data: { rows: string[][]; intake: string[]; status: string[]; days?: string[][] }) => call<null>("excel_write", { path, kind, data }),
   excelRead: (path: string, kind: string) => call<{ headers: string[]; rows: string[][]; extra?: { headers: string[]; rows: string[][] }[] }>("excel_read", { path, kind }),

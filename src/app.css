@@ -12188,3 +12188,88 @@ body.ew-dragging .pjm-colgrip:active::after {
 .cm-done-add > span { display: inline-block; min-width: 18px; height: 18px; line-height: 18px; border-radius: var(--radius-sm); }
 .cm-done-add:hover > span { background: var(--surface-band); }
 .cm-done-c .cm-tpick { align-items: flex-start; justify-content: center; }
+
+/* 설정 카드 안 작은 묶음 머리글 – 캘린더 카드의 "구글 연동"(2026-10-25 공통 ✔3, 시안 docs/qa/common/google_card.png 1안) */
+.set-sub {
+  padding: var(--space-3) var(--space-4) var(--space-1);
+  border-top: 1px solid var(--line-row);
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+/* 엑셀 가져오기 – 방식 고르기 창(2026-10-25 사용자 ②3안, 공통 ✔5, 그림 docs/qa/common/excel_import2.png) */
+.xl-ask {
+  width: 450px;
+}
+.xl-pick {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: var(--space-1);
+}
+.xl-pk {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 14px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.xl-pk:hover,
+.xl-pk:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-tint);
+  outline: none;
+}
+.xl-pk-red:hover,
+.xl-pk-red:focus-visible {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px var(--danger-wash);
+}
+.xl-pk-ic {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  background: var(--accent-tint);
+  color: var(--accent);
+}
+.xl-pk-red .xl-pk-ic {
+  background: var(--danger-wash);
+  color: var(--danger);
+}
+.xl-pk-t {
+  font-size: 14.5px;
+  font-weight: 700;
+}
+.xl-pk-s {
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 19px;
+}
+.xl-sum {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-band);
+  line-height: 20px;
+}
+.xl-sum b {
+  font-weight: 700;
+}
+.ask-band.xl-band {
+  margin-top: 0;
+}
+.xl-back {
+  margin-right: auto;
+}
