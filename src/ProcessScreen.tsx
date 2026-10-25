@@ -1848,8 +1848,8 @@ function WorksDialog({
         <div className="pr-wgrid pr-whead">
           <span>공사명 (지시부 · 업무연락처에서 고르기)</span>
           <span>축약 공사명 (표·파일)</span>
-          <span>시공사</span>
           <span>현장대리인 (업무연락처)</span>
+          <span>시공사</span>
           <span>처리 범위 (판단 기준)</span>
           <span>다음 연번</span>
           <span />
@@ -1863,8 +1863,8 @@ function WorksDialog({
                 <div key={w.id} ref={editRef} className="pr-wgrid pr-wrow pr-wedit" onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing && (e.target as HTMLElement).tagName === "INPUT" && !document.querySelector(".pr-cmenu")) saveEdit(); }}>
                   <ProjectPick d={edit} cd={cd} onChange={setEdit} />
                   <input className="cell-input" aria-label="축약 공사명" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} />
-                  <input className="cell-input" aria-label="시공사" value={edit.co} onChange={(e) => setEdit({ ...edit, co: e.target.value })} />
                   <AgentInputs d={edit} contacts={cd.contacts} onChange={setEdit} />
+                  <input className="cell-input" aria-label="시공사" value={edit.co} onChange={(e) => setEdit({ ...edit, co: e.target.value })} />
                   <input className="cell-input" aria-label="처리 범위" value={edit.scope} onChange={(e) => setEdit({ ...edit, scope: e.target.value })} />
                   <input className="cell-input pr-in center" aria-label="다음 연번" value={edit.nextSeq} onChange={(e) => setEdit({ ...edit, nextSeq: e.target.value.replace(/\D/g, "") })} />
                   <button type="button" className="pr-save" title="저장 (Enter)" onClick={saveEdit}>
@@ -1887,7 +1887,6 @@ function WorksDialog({
                   <span className="pr-ell">{w.full || w.name}</span>
                 </span>
                 <span className="pr-ell">{w.full && w.full !== w.name ? w.name : <span className="pr-sub">–</span>}</span>
-                <span className="pr-ell">{w.co}</span>
                 <span className="pr-agent" title="업무연락처와 같은 연락처예요. 어느 쪽에서 고쳐도 함께 바뀌어요">
                   {c ? (
                     <span className="pr-agent-name">
@@ -1898,6 +1897,7 @@ function WorksDialog({
                     <span className="pr-sub">–</span>
                   )}
                 </span>
+                <span className="pr-ell">{w.co}</span>
                 <span className="pr-scope">{w.scope}</span>
                 <span className="pr-num">{String(w.nextSeq).padStart(2, "0")}</span>
                 <button
@@ -1917,8 +1917,8 @@ function WorksDialog({
           <div className="pr-wgrid pr-wrow pr-wnew">
             <ProjectPick d={draft} cd={cd} onChange={setDraft} placeholder="업무연락처 프로젝트 찾기" />
             <input className="cell-input" placeholder="예: 동부권 도로시설물 1지구" aria-label="새 축약 공사명" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
-            <input className="cell-input" placeholder="시공사" aria-label="새 시공사" value={draft.co} onChange={(e) => setDraft({ ...draft, co: e.target.value })} />
             <AgentInputs d={draft} contacts={cd.contacts} onChange={setDraft} />
+            <input className="cell-input" placeholder="시공사" aria-label="새 시공사" value={draft.co} onChange={(e) => setDraft({ ...draft, co: e.target.value })} />
             <input className="cell-input" placeholder="예: 반사경, 시선유도봉, 작은 포트홀" aria-label="새 처리 범위" value={draft.scope} onChange={(e) => setDraft({ ...draft, scope: e.target.value })} />
             <input className="cell-input pr-in center" title="처음 연번(보통 1)" aria-label="새 다음 연번" value={draft.nextSeq} onChange={(e) => setDraft({ ...draft, nextSeq: e.target.value.replace(/\D/g, "") })} />
             <button type="button" className="pr-add" aria-label="공사 등록" onClick={add}>
@@ -1930,7 +1930,7 @@ function WorksDialog({
         </div>
         <div className="pr-hints">
           {err && <span className="pr-err">{err}</span>}
-          <span>공사명 칸에 치면 업무연락처 프로젝트가 떠요. 고르면 축약 공사명·시공사·현장대리인을 업무연락처에서 채워요(목록에 없으면 새 프로젝트로 등록돼요). 현장대리인은 업무연락처와 같은 연락처예요(어느 쪽에서 고쳐도 함께 바뀌어요). 줄을 두 번 누르면 고치고 [저장]·Enter로 저장해요(Esc 취소).</span>
+          <span>공사명 칸에 치면 업무연락처 프로젝트가 떠요. 고르면 축약 공사명·현장대리인·시공사를 업무연락처에서 채워요(목록에 없으면 새 프로젝트로 등록돼요). 현장대리인을 고르면 시공사는 그 사람 소속으로 채워요. 현장대리인은 업무연락처와 같은 연락처예요(어느 쪽에서 고쳐도 함께 바뀌어요). 줄을 두 번 누르면 고치고 [저장]·Enter로 저장해요(Esc 취소).</span>
           <span>지시부는 모든 공사가 표준 양식 하나를 써요(설정 “민원처리”). 정식 공사명은 지시부 맨 위, 축약 공사명은 표의 공사 배지·지시부 번호·파일 이름에 들어가요.</span>
         </div>
         <div className="dialog-foot">
@@ -2045,7 +2045,7 @@ function AgentInputs({ d, contacts, onChange }: { d: Draft; contacts: Contact[];
   const cands = q ? contacts.filter((c) => koIndex(c.name, q) === 0 || koIndex(c.org, q) >= 0).slice(0, 6) : contacts.slice(0, 6);
   const exact = contacts.some((c) => c.name === q);
   const choose = (c: Contact | null) => {
-    if (c) onChange({ ...d, contact: c.id, agent: c.name, phone: phoneOf(c) });
+    if (c) onChange({ ...d, contact: c.id, agent: c.name, phone: phoneOf(c), co: c.org || d.co });
     else onChange({ ...d, contact: null });
     setOpenList(null);
   };
