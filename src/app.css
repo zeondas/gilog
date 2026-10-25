@@ -12107,3 +12107,4 @@ body.ew-dragging .pjm-colgrip:active::after {
 .cm-done-add { display: flex; align-items: flex-start; justify-content: center; padding: 0; background: transparent !important; }
 .cm-done-add > span { display: inline-block; min-width: 18px; height: 18px; line-height: 18px; border-radius: var(--radius-sm); }
 .cm-done-add:hover > span { background: var(--surface-band); }
+.cm-done-c .cm-tpick { align-items: flex-start; justify-content: center; }
