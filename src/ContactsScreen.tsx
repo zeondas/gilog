@@ -3,6 +3,7 @@ import { KeyboardEvent, MutableRefObject, RefObject, useCallback, useEffect, use
 import { ExcelMenu } from "./ExcelMenu";
 import { ProjectImport, contactImports, contactRows, samePerson } from "./excel";
 import { DelIcon, TrashIcon } from "./Icons";
+import { DeleteButton } from "./DeleteButton";
 import { VirtualList } from "./VirtualList";
 import { overlayDown, useOutsideClose } from "./useOutsideClose";
 import { BLine, CYCLE, isBlank, kindOf, layout, newLineFor, NewLineMode, parseLines, stringifyLines, TRIGGERS, withKind } from "./bullets";
@@ -980,6 +981,7 @@ export function MemoEditor({
   onSave,
   boundary,
   saveRef,
+  onDelete,
 }: {
   initial: MemoLine[];
   onCancel: () => void;
@@ -987,7 +989,10 @@ export function MemoEditor({
   boundary?: RefObject<HTMLElement>;
   /** 창의 닫기 × 같은 바깥 단추가 "저장하고 닫기"를 부를 곳(민원대장 메모 창 – 2026-10-25 사용자) */
   saveRef?: MutableRefObject<(() => void) | null>;
+  /** 메모 통째로 지우기(민원대장 메모 창 – 2026-10-25 사용자). 주면 아래 줄 왼쪽에 "삭제" 단추, 누르면 붉은 띠로 물어요. */
+  onDelete?: () => void;
 }) {
+  const [asking, setAsking] = useState(false);
   const [lines, setLines] = useState<MemoLine[]>(initial.length ? initial.map((l) => ({ ...l })) : [{ t: "" }]);
   const [focus, setFocus] = useState(Math.max(0, initial.length - 1));
   const box = useRef<HTMLDivElement>(null);
@@ -1172,15 +1177,28 @@ export function MemoEditor({
           </div>
         ))}
       </div>
-      <div className="memo-foot">
-        <span className="hint">Enter 새 줄 · Tab 저장</span>
-        <button type="button" className="btn btn-xs" onClick={onCancel}>
-          취소
-        </button>
-        <button type="button" className="btn-primary btn-xs" onClick={() => onSave(lines)}>
-          저장
-        </button>
-      </div>
+      {asking && onDelete ? (
+        <div className="memo-foot">
+          <AskBand className="memo-ask" label="메모 지우기 확인" text="이 메모를 지울까요? 되돌릴 수 없어요." onNo={() => {
+              setAsking(false);
+              // 띠를 접으면 쓰던 줄로 커서를 돌려 Esc·Tab이 다시 메모 창에 먹게 해요.
+              requestAnimationFrame(() => box.current?.querySelector<HTMLInputElement>(`[data-line="${focus}"]`)?.focus());
+            }}
+            onYes={onDelete}
+          />
+        </div>
+      ) : (
+        <div className="memo-foot">
+          {onDelete && <DeleteButton title="메모 지우기" onClick={() => setAsking(true)} />}
+          <span className="hint">Enter 새 줄 · Tab 저장</span>
+          <button type="button" className="btn btn-xs" onClick={onCancel}>
+            취소
+          </button>
+          <button type="button" className="btn-primary btn-xs" onClick={() => onSave(lines)}>
+            저장
+          </button>
+        </div>
+      )}
     </div>
   );
 }

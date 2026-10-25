@@ -12396,3 +12396,11 @@ body.ew-dragging .pjm-colgrip:active::after {
   font-size: 12px;
   line-height: 1.4;
 }
+
+/* "삭제" 단추 공통(DeleteButton – 2026-10-25 사용자): 흰 보조 단추 + 붉은 글자·휴지통, 창 위 닫기 ×와 헷갈리지 않게 글자로 */
+.btn.btn-delete { display: inline-flex; align-items: center; gap: 4px; color: var(--danger); }
+.btn.btn-delete > svg { flex: none; }
+.btn.btn-delete:hover:not(:disabled) { border-color: var(--danger); }
+.memo-foot .memo-ask { flex: 1; margin: 0; }
+/* 칸 하나만 고치는 줄: 다른 칸도 두 번 누르면 그 칸으로 */
+.cm-cell-edit > .cm-pickable { cursor: pointer; user-select: none; }

@@ -218,6 +218,19 @@ async def c_complaints_save(p):
     assert await p.locator(".cm-row", has_text="0000철").count() > 0, "바깥 눌렀는데 저장 안 됨"
 
 
+async def c_complaints_memo_delete(p):
+    """메모 창 아래 "삭제" → 붉은 띠 → 지우기 = 메모가 비어요(2026-10-25 사용자)."""
+    await shoot.nav(p, "민원대장")
+    await p.locator(".cm-memo.has").first.click()
+    await p.wait_for_timeout(300)
+    await p.locator(".cm-memo-dialog .btn-delete").click()
+    await p.wait_for_timeout(200)
+    assert await p.locator(".cm-memo-dialog .ask-band").count() == 1, "물어보지 않음"
+    await p.locator(".cm-memo-dialog .ask-band .btn-danger").click()
+    await p.wait_for_timeout(400)
+    assert await p.locator(".cm-memo.has").count() == 0, "메모가 안 지워짐"
+
+
 async def c_complaints_cell(p):
     """칸을 두 번 누르면 그 칸만 입력 칸 → Tab은 같은 줄 다음 칸 → Esc 취소(2026-10-25 사용자 ⑧1안)."""
     await shoot.nav(p, "민원대장")
@@ -231,6 +244,21 @@ async def c_complaints_cell(p):
     await p.keyboard.press("Escape")
     await p.wait_for_timeout(250)
     assert await p.locator(".cm-cell-edit").count() == 0, "Esc로 안 닫힘"
+
+    # 고치던 칸을 두고 같은 줄 다른 칸을 두 번 누르면 그 칸으로 옮겨 가요(고친 값은 들고 감 – 2026-10-25 사용자)
+    await shoot.s_complaints_cell(p)
+    row = p.locator(".cm-cell-edit")
+    await row.locator("input[name=place]").fill("봉일천리 999")
+    await row.locator(".cm-pickable").filter(has_text="현장 확인").first.dblclick()
+    await p.wait_for_timeout(300)
+    assert await row.locator(".bl-ed").count() == 1 and await row.locator("input[name=place]").count() == 0, "다른 칸을 두 번 눌렀는데 그 칸이 안 열림"
+    await press_out(p, (1400, 860))
+    await p.wait_for_timeout(400)
+    assert await p.locator(".cm-view", has_text="봉일천리 999").count() == 1, "옮겨 간 뒤 앞 칸 값이 저장 안 됨"
+    # 다른 줄 칸을 두 번 누르면: 고치던 줄은 저장되고 그 줄 칸이 열려요
+    await p.locator(".cm-view", has_text="포트홀").first.locator("[data-k=person]").dblclick()
+    await p.wait_for_timeout(300)
+    assert await p.locator(".cm-cell-edit input[name=person]").count() == 1, "다른 줄 칸이 안 열림"
 
 
 async def c_no_browser_menu(p):
@@ -333,6 +361,7 @@ CASES = {
     "complaints_rowmenu": menu_case("민원대장", shoot.s_complaints_rowmenu, ".cm-rowmenu"),
     "complaints_rowmenu_ask": menu_case("민원대장", shoot.s_complaints_rowmenu_ask, ".cm-rowmenu"),
     "complaints_cell": c_complaints_cell,
+    "complaints_memo_delete": c_complaints_memo_delete,
     "no_browser_menu": c_no_browser_menu,
     "budget_menu": menu_case("집행현황", shoot.s_budget_menu, ".bd-pop"),
     "budgetstatus_menu": menu_case("예산현황", shoot.s_budgetstatus_menu, ".bd-pop", esc=False),

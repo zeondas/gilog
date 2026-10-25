@@ -1153,6 +1153,7 @@ function Cells({
   short,
   active,
   placeStyle = "admin",
+  onPick,
 }: {
   d: Draft;
   set: (patch: Partial<Draft>) => void;
@@ -1169,12 +1170,26 @@ function Cells({
   /** 칸 하나만 고칠 때 그 칸(나머지는 보기 모양) – 2026-10-25 사용자 ⑧1안 */
   active?: CellKey | null;
   placeStyle?: PlaceStyle;
+  /** 칸 하나만 고칠 때 다른 칸을 두 번 누름 – 그 칸으로 옮겨 고쳐요(고친 값은 그대로 들고 감, 2026-10-25 사용자) */
+  onPick?: (k: CellKey) => void;
 }) {
   // 칸 하나만 고칠 때 나머지 칸은 보기 줄과 같은 글자로 보여요.
   const view = (k: CellKey) => !!active && active !== k;
   const cell = (k: CellKey, input: ReactNode, cls = "cm-c") =>
     view(k) ? (
-      <div role="cell" key={k} className={"cm-c" + STATIC_CLS[k]}>
+      <div
+        role="cell"
+        key={k}
+        className={"cm-c cm-pickable" + STATIC_CLS[k]}
+        title="두 번 눌러서 고치기"
+        // 두 번 누를 때 글자가 골라지지 않게
+        onMouseDown={(e) => e.detail > 1 && e.preventDefault()}
+        onDoubleClick={(e) => {
+          e.preventDefault();
+          window.getSelection()?.removeAllRanges();
+          onPick?.(k);
+        }}
+      >
         <StaticValue k={k} d={d} placeStyle={placeStyle} short={short} />
       </div>
     ) : (
@@ -1608,7 +1623,19 @@ function EditRow({
       <div role="cell" className="cm-c cm-no">
         {c.no}
       </div>
-      <Cells d={f.d} set={f.set} bad={f.bad} lists={lists} onDateBlur={f.onDateBlur} onDoneType={f.typeDone} orig={c} short={short} active={active} placeStyle={placeStyle} />
+      <Cells
+        d={f.d}
+        set={f.set}
+        bad={f.bad}
+        lists={lists}
+        onDateBlur={f.onDateBlur}
+        onDoneType={f.typeDone}
+        orig={c}
+        short={short}
+        active={active}
+        placeStyle={placeStyle}
+        onPick={(k) => order.includes(k) && setActive(k)}
+      />
       <div role="cell" className="cm-c cm-center">
         <MemoButton has={hasMemo} memo={c.memo} onClick={onMemo} />
       </div>
@@ -2108,7 +2135,14 @@ function MemoDialog({ c, onClose, onSave }: { c: Complaint; onClose: () => void;
           </button>
         </div>
         <div className="dialog-body cm-memo-body">
-          <MemoEditor initial={parseMemo(c.memo)} boundary={box} saveRef={save} onCancel={onClose} onSave={(lines) => onSave(memoText(lines))} />
+          <MemoEditor
+            initial={parseMemo(c.memo)}
+            boundary={box}
+            saveRef={save}
+            onCancel={onClose}
+            onSave={(lines) => onSave(memoText(lines))}
+            onDelete={parseMemo(c.memo).length ? () => onSave("") : undefined}
+          />
         </div>
       </div>
     </div>
