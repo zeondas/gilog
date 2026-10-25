@@ -117,9 +117,22 @@ async def s_complaints_filter(p):
     await p.locator(".cm-hbtn").first.click()
 
 
-async def s_complaints_edit_ask(p):
-    await p.locator(".cm-row", has_text="배수불량").first.dblclick()
+async def s_complaints_edit(p):
+    """줄 전체 고치기 = 우클릭 "고치기"(2026-10-25 – 두 번 누르기는 그 칸만 고쳐요)"""
+    await p.locator(".cm-view", has_text="배수불량").first.click(button="right")
+    await p.wait_for_timeout(250)
+    await p.locator(".cm-rowmenu .dmenu-item", has_text="고치기").first.click()
     await p.wait_for_timeout(300)
+
+
+async def s_complaints_cell(p):
+    """칸 하나만 고치기: 위치 칸을 두 번 누름"""
+    await p.locator(".cm-view", has_text="배수불량").first.locator("[data-k=place]").dblclick()
+    await p.wait_for_timeout(300)
+
+
+async def s_complaints_edit_ask(p):
+    await s_complaints_edit(p)
     await p.get_by_role("button", name="2번 민원 지우기").first.click()
 
 
@@ -241,6 +254,7 @@ SCENES.update({
     "complaints_filter": ("민원대장", s_complaints_filter),
     "complaints_rowmenu": ("민원대장", s_complaints_rowmenu),
     "complaints_rowmenu_ask": ("민원대장", s_complaints_rowmenu_ask),
+    "complaints_cell": ("민원대장", s_complaints_cell),
     "complaints_edit_ask": ("민원대장", s_complaints_edit_ask),
     "complaints_newrow_baddate": ("민원대장", s_complaints_newrow_baddate),
     "contacts_card_ask": ("업무연락처", s_contacts_card_ask),
