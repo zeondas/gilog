@@ -84,6 +84,8 @@ export type FilesSettings = {
   newTabDir: string;
   /** F8 지울 때 묻기 (Shift+F8 완전 삭제는 늘 물어요) */
   askDelete: boolean;
+  /** 끌 때 열린 탭 비우기 – 다시 켤 때 고정 탭만 남겨요(2026-10-25 사용자 1안, 처음 꺼짐) */
+  clearOnExit?: boolean;
   /** 자세히 보기에서 보일 열(이름은 늘 보여요) – 2026-10-18 사용자 */
   cols: { size: boolean; modified: boolean; type: boolean };
 };

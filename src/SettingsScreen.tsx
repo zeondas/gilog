@@ -1028,6 +1028,12 @@ function FilesRows({ value, onChange }: { value: FilesSettings; onChange: (v: Fi
         on={value.askDelete}
         onChange={(askDelete) => set({ askDelete })}
       />
+      <Toggle
+        label="끌 때 열린 탭 비우기"
+        desc="켜면 프로그램을 다시 켤 때 고정한 탭만 남아요. 고정 탭이 없는 창은 새 탭 폴더로 열려요."
+        on={!!value.clearOnExit}
+        onChange={(clearOnExit) => set({ clearOnExit })}
+      />
     </>
   );
 }
