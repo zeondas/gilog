@@ -8,7 +8,6 @@ import { api, inApp } from "./api";
 import { FileIcon } from "./FileIcon";
 import { AskDialog, ConflictDialog, Decision, DeleteDialog, NameDialog, RenameDialog, TransferAsk } from "./FilesDialogs";
 import {
-  CLOCKWISE,
   EMPTY_FIND,
   FilesState,
   FindForm,
@@ -16,6 +15,10 @@ import {
   FsEntry,
   FsPane,
   FsTab,
+  Layout,
+  cellOf,
+  clearTabs,
+  paneCountOf,
   IMAGE_EXT,
   RenameOpts,
   SortKey,
@@ -88,6 +91,8 @@ type Sel = { paths: Set<string>; cursor: string | null; anchor: string | null };
 type Row = FsEntry & { folder?: string };
 
 let tabSeq = 1;
+/** 이번 실행에서 '끌 때 열린 탭 비우기'를 이미 했는지 */
+let clearedThisRun = false;
 const withIds = (p: FsPane): RPane => ({ ...p, tabs: p.tabs.map((t) => ({ ...t, id: tabSeq++ })) });
 
 /** 저장할 때는 찾기 탭과 화면용 번호를 빼요. */
@@ -198,7 +203,10 @@ export default function FilesScreen() {
       setHome(startDir);
       setCfg(fc);
       setDrives(dv);
-      const saved = readState(raw, startDir);
+      const read = readState(raw, startDir);
+      // 끌 때 열린 탭 비우기: 앱을 켠 뒤 처음 열 때 한 번만(잠금·화면 오가기로는 비우지 않아요)
+      const saved = fc.clearOnExit && !clearedThisRun ? clearTabs(read, startDir) : read;
+      clearedThisRun = true;
       setSt({ ...saved, panes: saved.panes.map(withIds) });
       setPrev(saved.active === 0 ? 1 : 0);
     })();
@@ -216,7 +224,7 @@ export default function FilesScreen() {
     return () => window.clearTimeout(t);
   }, [st]);
 
-  const paneCount = st?.four ? 4 : 2;
+  const paneCount = st ? paneCountOf(st.layout) : 2;
   const activeTab = (p: RPane) => p.tabs[p.active] ?? p.tabs[0];
 
   // ---------- 폴더 읽기 ----------
@@ -296,29 +304,62 @@ export default function FilesScreen() {
     setSt({ ...s, active: pane });
   }, []);
 
-  /** 대상 창: 2창은 반대 창, 4창은 바로 전에 있던 창 */
-  const targetOf = (pane: number) => (st?.four ? (prev === pane ? CLOCKWISE[(CLOCKWISE.indexOf(pane) + 1) % 4] : prev) : pane === 0 ? 1 : 0);
+  /** 대상 창: 두칸은 반대 창, 세칸·네칸은 바로 전에 있던 창 */
+  const targetOf = (pane: number) => {
+    if (!st || paneCount === 2) return pane === 0 ? 1 : 0;
+    return prev !== pane && prev < paneCount ? prev : nextPane(pane, st.layout);
+  };
 
   /** 네칸 → 두칸: 지금 창과 대상 창을 네칸 자리 순서대로 두 칸에 남기고, 나머지는 뒤로(2026-10-18 사용자 1안) */
   const toTwo = () => {
-    if (!st || !st.four) return;
+    if (!st) return;
+    const L = st.layout;
+    // 두칸에서 한 번 더: 좌우 ↔ 상하(같은 두 창, 방향만)
+    if (L === "lr" || L === "tb") return setSt({ ...st, layout: L === "lr" ? "tb" : "lr" });
+    if (L === "3l" || L === "3r") {
+      // 세칸 → 두칸: 1·2창이 남아요. 지금 창이 3창이면 2창 자리와 바꿔 보이게 해요.
+      if (st.active === 2) {
+        const pm = st.perm ?? [0, 1, 2, 3];
+        setPrev(0);
+        return setSt({ ...st, layout: "lr", perm: [pm[0], pm[2], pm[1], pm[3]], panes: [st.panes[0], st.panes[2], st.panes[1], st.panes[3]], active: 1 });
+      }
+      setPrev(st.active === 0 ? 1 : 0);
+      return setSt({ ...st, layout: "lr" });
+    }
     const a = st.active;
     const t = targetOf(a);
     const keep = [a, t].sort((x, y) => x - y);
     const perm = [...keep, ...[0, 1, 2, 3].filter((i) => !keep.includes(i))];
     setPrev(perm.indexOf(t));
-    setSt({ ...st, four: false, perm, panes: perm.map((i) => st.panes[i]), active: perm.indexOf(a) });
+    setSt({ ...st, layout: "lr", perm, panes: perm.map((i) => st.panes[i]), active: perm.indexOf(a) });
+  };
+  /** 세칸보기(2026-10-25 사용자 1안): 다른 모양에서 누르면 왼쪽 긴 칸, 세칸에서 한 번 더 누르면 왼쪽 ↔ 오른쪽 긴 칸 */
+  const toThree = () => {
+    if (!st) return;
+    const L = st.layout;
+    if (L === "3l" || L === "3r") return setSt({ ...st, layout: L === "3l" ? "3r" : "3l" });
+    // 두칸 → 세칸: 1·2창은 그대로, 3창이 짧은 칸 아래에 더해져요
+    if (L !== "four") return setSt({ ...st, layout: "3l" });
+    // 네칸 → 세칸: 왼쪽 위(긴 칸)·오른쪽 위·오른쪽 아래 자리 그대로, 왼쪽 아래 창이 뒤로. 지금 창이 왼쪽 아래면 대상 창이 아닌 자리와 바꿔요.
+    const a = st.active;
+    const t = targetOf(a);
+    const slots = [0, 1, 3];
+    if (!slots.includes(a)) slots[[2, 1, 0].find((k) => slots[k] !== t)!] = a;
+    const perm = [...slots, ...[0, 1, 2, 3].filter((i) => !slots.includes(i))];
+    const ti = perm.indexOf(t);
+    setPrev(ti < 3 ? ti : (perm.indexOf(a) + 1) % 3);
+    setSt({ ...st, layout: "3l", perm, panes: perm.map((i) => st.panes[i]), active: perm.indexOf(a) });
   };
   /** 두칸 → 네칸: 옮겨 둔 자리를 되돌려 창마다 원래 자리로 */
   const toFour = () => {
-    if (!st || st.four) return;
+    if (!st || st.layout === "four") return;
     const perm = st.perm;
-    if (!perm) return setSt({ ...st, four: true });
+    if (!perm) return setSt({ ...st, layout: "four" });
     const panes = [...st.panes];
     perm.forEach((orig, k) => (panes[orig] = st.panes[k]));
-    const other = perm[st.active === 0 ? 1 : 0];
+    const other = perm[targetOf(st.active)];
     setPrev(other);
-    setSt({ ...st, four: true, perm: undefined, panes, active: perm[st.active] });
+    setSt({ ...st, layout: "four", perm: undefined, panes, active: perm[st.active] });
   };
 
   /** 폴더 열기. 고정 탭이면 새 탭으로 열어요. */
@@ -1141,7 +1182,7 @@ export default function FilesScreen() {
     if (e.altKey && (k === "ArrowLeft" || k === "ArrowRight")) return handled(), stepHistory(pane, k === "ArrowLeft" ? -1 : 1);
     if (k === "Tab" && !ctrl) {
       handled();
-      return focusPane(e.shiftKey ? (st.four ? CLOCKWISE[(CLOCKWISE.indexOf(pane) + 3) % 4] : pane === 0 ? 1 : 0) : nextPane(pane, st.four));
+      return focusPane(nextPane(pane, st.layout, e.shiftKey));
     }
     if (ctrl && /^Digit[1-4]$/.test(e.code) && !e.shiftKey) {
       const n = Number(e.code.slice(5)) - 1;
@@ -1297,7 +1338,7 @@ export default function FilesScreen() {
   const refresh = () => {
     if (!st) return;
     refreshAll();
-    for (let i = 0; i < (st.four ? 4 : 2); i++) if (activeTab(st.panes[i]).find) void rerunFind(i);
+    for (let i = 0; i < paneCount; i++) if (activeTab(st.panes[i]).find) void rerunFind(i);
   };
   // 다른 프로그램에서 기록 창으로 돌아오면 보고 있던 폴더를 다시 읽어요(다운로드 등 윈도우가 바뀜을 빠뜨릴 때)
   const refreshAllRef = useRef(refreshAll);
@@ -1889,7 +1930,8 @@ export default function FilesScreen() {
         data-pane={pane}
         data-extdrop={extHover && extHover.pane === pane && !extHover.dir ? "1" : "0"}
         data-on={on ? "1" : "0"}
-        data-target={isTarget && st.four ? "1" : "0"}
+        data-target={isTarget && paneCount > 2 ? "1" : "0"}
+        style={cellOf(st.layout, pane)}
         data-rest={!on && !isTarget ? "1" : "0"}
         aria-label={`창 ${pane + 1}`}
         onMouseDown={(e) => {
@@ -2602,12 +2644,16 @@ export default function FilesScreen() {
             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="5" rx="1" /><rect x="14" y="10" width="7" height="5" rx="1" /><rect x="14" y="17" width="7" height="5" rx="1" /><path d="M6.5 8v11.5H14M6.5 12.5H14" /></svg>
             <span className="fx-tl">트리보기</span>
           </button>
-          <button type="button" className="btn btn-ctrl fx-tool" title="2창" aria-pressed={!st.four} onClick={() => toTwo()}>
-            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M12 4v16" /></svg>
+          <button type="button" className="btn btn-ctrl fx-tool" title="두칸보기 · 한 번 더 누르면 좌우 ↔ 상하" aria-pressed={st.layout === "lr" || st.layout === "tb"} onClick={() => toTwo()}>
+            <LayoutIcon kind={st.layout === "tb" ? "tb" : "lr"} />
             <span className="fx-tl">두칸보기</span>
           </button>
-          <button type="button" className="btn btn-ctrl fx-tool" title="4창" aria-pressed={st.four} onClick={() => toFour()}>
-            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M12 4v16M3 12h18" /></svg>
+          <button type="button" className="btn btn-ctrl fx-tool" title="세칸보기 · 한 번 더 누르면 긴 칸 왼쪽 ↔ 오른쪽" aria-pressed={st.layout === "3l" || st.layout === "3r"} onClick={() => toThree()}>
+            <LayoutIcon kind={st.layout === "3r" ? "3r" : "3l"} />
+            <span className="fx-tl">세칸보기</span>
+          </button>
+          <button type="button" className="btn btn-ctrl fx-tool" title="네칸보기" aria-pressed={st.layout === "four"} onClick={() => toFour()}>
+            <LayoutIcon kind="four" />
             <span className="fx-tl">네칸보기</span>
           </button>
           <span className="fx-vsep" />
@@ -2758,16 +2804,17 @@ export default function FilesScreen() {
         )}
         <div
           ref={panesRef}
-          className={st.four ? "fx-panes fx-four" : "fx-panes"}
+          className={st.layout === "four" ? "fx-panes fx-four" : "fx-panes"}
+          data-layout={st.layout}
           style={{
-            gridTemplateColumns: `minmax(0, ${st.split}fr) minmax(0, ${1 - st.split}fr)`,
-            ...(st.four ? { gridTemplateRows: `minmax(0, ${st.splitV ?? 0.5}fr) minmax(0, ${1 - (st.splitV ?? 0.5)}fr)` } : {}),
+            gridTemplateColumns: st.layout === "tb" ? "minmax(0, 1fr)" : `minmax(0, ${st.split}fr) minmax(0, ${1 - st.split}fr)`,
+            ...(st.layout !== "lr" ? { gridTemplateRows: `minmax(0, ${st.splitV ?? 0.5}fr) minmax(0, ${1 - (st.splitV ?? 0.5)}fr)` } : {}),
           }}
         >
           {Array.from({ length: paneCount }, (_, i) =>
             // 미리보기: FreeCommander처럼 대상 창 자리에 보여요(창들이 좁아지지 않게)
             st.preview && i === targetOf(st.active) ? (
-              <section key={i} className="fx-pane fx-preview" aria-label="미리보기" data-on="0" data-target="0">
+              <section key={i} className="fx-pane fx-preview" aria-label="미리보기" data-on="0" data-target="0" style={cellOf(st.layout, i)}>
                 <div className="fx-tabs">
                   <span className="fx-tab fx-pv-title">미리보기</span>
                 </div>
@@ -2777,6 +2824,7 @@ export default function FilesScreen() {
               renderPane(i)
             ),
           )}
+          {st.layout !== "tb" && (
           <div
             className="fx-psplit fx-psplit-x"
             role="separator"
@@ -2793,13 +2841,14 @@ export default function FilesScreen() {
             }}
             onDoubleClick={() => setSt({ ...st, split: 0.5 })}
           />
-          {st.four && (
+          )}
+          {st.layout !== "lr" && (
             <div
               className="fx-psplit fx-psplit-y"
               role="separator"
               aria-label="창 사이 높이"
               title="끌어서 높이 바꾸기 · 두 번 누르면 처음대로"
-              style={{ top: `calc((100% - 12px) * ${st.splitV ?? 0.5})` }}
+              style={{ top: `calc((100% - 12px) * ${st.splitV ?? 0.5})`, ...ySplitSide(st.layout, st.split) }}
               onPointerDown={(e) => e.currentTarget.setPointerCapture(e.pointerId)}
               onPointerMove={(e) => {
                 if (!e.currentTarget.hasPointerCapture(e.pointerId) || !panesRef.current) return;
@@ -2823,8 +2872,8 @@ export default function FilesScreen() {
         <span className="fx-fk"><b>F8</b> 지우기</span>
         <span className="fx-fk"><b>Ctrl+C·X·V</b> 복사·잘라내기·붙이기</span>
         <span className="fx-fk"><b>Space</b> 고르기</span>
-        <span className="fx-fk"><b>Tab</b> {st.four ? "다음 창" : "반대 창"}</span>
-        {st.four && <span className="fx-fk"><b>Ctrl+1~4</b> 창 고르기</span>}
+        <span className="fx-fk"><b>Tab</b> {paneCount > 2 ? "다음 창" : "반대 창"}</span>
+        {paneCount > 2 && <span className="fx-fk"><b>Ctrl+1~{paneCount}</b> 창 고르기</span>}
         <span className="fx-fk"><b>Ctrl+E</b> 윈도우 탐색기로</span>
         {busy && (
           <span className="fx-busy">
@@ -3058,6 +3107,24 @@ function dateParts(t: string) {
 
 /** 창 사이를 끌 때 창 하나가 줄어들 수 있는 끝(이름 열이 보일 만큼) */
 const PANE_MIN_W = 460;
+
+/** 세칸의 위아래 경계선은 짧은 칸 쪽에만 걸쳐요 */
+function ySplitSide(l: Layout, split: number): React.CSSProperties {
+  if (l === "3l") return { left: `calc((100% - 12px) * ${split} + 12px)`, right: 0 };
+  if (l === "3r") return { left: 0, right: `calc((100% - 12px) * ${1 - split} + 12px)` };
+  return {};
+}
+
+/** 칸 모양 단추 아이콘 – 지금 모양을 따라 바뀌어요(2026-10-25 사용자 1안) */
+function LayoutIcon({ kind }: { kind: Layout }) {
+  const d = { lr: "M12 4v16", tb: "M3 12h18", "3l": "M10 4v16M10 12h11", "3r": "M14 4v16M3 12h11", four: "M12 4v16M3 12h18" }[kind];
+  return (
+    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d={d} />
+    </svg>
+  );
+}
 const PANE_MIN_H = 200;
 
 /** 미리보기 칸: 사진은 그림으로, 다른 파일은 큰 아이콘과 정보(2026-10-19) */

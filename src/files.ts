@@ -430,8 +430,11 @@ export type FindForm = {
 
 export const EMPTY_FIND: FindForm = { name: "", text: "", where: "", sub: true, from: "", to: "", minSize: "", maxSize: "", lockedOnly: false, complaintsOnly: false };
 
+/** 칸 모양(2026-10-25 사용자): 두칸 좌우·두칸 상하·세칸 왼쪽 긴·세칸 오른쪽 긴·네칸 */
+export type Layout = "lr" | "tb" | "3l" | "3r" | "four";
+
 export type FilesState = {
-  four: boolean;
+  layout: Layout;
   /** 네칸 → 두칸으로 바꿀 때 옮긴 자리(두칸 자리 k에 네칸 자리 perm[k]의 창). 다시 네칸으로 갈 때 되돌려요. */
   perm?: number[];
   /** 2창 나눈 비율(왼쪽 창 몫, 0.2~0.8) */
@@ -454,7 +457,7 @@ export const TREE_W = { min: 180, start: 232, max: 400 };
 export function defaultState(home: string): FilesState {
   const pane = (): FsPane => ({ tabs: [{ path: home, pinned: false }], active: 0, view: "detail", sort: "name", asc: true });
   return {
-    four: false,
+    layout: "lr",
     split: 0.5,
     active: 0,
     panes: [pane(), pane(), pane(), pane()],
@@ -471,13 +474,17 @@ export function readState(raw: string | null, home: string): FilesState {
   const d = defaultState(home);
   if (!raw) return d;
   try {
-    const s = JSON.parse(raw) as Partial<FilesState>;
+    const s = JSON.parse(raw) as Partial<FilesState> & { four?: boolean };
+    // 옛 값(four: true/false)은 칸 모양으로 옮겨요
+    const layout: Layout = s.layout && ["lr", "tb", "3l", "3r", "four"].includes(s.layout) ? s.layout : s.four ? "four" : "lr";
+    delete s.four;
     const panes = (s.panes ?? []).slice(0, 4).map((p, i) => ({ ...d.panes[i], ...p, tabs: p.tabs?.length ? p.tabs : d.panes[i].tabs }));
     while (panes.length < 4) panes.push(d.panes[panes.length]);
     for (const p of panes) p.active = Math.min(Math.max(0, p.active), p.tabs.length - 1);
     return {
       ...d,
       ...s,
+      layout,
       panes,
       cols: { ...d.cols, ...s.cols },
       tree: { ...d.tree, ...s.tree, width: Math.min(TREE_W.max, Math.max(TREE_W.min, s.tree?.width ?? TREE_W.start)) },
@@ -490,10 +497,31 @@ export function readState(raw: string | null, home: string): FilesState {
 
 /** 4창의 Tab 순서: 시계 방향(왼쪽 위 → 오른쪽 위 → 오른쪽 아래 → 왼쪽 아래) */
 export const CLOCKWISE = [0, 1, 3, 2];
-export function nextPane(cur: number, four: boolean): number {
-  if (!four) return cur === 0 ? 1 : 0;
-  const i = CLOCKWISE.indexOf(cur);
-  return CLOCKWISE[(i + 1) % 4];
+/** 보이는 창 수 */
+export const paneCountOf = (l: Layout) => (l === "four" ? 4 : l === "3l" || l === "3r" ? 3 : 2);
+/** Tab 순서(시계 방향). 세칸은 창 번호 0·1·2가 늘 시계 방향이에요(왼쪽 긴: 왼쪽→오른쪽 위→오른쪽 아래, 오른쪽 긴: 왼쪽 위→오른쪽→왼쪽 아래). */
+export const tabOrder = (l: Layout) => (l === "four" ? CLOCKWISE : l === "3l" || l === "3r" ? [0, 1, 2] : [0, 1]);
+export function nextPane(cur: number, l: Layout, back = false): number {
+  const o = tabOrder(l);
+  const i = Math.max(0, o.indexOf(cur));
+  return o[(i + (back ? o.length - 1 : 1)) % o.length];
+}
+/** 칸 모양마다 창 자리(그리드). 세칸은 긴 칸이 두 줄을 차지해요. */
+export function cellOf(l: Layout, i: number): { gridColumn?: string; gridRow?: string } {
+  if (l === "3l") return i === 0 ? { gridColumn: "1", gridRow: "1 / 3" } : { gridColumn: "2", gridRow: String(i) };
+  if (l === "3r") return i === 1 ? { gridColumn: "2", gridRow: "1 / 3" } : { gridColumn: "1", gridRow: i === 0 ? "1" : "2" };
+  return {};
+}
+
+/** 끌 때 열린 탭 비우기(2026-10-25 사용자 1안): 창마다 고정 탭만 남기고, 없으면 새 탭 폴더 한 장. 칸 모양·폭·트리는 그대로. */
+export function clearTabs(s: FilesState, home: string): FilesState {
+  return {
+    ...s,
+    panes: s.panes.map((p) => {
+      const pinned = p.tabs.filter((t) => t.pinned);
+      return { ...p, tabs: pinned.length ? pinned : [{ path: home, pinned: false }], active: 0 };
+    }),
+  };
 }
 
 /** 찾기 조건 요약(결과 띠) */

@@ -170,6 +170,29 @@ async def s_budgetstatus_menu(p):
     await rclick(p, "[class*=bs-rw], .bd-rw")
 
 
+async def press_layout(p, *names):
+    for n in names:
+        await p.locator(f".fx-tool[title^=\"{n}\"]").first.click()
+        await p.wait_for_timeout(300)
+
+
+# 칸 모양(2026-10-25 탐색기 세션): 두칸 상하·세칸 왼쪽 긴·세칸 오른쪽 긴·네칸
+async def s_files_tb(p):
+    await press_layout(p, "두칸보기")
+
+
+async def s_files_3l(p):
+    await press_layout(p, "세칸보기")
+
+
+async def s_files_3r(p):
+    await press_layout(p, "세칸보기", "세칸보기")
+
+
+async def s_files_four(p):
+    await press_layout(p, "네칸보기")
+
+
 async def s_files_tabmenu(p):
     await rclick(p, ".fx-tab")
 
@@ -253,6 +276,10 @@ SCENES.update({
     "budget_confirm": ("집행현황", s_budget_confirm),
     "budgetstatus_menu": ("예산현황", s_budgetstatus_menu),
     "files_tabmenu": ("탐색기", s_files_tabmenu),
+    "files_tb": ("탐색기", s_files_tb),
+    "files_3l": ("탐색기", s_files_3l),
+    "files_3r": ("탐색기", s_files_3r),
+    "files_four": ("탐색기", s_files_four),
     "files_colmenu": ("탐색기", s_files_colmenu),
     "files_delete": ("탐색기", s_files_delete),
     "process_rowmenu": ("민원처리", s_process_rowmenu),
