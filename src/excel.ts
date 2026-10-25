@@ -234,7 +234,7 @@ export function contactImports(sheet: ExcelSheet): ContactsImport {
 // 내용 칸: 말 줄은 "나: …" / "이○○: …" 한 줄씩(한 말 안 줄 바꿈은 그 아래 줄에 이어서), 메모는 본문 글자(서식·표 모양은 빠져요).
 // 가져오기: 날짜·시각·구분·상대·내용이 모두 같은 기록이 이미 있으면 건너뛰어요(같은 파일 안에서 겹친 줄도 한 번만).
 
-export const JOURNAL_HEADERS = ["연번", "날짜", "시각", "구분", "상대", "연락처", "프로젝트", "내용"];
+export const JOURNAL_HEADERS = ["연번", "날짜", "시각", "구분", "상대", "연락처", "사업", "내용"];
 export const JOURNAL_DAY_HEADERS = ["날짜", "출근", "교통", "날씨", "비고"];
 
 /** 메모 본문(편집기 HTML) → 글자. 문단·제목·인용은 한 줄씩, 글머리 목록은 □ ○ - 기호와 위계 띄어쓰기, 표는 칸을 " | "로 이어요. */
@@ -349,7 +349,8 @@ export function journalImports(sheet: ExcelSheet, existing: Entry[], projects: P
       continue;
     }
     seen.add(key);
-    const pn = get(r, "프로젝트");
+    // 머리글은 "사업"(2026-10-25), 예전 파일의 "프로젝트"도 읽어요.
+    const pn = get(r, "사업") || get(r, "프로젝트");
     const p = pn ? projects.find((x) => x.name === pn || (x.alias ?? "") === pn) : undefined;
     const memo = isMemo(kind);
     entries.push({

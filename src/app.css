@@ -1570,6 +1570,37 @@ mark {
   gap: var(--space-6);
 }
 
+/* 위쪽 고정(2026-10-25 사용자 ⑦): 업무일지가 화면 높이에 꼭 맞아 화면 전체는 움직이지 않고, 기록 목록 상자(.jn-scroll)만 스크롤해요.
+   오른쪽 열(달력·챙길 일)은 제 높이대로, 넘치면 그 열만 스크롤. 신규 카드가 아주 길어져 목록 상자가 최소 높이에 닿을 때만
+   예전처럼 화면 전체(.main)가 스크롤해요. */
+.main > .jn {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.main > .jn > .jn-body {
+  align-self: stretch;
+  min-height: 0;
+}
+
+.main > .jn > .jn-left {
+  /* 넘치면 이 열만 스크롤 – 카드 그림자가 잘리지 않게 바깥으로 8px 넓혀요(폭 260 + 양쪽 8) */
+  width: calc(260px + 16px);
+  max-height: calc(100% + 16px);
+  margin: -8px;
+  padding: 8px;
+  overflow-y: auto;
+}
+
+.jn-scroll {
+  flex: 1 1 0;
+  min-height: 160px;
+  overflow-y: auto;
+  /* 카드 그림자·고른 테두리가 잘리지 않게 바깥으로 조금 넓혀요 */
+  margin: -4px -6px;
+  padding: 4px 6px;
+}
+
 .jn-left {
   flex: none;
   width: 260px;
@@ -2146,6 +2177,55 @@ mark {
 
 .jmenu-hint {
   padding: 4px 6px;
+}
+
+/* 사업 고르기(2026-10-25 ③): 화면 위에 띄워 카드에 잘리지 않게, 맨 위 검색 칸 + 안에서 스크롤하는 목록 */
+.jmenu.jmenu-pop {
+  position: fixed;
+  z-index: 60;
+  right: auto;
+  width: 260px;
+  min-width: 0;
+  max-width: none;
+  padding: 4px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-pop);
+}
+
+.jmenu.jmenu-pop.up {
+  transform: translateY(-100%);
+}
+
+.jmenu-q {
+  display: block;
+  width: 100%;
+  margin: 0 0 4px;
+}
+
+.jmenu-list {
+  max-height: 176px;
+  overflow-y: auto;
+}
+
+.jmenu-opt.hi {
+  background: var(--surface-band);
+}
+
+.jmenu-opt .jmenu-name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jmenu-alias {
+  flex: none;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-weight: 500;
 }
 
 /* 신규 입력 카드(점선)와 고치는 카드(실선) */

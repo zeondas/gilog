@@ -1,9 +1,10 @@
 // 업무일지 화면이에요. 시안 Journal.dc.html과 사양서의 "업무일지" 절을 따라요.
 // 누가 언제 무슨 말을 했는지 남기는 곳이라, 손을 키보드에서 떼지 않고 한 건을 끝낼 수 있게 만들었어요.
 import { KeyboardEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { DelIcon } from "./Icons";
 import { useOutsideClose } from "./useOutsideClose";
-import { api, Complaint, Contact, ContactsData, DayInfo, Entry, EntryInput, errorText, JournalData, Project, Task, TaskList, TasksData } from "./api";
+import { api, changeHooks, Complaint, Contact, ContactsData, DayInfo, Entry, EntryInput, errorText, JournalData, Project, Task, TaskList, TasksData } from "./api";
 import { firstLineOf } from "./bullets";
 import { daysBetween, daysLeft, ddayText, dueSoon, isUrgent } from "./complaints";
 import { tasksDueSoon } from "./tasks";
@@ -33,6 +34,7 @@ import {
   speakerColor,
   speakers,
   splitWho,
+  WHO_SEP,
   todayStr,
 } from "./journal";
 import { useJamoGuard } from "./koInput";
@@ -149,6 +151,18 @@ export default function JournalScreen({
     }, 30_000);
     return () => window.clearInterval(t);
   }, [today]);
+
+  // 업무연락처(사람·사업)가 바뀌면 다시 읽어요 – 사업 고르기 목록이 늘 전체예요(2026-10-25 사용자 ③).
+  useEffect(() => {
+    const CONTACT_CMDS = /^(add_contact|update_contact|delete_contact|add_project|rename_project|set_project_|delete_project|add_project_group|rename_project_group|delete_project_group|move_project_group|import_contacts)/;
+    const hook = (cmd: string) => {
+      if (CONTACT_CMDS.test(cmd)) api.contactsData().then(setCdata, () => {});
+    };
+    changeHooks.add(hook);
+    return () => {
+      changeHooks.delete(hook);
+    };
+  }, []);
 
   const ctx: Ctx = useMemo(
     () => ({
@@ -348,10 +362,14 @@ export default function JournalScreen({
         {note && <p className="note" role="status">{note}</p>}
 
         {query ? (
-          <SearchResults entries={data.entries} q={query} raw={q.trim()} onlyHits={onlyHits} ctx={ctx} onToggle={() => setOnlyHits(!onlyHits)} onClose={() => setQ("")} onGo={go} />
+          <div className="jn-scroll" key="search">
+            <SearchResults entries={data.entries} q={query} raw={q.trim()} onlyHits={onlyHits} ctx={ctx} onToggle={() => setOnlyHits(!onlyHits)} onClose={() => setQ("")} onGo={go} />
+          </div>
         ) : (
           <>
             <NewCard key={day} date={day} ctx={ctx} onAdd={add} />
+            {/* 위쪽(날짜·개요·신규 카드)은 그대로 두고 기록 목록만 이 상자 안에서 스크롤해요(2026-10-25 사용자 ⑦). */}
+            <div className="jn-scroll" key={"day-" + day}>
             {/* 카드 채우는 순서(2026-10-16 사용자): 왼쪽 단을 화면 아래까지 채우고 넘치는 것부터 오른쪽 단.
                 날짜를 열 때·기록을 등록·고치기·지울 때·창 크기를 바꿀 때만 다시 나눠요(CardCols). */}
             <CardCols mode="screen" relayout={`${day}|${tick}`}>
@@ -395,6 +413,7 @@ export default function JournalScreen({
                 {day === today ? "오늘 기록이 아직 없어요. 위 카드에 적고 Enter를 눌러 등록해요." : "이 날 기록이 없어요."}
               </p>
             )}
+            </div>
           </>
         )}
       </div>
@@ -475,9 +494,10 @@ function CardCols({ mode, relayout, children }: { mode: "screen" | "balance"; re
     const hs = [...col.children].map((c) => c.getBoundingClientRect().height + (parseFloat(getComputedStyle(c).marginBottom) || 0));
     const gap = hs.length ? parseFloat(getComputedStyle(col.children[0]).marginBottom) || 0 : 0;
     let avail = Infinity;
-    const main = mode === "screen" ? (el.closest(".main") as HTMLElement | null) : null;
+    // 기록 목록 상자(.jn-scroll)가 스크롤하는 곳이에요 – 없으면 예전처럼 화면 전체(.main).
+    const main = mode === "screen" ? ((el.closest(".jn-scroll") ?? el.closest(".main")) as HTMLElement | null) : null;
     if (main) {
-      // 화면을 맨 위로 올렸을 때 보이는 아래 끝(아래 여백만 빼고)까지. 내려 둔 채 다시 나누어도 같게 재요.
+      // 상자를 맨 위로 올렸을 때 보이는 아래 끝(아래 여백만 빼고)까지. 내려 둔 채 다시 나누어도 같게 재요.
       const pb = parseFloat(getComputedStyle(main).paddingBottom) || 0;
       const top = el.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop;
       avail = main.clientHeight - pb - top;
@@ -887,7 +907,7 @@ function DayHead({ info, onSave }: { info: DayInfo; onSave: (d: DayInfo) => void
 // ---------- 상대 칸 (업무연락처에서 찾기) ----------
 
 /**
- * 상대 칸. 쉼표로 여러 명을 적고, 마지막으로 적는 이름에 맞는 연락처를 아래에 보여 줘요.
+ * 상대 칸. "/"로 여러 명을 적고(예전 쉼표도 나눠요), 마지막으로 적는 이름에 맞는 연락처를 아래에 보여 줘요.
  * ↑↓로 고르고 Enter로 넣어요(고르지 않았으면 Enter는 등록이에요). 이름만 적고 칸을 떠나도 그 사람이 한 명이면 채워요.
  */
 function WhoInput({
@@ -912,7 +932,7 @@ function WhoInput({
   // 이름 초성: Shift 없이 같은 자음을 두 번 쳐서 묶인 된소리(ㅆ)는 ㅅㅅ으로 풀어요.
   const guard = useJamoGuard(onChange);
   guard.follow(value);
-  const segs = value.split(",");
+  const segs = value.split(/[,/]/);
   const last = segs[segs.length - 1].trim();
   const lastLc = last.toLowerCase();
   // 이름은 초성으로도 찾아요("ㅂㅈㅎ", "박ㅈ"). 소속·직위는 글자 그대로 찾아요. 겹자음(ㅄ)은 풀어서 봐요.
@@ -928,7 +948,7 @@ function WhoInput({
 
   function pick(c: Contact) {
     const head = segs.slice(0, -1).map((x) => x.trim()).filter(Boolean);
-    onPick([...head, contactLabel(c)].join(", "));
+    onPick([...head, contactLabel(c)].join(WHO_SEP));
     setHi(-1);
     setOpen(false);
   }
@@ -942,7 +962,7 @@ function WhoInput({
         const c = findContact(s, contacts);
         return c ? contactLabel(c) : s;
       })
-      .join(", ");
+      .join(WHO_SEP);
     if (next !== value.trim()) onPick(next);
   }
 
@@ -1215,6 +1235,8 @@ function NewCard({ date, ctx, onAdd }: { date: string; ctx: Ctx; onAdd: (e: Entr
           className={"cell-input num strong" + (badTime ? " invalid" : "")}
           aria-invalid={badTime || undefined}
           value={time}
+          // 칸에 들어가면 전체를 골라요 – 첫 숫자가 지금 시각을 바꿔요(2026-10-25 사용자).
+          onFocus={(e) => e.currentTarget.select()}
           onChange={(e) => {
             setTime(e.target.value);
             setTimeTouched(true);
@@ -1224,6 +1246,11 @@ function NewCard({ date, ctx, onAdd }: { date: string; ctx: Ctx; onAdd: (e: Entr
             const t = normTime(time);
             if (t) setTime(t);
             else if (time.trim()) setBadTime(true);
+            else {
+              // 비우고 떠나면 다시 지금 시각을 따라가요.
+              setTime(nowHM());
+              setTimeTouched(false);
+            }
           }}
         />
         <input
@@ -1399,25 +1426,129 @@ function PillarTel({ value }: { value: string }) {
   );
 }
 
-/** 프로젝트를 고르는 작은 목록 */
+/**
+ * 사업(프로젝트)을 고르는 작은 목록(2026-10-25 사용자 ③): 맨 위 검색 칸(초성·정식/줄인 이름), 전체 사업 이름 순 + 줄인 이름,
+ * 길면 안에서 스크롤. 카드 테두리에 잘리지 않게 화면 위에 띄워요(예전엔 카드 안에 떠서 아래가 잘려 일부만 보였어요).
+ */
 function ProjectMenu({ ctx, current, onPick, onClose }: { ctx: Ctx; current: number | null; onPick: (id: number | null) => void; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
-  // 프로젝트 버튼을 다시 누르는 것은 버튼이 닫아요. 그 밖을 누르면 여기서 닫아요.
-  useOutsideClose(true, [() => ref.current?.parentElement], () => onClose(), { onEsc: () => onClose() });
-  useEffect(() => {
-    ref.current?.querySelector<HTMLButtonElement>('[aria-pressed="true"]')?.focus();
+  const anchor = useRef<HTMLSpanElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [q, setQ] = useState("");
+  const [hi, setHi] = useState(0);
+  const [pos, setPos] = useState<{ left: number; top: number; up: boolean } | null>(null);
+  // 사업 배지를 다시 누르는 것은 배지가 닫아요. 그 밖을 누르면 여기서 닫아요.
+  useOutsideClose(true, [ref, () => anchor.current?.parentElement], () => onClose());
+  // 놓을 자리: 배지 아래(모자라면 위), 화면 안 8px.
+  useLayoutEffect(() => {
+    const wrap = anchor.current?.parentElement;
+    if (!wrap) return;
+    const r = wrap.getBoundingClientRect();
+    const W = 260;
+    const H = 230;
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - W - 8));
+    const up = r.bottom + 4 + H > window.innerHeight - 8 && r.top - 4 - H > 8;
+    setPos({ left, top: up ? r.top - 4 : r.bottom + 4, up });
   }, []);
-  const opts: (Project | null)[] = [null, ...ctx.projects];
-  return (
-    <div ref={ref} className="jmenu" role="menu" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
-      {opts.map((p) => (
-        <button key={p?.id ?? 0} type="button" role="menuitemradio" className="jmenu-opt" aria-pressed={(p?.id ?? null) === current} onClick={() => onPick(p?.id ?? null)}>
-          <span className="jmenu-dot" aria-hidden="true" style={{ background: p ? `var(--pj-${projectColor(p)}-line)` : "var(--line)" }} />
-          <span className="pbadge-t" title={p ? pjFull(p) : undefined}>{p ? pjLabel(p) : "없음"}</span>
-        </button>
-      ))}
-      {ctx.projects.length === 0 && <div className="hint jmenu-hint">프로젝트는 업무연락처의 "프로젝트 관리"에서 만들어요.</div>}
+  // 자리를 잡아 보이게 된 뒤 검색 칸에 커서를 둬요(숨긴 동안에는 커서가 들어가지 않아요).
+  useEffect(() => {
+    if (pos) inputRef.current?.focus();
+  }, [pos]);
+  // 목록이 스크롤되거나 창 크기가 바뀌면 자리가 어긋나니 닫아요.
+  useEffect(() => {
+    const close = (e: Event) => {
+      if (ref.current && e.target instanceof Node && ref.current.contains(e.target)) return;
+      onClose();
+    };
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [onClose]);
+
+  const query = q.trim();
+  const list = [...ctx.projects]
+    .filter((p) => !query || koIndex(p.name, query) >= 0 || (!!p.alias && koIndex(p.alias, query) >= 0))
+    .sort((a, b) => a.name.localeCompare(b.name, "ko"));
+  const opts: (Project | null)[] = query ? list : [null, ...list];
+  const at = Math.min(hi, Math.max(0, opts.length - 1));
+
+  useEffect(() => {
+    ref.current?.querySelector<HTMLElement>(`[data-i="${at}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [at]);
+
+  function onKey(e: KeyboardEvent<HTMLInputElement>) {
+    // 카드의 키(등록·취소)로 가지 않게 여기서 끝내요.
+    e.stopPropagation();
+    if (e.nativeEvent.isComposing) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHi(Math.min(at + 1, opts.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHi(Math.max(at - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (opts.length) onPick(opts[at]?.id ?? null);
+    } else if (e.key === "Escape" || e.key === "Tab") {
+      e.preventDefault();
+      onClose();
+    }
+  }
+
+  const menu = (
+    <div
+      ref={ref}
+      className={"jmenu jmenu-pop" + (pos?.up ? " up" : "")}
+      role="dialog"
+      aria-label="사업 고르기"
+      style={pos ? { left: pos.left, top: pos.top } : { visibility: "hidden" }}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <input
+        ref={inputRef}
+        className="cell-input jmenu-q"
+        aria-label="사업 검색"
+        placeholder="사업 이름으로 검색 (초성도 돼요)"
+        autoComplete="off"
+        value={q}
+        onChange={(e) => {
+          setQ(e.target.value);
+          setHi(0);
+        }}
+        onKeyDown={onKey}
+      />
+      <div className="jmenu-list" role="listbox" aria-label="사업">
+        {opts.map((p, i) => (
+          <button
+            key={p?.id ?? 0}
+            type="button"
+            role="option"
+            data-i={i}
+            className={"jmenu-opt" + (i === at ? " hi" : "")}
+            aria-selected={(p?.id ?? null) === current}
+            aria-pressed={(p?.id ?? null) === current}
+            onMouseEnter={() => setHi(i)}
+            onClick={() => onPick(p?.id ?? null)}
+          >
+            <span className="jmenu-dot" aria-hidden="true" style={{ background: p ? `var(--pj-${projectColor(p)}-line)` : "var(--line)" }} />
+            <span className="pbadge-t jmenu-name" title={p ? pjFull(p) : undefined}>{p ? p.name : "없음"}</span>
+            {p?.alias && <span className="jmenu-alias">{p.alias}</span>}
+          </button>
+        ))}
+        {query && opts.length === 0 && <div className="hint jmenu-hint">맞는 사업이 없어요</div>}
+      </div>
+      {ctx.projects.length === 0 && <div className="hint jmenu-hint">사업은 업무연락처의 "사업 관리"에서 만들어요.</div>}
     </div>
+  );
+  return (
+    <>
+      <span ref={anchor} hidden />
+      {createPortal(menu, document.body)}
+    </>
   );
 }
 
@@ -1483,15 +1614,15 @@ function ViewCard({
             <button
               type="button"
               className={"jproj" + (p ? "" : " none")}
-              title={p ? pjFull(p) : "눌러서 프로젝트 바꾸기"}
-              aria-label={`프로젝트: ${p ? pjFull(p) : "없음"}`}
+              title={p ? pjFull(p) : "눌러서 사업 바꾸기"}
+              aria-label={`사업: ${p ? pjFull(p) : "없음"}`}
               aria-expanded={menuOpen}
               onClick={(ev) => {
                 ev.stopPropagation();
                 onMenu(!menuOpen);
               }}
             >
-              {p ? <span className="pbadge-t">{pjLabel(p)}</span> : "+ 프로젝트"}
+              {p ? <span className="pbadge-t">{pjLabel(p)}</span> : "+ 사업"}
             </button>
             {menuOpen && <ProjectMenu ctx={ctx} current={e.project} onPick={onProject} onClose={() => onMenu(false)} />}
           </span>
@@ -1694,6 +1825,7 @@ function EditCard({
           className={"cell-input num strong" + (badTime ? " invalid" : "")}
           aria-invalid={badTime || undefined}
           value={time}
+          onFocus={(ev) => ev.currentTarget.select()}
           onChange={(ev) => {
             setTime(ev.target.value);
             setBadTime(false);
@@ -1722,12 +1854,12 @@ function EditCard({
             type="button"
             className="jproj-badge"
             style={p ? { background: `var(--pj-${projectColor(p)}-bg)`, color: `var(--pj-${projectColor(p)}-fg)`, borderColor: `var(--pj-${projectColor(p)}-line)` } : undefined}
-            title={p ? pjFull(p) : "눌러서 프로젝트 바꾸기"}
-            aria-label={`프로젝트: ${p ? pjFull(p) : "없음"}`}
+            title={p ? pjFull(p) : "눌러서 사업 바꾸기"}
+            aria-label={`사업: ${p ? pjFull(p) : "없음"}`}
             aria-expanded={menu}
             onClick={() => setMenu(!menu)}
           >
-            {p ? <span className="pbadge-t">{pjLabel(p)}</span> : "+ 프로젝트"}
+            {p ? <span className="pbadge-t">{pjLabel(p)}</span> : "+ 사업"}
           </button>
           {menu && (
             <ProjectMenu

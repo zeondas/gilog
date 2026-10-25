@@ -1184,7 +1184,7 @@ function fakeCall(cmd: string, args: Record<string, unknown>): unknown {
     const heads = a.kind === "complaints"
       ? ["연번", "접수유형", "접수일", "민원유형", "지역", "위치", "민원인", "연락처", "내용", "조치내용", "마감일", "상태", "메모"]
       : a.kind === "journal"
-        ? ["연번", "날짜", "시각", "구분", "상대", "연락처", "프로젝트", "내용"]
+        ? ["연번", "날짜", "시각", "구분", "상대", "연락처", "사업", "내용"]
         : ["연번", "이름", "소속", "직위", "무선", "유선", "이메일", "사업", "메모", "그룹", "축약공사명", "색"];
     const d = args.data as { rows: string[][]; days?: string[][] };
     const extra = a.kind === "journal"
