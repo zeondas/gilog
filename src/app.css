@@ -12040,3 +12040,66 @@ body.ew-dragging .pjm-colgrip:active::after {
 .cm-rowmenu .ask-band > span {
   white-space: nowrap;
 }
+
+/* ---------- 민원대장 2026-10-25 사용자 18건 ---------- */
+/* 위쪽 줄 고정(집행현황처럼): 상태 칩·검색·단추 줄이 위에 붙고, 열 제목 줄은 그 아래에 붙어요 */
+.cm-top {
+  position: sticky;
+  top: calc(var(--space-6) * -1);
+  z-index: 3;
+  margin-top: calc(var(--space-6) * -1);
+  padding-top: var(--space-6);
+  padding-bottom: var(--space-2);
+  margin-bottom: calc(var(--space-2) * -1);
+  background: var(--surface);
+  flex-wrap: nowrap; /* 창을 좁혀도 엑셀 단추가 아래로 내려가지 않아요 – 검색칸이 먼저 줄어요 */
+}
+.cm-top.tb5 .search { flex: 0 1 260px; min-width: 120px; width: auto; }
+.cm .cm-head { top: calc(var(--space-6) * -1 + var(--cm-top-h, 0px)); }
+
+/* 한 줄 + "…"(민원유형·민원인) */
+.cm-ell { min-width: 0; }
+.cm-ell-v { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 접은 조치완료일의 빈 칸: 마우스를 올리면 "+" – 두 번 누르면 날짜 칸 */
+.cm-done-c .cm-tpick { display: flex; width: 100%; height: 100%; }
+.cm-done-add {
+  flex: 1;
+  min-height: 18px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: transparent;
+  font: inherit;
+  font-weight: 600;
+  line-height: 18px;
+  cursor: pointer;
+}
+.cm-view:hover .cm-done-add,
+.cm-done-add:focus-visible,
+.cm-done-add[aria-expanded="true"] { color: var(--muted); }
+.cm-done-add:hover { background: var(--surface-band); color: var(--accent); }
+
+/* 칸 하나만 고치는 줄: 보기 줄 모양 그대로, 고치는 칸만 입력 상자 */
+.cm-cell-edit { cursor: default; background: var(--accent-wash); }
+.cm-cell-edit > .cm-c:has(> .cell-input, > .pin, > .bl-ed, > input) { padding-top: 4px; padding-bottom: 4px; align-items: flex-start; }
+
+/* 메모 창: 오른쪽 위 닫기(저장하고 닫기), 줄 지우기는 휴지통으로 줄 위·아래 옆 */
+.cm-memo-head { position: relative; padding-right: 52px; }
+.dialog-x {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.dialog-x:hover { background: var(--surface-band); color: var(--ink); }
+.memo-bar .tb-del { margin-left: 0; }

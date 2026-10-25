@@ -209,6 +209,23 @@ let pendingTab: { from: HTMLElement; cancel: () => void } | null = null;
 /** 다시 보내는 Tab을 처리하는 중 */
 let replaying = false;
 
+/**
+ * 한자·특수문자 목록이 열려 있는지(2026-10-25 사용자 – 자음 + 한자 키로 특수문자 목록을 열고 Tab으로 목록을 옆으로 펼쳐요).
+ * 조합 중에 한자 키를 누르면 켜고, 그 조합이 끝나면(글자를 고르면) 꺼요. 켜져 있는 동안 Tab은 입력기에 넘겨요.
+ */
+let hanjaOpen = false;
+if (typeof document !== "undefined") {
+  document.addEventListener(
+    "keydown",
+    (e) => {
+      if (e.key === "HanjaMode" || e.code === "Lang2" || e.keyCode === 25) hanjaOpen = true;
+    },
+    true,
+  );
+  document.addEventListener("compositionend", () => (hanjaOpen = false), true);
+  window.addEventListener("blur", () => (hanjaOpen = false));
+}
+
 /** 받아 둔 Tab을 같은 칸에 다시 보내요(칸의 키 처리 – 후보 확정 등 – 와 줄의 다음 칸 옮기기를 평소처럼 거쳐요). */
 function replayTab(from: HTMLElement, shift: boolean) {
   if (!from.isConnected || document.activeElement !== from) return;
@@ -309,8 +326,10 @@ export function moveField(row: HTMLElement, from: Element, dir: 1 | -1): boolean
  * 앞 칸(Shift+Tab) → 앞 칸. 다룬 키면 true.
  * 칸이 이미 처리한 키(후보 목록 확정 등 – defaultPrevented)는 보지 않아요.
  */
-export function rowKeys(e: RKeyboardEvent, row: HTMLElement | null, submit: () => void): boolean {
+export function rowKeys(e: RKeyboardEvent, row: HTMLElement | null, submit: () => void, move?: (dir: 1 | -1) => boolean): boolean {
   if (!row || e.defaultPrevented) return false;
+  // 한자·특수문자 목록이 열려 있으면 Tab은 입력기 것(목록 펼치기)이에요 – 칸을 옮기지 않아요.
+  if (hanjaOpen && composing(e.nativeEvent) && keyName(e)?.endsWith("Tab")) return false;
   // 단추 등 칸이 아닌 곳은 브라우저 기본(단추 Enter = 누르기, Tab = 다음 단추)이에요.
   if (!(e.target instanceof Element) || !e.target.matches("input, textarea, select, [contenteditable='true']")) return false;
   const from = e.target as HTMLElement;
@@ -348,14 +367,16 @@ export function rowKeys(e: RKeyboardEvent, row: HTMLElement | null, submit: () =
     }
     return true;
   }
+  // move: 칸 하나만 고치는 줄처럼 다음 칸을 줄이 직접 여는 곳(민원대장 – 2026-10-25)
+  const go = (dir: 1 | -1) => (move ? move(dir) : moveField(row, e.target as Element, dir));
   if (a === "common.next" || a === "single.next") {
     e.preventDefault();
-    if (!moveField(row, e.target as Element, 1)) submit();
+    if (!go(1)) submit();
     return true;
   }
   if (a === "common.prev") {
     e.preventDefault();
-    moveField(row, e.target as Element, -1);
+    go(-1);
     return true;
   }
   return false;

@@ -408,6 +408,21 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
             <>
               <ListGroup title="접수유형" items={s.intake} onChange={(intake) => update({ ...s, intake })} />
               <ListGroup title="민원유형" items={s.ctype} onChange={(ctype) => update({ ...s, ctype })} />
+              <Row k="위치 표기 법정동 행정동 지번" label="위치 표기" desc={s.placeStyle === "legal" ? "동 지역은 법정동과 지번만 – 동패동 1234" : "행정동 + 법정동 + 지번 – 운정3동 동패동 1234"}>
+                {/* 2026-10-25 사용자 ③1안 – 리 지역은 둘 다 "조리읍 대원리 1234" */}
+                <span className="seg" role="radiogroup" aria-label="위치 표기">
+                  {(
+                    [
+                      ["legal", "법정동"],
+                      ["admin", "행정동"],
+                    ] as const
+                  ).map(([id, name]) => (
+                    <button key={id} type="button" role="radio" aria-checked={s.placeStyle === id} onClick={() => update({ ...s, placeStyle: id })}>
+                      {name}
+                    </button>
+                  ))}
+                </span>
+              </Row>
               <AddressRows />
             </>
           ) : sc.id === "process" ? (

@@ -66,3 +66,16 @@ export function splitPlace(v: string): { head: string; rest: string } {
   const m = /^(\S*)(.*)$/s.exec(v) ?? ["", "", ""];
   return { head: m[1], rest: m[2] };
 }
+
+/** 리·동 이름 (긴 것부터 – "하지석동"이 "지석동"보다 먼저 맞게) */
+const NAMES_LONG = [...new Set(PLACES.map((p) => p.name))].sort((a, b) => b.length - a.length);
+
+/**
+ * 붙여 쓴 위치 띄우기(2026-10-25 사용자): "대원리1234" → "대원리 1234", "동패동1234-5" → "동패동 1234-5".
+ * 리·동 이름 바로 뒤에 숫자가 오면 한 칸 띄워요. 아니면 그대로예요.
+ */
+export function spacePlace(v: string): string {
+  const t = v.trim();
+  for (const n of NAMES_LONG) if (t.startsWith(n) && /^\d/.test(t.slice(n.length))) return n + " " + t.slice(n.length);
+  return v;
+}

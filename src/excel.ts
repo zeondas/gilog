@@ -4,6 +4,7 @@
 //   가져올 때는 거꾸로 기호를 알아보고, 빈 줄(묶음 나누기)은 남겨요.
 // - 가져오기는 판단하지 않아요: 중복 검사·값 고치기 없이 모든 줄(모든 칸이 빈 줄만 빼고)을 넣어요.
 //   다만 날짜 칸은 앱이 읽을 수 있으면 2026-10-15 모양으로 맞춰요(마감 계산이 되게). 읽을 수 없으면 그대로예요.
+import { spacePlace } from "./paju";
 import type { Complaint, ComplaintInput, Contact, ContactInput, DayInfo, Entry, EntryInput, JournalLine, Project, ProjectGroup } from "./api";
 import { splitProjects } from "./projectNames";
 import { BKind, BLine, layout, linePrefix, parseLines, stringifyLines } from "./bullets";
@@ -102,7 +103,7 @@ export function complaintImports(sheet: ExcelSheet): ComplaintImport[] {
     received: dateOf(get(r, "접수일")),
     ctype: get(r, "민원유형"),
     area: get(r, "지역"),
-    place: get(r, "위치"),
+    place: spacePlace(get(r, "위치")),
     // 민원인 한 칸 – 예전 두 열(민원인·연락처) 엑셀도 합쳐 읽어요.
     person: [get(r, "민원인"), get(r, "연락처")].filter(Boolean).join(" "),
     phone: "",

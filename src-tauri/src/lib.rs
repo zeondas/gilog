@@ -492,11 +492,6 @@ fn set_complaint_memo(state: State<AppState>, id: i64, memo: String) -> Result<C
 }
 
 #[tauri::command]
-fn swap_complaint_no(state: State<AppState>, a: i64, b: i64) -> Result<(Complaint, Complaint), String> {
-    with_store(&state, |s| s.swap_complaint_no(a, b))
-}
-
-#[tauri::command]
 fn delete_complaint(state: State<AppState>, id: i64) -> Result<(), String> {
     with_store(&state, |s| s.delete_complaint(id))
 }
@@ -699,7 +694,6 @@ pub fn run() {
             address_web::road_table_import,
             address_web::road_table_reset,
             set_complaint_memo,
-            swap_complaint_no,
             delete_complaint,
             excel_write,
             excel_read,

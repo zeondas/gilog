@@ -7,6 +7,15 @@ export function DelIcon() {
   );
 }
 
+/** 휴지통 아이콘 – 메모 창 "줄 지우기"(2026-10-25 사용자: ×는 창 닫기로 보여요) */
+export function TrashIcon() {
+  return (
+    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
+    </svg>
+  );
+}
+
 /** 사이드바 아이콘 (2026-10-17 확정, 시안 캔버스 SidebarIcons.dc.html) – 선 2px, 24 격자, 각진 모서리. */
 const NAV_PATHS = {
   explorer: "M3 5h6l2 3h10v12H3z",

@@ -14,7 +14,7 @@ import { areaFor, looksRoad, RoadHit, RoadLookup } from "./address";
 import { api } from "./api";
 import { Src, webLookup } from "./addressWeb";
 import { useJamoGuard } from "./koInput";
-import { emdsOf, findNames, Place, PLACES, splitPlace } from "./paju";
+import { emdsOf, findNames, Place, PLACES, spacePlace, splitPlace } from "./paju";
 
 const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
 
@@ -248,6 +248,15 @@ export function PlaceInput({
           if (roadPick) return setRoadPick(null);
           // 방금 Tab·Enter로 바꿨으면(그리기 전에 떠나요) 다시 손대지 않아요.
           if (done.current && value.trim() === done.current) return;
+          // 붙여 쓴 "대원리1234"는 "대원리 1234"로 띄우고 지역을 맞춰요(2026-10-25 사용자).
+          const spaced = spacePlace(value);
+          if (spaced !== value) {
+            onChange(spaced);
+            const emds = emdsOf(splitPlace(spaced).head);
+            if (emds.length === 1) onArea(emds[0]);
+            else if (!emds.includes(area)) onArea("");
+            return;
+          }
           const t = value.trim();
           const F = lookNow();
           const L = F?.r;

@@ -695,13 +695,29 @@ function fakeComplaints(cmd: string, a: Record<string, unknown>): unknown {
     const received = c.received.trim();
     const due = c.due.trim();
     const done = (c.done ?? "").trim();
-    if (!body || !isDate(received) || (due && !isDate(due)) || (done && !isDate(done))) throw "invalid";
     const t = (s: string) => s.trim();
+    // 아무 칸 하나만 적어도 돼요(core clean과 같게 – 접수일·상태는 세지 않아요).
+    const filled = [c.intake, c.ctype, c.area, c.place, c.person, c.phone, c.due, c.done ?? ""].some((v) => t(v)) || !!body || !!lines(c.action);
+    if (!filled || !isDate(received) || (due && !isDate(due)) || (done && !isDate(done))) throw "invalid";
     return {
       intake: t(c.intake), received, ctype: t(c.ctype), area: t(c.area), place: t(c.place),
       person: t(c.person), phone: t(c.phone), body, action: lines(c.action), due, status: t(c.status) || "접수", done,
       road: t(c.place) && t(c.road ?? "") !== t(c.place) ? t(c.road ?? "") : "",
     };
+  };
+  /** 연번 다시 매기기(core renumber와 같게): 접수일 → 접수유형(빈 칸 먼저, 가나다 거꾸로) → 위치 → id */
+  const renumber = () => {
+    const cmp = (x: string, y: string) => (x < y ? -1 : x > y ? 1 : 0);
+    const key = [...fake.complaints].sort(
+      (x, y) =>
+        cmp(x.received, y.received) ||
+        Number(y.intake === "") - Number(x.intake === "") ||
+        cmp(y.intake, x.intake) ||
+        Number(y.place === "") - Number(x.place === "") ||
+        cmp(y.place, x.place) ||
+        x.id - y.id,
+    );
+    key.forEach((c, i) => (c.no = i + 1));
   };
   const find = () => {
     const c = fake.complaints.find((x) => x.id === a.id);
@@ -715,11 +731,13 @@ function fakeComplaints(cmd: string, a: Record<string, unknown>): unknown {
       const no = fake.complaints.reduce((m, x) => Math.max(m, x.no), 0) + 1;
       const c = { id: fake.nextComplaintId++, no, memo: "", ...clean(a.complaint as ComplaintInput) };
       fake.complaints.push(c);
+      renumber();
       return structuredClone(c);
     }
     case "update_complaint": {
       const c = find();
       Object.assign(c, clean(a.complaint as ComplaintInput));
+      renumber();
       return structuredClone(c);
     }
     case "set_complaint_status": {
@@ -736,15 +754,9 @@ function fakeComplaints(cmd: string, a: Record<string, unknown>): unknown {
       c.memo = a.memo as string;
       return structuredClone(c);
     }
-    case "swap_complaint_no": {
-      const x = fake.complaints.find((c) => c.id === a.a);
-      const y = fake.complaints.find((c) => c.id === a.b);
-      if (!x || !y || x === y) throw "not_found";
-      [x.no, y.no] = [y.no, x.no];
-      return [structuredClone(x), structuredClone(y)];
-    }
     case "delete_complaint":
       fake.complaints = fake.complaints.filter((x) => x.id !== a.id);
+      renumber();
       return null;
     case "import_complaints": {
       // 엑셀 가져오기: 판단하지 않고 그대로 넣어요(core import_complaints와 같게).
@@ -761,6 +773,7 @@ function fakeComplaints(cmd: string, a: Record<string, unknown>): unknown {
           status: t(r.status) || "접수", memo: t(r.memo),
         });
       }
+      renumber();
       return rows.length;
     }
   }
@@ -1401,8 +1414,6 @@ export const api = {
   setComplaintStatus: (id: number, status: string, done?: string) =>
     call<Complaint>("set_complaint_status", done === undefined ? { id, status } : { id, status, done }),
   setComplaintMemo: (id: number, memo: string) => call<Complaint>("set_complaint_memo", { id, memo }),
-  /** 두 민원의 연번 맞바꾸기(줄 우클릭 위로·아래로 옮기기) */
-  swapComplaintNo: (a: number, b: number) => call<[Complaint, Complaint]>("swap_complaint_no", { a, b }),
   deleteComplaint: (id: number) => call<null>("delete_complaint", { id }),
   processData: () => call<ProcessData>("process_data"),
 
