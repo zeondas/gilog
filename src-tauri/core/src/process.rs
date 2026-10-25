@@ -166,6 +166,9 @@ pub struct CasePatch {
     pub order_jpg: Option<String>,
     pub outbox_file: Option<String>,
     pub sent_at: Option<String>,
+    /// 현장사진 순서 바꾸기(맨 앞이 지시부에 들어가는 사진 – 2026-10-21 사용자: 지시부엔 1장만).
+    /// 지금 사진들과 같은 묶음이어야 해요(더하거나 빼지 않아요).
+    pub photos: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -581,7 +584,24 @@ impl Store {
         if let Some(v) = &p.sent_at {
             c.sent_at = v.clone();
         }
+        let mut photos_sql: Option<String> = None;
+        if let Some(v) = &p.photos {
+            let (mut a, mut b) = (v.clone(), c.photos.clone());
+            a.sort();
+            b.sort();
+            if a != b {
+                return Err(bad("사진 묶음이 맞지 않아요"));
+            }
+            if *v != c.photos {
+                changed = true;
+                c.photos = v.clone();
+                photos_sql = Some(serde_json::to_string(&c.photos).unwrap_or_else(|_| "[]".into()));
+            }
+        }
         let tx = self.conn.transaction()?;
+        if let Some(j) = &photos_sql {
+            tx.execute("UPDATE cases SET photos = ?2 WHERE no = ?1", params![no, j])?;
+        }
         tx.execute(
             "UPDATE cases SET work = ?2, note = ?3, seq = ?4, stage = ?5, complaint = ?6, folder = ?7, order_file = ?8, order_jpg = ?9, outbox_file = ?10, sent_at = ?11, area = ?12, place = ?13, road = ?14, short = ?15 WHERE no = ?1",
             params![no, c.work, c.note, c.seq, c.stage, c.complaint, c.folder, c.order_file, c.order_jpg, c.outbox_file, c.sent_at, c.area, c.place, c.road, c.short],
@@ -809,6 +829,18 @@ mod tests {
         let c = s.update_case("1AA-1", &CasePatch { place: Some("".into()), ..Default::default() }).unwrap();
         assert_eq!(c.place, UNKNOWN_PLACE);
         assert_eq!(s.case("1AA-1").unwrap().area, "조리읍");
+    }
+
+    #[test]
+    fn reorders_photos_only_within_same_set() {
+        let (_d, mut s) = store();
+        s.add_cases(&[CaseInput { photos: vec!["a.jpg".into(), "b.jpg".into(), "c.jpg".into()], ..input("1AA-7") }]).unwrap();
+        let c = s.update_case("1AA-7", &CasePatch { photos: Some(vec!["c.jpg".into(), "a.jpg".into(), "b.jpg".into()]), ..Default::default() }).unwrap();
+        assert_eq!(c.photos, vec!["c.jpg", "a.jpg", "b.jpg"]);
+        assert_eq!(s.case("1AA-7").unwrap().photos[0], "c.jpg");
+        // 더하거나 빼는 것은 안 돼요
+        assert!(s.update_case("1AA-7", &CasePatch { photos: Some(vec!["c.jpg".into(), "x.jpg".into(), "b.jpg".into()]), ..Default::default() }).is_err());
+        assert!(s.update_case("1AA-7", &CasePatch { photos: Some(vec!["c.jpg".into()]), ..Default::default() }).is_err());
     }
 
     #[test]

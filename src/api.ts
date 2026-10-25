@@ -346,7 +346,9 @@ export type Order = {
   mailOk?: boolean;
 };
 
-export type CasePatch = Partial<Pick<Case, "work" | "area" | "place" | "road" | "note" | "short" | "seq" | "stage" | "complaint" | "folder" | "orderFile" | "orderJpg" | "outboxFile" | "sentAt">>;
+export type CasePatch = Partial<Pick<Case, "work" | "area" | "place" | "road" | "note" | "short" | "seq" | "stage" | "complaint" | "folder" | "orderFile" | "orderJpg" | "outboxFile" | "sentAt" | "photos">>;
+/** AI가 고른 현장사진(pick = 받은 목록 안의 경로) */
+export type PhotoPick = { no: string; pick: string; reason: string };
 export type ProcessData = { works: Work[]; cases: Case[]; orders: Order[] };
 /** held: 첨부가 아직 안 내려와 다음 번으로 미룬 파일 수(hold일 때만, 2026-10-21 신속 자동화) */
 export type InboxResult = { added: Case[]; skipped: number; failed: string[]; missingFiles: string[]; held: number };
@@ -1047,6 +1049,11 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
       fake.cases.forEach((c) => c.work === a.id && c.stage === "new" && (c.work = null));
       fake.works = fake.works.filter((w) => w.id !== a.id);
       return structuredClone(fake.works);
+    case "pick_photos": {
+      // 미리 보기: 사진이 여럿이면 마지막 사진을 고른 것으로 흉내 내요.
+      const items = (a.req as { items: { no: string; photos: string[] }[] }).items;
+      return items.filter((i) => i.photos.length > 1).map((i) => ({ no: i.no, pick: i.photos[i.photos.length - 1], reason: "파임이 가까이 크게 보여요" }));
+    }
     case "update_case": {
       const c = findCase(a.no);
       const p = a.patch as CasePatch;
@@ -1063,6 +1070,7 @@ function fakeProcess(cmd: string, a: Record<string, unknown>): unknown {
       Object.assign(c, { area, place });
       if (p.note !== undefined) (changed ||= one(p.note) !== c.note), (c.note = one(p.note));
       if (p.short !== undefined) (changed ||= one(p.short) !== c.short), (c.short = one(p.short));
+      if (p.photos !== undefined && p.photos.join("|") !== c.photos.join("|")) (changed = true), (c.photos = [...p.photos]);
       if (c.order != null) {
         if (leave) fakeLeave(c);
         else if (changed) fake.orders.forEach((o) => o.id === c.order && (o.dirty = true));
@@ -1492,6 +1500,7 @@ export const api = {
   runClaude: (req: { exe: string; inbox: string; downloads: string; guide: string; model: string }) => call<null>("run_claude", { req }),
   stopClaude: () => call<null>("stop_claude"),
   claudeStatus: (inbox: string) => call<RunStatus>("claude_status", { inbox }),
+  pickPhotos: (req: { exe: string; model: string; inbox: string; items: { no: string; summary: string; photos: string[] }[] }) => call<PhotoPick[]>("pick_photos", { req }),
   /** 엑셀에서 읽은 줄을 그대로 넣고 넣은 수를 돌려줘요. */
   /** 엑셀 가져오기 – 돌려주는 값은 [덮은 수, 더한 수]. replace = 대체하기(모두 지우고 넣기, 공통 ✔5) */
   importComplaints: (rows: (ComplaintInput & { memo: string })[], replace = false) => call<[number, number]>("import_complaints", { rows, replace }),

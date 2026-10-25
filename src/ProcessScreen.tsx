@@ -41,6 +41,8 @@ const phoneOf = (c: Contact | undefined) => (c ? c.mobile || c.tel : "");
 const FETCHED_KEY = "process.fetched";
 /** 마지막 불러오기 결과(아래 줄 "새 민원 N건 · 건너뜀 N건 · 걸린 시간 · [로그 열기]") */
 const LAST_RUN_KEY = "process.lastRun";
+/** AI가 고른 현장사진의 이유(접수번호 → 한 줄, 2026-10-21 22:59 사용자 – 지시부엔 1장만) */
+const PICK_KEY = "process.photoPick";
 /** per: 건당 걸린 시간(초, 2026-10-21 신속 자동화 – 전후 비교용) */
 type LastRun = { at: string; added: number; skipped: number | null; secs: number; log: string; per?: number };
 // 2026-10-21 열 폭을 글자에 맞추는 방식(자동)으로 새 키 – 예전에 끈 폭은 버려요. 값이 없으면 자동이에요.
@@ -126,6 +128,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   const [ps, setPs] = useState<ProcessSettings>(DEFAULT_PROCESS);
   const [fetched, setFetched] = useState("");
   const [lastRun, setLastRun] = useState<LastRun | null>(null);
+  const [picks, setPicks] = useState<Record<string, string>>({});
   const [widths, setWidths] = useState<(number | null)[] | null>(null);
   // 자동 맞춤으로 잰 폭(열 번호 → 폭)
   const [auto, setAuto] = useState<Record<number, number>>({});
@@ -167,8 +170,13 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
 
   useEffect(() => {
     (async () => {
-      const [pd, cl, cdata, st, f, cw, lr] = await Promise.all([api.processData(), api.complaints(), api.contactsData(), loadSettings(), api.get(FETCHED_KEY), api.get(COLS_KEY), api.get(LAST_RUN_KEY)]);
+      const [pd, cl, cdata, st, f, cw, lr, pk] = await Promise.all([api.processData(), api.complaints(), api.contactsData(), loadSettings(), api.get(FETCHED_KEY), api.get(COLS_KEY), api.get(LAST_RUN_KEY), api.get(PICK_KEY)]);
       setWidths(readWidths(cw));
+      try {
+        if (pk) setPicks(JSON.parse(pk) as Record<string, string>);
+      } catch {
+        /* 못 읽으면 이유 없이 */
+      }
       try {
         if (lr) setLastRun(JSON.parse(lr) as LastRun);
       } catch {
@@ -361,7 +369,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
 
   // ---------- 민원 불러오기: Claude가 신문고를 읽어 가져올 폴더에 놓고, 2초마다 표에 넣어요 ----------
   // hold: 실행 중엔 첨부가 아직 안 내려온 민원을 다음 번으로 미뤄요(Claude는 받기만 누르고 다음 건으로 – 2026-10-21 ②1안).
-  async function pullInbox(acc: { n: number; failed: Set<string>; missing: number; added: string[] }, hold = false) {
+  async function pullInbox(acc: { n: number; failed: Set<string>; missing: number; added: string[]; got: Case[] }, hold = false) {
     const r = await api.readInbox(ps.inbox, ps.downloads, ps.root, hold);
     if (r.added.length) setCases((l) => [...l, ...r.added.filter((a) => !l.some((x) => x.no === a.no))]);
     // 위치가 도로명주소면 웹 답을 먼저 믿어요(앱은 받을 때 내장 표로 바꿔 둠 – 2026-10-21 사용자 2안).
@@ -376,6 +384,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     }
     acc.n += r.added.length;
     acc.added.push(...r.added.map((a) => a.no));
+    acc.got.push(...r.added);
     r.failed.forEach((f) => acc.failed.add(f));
     acc.missing += r.missingFiles.length;
     return r.held;
@@ -397,7 +406,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     setRun({ n: 0, total: null });
     const t0 = Date.now();
     let skipped: number | null = null;
-    const acc = { n: 0, failed: new Set<string>(), missing: 0, added: [] as string[] };
+    const acc = { n: 0, failed: new Set<string>(), missing: 0, added: [] as string[], got: [] as Case[] };
     let st: RunStatus;
     for (;;) {
       await new Promise((r) => setTimeout(r, inApp ? 2000 : 700));
@@ -416,9 +425,10 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     }
     await pullInbox(acc).catch(() => 0);
     setRun(null);
+    await pickSitePhotos(acc.got);
     const tail = [
       acc.failed.size ? `못 읽은 파일 ${[...acc.failed].join(", ")}` : "",
-      acc.missing ? `못 찾은 사진 ${acc.missing}개 – 설정 "다운로드 폴더"가 크롬이 받는 곳과 같은지 봐 주세요` : "",
+      acc.missing ? `못 찾은 사진 ${acc.missing}개 – 크롬이 받는 곳(설정 "다운로드 폴더")과 크롬의 신문고 "자동 다운로드" 허용을 봐 주세요` : "",
     ].filter(Boolean);
     const head =
       st.state === "login"
@@ -437,6 +447,44 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     setLastRun(lr);
     await api.set(FETCHED_KEY, f);
     await api.set(LAST_RUN_KEY, JSON.stringify(lr));
+  }
+
+  /** 현장사진이 여러 장인 새 민원은 AI가 열어 보고 1장을 맨 앞으로(지시부엔 맨 앞 1장만 – 2026-10-21 22:59 사용자 ①1안·②1안). 실패하면 순서 그대로. */
+  async function pickSitePhotos(got: Case[]) {
+    const items = got.map((c) => ({ no: c.no, summary: c.summary, photos: c.photos.filter(isPath) })).filter((i) => i.photos.length > 1);
+    if (!items.length) return;
+    setNote(`현장사진 고르는 중 · ${items.length}건`);
+    try {
+      const res = await api.pickPhotos({ exe: ps.claude, model: ps.claudeModel ?? "sonnet", inbox: ps.inbox, items });
+      const next = { ...picks };
+      for (const r of res) {
+        const c = got.find((x) => x.no === r.no);
+        if (!c) continue;
+        const order = [r.pick, ...c.photos.filter((x) => x !== r.pick)];
+        const u = await api.updateCase(c.no, { photos: order });
+        setCases((l) => l.map((x) => (x.no === u.no ? u : x)));
+        if (r.reason) next[c.no] = r.reason;
+      }
+      setPicks(next);
+      await api.set(PICK_KEY, JSON.stringify(next));
+    } catch {
+      /* 고르지 못하면 받은 순서 그대로 – 줄 ⋯ 메뉴에서 직접 고를 수 있어요 */
+    }
+    setNote("");
+  }
+
+  /** 줄 ⋯ 메뉴에서 지시부에 넣을 현장사진을 바꿔요(맨 앞으로) */
+  async function choosePhoto(c: Case, path: string) {
+    const order = [path, ...c.photos.filter((x) => x !== path)];
+    try {
+      const u = await api.updateCase(c.no, { photos: order });
+      setCases((l) => l.map((x) => (x.no === u.no ? u : x)));
+      const next = { ...picks, [c.no]: "직접 고름" };
+      setPicks(next);
+      await api.set(PICK_KEY, JSON.stringify(next));
+    } catch (e) {
+      setNote(errText(e));
+    }
   }
 
   async function stopFetch() {
@@ -1081,6 +1129,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                   {c.photos.some((x) => !isPath(x)) ? ` (못 찾음 ${c.photos.filter((x) => !isPath(x)).length})` : ""}
                   {` · 위치도 ${isPath(c.map) ? "있음" : c.map ? "못 찾음" : "없음"}`}
                 </p>
+                {c.photos.filter(isPath).length > 1 && <PhotoStrip c={c} reason={picks[c.no] ?? ""} onPick={(path) => void choosePhoto(c, path)} />}
                 {o ? (
                   (() => {
                     // 지시부 띠에 있던 단추를 메뉴 맨 위로(2026-10-21 사용자 1안): 지시부 열기 · 다시 만들기 · 보내기 ▸
@@ -1848,8 +1897,8 @@ function WorksDialog({
         <div className="pr-wgrid pr-whead">
           <span>공사명 (지시부 · 업무연락처에서 고르기)</span>
           <span>축약 공사명 (표·파일)</span>
-          <span>시공사</span>
           <span>현장대리인 (업무연락처)</span>
+          <span>시공사</span>
           <span>처리 범위 (판단 기준)</span>
           <span>다음 연번</span>
           <span />
@@ -1863,8 +1912,8 @@ function WorksDialog({
                 <div key={w.id} ref={editRef} className="pr-wgrid pr-wrow pr-wedit" onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing && (e.target as HTMLElement).tagName === "INPUT" && !document.querySelector(".pr-cmenu")) saveEdit(); }}>
                   <ProjectPick d={edit} cd={cd} onChange={setEdit} />
                   <input className="cell-input" aria-label="축약 공사명" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} />
-                  <input className="cell-input" aria-label="시공사" value={edit.co} onChange={(e) => setEdit({ ...edit, co: e.target.value })} />
                   <AgentInputs d={edit} contacts={cd.contacts} onChange={setEdit} />
+                  <input className="cell-input" aria-label="시공사" value={edit.co} onChange={(e) => setEdit({ ...edit, co: e.target.value })} />
                   <input className="cell-input" aria-label="처리 범위" value={edit.scope} onChange={(e) => setEdit({ ...edit, scope: e.target.value })} />
                   <input className="cell-input pr-in center" aria-label="다음 연번" value={edit.nextSeq} onChange={(e) => setEdit({ ...edit, nextSeq: e.target.value.replace(/\D/g, "") })} />
                   <button type="button" className="pr-save" title="저장 (Enter)" onClick={saveEdit}>
@@ -1887,7 +1936,6 @@ function WorksDialog({
                   <span className="pr-ell">{w.full || w.name}</span>
                 </span>
                 <span className="pr-ell">{w.full && w.full !== w.name ? w.name : <span className="pr-sub">–</span>}</span>
-                <span className="pr-ell">{w.co}</span>
                 <span className="pr-agent" title="업무연락처와 같은 연락처예요. 어느 쪽에서 고쳐도 함께 바뀌어요">
                   {c ? (
                     <span className="pr-agent-name">
@@ -1898,6 +1946,7 @@ function WorksDialog({
                     <span className="pr-sub">–</span>
                   )}
                 </span>
+                <span className="pr-ell">{w.co}</span>
                 <span className="pr-scope">{w.scope}</span>
                 <span className="pr-num">{String(w.nextSeq).padStart(2, "0")}</span>
                 <button
@@ -1915,10 +1964,10 @@ function WorksDialog({
             );
           })}
           <div className="pr-wgrid pr-wrow pr-wnew">
-            <ProjectPick d={draft} cd={cd} onChange={setDraft} placeholder="업무연락처 프로젝트 찾기" />
+            <ProjectPick d={draft} cd={cd} onChange={setDraft} placeholder="업무연락처 사업 찾기" />
             <input className="cell-input" placeholder="예: 동부권 도로시설물 1지구" aria-label="새 축약 공사명" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
-            <input className="cell-input" placeholder="시공사" aria-label="새 시공사" value={draft.co} onChange={(e) => setDraft({ ...draft, co: e.target.value })} />
             <AgentInputs d={draft} contacts={cd.contacts} onChange={setDraft} />
+            <input className="cell-input" placeholder="시공사" aria-label="새 시공사" value={draft.co} onChange={(e) => setDraft({ ...draft, co: e.target.value })} />
             <input className="cell-input" placeholder="예: 반사경, 시선유도봉, 작은 포트홀" aria-label="새 처리 범위" value={draft.scope} onChange={(e) => setDraft({ ...draft, scope: e.target.value })} />
             <input className="cell-input pr-in center" title="처음 연번(보통 1)" aria-label="새 다음 연번" value={draft.nextSeq} onChange={(e) => setDraft({ ...draft, nextSeq: e.target.value.replace(/\D/g, "") })} />
             <button type="button" className="pr-add" aria-label="공사 등록" onClick={add}>
@@ -1930,7 +1979,7 @@ function WorksDialog({
         </div>
         <div className="pr-hints">
           {err && <span className="pr-err">{err}</span>}
-          <span>공사명 칸에 치면 업무연락처 프로젝트가 떠요. 고르면 축약 공사명·시공사·현장대리인을 업무연락처에서 채워요(목록에 없으면 새 프로젝트로 등록돼요). 현장대리인은 업무연락처와 같은 연락처예요(어느 쪽에서 고쳐도 함께 바뀌어요). 줄을 두 번 누르면 고치고 [저장]·Enter로 저장해요(Esc 취소).</span>
+          <span>공사명 칸에 치면 업무연락처 사업이 떠요. 고르면 축약 공사명·현장대리인·시공사를 업무연락처에서 채워요(목록에 없으면 새 사업으로 등록돼요). 현장대리인은 업무연락처와 같은 연락처예요(어느 쪽에서 고쳐도 함께 바뀌어요) – 고르면 시공사가 그 사람 소속으로 채워져요. 줄을 두 번 누르면 고치고 [저장]·Enter로 저장해요(Esc 취소).</span>
           <span>지시부는 모든 공사가 표준 양식 하나를 써요(설정 “민원처리”). 정식 공사명은 지시부 맨 위, 축약 공사명은 표의 공사 배지·지시부 번호·파일 이름에 들어가요.</span>
         </div>
         <div className="dialog-foot">
@@ -2011,7 +2060,7 @@ function ProjectPick({ d, cd, onChange, placeholder }: { d: Draft; cd: ContactsD
       />
       {openList && n > 0 && (
         <Floating rect={openList} align="left" onClose={() => setOpenList(null)}>
-          <div className="pr-menu pr-cmenu pr-pmenu" role="listbox" aria-label="업무연락처 프로젝트">
+          <div className="pr-menu pr-cmenu pr-pmenu" role="listbox" aria-label="업무연락처 사업">
             {cands.map((p, i) => {
               const a = agentOf(p.id, cd.contacts);
               return (
@@ -2026,7 +2075,7 @@ function ProjectPick({ d, cd, onChange, placeholder }: { d: Draft; cd: ContactsD
             })}
             {q && !exact && (
               <button type="button" role="option" aria-selected={hi === cands.length} className="pr-copt pr-new" onMouseDown={(e) => e.preventDefault()} onClick={() => choose(null)}>
-                ＋ "{q}" 새 프로젝트로 추가
+                ＋ "{q}" 새 사업으로 추가
               </button>
             )}
           </div>
@@ -2045,7 +2094,8 @@ function AgentInputs({ d, contacts, onChange }: { d: Draft; contacts: Contact[];
   const cands = q ? contacts.filter((c) => koIndex(c.name, q) === 0 || koIndex(c.org, q) >= 0).slice(0, 6) : contacts.slice(0, 6);
   const exact = contacts.some((c) => c.name === q);
   const choose = (c: Contact | null) => {
-    if (c) onChange({ ...d, contact: c.id, agent: c.name, phone: phoneOf(c) });
+    // 현장대리인을 고르면 시공사는 늘 그 사람 소속으로(소속이 비었으면 그대로) – 2026-10-25 19:33 사용자 1안
+    if (c) onChange({ ...d, contact: c.id, agent: c.name, phone: phoneOf(c), co: c.org.trim() || d.co });
     else onChange({ ...d, contact: null });
     setOpenList(null);
   };
@@ -2095,6 +2145,46 @@ function AgentInputs({ d, contacts, onChange }: { d: Draft; contacts: Contact[];
       )}
     </span>
   );
+}
+
+/** 줄 ⋯ 메뉴의 현장사진 고르기: 맨 앞 사진이 지시부에 들어가요(2026-10-21 22:59 사용자 – 지시부엔 1장만, AI가 고르고 여기서 바꿈). */
+function PhotoStrip({ c, reason, onPick }: { c: Case; reason: string; onPick: (path: string) => void }) {
+  const photos = c.photos.filter(isPath);
+  return (
+    <div className="pr-photos" role="group" aria-label="지시부에 넣을 현장사진">
+      <div className="pr-photos-row">
+        {photos.map((p, i) => (
+          <button
+            key={p}
+            type="button"
+            className="pr-thumb"
+            data-on={i === 0 ? "1" : undefined}
+            aria-pressed={i === 0}
+            title={i === 0 ? "지시부에 들어가는 사진" : "이 사진을 지시부에 넣어요"}
+            onClick={() => i !== 0 && onPick(p)}
+          >
+            <Thumb path={p} n={i + 1} />
+            {i === 0 && <span className="pr-thumb-tag">지시부</span>}
+          </button>
+        ))}
+      </div>
+      <p className="pr-photos-why">{reason ? `고른 이유: ${reason}` : "사진을 누르면 지시부에 넣을 사진이 바뀌어요"}</p>
+    </div>
+  );
+}
+
+function Thumb({ path, n }: { path: string; n: number }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    import("@tauri-apps/api/core")
+      .then(({ convertFileSrc }) => alive && setSrc("__TAURI_INTERNALS__" in window ? convertFileSrc(path) : null))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [path]);
+  return src ? <img src={src} alt={`현장사진 ${n}`} loading="lazy" /> : <span className="pr-thumb-ph">{n}</span>;
 }
 
 function PersonIcon() {
