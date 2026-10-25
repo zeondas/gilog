@@ -67,53 +67,70 @@ export const SAMPLE_WORKS = [
 /** 이미 있는 접수번호(Claude가 같은 민원을 다시 가져오지 않게) */
 export type Known = { nos: string[] };
 
+/** 신문고 화면 안에서 돌리는 명령(javascript_tool) – 지침에 그대로 넣어 Claude가 찾지 않고 바로 써요(2026-10-21 22:48 사용자 ②1안 지름길).
+ *  화면 구조(2026-10-21 시연): 첫 화면에 숨은 "민원처리" 링크(onclick에 PttnPrcsList) · 목록 줄 첫 칸 = 신청번호(누르면 이력 팝업 – 누르지 않음),
+ *  둘째 칸 = 제목 링크(fn_viewPttn) · 상세 [첨부파일일괄다운로드](fn_fileAllDown, 같은 단추가 숨은 것까지 두 벌) · [목록] · 첨부 이름 링크(gfn_fileDownload). */
+export const EPEOPLE_JS = {
+  /** 첫 화면 → 민원처리 목록 */
+  toList: `(()=>{const a=[...document.querySelectorAll('a')].find(a=>a.textContent.trim()==='민원처리'&&/PttnPrcsList/.test(a.getAttribute('onclick')||''));if(!a)return 'NO_LINK';a.click();return 'ok'})()`,
+  /** 목록: 전체 건수·이 쪽 신청번호(줄 첫 칸만 – 제목 안의 다른 번호·민원인 열은 읽지 않음)·쪽 번호 링크 */
+  readList: (known: string[]) =>
+    `(()=>{const known=new Set(${JSON.stringify(known)});const nos=[...document.querySelectorAll('table tbody tr')].map(t=>((t.children[0]&&t.children[0].innerText)||'').match(/1AA-\\d{4}-\\d{7}/)).filter(Boolean).map(m=>m[0]);const total=(document.body.innerText.match(/전체\\s*(\\d+)\\s*건/)||[])[1]||'';const pages=[...document.querySelectorAll('a')].filter(a=>a.offsetParent&&/^\\d{1,3}$/.test(a.textContent.trim())&&!a.closest('table tbody')).map(a=>a.textContent.trim());return {total,new:nos.filter(n=>!known.has(n)),known:nos.filter(n=>known.has(n)).length,pages}})()`,
+  /** 목록에서 그 번호의 둘째 칸(제목) 링크 누르기 – 없으면 NO_ROW(다른 쪽에 있음) */
+  open: `(()=>{const no='NO';const tr=[...document.querySelectorAll('table tbody tr')].find(t=>((t.children[0]&&t.children[0].innerText)||'').includes(no));const a=tr&&tr.children[1]&&tr.children[1].querySelector('a');if(!a)return 'NO_ROW';a.click();return 'ok'})()`,
+  /** 목록 쪽 번호 누르기(쪽이 여럿일 때) */
+  page: `(()=>{const a=[...document.querySelectorAll('a')].find(a=>a.offsetParent&&a.textContent.trim()==='P'&&!a.closest('table tbody'));if(!a)return 'NO_PAGE';a.click();return 'ok'})()`,
+  /** 상세: 필요한 칸만 읽고 [첨부파일일괄다운로드] 자리를 스크린샷 좌표로(W = 스크린샷 좌표 폭) */
+  read: `(()=>{const W=FRAME_W;const T=document.body.innerText;const g=r=>(T.match(r)||[])[1]||'';const att=[...new Set([...document.querySelectorAll('a[onclick*="gfn_fileDownload"]')].map(a=>a.textContent.trim()))];const head=[...document.querySelectorAll('th,td')].find(e=>e.innerText.trim().startsWith('<첨부파일>'));const tr=head&&head.closest('tr');const body=tr?tr.lastElementChild.innerText.trim().slice(0,3000):'';const b=[...document.querySelectorAll('a')].find(a=>a.textContent.replace(/\\s/g,'')==='첨부파일일괄다운로드'&&a.offsetParent);let click=null;if(b){b.scrollIntoView({block:'center'});const r=b.getBoundingClientRect();const k=W/innerWidth;click=[Math.round((r.x+r.width/2)*k),Math.round((r.y+r.height/2)*k)]}return {no:g(/(1AA-\\d{4}-\\d{7})/),received:g(/접수일시\\s*(\\d{4}-\\d{2}-\\d{2})/),due:g(/처리완료예정일\\s*:?\\s*(\\d{4}-\\d{2}-\\d{2})/),place:g(/\\[사고발생지역\\]\\s*([^\\n]+)/),safety:/안전신문고|안전제보/.test(T),att,body:body||'(본문 칸을 못 찾음 – get_page_text로 읽기)',click}})()`,
+  /** 상세 → [목록] 단추(글자가 정확히 "목록"인 것만 – 바로 옆 [저장]은 누르지 않음) */
+  back: `(()=>{const a=[...document.querySelectorAll('a,button')].find(a=>a.offsetParent&&a.textContent.replace(/\\s/g,'')==='목록');if(!a)return 'NO_LIST';a.click();return 'ok'})()`,
+};
+
 /** Claude에게 줄 지침. [민원 불러오기]가 Claude에게 넘기고, 설정의 [지침 복사]로도 복사해요.
- *  2026-10-20 속도: 화면 생김새와 걸음을 미리 적어 Claude가 매번 화면을 보고 생각하지 않게 해요(사용자 캡처 세 장 기준).
- *  접수번호로만 걸러요(2026-10-20 사용자): known.nos = 지금 민원처리 표에 있는 번호뿐 – 지운 민원은 표에 없으니 다시 와요. 같은 곳·같은 내용 비교는 하지 않아요. */
+ *  2026-10-21 2차(사용자 22:48·22:59): 신문고 안은 화면 안 명령(EPEOPLE_JS)으로 바로 다니고, 첨부는 [첨부파일일괄다운로드]를 커서로 진짜 눌러
+ *  `접수번호.zip`으로 받아요(앱이 풀어 위치도·현장사진으로 나눔). 나갈 때는 [목록] 단추.
+ *  접수번호로만 걸러요(2026-10-20 사용자): known.nos = 지금 민원처리 표에 있는 번호뿐 – 지운 민원은 표에 없으니 다시 와요. */
 export function aiGuide(p: { inbox: string; downloads: string; outbox: string }, works: { id: number; name: string; scope: string }[], known: Known = { nos: [] }): string {
   const list = works.length ? works.map((w) => `  - ${w.id}: ${w.name} – ${w.scope || "(처리 범위 없음)"}`).join("\n") : "  - (등록된 공사가 없어요 – work는 null)";
-  const nos = known.nos.length ? known.nos.join(", ") : "(없음)";
+  const J = EPEOPLE_JS;
   return `# 기록 민원처리 지침
 
 ## 0. 규칙
-- **맨 먼저 브라우저를 골라요**: list_connected_browsers로 이어진 브라우저를 보고, 이름에 Chrome(크롬)이 든 것을 select_browser로 골라요. 이름이 "Browser 1"처럼 종류를 알 수 없으면 첫 것을 골라요(크롬인지는 아래 1단계에서 화면이 글로 읽히는지로 봐요). 이름에 Edge(엣지)가 든 것은 고르지 않아요 – 회사 정책으로 IE 모드라 읽지 못해요. 고를 브라우저가 하나도 없으면 아무것도 하지 말고 마지막 답을 정확히 NO_CHROME 한 줄로 끝내요.
+- **맨 먼저 브라우저를 골라요**: list_connected_browsers로 이어진 브라우저를 보고, 이름에 Chrome(크롬)이 든 것을 select_browser로 골라요. 이름이 "Browser 1"처럼 종류를 알 수 없으면 첫 것을 골라요. 이름에 Edge(엣지)가 든 것은 고르지 않아요 – 회사 정책으로 IE 모드라 읽지 못해요. 고를 브라우저가 하나도 없으면 아무것도 하지 말고 마지막 답을 정확히 NO_CHROME 한 줄로 끝내요.
 - 파일은 Write로만 써요. PowerShell·Bash는 쓰지 않아요(허락받을 사람이 없어 막혀요).
-- **누르는 것은 이 지침에 적힌 단추·글자뿐이에요**: 위 메뉴 "민원" → "민원처리", 목록의 제목, 쪽 번호, [첨부파일일괄다운로드]. 그 밖(검색·조회·초기화·**인쇄·저장**·엑셀·결재·처리·이송·답변 작성·개인정보·민원인 이름·첨부 파일 이름 하나하나·팝업 단추)은 누르지 않아요. 목록으로 돌아갈 때는 단추를 누르지 않고 브라우저 **뒤로 가기**(navigate에 "back")를 써요. 화면이 생각과 다르면 누르며 찾지 말고 get_page_text로 다시 읽어요.
-- 누를 때는 find로 그 글자를 찾아 그 자리(ref)를 한 번 눌러요. 같은 단추를 다시 누르지 않아요. 누른 뒤 따로 확인 읽기를 하지 않아요 – 다음 걸음의 find·get_page_text가 확인이에요. 새 탭을 연 직후에는 페이지가 뜰 때까지 기다린 뒤 읽어요(빈 탭에서 find 하면 오류).
-- 크롬(Claude 확장)으로 일해요. 화면은 **글로만** 읽어요(get_page_text·find). **스크린샷(computer의 screenshot·zoom)은 어떤 경우에도 쓰지 않아요.** 좌표로 누르지 않아요(ref로만). 사진 파일은 열어 보지 않아요(판단은 본문 글과 파일 이름으로).
-- **받은 첨부 파일은 찾거나 기다리지 않아요** – 기록앱이 받는 폴더를 지켜보다 붙여요. Glob·Read로 다운로드 폴더를 뒤지지 않아요.
-- 한 화면에서 할 일이 여럿이면 한 번에 묶어 보내요(browser_batch). 생각은 짧게, 걸음은 아래 순서 그대로.
+- **신문고 안에서는 아래 "화면 안 명령"을 javascript_tool(action "javascript_exec")로 그대로 돌려요.** 글자를 찾느라 find·get_page_text를 쓰지 않아요 – 명령이 'NO_…'를 돌려주거나 값이 비었을 때만 get_page_text로 한 번 읽어요. 명령 안의 NO·P·FRAME_W 자리만 바꿔 넣고 나머지는 고치지 않아요.
+- **누르는 것은 이 지침의 명령과 [첨부파일일괄다운로드] 커서 누르기뿐이에요.** 그 밖(검색·조회·초기화·**인쇄·저장**·엑셀·결재·처리·이송·답변 작성·개인정보·민원인 이름·신청번호(이력 창)·첨부 파일 이름 하나하나·팝업 단추)은 누르지 않아요.
+- 화면은 글로 읽어요. 스크린샷은 **딱 한 번**만 – 첫 상세 화면에서 computer screenshot(scale 0.1)으로 결과의 "coordinate frame: W×H"에서 W를 알아내요(커서 좌표 계산용). 그 밖에는 찍지 않아요. 사진 파일은 열어 보지 않아요.
+- **받은 첨부 파일은 찾거나 기다리지 않아요** – 기록앱이 받는 폴더(${p.downloads})를 지켜보다 풀어서 붙여요. Glob·Read로 다운로드 폴더를 뒤지지 않아요.
+- 한 번에 묶을 수 있는 것은 묶어요(browser_batch, 그리고 Write는 같은 차례에 함께). 생각은 짧게, 걸음은 아래 순서 그대로.
 - 민원인 이름·연락처는 어디에도 쓰지 않아요(목록의 "민원인" 열은 읽지 않아요). 개인정보 창은 열지 않아요. 민원 제목은 담당자가 붙인 것이라 판단에 쓰지 않아요.
 - 로그인 화면이 나오거나 로그인이 풀려 있으면 아무것도 쓰지 말고, 마지막 답을 정확히 LOGIN_REQUIRED 한 줄로 끝내요(인증서 로그인은 담당자가 해요).
 - 탭이 열렸는데 화면을 읽을 수 없으면(IE 모드, 글 읽기 실패) 아무것도 쓰지 말고, 마지막 답을 정확히 PAGE_UNREADABLE 한 줄로 끝내요. 로그인 문제로 짐작하지 않아요.
 - 가져올 폴더: ${p.inbox}
 
-## 1. 목록까지 가는 길
-1. 새 탭을 열어 ${PORTAL_URL} 를 열어요(첫 화면만 주소로 열려요 – 목록 주소를 바로 열면 405).
-2. 위쪽 파란 메뉴 줄의 **"민원"**을 누르면 아래에 상자들이 펼쳐져요 → **"민원처리"** 상자를 눌러요.
-3. "민원처리목록" 화면이 나와요. 검색 조건은 처음 값(처리중) 그대로 두고 아무것도 누르지 않아요 – 목록이 이미 보여요. "전체 N건"이 건수예요.
-4. 표의 열: 신청번호 · 민원제목/민원요지(앞에 "안전"·"이송N회" 같은 배지가 붙기도 해요) · 민원인 · 처리유형 · 접수일 · 결재상태 · 자민원건수 · 잔여일. 한 쪽에 10건이에요 – N이 10을 넘으면 표 아래 쪽 번호(2, 3 …)를 눌러 다음 쪽도 읽어요.
+## 화면 안 명령
+- ㄱ 목록으로(첫 화면에서): ${J.toList}
+- ㄴ 목록 읽기: ${J.readList(known.nos)}
+- ㄷ 그 민원 열기(NO = 접수번호): ${J.open}
+- ㄹ 쪽 번호 누르기(P = 쪽 번호): ${J.page}
+- ㅁ 상세 읽기(FRAME_W = 위 W 숫자): ${J.read}
+- ㅂ [목록]으로 나가기: ${J.back}
 
-## 2. 가져올 것 고르기 – 목록만 보고, 열지 않아요
-- 모든 쪽의 신청번호를 모아요.
-- 아래 "이미 있는 접수번호"에 있는 번호는 **열지 않고** 빼요. 접수번호로만 판단해요 – 그 밖의 민원은 내용이 비슷해도 모두 가져와요.
-- 남은 번호가 가져올 후보예요. 후보가 없으면 바로 "새 민원 0건"으로 끝내요.
-- 가져올 폴더에 "_진행.json"을 {"total": 후보 수, "done": 0, "skipped": 이미 있어 뺀 수} 로 써요. 한 건을 끝내거나 건너뛸 때마다 done을 올려요(skipped는 그대로).
+## 1. 목록까지
+1. 새 탭을 열어 ${PORTAL_URL} 를 열고(첫 화면만 주소로 열려요 – 목록 주소를 바로 열면 405) 1.5초 기다린 뒤 ㄱ → 1.5초 → ㄴ을 한 browser_batch로 돌려요.
+2. ㄱ이 'NO_LINK'면 get_page_text로 한 번 읽어 로그인 화면인지(LOGIN_REQUIRED) 읽을 수 없는지(PAGE_UNREADABLE) 봐요. 로그인돼 있는데 링크만 없으면 화면대로 가요: 위 파란 메뉴 "민원"을 누르면 **"나의 할 일" 화면**이 열리고, 파란 띠 둘째 줄 탭(나의할일 · 민원처리 · 사후관리 · 민원관리 · 민원·정책 질의응답) 중 **"민원처리"**를 눌러요.
+3. ㄴ 결과: total = 전체 건수, new = 가져올 후보(이미 있는 번호는 명령이 뺐어요), known = 뺀 수, pages = 쪽 번호. total이 10을 넘으면 ㄹ로 다음 쪽을 열고(1.5초) ㄴ을 다시 돌려 후보를 모아요 – 어느 쪽에서 나온 번호인지 기억해요.
+4. 후보가 없으면 바로 "새 민원 0건"으로 끝내요. 있으면 가져올 폴더에 "_진행.json"을 {"total": 후보 수, "done": 0, "skipped": known 합} 로 써요. 한 건을 끝낼 때마다 done을 올려요.
 
-이미 있는 접수번호: ${nos}
-
-## 3. 한 건마다
-1. 목록에서 그 줄의 **제목**(민원제목/민원요지 칸)을 find로 찾고, 그 ref 누르기 → 기다림 → get_page_text를 한 browser_batch로 보내요 → "민원처리" 화면. 맨 위에 접수번호(1AA-…, 뒤에 /2AA-…가 붙기도 해요 – 앞 것이 접수번호), 그 아래 단추 [첨부파일일괄다운로드]·[인쇄]·[저장]·[목록]([인쇄]·[저장]·[목록]은 누르지 않아요).
-2. 글로 읽어요: "접수일시"(접수일 = 그 날짜), "민원처리기간" 칸의 **"처리완료예정일"**(기한), "<첨부파일>" 칸의 파일 이름들, 본문(오른쪽 긴 칸 – "[사고발생지역]" 줄이 있으면 그것이 주소예요).
-3. 첨부가 있으면 [첨부파일일괄다운로드]를 **한 번만** 누르고 기다리지 않아요. 받은 파일은 확인하지 않아요(기록앱이 받는 폴더 ${p.downloads}를 지켜봐요). 첨부가 없으면 누르지 않아요.
-4. 사진 나누기:
-   - **안전신문고로 온 민원** = 목록에서 제목 앞에 빨간 "안전" 배지가 붙은 건(글로 읽으면 제목 칸이 "안전 …"으로 시작해요; 본문 화면에도 "안전제보(신고)"가 보여요): 첨부 목록 **맨 아래 .png = 위치도(map)**, 그 위 .jpg들 = 현장사진(photos).
-   - 그 밖(민원인이 직접 올린 것): 그림 파일(jpg·jpeg·png)은 모두 photos, 이름에 지도·위치·map이 든 것만 map. zip이면 zip 이름을 photos에 그대로 적어요(앱이 풀어요). 그림이 아닌 파일은 적지 않아요.
-   - 파일 이름은 "<첨부파일>" 칸에 보이는 그대로 적어요(받은 파일을 확인하지 않아요).
+## 2. 한 건마다 (후보 순서대로)
+1. ㄷ(그 번호) → 1.5초 → ㅁ 을 한 browser_batch로. ㄷ이 'NO_ROW'면 그 번호가 있던 쪽을 ㄹ로 열고 다시 ㄷ.
+2. 첫 건이면 ㅁ 전에 computer screenshot(scale 0.1)을 한 번 찍어 W를 알아내요(그 뒤로는 같은 W).
+3. ㅁ 결과로 판단해요: received(접수일), due(처리완료예정일 = 기한), place([사고발생지역] 줄 – 없으면 body에서 주소), att(첨부 이름들), safety(안전신문고 민원), body(본문).
+4. 첨부(att)에 그림·zip(jpg·jpeg·png·zip)이 있으면: **click 좌표를 computer left_click(coordinate)로 한 번 눌러** [첨부파일일괄다운로드] – 파일은 "접수번호.zip"으로 내려와요. 2초 기다린 뒤 다음 걸음으로(받은 파일은 보지 않아요). 그림이 없으면 누르지 않아요. click이 null이면 누르지 않고 photos를 []로.
 5. 위치는 주소(리·동 + 지번)만 적어요. "앞", "버스정류장 뒤" 같은 말은 빼요. 본문에 주소가 분명하지 않으면 "주소불명".
 6. 아래 공사의 처리 범위를 보고 공사 번호를 골라요. 애매하거나 공사 대상이 아니면 null.
 ${list}
-7. 가져올 폴더에 "<접수번호>.json"을 UTF-8로 써요.
+7. 가져올 폴더에 "<접수번호>.json"을 UTF-8로 쓰고 "_진행.json"의 done을 올려요(둘 다 Write – 다음 걸음 browser_batch와 같은 차례에 보내요).
 {
   "no": "1AA-2610-0309895",
   "received": "2026-10-15",
@@ -124,16 +141,16 @@ ${list}
   "short": "포트홀 보수",
   "reason": "본문: 횡단보도 정지선 앞 포트홀 1곳",
   "work": 1,
-  "photos": ["받은 사진 파일 이름.jpg"],
-  "map": "위치도 파일 이름.png"
+  "photos": ["1AA-2610-0309895.zip"],
+  "map": ""
 }
 - received·due는 YYYY-MM-DD, area는 읍면동, short는 공사내용이에요 – 지시부 제목 줄 "1. 공사내용 (주소)"와 파일 이름에 써요. 간결하게 두세 낱말(예: 포트홀 보수, 반사경 교체, 가드레일 정비).
 - summary는 민원 요약 한 줄, reason은 판단 이유 한 줄이에요. 민원인 이름·연락처는 쓰지 않아요.
-- photos·map은 받은 파일 이름이에요. 없으면 [] 와 "".
-8. done을 올리고, 브라우저 **뒤로 가기**(navigate "back")로 목록에 돌아가요 – 같은 browser_batch에서 기다림 → 다음 건 제목 find까지 한 번에. 보던 쪽이 그대로 남아요. 뒤로 가기 뒤 목록 표가 안 보이면(빈 화면·"양식 다시 제출" 안내) 그 화면의 단추는 누르지 말고 navigate로 ${PORTAL_URL} 를 다시 열어 1단계 2~3번처럼 "민원" → "민원처리"로 가요(보던 쪽이 2쪽 이상이면 그 쪽 번호를 눌러요).
-9. 후보는 목록 순서대로(1쪽 위에서부터, 다음 쪽) 처리해요 – 쪽을 오가지 않게.
+- photos: 일괄 받기를 눌렀으면 ["<접수번호>.zip"](앱이 풀어 위치도와 현장사진으로 나눠요), 안 눌렀으면 []. map은 "".
+8. 다음 건으로: [첨부 누르기 → 2초 →] ㅂ → 1.5초 → ㄷ(다음 번호) → 1.5초 → ㅁ 을 한 browser_batch로 보내요. ㅂ이 'NO_LIST'거나 목록이 안 보이면 navigate로 ${PORTAL_URL} 를 다시 열고 1단계처럼 ㄱ부터.
+9. 마지막 건은 첨부를 누른 뒤 3초 기다리고 끝내요(받기가 시작되게).
 
-## 4. 끝
+## 3. 끝
 - 다 끝나면 마지막 답을 "새 민원 N건" 한 줄로 끝내요.
 `;
 }

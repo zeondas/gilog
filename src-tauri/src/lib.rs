@@ -770,6 +770,7 @@ pub fn run() {
             process::open_path,
             process::open_portal,
             process::run_claude,
+            process::pick_photos,
             process::stop_claude,
             process::claude_status,
             process::show_in_folder,
