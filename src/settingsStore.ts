@@ -59,6 +59,8 @@ export type Settings = {
   kinds: Kind[];
   /** 캘린더 쉬는 날(토·일·공휴일) 붉은 음영 */
   restShade: boolean;
+  /** 민원대장 위치 표기(2026-10-25 사용자 ③1안): admin 행정동 "운정3동 동패동 1234"(처음 값) · legal 법정동 "동패동 1234" – 리 지역은 둘 다 "조리읍 대원리 1234" */
+  placeStyle: "admin" | "legal";
   /** 키 설정 – 처음 키와 다른 것만 (keys.ts, 2026-10-17 엔터규칙) */
   keys: Partial<Record<string, string>>;
   process: ProcessSettings;
@@ -102,6 +104,7 @@ export const DEFAULT_SETTINGS: Settings = {
     ["회의", "ㅎㅇ"], ["협의", "ㅎㅂ"], ["출장", "ㅊㅈ"], ["메모", "ㅁㅁ"],
   ].map(([name, key]) => ({ name, key })),
   restShade: true,
+  placeStyle: "admin",
   keys: {},
   process: { ...DEFAULT_PROCESS },
   files: { ...DEFAULT_FILES_SETTINGS },
@@ -122,10 +125,11 @@ export const CLOSED_STATUSES = [DONE_STATUS, REJECT_STATUS];
 export const isClosed = (status: string) => CLOSED_STATUSES.includes(status);
 
 /**
- * 법정 답변기한(마감일)이 끝난 상태: 답변·완료·불가·보류·장기(2026-10-19 사용자 1안 – 보류·장기는 답변하면서 정하는 결과).
- * 이 상태면 마감일에 가운데 줄, 남은 날 배지 없음, 캘린더·업무일지 챙길 일에서 빠져요.
+ * 법정 답변기한(마감일)이 끝난 상태: 진행·답변·완료·불가·보류·장기(2026-10-19 사용자 1안 – 보류·장기는 답변하면서 정하는 결과,
+ * 2026-10-25 사용자 ⑦1안 – 진행도 넣어 남은 날은 "접수"일 때만). 이 상태면 마감일에 가운데 줄, 남은 날 배지 없음,
+ * 할 일 체크됨, 캘린더·업무일지 챙길 일에서 빠져요.
  */
-export const ANSWERED_STATUSES = [ANSWER_STATUS, DONE_STATUS, REJECT_STATUS, "보류", "장기"];
+export const ANSWERED_STATUSES = ["진행", ANSWER_STATUS, DONE_STATUS, REJECT_STATUS, "보류", "장기"];
 export const isAnswered = (status: string) => ANSWERED_STATUSES.includes(status);
 
 /**

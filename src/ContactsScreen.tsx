@@ -1,8 +1,8 @@
 // 업무연락처 화면이에요. 시안 Contacts.dc.html과 사양서의 "업무연락처" 절을 따라요.
-import { KeyboardEvent, RefObject, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { KeyboardEvent, MutableRefObject, RefObject, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ExcelMenu } from "./ExcelMenu";
 import { ProjectImport, contactImports, contactRows, samePerson } from "./excel";
-import { DelIcon } from "./Icons";
+import { DelIcon, TrashIcon } from "./Icons";
 import { VirtualList } from "./VirtualList";
 import { overlayDown, useOutsideClose } from "./useOutsideClose";
 import { BLine, CYCLE, isBlank, kindOf, layout, newLineFor, NewLineMode, parseLines, stringifyLines, TRIGGERS, withKind } from "./bullets";
@@ -981,11 +981,14 @@ export function MemoEditor({
   onCancel,
   onSave,
   boundary,
+  saveRef,
 }: {
   initial: MemoLine[];
   onCancel: () => void;
   onSave: (l: MemoLine[]) => void;
   boundary?: RefObject<HTMLElement>;
+  /** 창의 닫기 × 같은 바깥 단추가 "저장하고 닫기"를 부를 곳(민원대장 메모 창 – 2026-10-25 사용자) */
+  saveRef?: MutableRefObject<(() => void) | null>;
 }) {
   const [lines, setLines] = useState<MemoLine[]>(initial.length ? initial.map((l) => ({ ...l })) : [{ t: "" }]);
   const [focus, setFocus] = useState(Math.max(0, initial.length - 1));
@@ -993,6 +996,7 @@ export function MemoEditor({
   const caret = useRef<number | null>(null);
   const latest = useRef({ lines, onSave });
   latest.current = { lines, onSave };
+  if (saveRef) saveRef.current = () => latest.current.onSave(latest.current.lines);
 
   // 고르고 있는 줄에 커서를 둬요.
   useEffect(() => {
@@ -1130,10 +1134,12 @@ export function MemoEditor({
         <button type="button" className="tb" aria-label="줄 아래로" onClick={() => swap(1)}>
           <Arrow />
         </button>
+        {/* 줄 지우기는 휴지통 그림으로 줄 위·아래 옆에(2026-10-25 사용자 – 오른쪽 끝 ×는 창 닫기로 보였어요) */}
         <button
           type="button"
           className="tb tb-del"
-          aria-label="줄 삭제"
+          aria-label="줄 지우기"
+          title="이 줄 지우기"
           onClick={() =>
             edit(
               (ls, i) => {
@@ -1145,7 +1151,7 @@ export function MemoEditor({
             )
           }
         >
-          <DelIcon />
+          <TrashIcon />
         </button>
       </div>
       <div className="memo-lines">

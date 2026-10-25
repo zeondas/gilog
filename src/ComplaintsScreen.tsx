@@ -7,7 +7,6 @@
 import {
   CSSProperties,
   Fragment,
-  KeyboardEvent,
   MouseEvent as ReactMouseEvent,
   ReactNode,
   useCallback,
@@ -21,7 +20,7 @@ import { DelIcon } from "./Icons";
 import { isInside, overlayDown, useOutsideClose } from "./useOutsideClose";
 import { VirtualList, type VirtualHandle } from "./VirtualList";
 import { onSelection } from "./noContextMenu";
-import { isKey, rowKeys } from "./keys";
+import { fieldScope, isKey, rowKeys } from "./keys";
 import { ExcelMenu } from "./ExcelMenu";
 import { complaintImports, complaintRows } from "./excel";
 import { REMOTE_CHANGE } from "./google";
@@ -36,7 +35,6 @@ import {
   daysTaken,
   takenText,
   ddayText,
-  expandType,
   FILTER_KEYS,
   FilterKey,
   filterValues,
@@ -62,11 +60,10 @@ import { ChoiceInput, PlaceInput } from "./PlaceInputs";
 import { lookupMany } from "./addressWeb";
 import { areaFor } from "./address";
 import { ListGroup } from "./SettingsScreen";
-import { DEFAULT_SETTINGS, isAnswered, isClosed, loadSettings, saveSettings, Settings, STATUS_RENAME, statusColor } from "./settingsStore";
+import { DEFAULT_SETTINGS, DONE_STATUS, isAnswered, isClosed, loadSettings, saveSettings, Settings, STATUS_RENAME, statusColor } from "./settingsStore";
 import { AskBand } from "./AskBand";
 import { DateInput } from "./DateInput";
 
-const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
 
 /**
  * 끌어서 정한 열 폭을 저장하는 곳(암호화 파일 안) – 열마다 표 폭 비율(2026-10-21 사용자: 창 폭 비율로).
@@ -101,6 +98,8 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
   const [filters, setFilters] = useState<ColFilters>(NO_FILTERS);
   const [openFilter, setOpenFilter] = useState<FilterKey | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
+  // 두 번 누른 칸만 고쳐요(2026-10-25 사용자 ⑧1안). null이면 줄 전체(우클릭 "고치기").
+  const [editKey, setEditKey] = useState<CellKey | null>(null);
   // 한 번 누른 줄(골라 둔 줄). 두 번 누르거나 Enter를 누르면 고쳐요.
   const [selId, setSelId] = useState<number | null>(null);
   // 줄 우클릭 메뉴(2026-10-21 사용자 – 고치기·위로/아래로 옮기기·지우기). ask = 지우기를 눌러 붉은 띠로 바뀐 때.
@@ -170,6 +169,23 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
     }
   }, []);
 
+  /** 연번이 다시 매겨지는 일(등록·고치기·지우기) 뒤에는 전체를 다시 읽어요(2026-10-25 사용자 – 접수일 순서·연번 자동). */
+  const reload = useCallback(async () => {
+    const cs = await run(api.complaints());
+    if (cs) setList(cs);
+    return cs;
+  }, [run]);
+
+  /** 그 민원 자리로 가서 잠깐 빛나게(접수일을 적으면 그 날 자리로 옮겨 가요). */
+  const goTo = useCallback((id: number, cs: Complaint[] | null) => {
+    if (!cs) return;
+    setFlash(id);
+    window.setTimeout(() => {
+      const i = shownRef.current.findIndex((c) => c.id === id);
+      if (i >= 0) vlRef.current?.scrollToIndex(i, { align: "nearest", behavior: "smooth" });
+    }, 60);
+  }, []);
+
   /** 바뀐 민원 하나를 목록에 넣어요. 연번이 큰 것이 위예요. */
   const put = useCallback((c: Complaint) => {
     setList((old) => [c, ...(old ?? []).filter((x) => x.id !== c.id)].sort((a, b) => b.no - a.no || b.id - a.id));
@@ -207,8 +223,9 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
     return [...settings.status, ...extra];
   }, [all, settings.status]);
 
-  /** 열마다 고를 수 있는 값 (상태는 상태 목록 순서) */
-  const valuesOf = (k: FilterKey) => (k === "status" ? statuses : filterValues(all, k));
+  /** 열마다 고를 수 있는 값 – 상태는 상태 칩과 같은 순서(끝내지 않은 상태 → 완료·불가, 2026-10-21 사용자) */
+  const chipOrder = useMemo(() => [...statuses.filter((s) => !isClosed(s)), ...statuses.filter(isClosed)], [statuses]);
+  const valuesOf = (k: FilterKey) => (k === "status" ? chipOrder : filterValues(all, k));
 
   /** 필터를 바꿔요. 모든 값을 고르면 "모두"(null)예요. 상태는 마지막 것을 저장해요. */
   function setFilter(k: FilterKey, v: string[] | null) {
@@ -232,15 +249,41 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.status, statuses, list]);
 
-  const needs = useColNeeds(all, statuses, doneFolded, today);
+  // 민원유형 목록이 비어 있으면 지금 대장에 쓰인 민원유형으로 처음 목록을 채워요(2026-10-25 사용자 ④1안 – 이제 목록에서 골라요).
+  const filledTypes = useRef(false);
+  useEffect(() => {
+    if (!list || filledTypes.current || settings === DEFAULT_SETTINGS) return;
+    filledTypes.current = true;
+    if (settings.ctype.length) return;
+    const count = new Map<string, number>();
+    for (const c of list) if (c.ctype.trim()) count.set(c.ctype.trim(), (count.get(c.ctype.trim()) ?? 0) + 1);
+    const used = [...count.keys()].sort((a, b) => count.get(b)! - count.get(a)! || a.localeCompare(b, "ko"));
+    if (used.length) void saveLists({ status: settings.status, intake: settings.intake, ctype: used });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [list, settings]);
+
+  const needs = useColNeeds(all, statuses, doneFolded, today, settings.placeStyle);
   const layout = layoutCols(needs, avail, ratios);
   const shownWidths = layout.ws;
   const foldDone = (v: boolean) => {
     setDoneFolded(v);
     run(api.set(DONE_FOLD_KEY, v ? "true" : "false"));
   };
+  // 위쪽 줄 높이(열 제목 줄을 그만큼 내려 붙여요)
+  const topRef = useRef<HTMLDivElement>(null);
+  const [topH, setTopH] = useState(0);
   const tableStyle = { "--cm-cols": gridTemplate(shownWidths, layout.flexMin) } as CSSProperties;
+  (tableStyle as Record<string, string>)["--cm-top-h"] = `${topH}px`;
   const memoOf = all.find((c) => c.id === memoId) ?? null;
+
+  // 위쪽 줄(상태 칩·검색·단추)을 고정하고 그 높이만큼 열 제목 줄을 내려 붙여요(2026-10-25 사용자 – 집행현황처럼).
+  useEffect(() => {
+    const el = topRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setTopH(el.offsetHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [list === null]);
 
   // 표 안쪽 폭을 재요(창 크기를 바꾸면 다시).
   useEffect(() => {
@@ -264,7 +307,7 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
 
   return (
     <>
-      <div className="ct-head cm-top tb5">
+      <div className="ct-head cm-top tb5" ref={topRef}>
         <h1 className="sr-only">민원대장</h1>
         <FilterChips
           statuses={statuses}
@@ -349,10 +392,10 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
         <NewRow lists={settings} short={layout.short} onAdd={async (input) => {
           const c = await run(api.addComplaint(input));
           if (c) {
-            put(c);
             // 거르는 중이라 새 민원이 안 보이면 거르기를 풀어요.
             if (!passes(c, filters)) clearFilters();
             if (query && !matches(c, query)) setQ("");
+            goTo(c.id, await reload());
           }
           return !!c;
         }} />
@@ -371,19 +414,24 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
                 <EditRow
                   vi={i}
                   c={c}
+                  alt={i % 2 === 1}
                   lists={settings}
                   short={layout.short}
+                  only={editKey}
+                  doneFolded={doneFolded}
+                  placeStyle={settings.placeStyle}
                   onCancel={() => setEditId(null)}
                   onSave={async (input) => {
                     setEditId(null);
                     if (same(c, input)) return;
                     const r = await run(api.updateComplaint(c.id, input));
-                    if (r) put(r);
+                    // 접수일·접수유형·위치가 바뀌면 자리와 연번이 바뀌어요 – 다시 읽고 그 자리로 가요.
+                    if (r) goTo(r.id, await reload());
                   }}
                   onRemove={async () => {
                     setEditId(null);
                     // delete_complaint는 성공해도 null을 돌려줘요 → true로 바꿔 실패(null)와 가려요(2026-10-19 사용자: 지우기가 안 먹음)
-                    if (await run(api.deleteComplaint(c.id).then(() => true))) setList((old) => (old ?? []).filter((x) => x.id !== c.id));
+                    if (await run(api.deleteComplaint(c.id).then(() => true))) await reload();
                   }}
                   onMemo={() => setMemoId(c.id)}
                 />
@@ -399,14 +447,17 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
                   selected={selId === c.id}
                   statuses={statuses}
                   short={layout.short}
+                  doneFolded={doneFolded}
+                  placeStyle={settings.placeStyle}
                   onSelect={() => setSelId(c.id)}
                   onMenu={(x, y) => {
                     setSelId(c.id);
                     setRowMenu({ id: c.id, x, y, ask: false });
                   }}
-                  onEdit={() => {
+                  onEdit={(k) => {
                     setMemoId(null);
                     setSelId(c.id);
+                    setEditKey(k);
                     setEditId(c.id);
                   }}
                   onMemo={() => setMemoId(c.id)}
@@ -418,7 +469,8 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
                     if (r) put(r);
                   }}
                   onDone={async (done) => {
-                    const r = await run(api.setComplaintStatus(c.id, c.status, done));
+                    // 조치완료일을 적으면 상태는 완료(불가도 – 2026-10-25 사용자).
+                    const r = await run(api.setComplaintStatus(c.id, done ? DONE_STATUS : c.status, done));
                     if (r) put(r);
                   }}
                   onDue={async (due) => {
@@ -431,7 +483,7 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
           }}
         />
         {all.length === 0 ? (
-          <div className="cm-empty muted small">아직 민원이 없어요. 위 줄에 적고 상태 칸에서 Enter를 눌러 등록해요. 필수 칸은 내용 하나예요.</div>
+          <div className="cm-empty muted small">아직 민원이 없어요. 위 줄에 적고 상태 칸에서 Enter를 눌러 등록해요. 아무 칸 하나만 적어도 돼요.</div>
         ) : shown.length === 0 ? (
           <div className="cm-empty muted small">맞는 민원이 없어요.</div>
         ) : null}
@@ -443,40 +495,25 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
           if (i < 0) return null;
           const c = shown[i];
           const close = () => setRowMenu(null);
-          // 거르기·검색 중이면 보이는 줄 기준 이웃과 연번을 맞바꿔요(2026-10-21 ① 1안).
-          const move = async (j: number) => {
-            close();
-            const o = shown[j];
-            if (!o) return;
-            const r = await run(api.swapComplaintNo(c.id, o.id));
-            if (!r) return;
-            setList((old) => {
-              const m = new Map(r.map((x) => [x.id, x]));
-              return (old ?? []).map((x) => m.get(x.id) ?? x).sort((a, b) => b.no - a.no || b.id - a.id);
-            });
-            setSelId(c.id);
-            requestAnimationFrame(() => vlRef.current?.scrollToIndex(j, { align: "nearest" }));
-          };
           return (
             <RowMenu
               no={c.no}
               x={rowMenu.x}
               y={rowMenu.y}
               ask={rowMenu.ask}
-              canUp={i > 0}
-              canDown={i < shown.length - 1}
+              place={c.place}
+              person={[c.person, c.phone].filter(Boolean).join(" ")}
               onClose={close}
               onEdit={() => {
                 close();
                 setMemoId(null);
+                setEditKey(null);
                 setEditId(c.id);
               }}
-              onUp={() => void move(i - 1)}
-              onDown={() => void move(i + 1)}
               onAsk={() => setRowMenu({ ...rowMenu, ask: true })}
               onDelete={async () => {
                 close();
-                if (await run(api.deleteComplaint(c.id).then(() => true))) setList((old) => (old ?? []).filter((x) => x.id !== c.id));
+                if (await run(api.deleteComplaint(c.id).then(() => true))) await reload();
               }}
             />
           );
@@ -544,7 +581,7 @@ const DUE_GAP = 8;
  * 열 제목 글자도 넣어요 – 거르기 아이콘은 마우스를 올릴 때만 여유 자리에 겹쳐 보여 자리를 잡지 않아요(⑨ 1안).
  * 짧은 글 열(접수유형·민원유형)은 90%가 들어가는 폭, 위치는 다 보여야 해서 가장 긴 것.
  */
-function useColNeeds(all: Complaint[], statuses: string[], doneFolded: boolean, today: string): Partial<Record<ColKey, ColNeed>> {
+function useColNeeds(all: Complaint[], statuses: string[], doneFolded: boolean, today: string, placeStyle: PlaceStyle): Partial<Record<ColKey, ColNeed>> {
   return useMemo(() => {
     const ctx = document.createElement("canvas").getContext("2d");
     if (!ctx) return {};
@@ -587,7 +624,7 @@ function useColNeeds(all: Complaint[], statuses: string[], doneFolded: boolean, 
       received: at("received", { full: date, short: nw("26-10-16") }),
       ctype: at("ctype", { full: p90(all.map((c) => tw(c.ctype))) }),
       place: at("place", {
-        full: max(all.map((c) => tw([c.area, c.place].filter(Boolean).join(" ")))),
+        full: max(all.map((c) => tw(placeText(c.area, c.place, placeStyle)))),
         short: max(all.map((c) => tw(c.place))),
       }),
       person: at("person", { full: tw(PHONE_SAMPLE), more: p90(all.map((c) => tw([c.person, c.phone].filter(Boolean).join(" ")))) }),
@@ -610,7 +647,7 @@ function useColNeeds(all: Complaint[], statuses: string[], doneFolded: boolean, 
     probe.remove();
     void statuses;
     return out;
-  }, [all, statuses, doneFolded, today]);
+  }, [all, statuses, doneFolded, today, placeStyle]);
 }
 
 /** 고친 것이 없으면 저장하지 않아요. */
@@ -769,12 +806,10 @@ function RowMenu({
   x,
   y,
   ask,
-  canUp,
-  canDown,
+  place,
+  person,
   onClose,
   onEdit,
-  onUp,
-  onDown,
   onAsk,
   onDelete,
 }: {
@@ -782,12 +817,12 @@ function RowMenu({
   x: number;
   y: number;
   ask: boolean;
-  canUp: boolean;
-  canDown: boolean;
+  /** 위치(리·동 지번) – 복사 */
+  place: string;
+  /** 민원인 – 복사 */
+  person: string;
   onClose: () => void;
   onEdit: () => void;
-  onUp: () => void;
-  onDown: () => void;
   onAsk: () => void;
   onDelete: () => void;
 }) {
@@ -819,11 +854,12 @@ function RowMenu({
           <button type="button" role="menuitem" className="dmenu-item" onClick={onEdit}>
             고치기
           </button>
-          <button type="button" role="menuitem" className="dmenu-item" disabled={!canUp} onClick={onUp}>
-            위로 옮기기
+          {/* 위치·민원인 복사는 우클릭으로(2026-10-25 사용자 ⑨1안 – 한 번 누르기 복사는 없앰). 위로·아래로 옮기기는 연번 자동이라 뺌(②1안). */}
+          <button type="button" role="menuitem" className="dmenu-item" disabled={!place} onClick={() => (onClose(), void copyText(place))}>
+            위치 복사
           </button>
-          <button type="button" role="menuitem" className="dmenu-item" disabled={!canDown} onClick={onDown}>
-            아래로 옮기기
+          <button type="button" role="menuitem" className="dmenu-item" disabled={!person} onClick={() => (onClose(), void copyText(person))}>
+            민원인 복사
           </button>
           <div className="dmenu-sep" />
           <button type="button" role="menuitem" className="dmenu-item danger" onClick={onAsk}>
@@ -1053,8 +1089,22 @@ function Funnel() {
 type Draft = ComplaintInput;
 type DateKey = "received" | "due" | "done";
 
+/** 칸 하나만 고칠 때의 칸 이름과 Tab 순서(2026-10-25 사용자 ⑧1안) – 연번·메모 빼고 표 순서 */
+export type CellKey = "intake" | "received" | "ctype" | "place" | "person" | "body" | "action" | "due" | "status" | "done";
+const CELL_ORDER: CellKey[] = ["intake", "received", "ctype", "place", "person", "body", "action", "due", "status", "done"];
+
+type PlaceStyle = Settings["placeStyle"];
+
+/** 위치 표기(2026-10-25 사용자 ③1안): 법정동이면 동 지역은 행정동을 빼고 "동패동 1234", 리 지역·행정동 표기는 "조리읍 대원리 1234"·"운정3동 동패동 1234" */
+function placeText(area: string, place: string, style: PlaceStyle): string {
+  if (!place) return area;
+  if (style === "legal" && /동$/.test(area)) return place;
+  return [area, place].filter(Boolean).join(" ");
+}
+
 const emptyDraft = (lists: Lists): Draft => ({
-  intake: lists.intake[0] ?? "",
+  // 접수유형은 비워 두고 접수일은 오늘(2026-10-25 사용자).
+  intake: "",
   received: todayStr(),
   ctype: "",
   area: "",
@@ -1069,7 +1119,7 @@ const emptyDraft = (lists: Lists): Draft => ({
   done: "",
 });
 
-type Bad = { received?: boolean; due?: boolean; done?: boolean; body?: boolean; intake?: boolean; status?: boolean };
+type Bad = { received?: boolean; due?: boolean; done?: boolean; body?: boolean; intake?: boolean; ctype?: boolean; status?: boolean };
 
 /** 날짜 칸을 떠날 때 "1016" 같은 것을 2026-10-16으로 바꿔요. 읽을 수 없으면 빨간 테두리예요. */
 function normDates(d: Draft): { d: Draft; bad: Bad } {
@@ -1080,98 +1130,7 @@ function normDates(d: Draft): { d: Draft; bad: Bad } {
   if (due === null) bad.due = true;
   const done = (d.done ?? "").trim() ? parseDate(d.done ?? "") : "";
   if (done === null) bad.done = true;
-  if (!plainOf(d.body).trim()) bad.body = true;
   return { d: { ...d, received: r ?? d.received, due: due ?? d.due, done: done ?? d.done }, bad };
-}
-
-/**
- * 민원유형 칸. 적으면서 설정 목록에서 맞는 것을 보여 주고(초성도 돼요), ↑↓로 고르고 Enter로 넣어요.
- * 목록에 없는 값을 적어도 그대로 받아요(실제 목록을 받기 전이라서요).
- */
-function TypeInput({ value, options, onChange }: { value: string; options: string[]; onChange: (v: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const [hi, setHi] = useState(-1);
-  // 초성을 칠 때 입력기가 자음을 묶지 않게 해요(ㄳ→ㄱㅅ, Shift 없이 친 ㅆ→ㅅㅅ).
-  const guard = useJamoGuard((v) => {
-    onChange(v);
-    setOpen(true);
-    setHi(-1);
-  });
-  guard.follow(value);
-  const v = value.trim();
-  const found = options.filter((o) => !v || o.toLowerCase().includes(v.toLowerCase()) || koIndex(o, v) >= 0).filter((o) => o !== v).slice(0, 10);
-  const show = open && found.length > 0;
-
-  function pick(o: string) {
-    guard.sync(o);
-    onChange(o);
-    setHi(-1);
-    setOpen(false);
-  }
-
-  return (
-    <div className="pin">
-      <input
-        name="ctype"
-        aria-label="민원유형"
-        placeholder="유형"
-        autoComplete="off"
-        className="cell-input"
-        role="combobox"
-        aria-expanded={show}
-        aria-autocomplete="list"
-        value={value}
-        onChange={guard.onChange}
-        onCompositionEnd={guard.onCompositionEnd}
-        onFocus={() => setOpen(true)}
-        onBlur={() => {
-          setOpen(false);
-          setHi(-1);
-          const x = expandType(value, options);
-          if (x !== value) {
-            guard.sync(x);
-            onChange(x);
-          }
-        }}
-        onKeyDown={(e) => {
-          guard.onKeyDown(e);
-          if (isComposing(e) || !show) return;
-          if (e.key === "ArrowDown") {
-            e.preventDefault();
-            setHi((hi + 1) % found.length);
-          } else if (e.key === "ArrowUp") {
-            e.preventDefault();
-            setHi(hi <= 0 ? found.length - 1 : hi - 1);
-          } else if (e.key === "Enter" && hi >= 0) {
-            e.preventDefault();
-            pick(found[hi]);
-          } else if (e.key === "Escape") {
-            e.preventDefault();
-            e.stopPropagation();
-            setOpen(false);
-          }
-        }}
-      />
-      {show && (
-        <div className="pin-list" role="listbox">
-          {found.map((o, i) => (
-            <div
-              key={o}
-              role="option"
-              aria-selected={i === hi}
-              className="pin-opt"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                pick(o);
-              }}
-            >
-              {o}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
 }
 
 /** 신규 줄과 고치는 줄이 함께 쓰는 칸 묶음 (사양서 순서, 연번과 메모 칸 빼고) */
@@ -1182,8 +1141,11 @@ function Cells({
   lists,
   firstRef,
   onDateBlur,
+  onDoneType,
   orig,
   short,
+  active,
+  placeStyle = "admin",
 }: {
   d: Draft;
   set: (patch: Partial<Draft>) => void;
@@ -1191,14 +1153,32 @@ function Cells({
   lists: Lists;
   firstRef?: React.Ref<HTMLInputElement>;
   onDateBlur: (k: DateKey) => void;
+  /** 조치완료일을 손으로 적음(떠날 때 상태 완료) */
+  onDoneType: (done: string) => void;
   /** 고치는 줄이면 고치기 전 값. 지금 목록에서 빠진 접수유형·상태도 그대로 받아 줘요. */
   orig?: Draft;
   /** 폭이 모자라 줄인 모양으로 보이는 열(날짜 칸은 커서가 없을 때 짧게 보여요) */
   short: Set<ColKey>;
+  /** 칸 하나만 고칠 때 그 칸(나머지는 보기 모양) – 2026-10-25 사용자 ⑧1안 */
+  active?: CellKey | null;
+  placeStyle?: PlaceStyle;
 }) {
+  // 칸 하나만 고칠 때 나머지 칸은 보기 줄과 같은 글자로 보여요.
+  const view = (k: CellKey) => !!active && active !== k;
+  const cell = (k: CellKey, input: ReactNode, cls = "cm-c") =>
+    view(k) ? (
+      <div role="cell" key={k} className={"cm-c" + STATIC_CLS[k]}>
+        <StaticValue k={k} d={d} placeStyle={placeStyle} short={short} />
+      </div>
+    ) : (
+      <div role="cell" key={k} className={cls}>
+        {input}
+      </div>
+    );
   return (
     <>
-      <div role="cell" className="cm-c">
+      {cell(
+        "intake",
         <ChoiceInput
           inputRef={firstRef}
           name="intake"
@@ -1208,43 +1188,39 @@ function Cells({
           allow={orig?.intake}
           invalid={bad.intake}
           onChange={(intake) => set({ intake })}
-        />
-      </div>
-      <div role="cell" className="cm-c">
+        />,
+      )}
+      {cell(
+        "received",
         <DateField
           name="received"
           label="접수일"
           bad={bad.received}
           value={d.received}
+          selectAll
           shortOf={short.has("received") ? shortDate : undefined}
           onChange={(received) => set({ received })}
           onBlur={() => onDateBlur("received")}
-        />
-      </div>
-      <div role="cell" className="cm-c">
-        <TypeInput value={d.ctype} options={lists.ctype} onChange={(ctype) => set({ ctype })} />
-      </div>
-      <div role="cell" className="cm-c">
-        <PlaceInput value={d.place} area={d.area} road={d.road} onChange={(place) => set({ place })} onArea={(area) => set({ area })} onRoad={(road) => set({ road })} />
-      </div>
-      <div role="cell" className="cm-c">
-        {/* 민원인 한 칸(2026-10-21 사용자): 이름·기관·연락처를 친 그대로 – 번호만, 기관명만, 둘 다 아무거나 */}
-        <input name="person" aria-label="민원인" placeholder="민원인" title="이름·기관·연락처를 친 그대로 적어요" className="cell-input" value={d.person} onChange={(e) => set({ person: e.target.value })} />
-      </div>
-      <div role="cell" className="cm-c">
-        <BulletEditor
-          name="body"
-          label="내용"
-          invalid={bad.body}
-          placeholder="민원 내용"
-          lines={parseLines(d.body)}
-          onChange={(ls) => set({ body: JSON.stringify(ls) })}
-        />
-      </div>
-      <div role="cell" className="cm-c">
-        <BulletEditor name="action" label="조치내용" placeholder="조치내용" lines={parseLines(d.action)} onChange={(ls) => set({ action: JSON.stringify(ls) })} />
-      </div>
-      <div role="cell" className="cm-c">
+        />,
+      )}
+      {cell(
+        "ctype",
+        // 민원유형도 접수유형처럼 목록에서 골라요(2026-10-25 사용자 ④1안 – 분류 관리에서 더하기).
+        <ChoiceInput name="ctype" label="민원유형" value={d.ctype} options={lists.ctype} allow={orig?.ctype} invalid={bad.ctype} onChange={(ctype) => set({ ctype })} />,
+      )}
+      {cell("place", <PlaceInput value={d.place} area={d.area} road={d.road} onChange={(place) => set({ place })} onArea={(area) => set({ area })} onRoad={(road) => set({ road })} />)}
+      {cell(
+        "person",
+        // 민원인 한 칸(2026-10-21 사용자): 이름·기관·연락처를 친 그대로 – 번호만, 기관명만, 둘 다 아무거나
+        <input name="person" aria-label="민원인" placeholder="민원인" title="이름·기관·연락처를 친 그대로 적어요" className="cell-input" value={d.person} onChange={(e) => set({ person: e.target.value })} />,
+      )}
+      {cell(
+        "body",
+        <BulletEditor name="body" label="내용" invalid={bad.body} placeholder="민원 내용" lines={parseLines(d.body)} onChange={(ls) => set({ body: JSON.stringify(ls) })} />,
+      )}
+      {cell("action", <BulletEditor name="action" label="조치내용" placeholder="조치내용" lines={parseLines(d.action)} onChange={(ls) => set({ action: JSON.stringify(ls) })} />)}
+      {cell(
+        "due",
         <DateField
           name="due"
           label="마감일"
@@ -1254,9 +1230,10 @@ function Cells({
           shortOf={short.has("due") ? (v) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? v.slice(5) : v) : undefined}
           onChange={(due) => set({ due })}
           onBlur={() => onDateBlur("due")}
-        />
-      </div>
-      <div role="cell" className="cm-c">
+        />,
+      )}
+      {cell(
+        "status",
         <ChoiceInput
           name="status"
           label="상태"
@@ -1264,18 +1241,59 @@ function Cells({
           options={lists.status}
           allow={orig?.status}
           invalid={bad.status}
-          stayOnTab
+          stayOnTab={!active}
           onChange={(status) =>
             // 완료·불가를 고르면 비어 있는 조치완료일에 오늘, 다른 상태로 돌리면 비워요(배지와 같게).
             set({ status, ...(isClosed(status) ? (d.done ? {} : { done: todayStr() }) : isClosed(d.status) ? { done: "" } : {}) })
           }
-        />
-      </div>
-      <div role="cell" className="cm-c cm-done-in">
-        <DateField name="done" label="조치완료일" bad={bad.done} value={d.done ?? ""} onChange={(done) => set({ done })} onBlur={() => onDateBlur("done")} />
-      </div>
+        />,
+      )}
+      {cell("done", <DateField name="done" label="조치완료일" bad={bad.done} value={d.done ?? ""} onChange={onDoneType} onBlur={() => onDateBlur("done")} />, "cm-c cm-done-in")}
     </>
   );
+}
+
+/** 칸 하나만 고칠 때 다른 칸의 보기 모양(보기 줄과 같은 이름표) */
+const STATIC_CLS: Record<CellKey, string> = {
+  intake: " cm-strong",
+  received: " cm-num",
+  ctype: " cm-ell",
+  place: "",
+  person: " cm-person cm-ell",
+  body: " cm-multi",
+  action: " cm-multi",
+  due: " cm-num cm-due",
+  status: "",
+  done: " cm-num cm-due cm-done-c",
+};
+
+function StaticValue({ k, d, placeStyle, short }: { k: CellKey; d: Draft; placeStyle: PlaceStyle; short: Set<ColKey> }) {
+  if (k === "body" || k === "action") return <Bullets text={d[k]} q="" />;
+  if (k === "intake") return <>{short.has("intake") ? shortIntake(d.intake) : d.intake}</>;
+  if (k === "received") return <>{short.has("received") ? shortDate(d.received) : d.received}</>;
+  if (k === "due") {
+    const n = daysLeft(d, todayStr());
+    const date = <span className={d.due && isAnswered(d.status) ? "cm-due-done" : undefined}>{short.has("due") ? shortDate(d.due) : d.due}</span>;
+    if (n === null) return date;
+    return (
+      <>
+        {!short.has("due") && date}
+        <span className="cm-dday">{ddayText(n)}</span>
+      </>
+    );
+  }
+  if (k === "status") {
+    const [bg, fg] = statusColor(d.status);
+    return (
+      <span className="cm-status" style={{ background: bg, color: fg }}>
+        {d.status}
+      </span>
+    );
+  }
+  if (k === "place") return <>{short.has("place") ? d.place || d.area : placeText(d.area, d.place, placeStyle)}</>;
+  if (k === "ctype" || k === "person") return <span className="cm-ell-v">{d[k]}</span>;
+  if (k === "done") return <span className="cm-done-d">{d.done ?? ""}</span>;
+  return <>{d[k]}</>;
 }
 
 /**
@@ -1289,6 +1307,7 @@ function DateField({
   bad,
   placeholder = "연-월-일",
   shortOf,
+  selectAll,
   onChange,
   onBlur,
 }: {
@@ -1298,11 +1317,44 @@ function DateField({
   bad?: boolean;
   placeholder?: string;
   shortOf?: (v: string) => string;
+  /** 들어가면 글자 전체를 골라 치는 순간 바뀌게(접수일 – 2026-10-25 사용자: 기본 날짜 뒤에 이어 붙지 않게) */
+  selectAll?: boolean;
   onChange: (v: string) => void;
   onBlur: () => void;
 }) {
+  // 마우스로 눌러 들어오면 떼는 순간 커서가 놓이며 고른 것이 풀려요 – 들어온 뒤 첫 떼기는 막아요.
+  const justIn = useRef(false);
   // 공통 날짜 칸(DateInput)이 떠날 때 8자리로 바꿔 쓰고, 빨간 테두리는 이 줄의 규칙(onDateBlur)이 정해요.
-  return <DateInput name={name} label={label} invalid={bad} placeholder={placeholder} shortOf={shortOf} value={value} onChange={onChange} onBlur={onBlur} />;
+  return (
+    <DateInput
+      name={name}
+      label={label}
+      invalid={bad}
+      placeholder={placeholder}
+      shortOf={shortOf}
+      value={value}
+      onChange={onChange}
+      onBlur={onBlur}
+      onFocus={
+        selectAll
+          ? (e) => {
+              const el = e.currentTarget;
+              justIn.current = true;
+              requestAnimationFrame(() => el.select());
+            }
+          : undefined
+      }
+      onMouseUp={
+        selectAll
+          ? (e) => {
+              if (!justIn.current) return;
+              justIn.current = false;
+              e.preventDefault();
+            }
+          : undefined
+      }
+    />
+  );
 }
 
 /** 칸 이름으로 그 칸에 커서를 둬요. */
@@ -1314,6 +1366,8 @@ function focusField(row: HTMLElement | null, name: string) {
 function useDraft(init: () => Draft) {
   const [d, setD] = useState<Draft>(init);
   const [bad, setBad] = useState<Bad>({});
+  // 조치완료일을 손으로 적었는지 – 떠날 때 상태를 완료로(2026-10-25 사용자, 불가도 완료).
+  const doneTyped = useRef(false);
   const set = (patch: Partial<Draft>) => {
     setD((old) => ({ ...old, ...patch }));
     setBad((b) => {
@@ -1326,8 +1380,15 @@ function useDraft(init: () => Draft) {
     const v = (d[k] ?? "").trim();
     if (!v && k !== "received") return;
     const p = parseDate(v);
-    if (p) set({ [k]: p });
+    if (p && k === "done" && doneTyped.current) {
+      doneTyped.current = false;
+      set({ done: p, status: DONE_STATUS });
+    } else if (p) set({ [k]: p });
     else setBad((b) => ({ ...b, [k]: true }));
+  };
+  const typeDone = (done: string) => {
+    doneTyped.current = true;
+    set({ done });
   };
   /** 등록·저장할 값. 틀린 칸이 있으면 null이고 그 칸 이름을 돌려줘요. */
   const check = (lists: Lists, orig?: Draft): { input: Draft | null; first?: string } => {
@@ -1336,15 +1397,21 @@ function useDraft(init: () => Draft) {
     const ok = (v: string, list: string[], was?: string) => list.includes(v.trim()) || (!!was && v.trim() === was);
     n.intake = n.intake.trim();
     n.status = n.status.trim();
+    n.ctype = n.ctype.trim();
     if (n.intake && !ok(n.intake, lists.intake, orig?.intake)) b.intake = true;
+    // 민원유형도 목록에서 골라요(2026-10-25 사용자 ④1안). 비워도 돼요.
+    if (n.ctype && !ok(n.ctype, lists.ctype, orig?.ctype)) b.ctype = true;
     if (!ok(n.status, lists.status, orig?.status)) b.status = true;
     setD(n);
     setBad(b);
-    const first = (["intake", "received", "body", "due", "status", "done"] as const).find((k) => b[k]);
+    const first = (["intake", "received", "ctype", "due", "status", "done"] as const).find((k) => b[k]);
     if (first) return { input: null, first };
+    // 아무 칸 하나만 적어도 등록(2026-10-25 사용자) – 처음부터 채워지는 접수일·상태는 세지 않아요.
+    const filled = [n.intake, n.ctype, n.area, n.place, n.person, n.due, n.done ?? ""].some((v) => v.trim()) || !!plainOf(n.body).trim() || !!plainOf(n.action).trim();
+    if (!filled) return { input: null, first: "intake" };
     return { input: { ...n, person: n.person.trim(), phone: "", body: stringifyLines(parseLines(n.body)), action: stringifyLines(parseLines(n.action)) } };
   };
-  return { d, setD, bad, setBad, set, onDateBlur, check };
+  return { d, setD, bad, setBad, set, onDateBlur, check, typeDone };
 }
 
 // ---------- 신규 입력 줄 ----------
@@ -1357,15 +1424,11 @@ function NewRow({ lists, short, onAdd }: { lists: Lists; short: Set<ColKey>; onA
   // 화면을 열면 첫 칸에 커서가 가 있어요.
   useEffect(() => firstRef.current?.focus(), []);
 
-  // 설정 목록이 늦게 들어오면 비어 있는 고르기 칸을 채워요.
+  // 설정 목록이 늦게 들어오면 비어 있는 상태 칸을 채워요(접수유형은 비워 둬요 – 2026-10-25 사용자).
   useEffect(() => {
-    f.setD((old) => ({
-      ...old,
-      intake: old.intake || lists.intake[0] || "",
-      status: old.status || lists.status[0] || "",
-    }));
+    f.setD((old) => ({ ...old, status: old.status || lists.status[0] || "" }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lists.intake, lists.status]);
+  }, [lists.status]);
 
   async function submit() {
     const { input, first } = f.check(lists);
@@ -1387,7 +1450,7 @@ function NewRow({ lists, short, onAdd }: { lists: Lists; short: Set<ColKey>; onA
       <div role="cell" className="cm-c cm-new-tag">
         신규
       </div>
-      <Cells d={f.d} set={f.set} bad={f.bad} lists={lists} firstRef={firstRef} onDateBlur={f.onDateBlur} short={short} />
+      <Cells d={f.d} set={f.set} bad={f.bad} lists={lists} firstRef={firstRef} onDateBlur={f.onDateBlur} onDoneType={f.typeDone} short={short} />
       <div role="cell" className="cm-c cm-center">
         <button type="button" className="btn-icon btn-add" aria-label="민원 등록" title="등록" tabIndex={-1} onClick={submit}>
           <Plus />
@@ -1402,8 +1465,12 @@ function NewRow({ lists, short, onAdd }: { lists: Lists; short: Set<ColKey>; onA
 function EditRow({
   vi,
   c,
+  alt,
   lists,
   short,
+  only,
+  doneFolded,
+  placeStyle,
   onCancel,
   onSave,
   onRemove,
@@ -1411,8 +1478,13 @@ function EditRow({
 }: {
   vi?: number;
   c: Complaint;
+  alt?: boolean;
   lists: Lists;
   short: Set<ColKey>;
+  /** 두 번 누른 칸 하나만 고치기(2026-10-25 사용자 ⑧1안). null이면 줄 전체 */
+  only: CellKey | null;
+  doneFolded: boolean;
+  placeStyle: PlaceStyle;
   onCancel: () => void;
   onSave: (input: ComplaintInput) => void;
   onRemove: () => void;
@@ -1435,6 +1507,9 @@ function EditRow({
     done: c.done ?? "",
   }));
   const [asking, setAsking] = useState(false);
+  // 칸 하나만 고칠 때 지금 고치는 칸 – Tab·Shift+Tab으로 같은 줄의 다음·앞 칸(접은 조치완료일은 건너뜀)
+  const [active, setActive] = useState<CellKey | null>(only);
+  const order = CELL_ORDER.filter((k) => !(k === "done" && doneFolded));
   const ref = useRef<HTMLDivElement>(null);
   const askRef = useRef<HTMLDivElement>(null);
   const trashRef = useRef<HTMLButtonElement>(null);
@@ -1468,15 +1543,23 @@ function EditRow({
     foot.style.paddingLeft = `${Math.max(0, Math.round(base + delta))}px`;
   });
 
-  // 처음에 내용 칸에 커서를 둬요.
+  // 처음에 내용 칸(칸 하나만 고치면 그 칸)에 커서를 둬요.
   useEffect(() => {
-    const all = ref.current?.querySelectorAll<HTMLTextAreaElement>(".bl-ed")[0]?.querySelectorAll("textarea");
+    const row = ref.current;
+    if (!row) return;
+    if (active && active !== "body" && active !== "action") {
+      const el = row.querySelector<HTMLInputElement>(`[name="${active}"]`);
+      el?.focus();
+      if (el && active !== "received") el.setSelectionRange(el.value.length, el.value.length);
+      return;
+    }
+    const all = row.querySelectorAll<HTMLTextAreaElement>(".bl-ed")[active === "action" ? 1 : 0]?.querySelectorAll("textarea");
     const el = all?.[all.length - 1];
     if (el) {
       el.focus();
       el.setSelectionRange(el.value.length, el.value.length);
     }
-  }, []);
+  }, [active]);
 
   // 바깥을 누르면 저장해요. 묻는 띠가 펼쳐져 있으면 줄 안의 다른 곳을 눌렀을 때 띠만 접어요.
   useOutsideClose(true, [], (e) => {
@@ -1486,30 +1569,43 @@ function EditRow({
 
   const hasMemo = parseMemo(c.memo).length > 0;
 
+  /** 칸 하나만 고칠 때 Tab·Shift+Tab: 같은 줄의 다음·앞 칸을 열어요. 끝이면 false(저장) */
+  const step = (dir: 1 | -1): boolean => {
+    if (!active) return false;
+    const next = order[order.indexOf(active) + dir];
+    if (!next) return dir === -1;
+    setActive(next);
+    return true;
+  };
+
   return (
     <div
       ref={ref}
       role="row"
       data-cid={c.id}
       data-vi={vi}
-      className="cm-row cm-edit"
+      className={active ? "cm-row cm-view cm-cell-edit" + (alt ? " alt" : "") : "cm-row cm-edit"}
       onKeyDown={(e) => {
         if (e.defaultPrevented) return;
         if (isKey(e, "common.cancel")) {
           e.preventDefault();
           if (asking) setAsking(false);
           else onCancel();
-        } else rowKeys(e, ref.current, () => save());
+        } else if (active && e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.nativeEvent.isComposing && e.keyCode !== 229 && fieldScope(e.target) === "single") {
+          // 칸 하나만 고칠 때 한 줄 칸의 Enter는 저장(2026-10-25 ⑧1안).
+          e.preventDefault();
+          save();
+        } else rowKeys(e, ref.current, () => save(), active ? step : undefined);
       }}
     >
       <div role="cell" className="cm-c cm-no">
         {c.no}
       </div>
-      <Cells d={f.d} set={f.set} bad={f.bad} lists={lists} onDateBlur={f.onDateBlur} orig={c} short={short} />
+      <Cells d={f.d} set={f.set} bad={f.bad} lists={lists} onDateBlur={f.onDateBlur} onDoneType={f.typeDone} orig={c} short={short} active={active} placeStyle={placeStyle} />
       <div role="cell" className="cm-c cm-center">
         <MemoButton has={hasMemo} memo={c.memo} onClick={onMemo} />
       </div>
-      <div className="cm-edit-foot">
+      {!active && <div className="cm-edit-foot">
         {asking ? (
           <AskBand bandRef={askRef} className="cm-ask" label="민원 지우기 확인" text={<>{c.no}번 민원을 지울까요? 메모도 함께 지워져요.</>} onNo={() => setAsking(false)} onYes={onRemove} />
         ) : (
@@ -1527,7 +1623,7 @@ function EditRow({
         <button type="button" className="btn-primary btn-xs" onClick={() => save()}>
           저장
         </button>
-      </div>
+      </div>}
     </div>
   );
 }
@@ -1549,6 +1645,8 @@ function ViewRow({
   selected,
   statuses,
   short,
+  doneFolded,
+  placeStyle,
   onSelect,
   onMenu,
   onEdit,
@@ -1568,10 +1666,14 @@ function ViewRow({
   statuses: string[];
   /** 폭이 모자라 줄인 모양으로 보이는 열 */
   short: Set<ColKey>;
+  /** 조치완료일 열을 접어 둠 */
+  doneFolded: boolean;
+  placeStyle: PlaceStyle;
   onSelect: () => void;
   /** 줄 우클릭 – 메뉴를 열 자리 */
   onMenu: (x: number, y: number) => void;
-  onEdit: () => void;
+  /** 고치기: 두 번 누른 칸(null이면 줄 전체) */
+  onEdit: (k: CellKey | null) => void;
   onMemo: () => void;
   onStatus: (status: string) => void;
   onDone: (done: string) => void;
@@ -1585,9 +1687,12 @@ function ViewRow({
   // 줄인 모양(2026-10-21 사용자): 접수유형 두 글자 + "…", 접수일 26-10-16, 위치 읍면 생략 – 마우스를 올리면 전체.
   const intake = short.has("intake") ? shortIntake(c.intake) : c.intake;
   const received = short.has("received") ? shortDate(c.received) : c.received;
-  const fullPlace = [c.area, c.place].filter(Boolean).join(" ");
-  const place = short.has("place") ? c.place : fullPlace;
-  const placeTitle = [fullPlace !== place ? fullPlace : "", c.road ? `바꾸기 전 ${c.road}` : ""].filter(Boolean).join(" · ") || undefined;
+  // 위치 표기(2026-10-25 사용자 ③1안): 행정동 "운정3동 동패동 1234" · 법정동 "동패동 1234" – 리 지역은 둘 다 "조리읍 대원리 1234".
+  const fullPlace = placeText(c.area, c.place, placeStyle);
+  const place = short.has("place") ? c.place || c.area : fullPlace;
+  const longPlace = [c.area, c.place].filter(Boolean).join(" ");
+  const placeTitle = [longPlace !== place ? longPlace : "", c.road ? `바꾸기 전 ${c.road}` : ""].filter(Boolean).join(" · ") || undefined;
+  const person = [c.person, c.phone].filter(Boolean).join(" ");
   return (
     <div
       role="row"
@@ -1596,7 +1701,7 @@ function ViewRow({
       data-vi={vi}
       aria-selected={selected}
       className={"cm-row cm-view" + (alt ? " alt" : "") + (flash ? " flash" : "") + (selected ? " sel" : "") + (isClosed(c.status) ? " done" : "")}
-      title="두 번 눌러서 고치기 (상태 배지는 바로 바꾸기, 민원인·위치는 복사, 줄인 마감일은 D-day를 두 번 눌러 고치기)"
+      title="칸을 두 번 눌러 그 칸만 고치기 · 우클릭 메뉴: 줄 전체 고치기·위치·민원인 복사·지우기"
       onClick={onSelect}
       onContextMenu={(e) => {
         // 글을 골라 두고 우클릭하면 복사 메뉴(앱 공통 – main.tsx)를 그대로 둬요.
@@ -1608,45 +1713,48 @@ function ViewRow({
         // 두 번 누를 때 글자가 골라지는 것을 풀어요.
         window.getSelection()?.removeAllRanges();
         e.preventDefault();
-        onEdit();
+        // 두 번 누른 칸만 고쳐요(2026-10-25 사용자 ⑧1안). 단추(상태 배지·메모 등)는 제 일을 해요.
+        const el = e.target as Element;
+        if (el.closest("button")) return;
+        const k = el.closest<HTMLElement>("[data-k]")?.dataset.k as CellKey | undefined;
+        if (k) onEdit(k);
       }}
       onKeyDown={(e) => {
         if (e.key === "Enter" && e.target === e.currentTarget) {
           e.preventDefault();
-          onEdit();
+          onEdit(null);
         }
       }}
     >
       <div role="cell" className="cm-c cm-no">
         {t(String(c.no))}
       </div>
-      <div role="cell" className="cm-c cm-strong" title={intake !== c.intake ? c.intake : undefined}>
+      <div role="cell" data-k="intake" className="cm-c cm-strong" title={intake !== c.intake ? c.intake : undefined}>
         {t(intake)}
       </div>
-      <div role="cell" className="cm-c cm-num" title={received !== c.received ? c.received : undefined}>
+      <div role="cell" data-k="received" className="cm-c cm-num" title={received !== c.received ? c.received : undefined}>
         {t(received)}
       </div>
-      <div role="cell" className="cm-c">
-        {t(c.ctype)}
+      {/* 민원유형은 한 줄 – 넘치면 "…", 마우스를 올리면 전체(2026-10-25 사용자) */}
+      <div role="cell" data-k="ctype" className="cm-c cm-ell" title={c.ctype || undefined}>
+        <span className="cm-ell-v">{t(c.ctype)}</span>
       </div>
-      <div role="cell" className="cm-c">
-        {/* 위치 칸에 지역(읍면동)을 붙여요(2026-10-21 사용자) – 누르면 위치(리·동 지번)만 복사 */}
-        {c.place ? <CopyCell value={c.place} shown={place} what="위치" render={t} title={placeTitle} /> : c.area ? t(c.area) : null}
+      <div role="cell" data-k="place" className="cm-c" title={placeTitle}>
+        {/* 위치 칸에 지역(읍면동)을 붙여요(2026-10-21 사용자). 복사는 우클릭 메뉴(2026-10-25 ⑨1안). */}
+        {t(place)}
       </div>
-      <div role="cell" className="cm-c cm-person">
-        {/* 민원인 한 칸 – 넘치면 "…", 마우스를 올리면 전체, 누르면 복사 */}
-        {(c.person || c.phone) && (
-          <CopyCell value={[c.person, c.phone].filter(Boolean).join(" ")} what="민원인" render={t} title={[c.person, c.phone].filter(Boolean).join(" ")} />
-        )}
+      <div role="cell" data-k="person" className="cm-c cm-person cm-ell" title={person || undefined}>
+        {/* 민원인 한 칸 – 넘치면 "…", 마우스를 올리면 전체. 복사는 우클릭 메뉴 */}
+        <span className="cm-ell-v">{t(person)}</span>
       </div>
-      <div role="cell" className="cm-c cm-multi">
+      <div role="cell" data-k="body" className="cm-c cm-multi">
         <Bullets text={c.body} q={q} />
       </div>
       {/* 조치내용도 내용과 같은 글자색(2026-10-21 사용자 1안) */}
-      <div role="cell" className="cm-c cm-multi">
+      <div role="cell" data-k="action" className="cm-c cm-multi">
         <Bullets text={c.action} q={q} />
       </div>
-      <div role="cell" className={"cm-c cm-num cm-due" + (short.has("due") ? " cm-due-short" : "")}>
+      <div role="cell" data-k="due" className={"cm-c cm-num cm-due" + (short.has("due") ? " cm-due-short" : "")}>
         {/* 줄인 모양이면 날짜는 숨기고 D-day만(마우스를 올리면 날짜, 두 번 누르면 날짜 칸 – 2026-10-21 사용자). 답변 끝난 민원은 D-day가 없어 날짜를 그대로 보여요. */}
         {!(short.has("due") && n !== null) && (
           <span className={c.due && isAnswered(c.status) ? "cm-due-done" : undefined} title={c.due && isAnswered(c.status) ? "답변 끝남" : undefined}>
@@ -1660,12 +1768,13 @@ function ViewRow({
             <span className={"cm-dday" + (isUrgent(n, urgentDays) ? " urgent" : "")}>{ddayText(n)}</span>
           ))}
       </div>
-      <div role="cell" className="cm-c">
+      <div role="cell" data-k="status" className="cm-c">
         <StatusPick status={c.status} statuses={statuses} bg={bg} fg={fg} render={t} onPick={onStatus} />
       </div>
-      <div role="cell" className="cm-c cm-num cm-due cm-done-c">
+      <div role="cell" data-k={doneFolded ? undefined : "done"} className="cm-c cm-num cm-due cm-done-c">
         <span className="cm-done-d">{t(c.done ?? "")}</span>
-        {taken !== null && <TakenPick c={c} taken={taken} onSave={onDone} />}
+        {/* 접은 열은 칸을 두 번 누르면 작은 날짜 칸(빈 칸은 마우스를 올리면 "+" – 2026-10-25 사용자 ⑥1안) */}
+        {(taken !== null || (doneFolded && !c.done)) && <TakenPick c={c} taken={taken} onSave={onDone} />}
       </div>
       <div role="cell" className="cm-c cm-center">
         <span onDoubleClick={(e) => e.stopPropagation()}>
@@ -1695,34 +1804,6 @@ function MemoButton({ has, memo, onClick }: { has: boolean; memo: string; onClic
   );
 }
 
-/** 연락처·위치 칸: 누르면 그 글자를 복사하고 "복사했어요"를 잠깐 보여요(줄 고르기·고치기로 넘어가지 않아요). */
-/** title을 주면 "눌러서 복사" 대신 그 글을 보여요(위치: 바꾸기 전 도로명주소). */
-function CopyCell({ value, shown, what, render, title }: { value: string; shown?: string; what: string; render: (s: string) => ReactNode; title?: string }) {
-  const [copied, setCopied] = useState(false);
-  const timer = useRef<number>();
-  useEffect(() => () => window.clearTimeout(timer.current), []);
-  return (
-    <button
-      type="button"
-      className={"cm-copy" + (copied ? " copied" : "")}
-      onDoubleClick={(e) => e.stopPropagation()}
-      title={title ?? "눌러서 복사"}
-      aria-label={`${what} ${value} 복사`}
-      onClick={async (e) => {
-        e.stopPropagation();
-        await copyText(value);
-        setCopied(true);
-        window.clearTimeout(timer.current);
-        timer.current = window.setTimeout(() => setCopied(false), 1400);
-      }}
-    >
-      <span className="cm-copy-v">{render(shown ?? value)}</span>
-      <span className="cm-copy-note" aria-live="polite">
-        {copied ? "복사했어요" : ""}
-      </span>
-    </button>
-  );
-}
 
 /**
  * 상태 배지: 누르면 상태 목록이 바로 떠요(줄 고치기로 넘어가지 않아요). 고르면 바로 저장해요.
@@ -1904,7 +1985,7 @@ function DuePick({ c, text, urgent, onSave }: { c: Complaint; text: string; urge
  * 걸린 날 "4d"를 누르면 조치완료일을 고치는 작은 칸(2026-10-19 사용자 – 열을 접어 둔 채로도 고쳐요).
  * Enter·바깥 누르기 저장, Esc 그대로. 날짜 칸 규칙(parseDate)과 같고, 읽을 수 없거나 접수일보다 앞이면 빨간 테두리.
  */
-function TakenPick({ c, taken, onSave }: { c: Complaint; taken: number; onSave: (done: string) => void }) {
+function TakenPick({ c, taken, onSave }: { c: Complaint; taken: number | null; onSave: (done: string) => void }) {
   const [open, setOpen] = useState(false);
   const [v, setV] = useState("");
   const [bad, setBad] = useState(false);
@@ -1938,20 +2019,39 @@ function TakenPick({ c, taken, onSave }: { c: Complaint; taken: number; onSave: 
 
   return (
     <span ref={box} className="cm-tpick" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
-      <button
-        type="button"
-        className="cm-dday cm-taken cm-taken-btn"
-        title={`조치완료일 ${c.done} · 접수부터 ${taken}일 – 눌러서 고치기`}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        onClick={() => {
-          setV(c.done ?? "");
-          setBad(false);
-          setOpen(!open);
-        }}
-      >
-        {takenText(c, taken)}
-      </button>
+      {taken === null ? (
+        // 접은 열의 빈 칸: 마우스를 올리면 "+", 두 번 누르면 조치완료일 칸(2026-10-25 사용자 ⑥1안)
+        <button
+          type="button"
+          className="cm-done-add"
+          title="두 번 눌러서 조치완료일 적기"
+          aria-label="조치완료일 적기"
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          onDoubleClick={() => {
+            setV(todayStr());
+            setBad(false);
+            setOpen(true);
+          }}
+        >
+          <span aria-hidden="true">+</span>
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="cm-dday cm-taken cm-taken-btn"
+          title={`조치완료일 ${c.done} · 접수부터 ${taken}일 – 눌러서 고치기`}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          onClick={() => {
+            setV(c.done ?? "");
+            setBad(false);
+            setOpen(!open);
+          }}
+        >
+          {takenText(c, taken)}
+        </button>
+      )}
       {open && (
         <span className="cm-tpick-pop" role="dialog" aria-label="조치완료일 고치기">
           <span className="cm-tpick-label">조치완료일</span>
@@ -1987,6 +2087,7 @@ function TakenPick({ c, taken, onSave }: { c: Complaint; taken: number; onSave: 
 
 function MemoDialog({ c, onClose, onSave }: { c: Complaint; onClose: () => void; onSave: (memo: string) => void }) {
   const box = useRef<HTMLDivElement>(null);
+  const save = useRef<(() => void) | null>(null);
   const who = [`${c.no}번`, [c.area, c.place].filter(Boolean).join(" ")].filter(Boolean).join(" · ");
   return (
     <div className="overlay">
@@ -1994,9 +2095,13 @@ function MemoDialog({ c, onClose, onSave }: { c: Complaint; onClose: () => void;
         <div className="dialog-head cm-memo-head">
           <span className="dialog-title">메모</span>
           <span className="muted small">{who}</span>
+          {/* 창 닫기 = 저장하고 닫기(2026-10-25 사용자 ⑩ – 바깥 누르기·Tab과 같아요, 버리려면 Esc) */}
+          <button type="button" className="dialog-x" aria-label="저장하고 닫기" title="저장하고 닫기 (버리려면 Esc)" onClick={() => save.current?.()}>
+            <DelIcon />
+          </button>
         </div>
         <div className="dialog-body cm-memo-body">
-          <MemoEditor initial={parseMemo(c.memo)} boundary={box} onCancel={onClose} onSave={(lines) => onSave(memoText(lines))} />
+          <MemoEditor initial={parseMemo(c.memo)} boundary={box} saveRef={save} onCancel={onClose} onSave={(lines) => onSave(memoText(lines))} />
         </div>
       </div>
     </div>

@@ -125,6 +125,27 @@ pub(crate) fn upgrade(conn: &rusqlite::Connection) -> Result<()> {
             conn.execute("UPDATE complaints SET action = ?1 WHERE id = ?2", rusqlite::params![fixed, id])?;
         }
     }
+    // 연번은 접수일 순서(2026-10-25 사용자 ①1안) – 예전 자료도 한 번 맞춰요.
+    renumber(conn)?;
+    Ok(())
+}
+
+/// 연번을 다시 매겨요(2026-10-25 사용자 ①1안). 표는 연번이 큰 것이 위라서,
+/// 위에서 아래로 "접수일 최근 → 예전, 같은 날은 접수유형 가나다 → 위치 가나다(빈 칸은 뒤)"가 되게
+/// 맨 아래(가장 오래된 날의 마지막 줄)부터 1, 2, 3 … 을 줘요. 바뀐 줄만 고쳐 써요.
+pub(crate) fn renumber(conn: &rusqlite::Connection) -> Result<()> {
+    let mut st = conn.prepare(
+        "SELECT id, no FROM complaints
+         ORDER BY received ASC, (intake = '') DESC, intake DESC, (place = '') DESC, place DESC, id ASC",
+    )?;
+    let rows: Vec<(i64, i64)> = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<rusqlite::Result<_>>()?;
+    let mut up = conn.prepare("UPDATE complaints SET no = ?2 WHERE id = ?1")?;
+    for (i, (id, no)) in rows.into_iter().enumerate() {
+        let n = i as i64 + 1;
+        if no != n {
+            up.execute(params![id, n])?;
+        }
+    }
     Ok(())
 }
 
@@ -195,8 +216,14 @@ pub(crate) fn lines(s: &str) -> String {
 fn clean(input: &ComplaintInput) -> Result<ComplaintInput> {
     let t = |s: &str| s.trim().to_string();
     let body = lines(&input.body);
-    if body.is_empty() {
-        return Err(bad("내용이 비어 있어요"));
+    // 아무 칸 하나만 적어도 등록해요(2026-10-25 사용자) – 처음부터 채워지는 접수일·상태는 세지 않아요.
+    let filled = [&input.intake, &input.ctype, &input.area, &input.place, &input.person, &input.phone, &input.due, &input.done]
+        .iter()
+        .any(|v| !v.trim().is_empty())
+        || !body.is_empty()
+        || !lines(&input.action).is_empty();
+    if !filled {
+        return Err(bad("적은 칸이 없어요"));
     }
     let received = t(&input.received);
     if !valid_date(&received) {
@@ -297,14 +324,16 @@ impl Store {
             params![no, c.intake, c.received, c.ctype, c.area, c.place, c.person, c.phone, c.body, c.action, c.due, c.status, c.road, c.done],
         )?;
         let id = tx.last_insert_rowid();
+        renumber(&tx)?;
         tx.commit()?;
         self.complaint(id)
     }
 
-    /// 민원을 고쳐요. 연번과 메모는 그대로 둬요.
+    /// 민원을 고쳐요. 메모는 그대로, 연번은 접수일 순서로 다시 매겨요.
     pub fn update_complaint(&mut self, id: i64, input: &ComplaintInput) -> Result<Complaint> {
         let c = clean(input)?;
-        let n = self.conn.execute(
+        let tx = self.conn.transaction()?;
+        let n = tx.execute(
             "UPDATE complaints SET intake = ?2, received = ?3, ctype = ?4, area = ?5, place = ?6, person = ?7,
                     phone = ?8, body = ?9, action = ?10, due = ?11, status = ?12, road = ?13, done = ?14
              WHERE id = ?1",
@@ -313,6 +342,8 @@ impl Store {
         if n == 0 {
             return Err(Error::NotFound);
         }
+        renumber(&tx)?;
+        tx.commit()?;
         self.complaint(id)
     }
 
@@ -344,25 +375,11 @@ impl Store {
         self.complaint(id)
     }
 
-    /// 두 민원의 연번을 맞바꿔요(민원대장 줄 우클릭 "위로·아래로 옮기기", 2026-10-21 사용자 1안).
-    /// 연번 순서가 표·엑셀·업무일지·캘린더의 순서라 함께 바뀌어요. 바뀐 두 민원을 돌려줘요.
-    pub fn swap_complaint_no(&mut self, a: i64, b: i64) -> Result<(Complaint, Complaint)> {
-        if a == b {
-            return Err(bad("같은 민원이에요"));
-        }
+    pub fn delete_complaint(&mut self, id: i64) -> Result<()> {
         let tx = self.conn.transaction()?;
-        let no = |id: i64| -> Result<i64> {
-            tx.query_row("SELECT no FROM complaints WHERE id = ?1", params![id], |r| r.get(0)).optional()?.ok_or(Error::NotFound)
-        };
-        let (na, nb) = (no(a)?, no(b)?);
-        tx.execute("UPDATE complaints SET no = ?2 WHERE id = ?1", params![a, nb])?;
-        tx.execute("UPDATE complaints SET no = ?2 WHERE id = ?1", params![b, na])?;
+        tx.execute("DELETE FROM complaints WHERE id = ?1", params![id])?;
+        renumber(&tx)?;
         tx.commit()?;
-        Ok((self.complaint(a)?, self.complaint(b)?))
-    }
-
-    pub fn delete_complaint(&self, id: i64) -> Result<()> {
-        self.conn.execute("DELETE FROM complaints WHERE id = ?1", params![id])?;
         Ok(())
     }
 
@@ -400,6 +417,7 @@ impl Store {
                 ],
             )?;
         }
+        renumber(&tx)?;
         tx.commit()?;
         Ok(rows.len())
     }
@@ -427,21 +445,40 @@ mod tests {
         }
     }
 
+    /// 접수일·상태 말고 모든 칸이 빈 민원(등록 안 됨)
+    fn empty() -> ComplaintInput {
+        ComplaintInput { intake: "".into(), ctype: "".into(), area: "".into(), place: "".into(), person: "".into(), phone: "".into(), body: "".into(), due: "".into(), ..input("") }
+    }
+
     #[test]
-    fn swap_no_exchanges_order() {
+    fn numbers_follow_received_then_intake_then_place() {
         let d = tempfile::tempdir().unwrap();
         let mut s = Store::create(d.path(), "1234").unwrap();
-        let a = s.add_complaint(&input("가")).unwrap();
-        let b = s.add_complaint(&input("나")).unwrap();
-        let (a2, b2) = s.swap_complaint_no(a.id, b.id).unwrap();
-        assert_eq!((a2.no, b2.no), (b.no, a.no));
-        assert_eq!(a2.body, a.body);
-        let order: Vec<String> = s.complaints().unwrap().iter().map(|c| c.body.clone()).collect();
-        assert_eq!(order, vec![a.body.clone(), b.body.clone()]);
-        assert!(s.swap_complaint_no(a.id, 9999).is_err());
-        assert_eq!(s.complaints().unwrap().iter().map(|c| c.no).collect::<Vec<_>>(), vec![2, 1]);
-        // 새 민원은 여전히 가장 큰 연번 + 1
-        assert_eq!(s.add_complaint(&input("다")).unwrap().no, 3);
+        let mk = |rec: &str, intake: &str, place: &str| ComplaintInput { received: rec.into(), intake: intake.into(), place: place.into(), ..input("가") };
+        let a = s.add_complaint(&mk("2026-10-12", "전화", "대원리 1")).unwrap();
+        let b = s.add_complaint(&mk("2026-10-10", "방문", "")).unwrap();
+        let c = s.add_complaint(&mk("2026-10-12", "방문", "오산리 2")).unwrap();
+        let e = s.add_complaint(&mk("2026-10-12", "방문", "대원리 3")).unwrap();
+        // 위에서 아래로: 10-12 방문 대원리 → 10-12 방문 오산리 → 10-12 전화 → 10-10 방문
+        let order: Vec<i64> = s.complaints().unwrap().iter().map(|x| x.id).collect();
+        assert_eq!(order, vec![e.id, c.id, a.id, b.id]);
+        assert_eq!(s.complaints().unwrap().iter().map(|x| x.no).collect::<Vec<_>>(), vec![4, 3, 2, 1]);
+        // 접수일을 고치면 자리를 옮기고 번호를 다시 매겨요
+        s.update_complaint(b.id, &mk("2026-10-13", "방문", "")).unwrap();
+        assert_eq!(s.complaints().unwrap()[0].id, b.id);
+        assert_eq!(s.complaints().unwrap()[0].no, 4);
+        // 지우면 번호가 당겨져요
+        s.delete_complaint(e.id).unwrap();
+        assert_eq!(s.complaints().unwrap().iter().map(|x| x.no).collect::<Vec<_>>(), vec![3, 2, 1]);
+    }
+
+    #[test]
+    fn any_one_field_is_enough() {
+        let d = tempfile::tempdir().unwrap();
+        let mut s = Store::create(d.path(), "1234").unwrap();
+        let only = empty();
+        assert!(s.add_complaint(&only).is_err());
+        assert!(s.add_complaint(&ComplaintInput { person: "김○○".into(), ..only.clone() }).is_ok());
     }
 
     #[test]
@@ -513,11 +550,14 @@ mod tests {
             .collect();
         s.import_complaints(&rows).unwrap();
         let all = s.complaints().unwrap();
-        let got: Vec<(String, String, String)> = all[..4].iter().rev().map(|c| (c.area.clone(), c.place.clone(), c.road.clone())).collect();
-        assert_eq!(got[0], ("조리읍".into(), "봉일천리 5-31".into(), "조리읍 통일로 136".into()));
-        assert_eq!(got[1], ("".into(), "금정로 20-3".into(), "".into()));
-        assert_eq!(got[2].1, "서울특별시 은평구 통일로 136");
-        assert_eq!(got[3], ("운정1동".into(), "와동동 1454-1".into(), "경의로 1246".into()));
+        let by = |road_or_place: &str| {
+            let c = all.iter().find(|c| c.road == road_or_place || c.place == road_or_place).unwrap();
+            (c.area.clone(), c.place.clone(), c.road.clone())
+        };
+        assert_eq!(by("봉일천리 5-31"), ("조리읍".into(), "봉일천리 5-31".into(), "조리읍 통일로 136".into()));
+        assert_eq!(by("금정로 20-3"), ("".into(), "금정로 20-3".into(), "".into()));
+        assert_eq!(by("서울특별시 은평구 통일로 136").1, "서울특별시 은평구 통일로 136");
+        assert_eq!(by("경의로 1246"), ("운정1동".into(), "와동동 1454-1".into(), "경의로 1246".into()));
     }
 
     #[test]
@@ -529,19 +569,20 @@ mod tests {
         assert_eq!((a.no, b.no), (1, 2));
         // 앞뒤 빈칸은 지워요.
         assert_eq!(a.area, "조리읍");
-        // 지워도 남은 연번은 그대로이고, 다음 연번은 가장 큰 것 + 1이에요.
+        // 연번은 접수일 순서로 다시 매겨요(2026-10-25) – 지우면 당겨지고, 같은 날·같은 칸이면 나중에 넣은 것이 위예요.
         s.delete_complaint(a.id).unwrap();
         let c = s.add_complaint(&input("셋째")).unwrap();
-        assert_eq!(c.no, 3);
+        assert_eq!(c.no, 2);
         let all = s.complaints().unwrap();
-        assert_eq!(all.iter().map(|x| x.no).collect::<Vec<_>>(), vec![3, 2]);
+        assert_eq!(all.iter().map(|x| x.no).collect::<Vec<_>>(), vec![2, 1]);
+        assert_eq!(all[0].id, c.id);
     }
 
     #[test]
     fn body_is_required_and_lines_are_cleaned() {
         let tmp = tempfile::tempdir().unwrap();
         let mut s = Store::create(tmp.path(), "abcd1234").unwrap();
-        assert_eq!(s.add_complaint(&input("  \n \n")).err().unwrap().code(), "invalid");
+        assert_eq!(s.add_complaint(&ComplaintInput { body: "  \n \n".into(), ..empty() }).err().unwrap().code(), "invalid");
         let mut i = input("  포트홀 여러 개 \n\n 야간에 잘 안 보임 ");
         i.action = "\n 10/12 현장 확인 \n\n10/14 긴급보수\n".into();
         let c = s.add_complaint(&i).unwrap();
@@ -560,8 +601,9 @@ mod tests {
         // 묶음 사이 빈 줄은 하나만 남고, 맨 앞·맨 끝 빈 줄은 빠져요.
         assert_eq!(c.body, r#"[{"k":"sq","t":"포트홀"},{"t":""},{"k":"ci","t":"야간"},{"k":"none","lv":1,"t":"이어 씀"}]"#);
         assert_eq!(c.action, "");
-        // 빈 줄만 있으면 내용이 없는 것이에요.
-        assert_eq!(s.add_complaint(&input(r#"[{"t":" "}]"#)).err().unwrap().code(), "invalid");
+        // 빈 줄만 있으면 내용이 없는 것이에요(다른 칸이 있으면 등록은 돼요).
+        assert_eq!(s.add_complaint(&input(r#"[{"t":" "}]"#)).unwrap().body, "");
+        assert_eq!(s.add_complaint(&ComplaintInput { body: r#"[{"t":" "}]"#.into(), ..empty() }).err().unwrap().code(), "invalid");
         // JSON처럼 보여도 줄 목록이 아니면 글자로 받아요.
         assert_eq!(s.add_complaint(&input("[참고] 현장 확인")).unwrap().body, "[참고] 현장 확인");
     }
@@ -603,7 +645,7 @@ mod tests {
         assert_eq!(s.set_complaint_memo(999, "").err().unwrap().code(), "not_found");
         assert_eq!(s.set_complaint_status(999, "완료", None).err().unwrap().code(), "not_found");
         // 고치다 실패하면 그대로예요.
-        assert_eq!(s.update_complaint(c.id, &input(" ")).err().unwrap().code(), "invalid");
+        assert_eq!(s.update_complaint(c.id, &empty()).err().unwrap().code(), "invalid");
         assert_eq!(s.complaints().unwrap()[0].body, "둘 (고침)");
     }
 
