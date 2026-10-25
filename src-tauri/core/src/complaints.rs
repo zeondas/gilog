@@ -618,7 +618,8 @@ mod tests {
         let all = s.complaints().unwrap();
         assert_eq!(all.len(), 3);
         let same = all.iter().find(|c| c.id == a.id).unwrap();
-        assert_eq!((same.no, same.body.as_str()), (a.no, "고친 내용"));
+        // 연번은 접수일 순서로 다시 매겨져요(2026-10-25 민원대장) – 내용만 봐요
+        assert_eq!(same.body, "고친 내용");
         // 대체하기: 모두 지우고 파일 내용만
         let (u, n) = s.import_complaints(&[row("새리 9", "하나만")], true).unwrap();
         assert_eq!((u, n), (0, 1));
