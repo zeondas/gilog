@@ -16,7 +16,7 @@ export const SHEET_TITLE: Record<SheetKind, string> = { complaints: "민원대�
 /** 양식의 열 순서(3행 제목) */
 /** 13열(2026-10-21 사용자 ⑧ – 민원인·연락처를 "민원인" 한 칸으로) */
 export const COMPLAINT_HEADERS = ["연번", "접수유형", "접수일", "민원유형", "지역", "위치", "민원인", "내용", "조치내용", "마감일", "상태", "조치완료일", "메모"];
-export const CONTACT_HEADERS = ["연번", "이름", "소속", "직위", "무선", "유선", "이메일", "프로젝트", "메모", "그룹", "축약 공사명", "색"];
+export const CONTACT_HEADERS = ["연번", "이름", "소속", "직위", "무선", "유선", "이메일", "사업", "메모", "그룹", "축약 공사명", "색"];
 
 export type ExcelExport = { rows: string[][]; intake: string[]; status: string[]; days?: string[][] };
 export type ExcelSheet = { headers: string[]; rows: string[][]; extra?: ExcelSheet[] };
@@ -196,7 +196,8 @@ export function contactImports(sheet: ExcelSheet): ContactsImport {
       projects: [],
       memo: linesOfCell(get(r, "메모")),
     };
-    const pcell = get(r, "프로젝트");
+    // 머리글 "사업"(2026-10-25 사용자) – 예전 파일의 "프로젝트"도 읽어요.
+    const pcell = get(r, "사업") || get(r, "프로젝트");
     const multi = /\n/.test(pcell);
     const plines = multi ? splitLines(pcell) : splitProjects(pcell);
     c.projects = plines.filter(Boolean);

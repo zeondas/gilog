@@ -355,7 +355,7 @@ impl Store {
     pub fn add_project(&mut self, name: &str) -> Result<i64> {
         let name = name.trim();
         if name.is_empty() {
-            return Err(Error::Invalid("프로젝트 이름이 비어 있어요".into()));
+            return Err(Error::Invalid("사업 이름이 비어 있어요".into()));
         }
         let tx = self.conn.transaction()?;
         let id = project_id(&tx, name)?;
@@ -367,10 +367,10 @@ impl Store {
     pub fn rename_project(&self, id: i64, name: &str) -> Result<()> {
         let name = name.trim();
         if name.is_empty() {
-            return Err(Error::Invalid("프로젝트 이름이 비어 있어요".into()));
+            return Err(Error::Invalid("사업 이름이 비어 있어요".into()));
         }
         if name_taken(&self.conn, name, id)? {
-            return Err(Error::Invalid("같은 이름의 프로젝트가 있어요".into()));
+            return Err(Error::Invalid("같은 이름의 사업이 있어요".into()));
         }
         let n = self.conn.execute("UPDATE projects SET name = ?2 WHERE id = ?1", params![id, name])?;
         if n == 0 {
@@ -385,13 +385,13 @@ impl Store {
     pub fn set_project_names(&self, id: i64, full: &str, short: &str) -> Result<()> {
         let (full, short) = (full.trim(), short.trim());
         if full.is_empty() && short.is_empty() {
-            return Err(Error::Invalid("프로젝트 이름이 비어 있어요".into()));
+            return Err(Error::Invalid("사업 이름이 비어 있어요".into()));
         }
         let name = if full.is_empty() { short } else { full };
         let alias = if !full.is_empty() && short == full { "" } else { short };
         for n in [name, alias] {
             if !n.is_empty() && name_taken(&self.conn, n, id)? {
-                return Err(Error::Invalid("같은 이름의 프로젝트가 있어요".into()));
+                return Err(Error::Invalid("같은 이름의 사업이 있어요".into()));
             }
         }
         let n = self
