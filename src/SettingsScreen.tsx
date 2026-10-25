@@ -12,7 +12,7 @@ import { FastStatus, fsApi } from "./filesApi";
 import Logo, { AppIcon } from "./Logo";
 import { VERSION } from "./version";
 import { useOutsideClose } from "./useOutsideClose";
-import { Action, conflicts, DEFAULT_KEYS, diffKeys, isRightAlt, KEY_GROUPS, KeyMap, mergeKeys, setKeyMap } from "./keys";
+import { Action, appKeyName, conflicts, DEFAULT_KEYS, diffKeys, isRightAlt, KEY_GROUPS, KeyMap, mergeKeys, setKeyMap } from "./keys";
 import { AskBand } from "./AskBand";
 
 /** 화면 크기 단계(2026-10-21 화면 배율, 사용자 ② 1안) – 값은 prefs.fontSize 그대로, 13 = 100% */
@@ -392,8 +392,6 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
         <BackupRow onLocked={onLocked} setNote={setNote} />
       </section>
 
-      <GoogleCard />
-
       <KeysCard key={resetTick} saved={s.keys} onSave={(keys) => update({ ...s, keys })} />
 
       <h2 className="set-sec">
@@ -415,13 +413,17 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
           ) : sc.id === "budget" ? (
             <BudgetShareRows myName={s.myName} />
           ) : sc.id === "calendar" ? (
-            <Toggle
-              k="공휴일 토요일 일요일 빨강"
-              label="쉬는 날 음영"
-              desc="토·일요일과 공휴일 칸을 연한 빨강으로 칠해요."
-              on={s.restShade}
-              onChange={(restShade) => update({ ...s, restShade })}
-            />
+            <>
+              <Toggle
+                k="공휴일 토요일 일요일 빨강"
+                label="쉬는 날 음영"
+                desc="토·일요일과 공휴일 칸을 연한 빨강으로 칠해요."
+                on={s.restShade}
+                onChange={(restShade) => update({ ...s, restShade })}
+              />
+              {/* 구글 연동은 캘린더 카드 안 작은 묶음(2026-10-25 사용자 ⑤1안, 공통 ✔3) */}
+              <GoogleRows />
+            </>
           ) : (
             <KindsGroup kinds={s.kinds} onChange={(kinds) => update({ ...s, kinds })} />
           )}
@@ -627,6 +629,7 @@ function ModuleCard({ id, name, off, gap, children }: { id: ModuleId; name: stri
 
 const KEY_HINT = "Enter·Tab·Esc와 Shift·Ctrl·왼쪽 Alt만 골라요";
 const RALT_HINT = "오른쪽 Alt는 한/영 키라 고를 수 없어요";
+const APP_HINT = "Ctrl이나 왼쪽 Alt와 글자 키를 함께 눌러요(예: Ctrl+L)";
 
 /**
  * 동작마다 키를 골라요: 칸을 누르고 키를 직접 눌러요. 쓰는 곳마다 작은 상자(두 단).
@@ -652,6 +655,11 @@ function KeysCard({ saved, onSave }: { saved: Partial<Record<string, string>>; o
     e.stopPropagation();
     if (isRightAlt(e)) return setNote(RALT_HINT);
     if (["Shift", "Control", "Alt", "Meta"].includes(e.key)) return;
+    if (a.startsWith("app.")) {
+      // 앱 단축키(잠그기)는 Ctrl·왼쪽 Alt + 글자 키(공통 ✔4)
+      const k = appKeyName(e);
+      return k ? assign(a, k) : setNote(APP_HINT);
+    }
     const main = ({ Enter: "Enter", Tab: "Tab", Escape: "Esc" } as Record<string, string>)[e.key];
     if (!main) return setNote(KEY_HINT);
     assign(a, (e.ctrlKey ? "Ctrl+" : "") + (e.shiftKey ? "Shift+" : "") + (e.altKey ? "Alt+" : "") + main);
@@ -735,7 +743,8 @@ const G_TOGGLES: [keyof GOpts, string, string][] = [
   ["gtasks", "구글 할 일로 보내기", "민원·할 일 마감을 구글 할 일(체크 동그라미)로 보내고 체크를 서로 맞춰요. 켜면 구글 권한을 한 번 더 받아요."],
 ];
 
-function GoogleCard() {
+/** 구글 캘린더 연동 – 설정 "캘린더" 모듈 카드 안에 줄로 들어가요(카드 아님). */
+function GoogleRows() {
   const [g, setG] = useState<GStatus | null>(null);
   const [opts, setOpts] = useState<GOpts>(DEFAULT_OPTS);
   const [msg, setMsg] = useState("");
@@ -802,10 +811,12 @@ function GoogleCard() {
   const sub = g.busy ? "내보내는 중…" : g.lastError || (g.lastOk ? `기록 → 구글 한 방향 · 마지막 내보내기 ${whenText(g.lastOk)}` : "기록 → 구글 한 방향");
 
   return (
-    <section className="card">
-      <div className="card-head">구글 캘린더 연동</div>
+    <>
+      <div className="set-sub" data-k="구글 캘린더 연동 할 일">
+        구글 연동
+      </div>
       {g.connected ? (
-        <div className="row g-row">
+        <div className="row g-row" data-k="구글 연결 끊기 내보내기">
           <span className={"g-dot" + (g.lastError ? " bad" : "")} aria-hidden="true" />
           <span className="row-text">
             <span className="row-label">{g.lastError ? "연결됨 · 내보내지 못했어요" : "연결됨 · 개인 구글 계정"}</span>
@@ -868,10 +879,12 @@ function GoogleCard() {
         </p>
       )}
       {G_TOGGLES.map(([k, label, desc]) => (
-        <Toggle key={k} label={label} desc={desc} on={opts[k]} onChange={() => toggle(k)} />
+        <Toggle key={k} k="구글" label={label} desc={desc} on={opts[k]} onChange={() => toggle(k)} />
       ))}
-      <p className="g-foot small">민원인 이름과 연락처는 어떤 경우에도 구글로 내보내지 않아요. 내보낸 일정은 시청 밖 구글 서버에 저장돼요.</p>
-    </section>
+      <p className="g-foot small" data-k="구글">
+        민원인 이름과 연락처는 어떤 경우에도 구글로 내보내지 않아요. 내보낸 일정은 시청 밖 구글 서버에 저장돼요.
+      </p>
+    </>
   );
 }
 
@@ -1765,7 +1778,6 @@ function ProcessRows({ p, onChange }: { p: ProcessSettings; onChange: (p: Proces
               key={p[d.key]}
               className="input"
               aria-label={d.label}
-              data-ime="en"
               defaultValue={p[d.key]}
               onBlur={(e) => text(d.key, e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}

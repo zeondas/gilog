@@ -20,7 +20,7 @@ import { applyNotifyMode, refreshHolidaysDaily, syncReminders } from "./reminder
 import { startGoogleSync } from "./google";
 import { firstOn, isOn, Modules, onScreens, SCREENS, SETTINGS, ScreenId } from "./screens";
 import { loadSettings } from "./settingsStore";
-import { setKeyMap } from "./keys";
+import { isLockKey, setKeyMap } from "./keys";
 
 /** 화면 글자 크기 기준(13px). 설정 "화면 크기"는 창 배율로 바뀌어요. */
 const BASE_FS = 13;
@@ -130,6 +130,21 @@ export default function App() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [toggleSide]);
+
+  // 잠그기 단축키(설정 "키 설정" › 앱, 처음 Ctrl+L – 공통 ✔4): 입력 칸 안에서도 먹어요. 한글 조합 중·잠금 화면에서는 무시,
+  // WebView 기본 Ctrl+L(주소 고르기)은 막아요. 다른 화면 코드보다 먼저 보게 잡기 단계에 걸어요.
+  const unlockedNow = status?.unlocked ?? false;
+  useEffect(() => {
+    if (!unlockedNow) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!isLockKey(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      lockNow();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [unlockedNow, lockNow]);
 
   // 보고 있던 화면의 모듈을 끄면 첫 켜진 화면으로 가요. 다른 화면에서 눌러 온 이동(민원·할 일 열기 등)은 막지 않아요(끄기는 메뉴 숨기기, 사용자 1안).
   const changeModules = useCallback((m: Modules) => {

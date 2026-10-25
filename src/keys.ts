@@ -15,7 +15,7 @@
 
 import type { KeyboardEvent as RKeyboardEvent } from "react";
 
-export type Scope = "common" | "multi" | "talk" | "single" | "table" | "para";
+export type Scope = "common" | "multi" | "talk" | "single" | "table" | "para" | "app";
 
 export type Action =
   | "common.next"
@@ -34,7 +34,8 @@ export type Action =
   | "table.up"
   | "table.br"
   | "para.next"
-  | "para.list";
+  | "para.list"
+  | "app.lock";
 
 export type KeyMap = Record<Action, string>;
 
@@ -87,6 +88,8 @@ export const KEY_GROUPS: { scope: Scope; title: string; rows: [Action, string, s
       ["para.list", "● 목록 시작", "Shift+Enter"],
     ],
   },
+  // 앱 단축키(2026-10-25 사용자 ⑥1안, 공통 ✔4) – 이 묶음만 Ctrl·왼쪽 Alt + 글자 키를 골라요.
+  { scope: "app", title: "앱", rows: [["app.lock", "잠그기", "Ctrl+L"]] },
 ];
 
 export const DEFAULT_KEYS: KeyMap = Object.fromEntries(KEY_GROUPS.flatMap((g) => g.rows.map(([a, , k]) => [a, k]))) as KeyMap;
@@ -99,7 +102,9 @@ export function mergeKeys(saved?: Partial<Record<string, string>> | null): KeyMa
   if (saved && typeof saved === "object") {
     for (const a of Object.keys(m) as Action[]) {
       const v = saved[a];
-      if (typeof v === "string" && (v === "" || parseKey(v))) m[a] = v;
+      const k = typeof v === "string" && v ? parseKey(v) : null;
+      // 글자 키는 앱 묶음(잠그기)에만 둬요.
+      if (typeof v === "string" && (v === "" || (k && (scopeOfAction(a) === "app" || !isLetter(k.main))))) m[a] = v;
     }
   }
   return m;
@@ -157,10 +162,32 @@ const MAIN: Record<string, string> = { Enter: "Enter", NumpadEnter: "Enter", Tab
 export function parseKey(k: string): { ctrl: boolean; shift: boolean; alt: boolean; main: string } | null {
   const parts = k.split("+");
   const main = parts.pop() ?? "";
-  if (!["Enter", "Tab", "Esc"].includes(main)) return null;
   const mods = new Set(parts);
   for (const p of mods) if (!["Ctrl", "Shift", "Alt"].includes(p)) return null;
+  // 글자 키(A~Z)는 Ctrl이나 왼쪽 Alt와 함께일 때만(혼자 누르면 글자 입력이라서요).
+  if (!["Enter", "Tab", "Esc"].includes(main) && !(isLetter(main) && (mods.has("Ctrl") || mods.has("Alt")))) return null;
   return { ctrl: mods.has("Ctrl"), shift: mods.has("Shift"), alt: mods.has("Alt"), main };
+}
+
+const isLetter = (m: string) => /^[A-Z]$/.test(m);
+
+/**
+ * 앱 단축키 이름("Ctrl+L") – 글자 자리(code)로 읽어요(한글 자판이어도 같은 키). Ctrl·왼쪽 Alt 없이는 null.
+ * 한글 조합 중이거나 오른쪽 Alt(한/영)와 함께면 null.
+ */
+export function appKeyName(e: AnyKey): string | null {
+  const n = native(e);
+  const m = /^Key([A-Z])$/.exec(n.code);
+  if (!m || n.isComposing || n.keyCode === 229) return null;
+  if (n.altKey && rightAlt) return null;
+  if (!(n.ctrlKey || n.metaKey || n.altKey)) return null;
+  return (n.ctrlKey || n.metaKey ? "Ctrl+" : "") + (n.shiftKey ? "Shift+" : "") + (n.altKey ? "Alt+" : "") + m[1];
+}
+
+/** 이 키가 "잠그기" 단축키인지 */
+export function isLockKey(e: AnyKey): boolean {
+  const k = current["app.lock"];
+  return !!k && appKeyName(e) === k;
 }
 
 // 오른쪽 Alt를 누르고 있는지 (윈도우 한글 자판에서는 한/영 키예요)
