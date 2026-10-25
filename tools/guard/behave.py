@@ -218,19 +218,26 @@ async def c_complaints_save(p):
     assert await p.locator(".cm-row", has_text="0000철").count() > 0, "바깥 눌렀는데 저장 안 됨"
 
 
-async def c_complaints_cell(p):
-    """칸을 두 번 누르면 그 칸만 입력 칸 → Tab은 같은 줄 다음 칸 → Esc 취소(2026-10-25 사용자 ⑧1안)."""
+async def c_complaints_dbl(p):
+    """칸 어디를 두 번 눌러도 줄 전체가 입력 줄 · 위치·민원인 칸은 한 번 누르면 복사(2026-10-25 23:43 사용자)."""
     await shoot.nav(p, "민원대장")
-    await shoot.s_complaints_cell(p)
-    row = p.locator(".cm-cell-edit")
-    assert await row.count() == 1, "칸 고치기 줄이 안 열림"
-    assert await row.locator("input[name=place]").count() == 1 and await row.locator("input[name=person]").count() == 0, "다른 칸까지 열림"
-    await p.keyboard.press("Tab")
-    await p.wait_for_timeout(250)
-    assert await row.locator("input[name=person]").count() == 1 and await row.locator("input[name=place]").count() == 0, "Tab이 다음 칸을 열지 않음"
+    row = p.locator(".cm-view", has_text="배수불량").first
+    await row.locator(".cm-copy").first.click()
+    await p.wait_for_timeout(150)
+    assert await p.locator(".cm-copy.copied").count() == 1, "위치를 눌렀는데 복사 표시가 없음"
+    await row.locator(".cm-person .cm-copy").click()
+    await p.wait_for_timeout(150)
+    assert await p.locator(".cm-person .cm-copy.copied").count() == 1, "민원인을 눌렀는데 복사 표시가 없음"
+    assert await p.locator(".cm-edit").count() == 0, "한 번 눌렀는데 고치기가 열림"
+    await shoot.s_complaints_dbl(p)
+    edit = p.locator(".cm-edit")
+    assert await edit.count() == 1, "두 번 눌렀는데 고치기 줄이 안 열림"
+    for n in ("intake", "place", "person", "due", "status"):
+        assert await edit.locator(f"input[name={n}]").count() == 1, f"줄 전체가 아님 – {n} 칸 없음"
     await p.keyboard.press("Escape")
     await p.wait_for_timeout(250)
-    assert await p.locator(".cm-cell-edit").count() == 0, "Esc로 안 닫힘"
+    assert await p.locator(".cm-edit").count() == 0, "Esc로 안 닫힘"
+
 
 
 async def c_no_browser_menu(p):
@@ -332,7 +339,7 @@ CASES = {
     "complaints_filter": menu_case("민원대장", shoot.s_complaints_filter, ".cm-fdd"),
     "complaints_rowmenu": menu_case("민원대장", shoot.s_complaints_rowmenu, ".cm-rowmenu"),
     "complaints_rowmenu_ask": menu_case("민원대장", shoot.s_complaints_rowmenu_ask, ".cm-rowmenu"),
-    "complaints_cell": c_complaints_cell,
+    "complaints_dbl": c_complaints_dbl,
     "no_browser_menu": c_no_browser_menu,
     "budget_menu": menu_case("집행현황", shoot.s_budget_menu, ".bd-pop"),
     "budgetstatus_menu": menu_case("예산현황", shoot.s_budgetstatus_menu, ".bd-pop", esc=False),

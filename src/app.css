@@ -12225,8 +12225,6 @@ body.ew-dragging .pjm-colgrip:active::after {
 .cm-done-add:hover { background: var(--surface-band); color: var(--accent); }
 
 /* 칸 하나만 고치는 줄: 보기 줄 모양 그대로, 고치는 칸만 입력 상자 */
-.cm-cell-edit { cursor: default; background: var(--accent-wash); }
-.cm-cell-edit > .cm-c:has(> .cell-input, > .pin, > .bl-ed, > input) { padding-top: 4px; padding-bottom: 4px; align-items: flex-start; }
 
 /* 메모 창: 오른쪽 위 닫기(저장하고 닫기), 줄 지우기는 휴지통으로 줄 위·아래 옆 */
 .cm-memo-head { position: relative; padding-right: 52px; }
