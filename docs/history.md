@@ -392,3 +392,5 @@ JournalCal1·JournalCal2·ComplaintFilter·BulletRule·JournalPdf·ProjectRename
     - 사용자 시험 항목: 비밀 값을 넣은 빌드에서 설정에 파일 줄이 없고 로그인만 되는지, 다른 계정으로 로그인하면 경고 없이 캘린더만 연결되는지, "구글 할 일로 보내기"를 켜면 권한 화면이 한 번 더 뜨는지, 전훈민 님 PC는 그대로 구글 할 일로 가는지.
 ### 캘린더 쉬는 날 음영 머리말 (원문)
   - **쉬는 날 붉은 음영 (2026-10-17 사용자 결정, 시안 https://claude.ai/artifact/ND2V6G1gFkb3TWnuC8GyTD — **다음 빌드에 넣어요**, 사용자 "다음 빌드때 반영" — **next에 넣음**(2026-10-17 캘린더 세션: 토큰 `--rest-wash`·`--rest-band`, 설정 "화면" 카드 스위치 "캘린더 쉬는 날 음영" = 암호화 파일 `settings`의 `restShade`, 공휴일 종류를 숨겨도 음영은 칠해요, 주 보기 오늘 테두리는 `.cal-wk-today`))**:
+
+- 2026-10-26 공통 부품 세션: 지우기 단추 휴지통 비교 판 `Trash`·`TrashRef`(레퍼런스 21개)·`Trash14`(14칸 가~라)·`TrashUser`(보내 주신 모양 자~타)·`TrashFill`(채움 + 줄 파~너)·`TrashPaper`·`TrashInside`(구겨진 휴지) 지움 – `TrashIOS`의 "사" 확정(결정 로그 10-26 00:15), 캔버스 판본 370에 남아 있어요.
