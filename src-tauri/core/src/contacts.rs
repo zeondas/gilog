@@ -300,11 +300,16 @@ impl Store {
     }
 
     /// 엑셀 가져오기: 모든 줄을 한 번에 넣어요(하나라도 실패하면 아무것도 안 들어가요). 없는 프로젝트는 만들어요.
-    /// 이름·소속·무선 번호(숫자만 비교)가 같은 사람이 이미 있으면 새로 만들지 않고, 그 사람에게 없는 프로젝트만
-    /// 뒤에 붙여요(2026-10-19 사용자 1안 — 백업 파일을 다시 가져와도 사람이 늘지 않게). 새로 만든 사람 수를 돌려줘요.
-    pub fn import_contacts(&mut self, rows: &[ContactImport]) -> Result<usize> {
+    /// 이름·소속·무선 번호(숫자만 비교)가 같은 사람이 이미 있으면 새로 만들지 않고, 그 사람의 칸(직위·번호·메일·메모)을
+    /// 파일 값으로 덮고 없는 프로젝트만 뒤에 붙여요(2026-10-19 사용자 1안 + 2026-10-25 ②3안 덮어쓰기, 공통 ✔5).
+    /// `replace`(대체하기)면 연락처를 모두 지우고 파일 내용만 넣어요(사업·그룹 표는 남겨요). (덮은 수, 더한 수)를 돌려줘요.
+    pub fn import_contacts(&mut self, rows: &[ContactImport], replace: bool) -> Result<(usize, usize)> {
         let tx = self.conn.transaction()?;
-        let mut added = 0;
+        if replace {
+            tx.execute("DELETE FROM contact_projects", [])?;
+            tx.execute("DELETE FROM contacts", [])?;
+        }
+        let (mut updated, mut added) = (0, 0);
         for r in rows {
             let c = &r.input;
             let t = |s: &str| s.trim().to_string();
@@ -316,6 +321,11 @@ impl Store {
                 }
             }
             if let Some(id) = same_person(&tx, &t(&c.name), &t(&c.org), &c.mobile)? {
+                tx.execute(
+                    "UPDATE contacts SET role = ?2, mobile = ?3, tel = ?4, email = ?5, memo = ?6 WHERE id = ?1",
+                    params![id, t(&c.role), t(&c.mobile), t(&c.tel), t(&c.email), r.memo.trim()],
+                )?;
+                updated += 1;
                 let mut pos: i64 = tx.query_row(
                     "SELECT COALESCE(MAX(pos), -1) + 1 FROM contact_projects WHERE contact_id = ?1",
                     params![id],
@@ -340,7 +350,7 @@ impl Store {
             added += 1;
         }
         tx.commit()?;
-        Ok(added)
+        Ok((updated, added))
     }
 
     pub fn delete_contact(&mut self, id: i64) -> Result<()> {
@@ -732,11 +742,19 @@ mod tests {
             memo: String::new(),
         };
         // 같은 사람(번호 모양만 다름) → 프로젝트만 뒤에 붙음, 다른 번호 → 새 사람
-        let n = s.import_contacts(&[row("박은철", "01000000101", &["P1", "P2"]), row("박은철", "010-9999-9999", &["P3"])]).unwrap();
-        assert_eq!(n, 1);
+        let n = s.import_contacts(&[row("박은철", "01000000101", &["P1", "P2"]), row("박은철", "010-9999-9999", &["P3"])], false).unwrap();
+        assert_eq!(n, (1, 1));
         let d = s.contacts_data().unwrap();
         assert_eq!(d.contacts.len(), 2);
         let first = d.contacts.iter().min_by_key(|c| c.id).unwrap();
         assert_eq!(names(&d, first), vec!["P1", "P2"]);
+        // 덮어쓰기는 칸 값도 파일로(번호 모양 포함)
+        assert_eq!(first.mobile, "01000000101");
+        // 대체하기: 연락처를 모두 지우고 파일 내용만, 프로젝트 표는 남음
+        let n = s.import_contacts(&[row("김새사람", "010-1111-2222", &["P9"])], true).unwrap();
+        assert_eq!(n, (0, 1));
+        let d = s.contacts_data().unwrap();
+        assert_eq!(d.contacts.len(), 1);
+        assert!(d.projects.iter().any(|p| p.name == "P1"));
     }
 }

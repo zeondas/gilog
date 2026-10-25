@@ -302,6 +302,15 @@ impl Store {
         Ok(n)
     }
 
+    /// 엑셀 가져오기 "대체하기"(2026-10-25 사용자 ②3안, 공통 ✔5): 모든 기록과 날짜 머리 줄을 한 번에 지워요. 지운 기록 수.
+    pub fn clear_journal(&mut self) -> Result<usize> {
+        let tx = self.conn.transaction()?;
+        let n = tx.execute("DELETE FROM journal_entries", [])?;
+        tx.execute("DELETE FROM journal_days", [])?;
+        tx.commit()?;
+        Ok(n)
+    }
+
     /// 날짜의 머리 줄을 저장해요. 모두 비우면 그 줄을 지워요.
     pub fn set_day(&self, day: &DayInfo) -> Result<DayInfo> {
         let t = |s: &str| s.trim().to_string();

@@ -368,23 +368,67 @@ impl Store {
 
     /// 엑셀 가져오기: 모든 줄을 한 번에 넣어요(하나라도 실패하면 아무것도 안 들어가요).
     /// 연번은 지금 가장 큰 연번 다음부터 줄 순서대로 매겨요. 글자는 앞뒤 빈칸만 지우고, 상태가 비면 "접수"예요.
-    pub fn import_complaints(&mut self, rows: &[ComplaintImport]) -> Result<usize> {
+    /// 방식(2026-10-25 사용자 ②3안, 공통 ✔5): `replace`면 지금 민원을 모두 지우고 파일 내용만 넣어요.
+    /// 아니면(덮어쓰기) 접수일 + 접수유형 + 위치가 같은 민원은 그 민원의 칸을 파일 값으로 덮고(연번 그대로), 나머지는 더해요.
+    /// 돌려주는 값은 (덮은 수, 더한 수).
+    pub fn import_complaints(&mut self, rows: &[ComplaintImport], replace: bool) -> Result<(usize, usize)> {
         let tx = self.conn.transaction()?;
+        if replace {
+            tx.execute("DELETE FROM complaints", [])?;
+        }
         let mut no: i64 = tx.query_row("SELECT COALESCE(MAX(no), 0) FROM complaints", [], |r| r.get(0))?;
+        let (mut updated, mut added) = (0, 0);
         for r in rows {
             let c = &r.input;
             let t = |s: &str| s.trim().to_string();
             let status = t(&c.status);
+            let status = if status.is_empty() { DEFAULT_STATUS.to_string() } else { status };
             // 위치가 파주시 도로명주소면 지번으로 바꿔요(표에 꼭 맞을 때만, 후보가 필요하면 그대로).
             let (area, place, road) = convert(&t(&c.area), &t(&c.place), &t(&c.road));
+            let (intake, received) = (t(&c.intake), t(&c.received));
+            let same: Option<i64> = if replace || (intake.is_empty() && received.is_empty() && place.is_empty()) {
+                None
+            } else {
+                tx.query_row(
+                    "SELECT id FROM complaints WHERE received = ?1 AND intake = ?2 AND place = ?3 ORDER BY id LIMIT 1",
+                    params![received, intake, place],
+                    |r| r.get(0),
+                )
+                .optional()?
+            };
+            if let Some(id) = same {
+                tx.execute(
+                    "UPDATE complaints SET intake = ?2, received = ?3, ctype = ?4, area = ?5, place = ?6, person = ?7, phone = ?8,
+                     body = ?9, action = ?10, due = ?11, status = ?12, memo = ?13, road = ?14, done = ?15 WHERE id = ?1",
+                    params![
+                        id,
+                        intake,
+                        received,
+                        t(&c.ctype),
+                        area,
+                        place,
+                        t(&c.person),
+                        t(&c.phone),
+                        lines(&c.body),
+                        lines(&c.action),
+                        t(&c.due),
+                        status,
+                        r.memo.trim(),
+                        road,
+                        t(&c.done)
+                    ],
+                )?;
+                updated += 1;
+                continue;
+            }
             no += 1;
             tx.execute(
                 "INSERT INTO complaints (no, intake, received, ctype, area, place, person, phone, body, action, due, status, memo, road, done)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
                 params![
                     no,
-                    t(&c.intake),
-                    t(&c.received),
+                    intake,
+                    received,
                     t(&c.ctype),
                     area,
                     place,
@@ -393,15 +437,16 @@ impl Store {
                     lines(&c.body),
                     lines(&c.action),
                     t(&c.due),
-                    if status.is_empty() { DEFAULT_STATUS.to_string() } else { status },
+                    status,
                     r.memo.trim(),
                     road,
                     t(&c.done)
                 ],
             )?;
+            added += 1;
         }
         tx.commit()?;
-        Ok(rows.len())
+        Ok((updated, added))
     }
 }
 
@@ -511,13 +556,35 @@ mod tests {
             .iter()
             .map(|p| ComplaintImport { input: ComplaintInput { area: String::new(), place: p.to_string(), ..input("나") }, memo: String::new() })
             .collect();
-        s.import_complaints(&rows).unwrap();
+        s.import_complaints(&rows, false).unwrap();
         let all = s.complaints().unwrap();
         let got: Vec<(String, String, String)> = all[..4].iter().rev().map(|c| (c.area.clone(), c.place.clone(), c.road.clone())).collect();
         assert_eq!(got[0], ("조리읍".into(), "봉일천리 5-31".into(), "조리읍 통일로 136".into()));
         assert_eq!(got[1], ("".into(), "금정로 20-3".into(), "".into()));
         assert_eq!(got[2].1, "서울특별시 은평구 통일로 136");
         assert_eq!(got[3], ("운정1동".into(), "와동동 1454-1".into(), "경의로 1246".into()));
+    }
+
+    #[test]
+    fn import_overwrites_same_or_replaces_all() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut s = Store::create(tmp.path(), "abcd1234").unwrap();
+        let a = s.add_complaint(&input("원래")).unwrap();
+        s.add_complaint(&ComplaintInput { place: "다른리 1".into(), ..input("다른 것") }).unwrap();
+        let row = |place: &str, body: &str| ComplaintImport { input: ComplaintInput { place: place.into(), ..input(body) }, memo: String::new() };
+        // 덮어쓰기: 접수일·접수유형·위치가 같은 것은 덮고(연번 그대로) 새 것은 더해요.
+        let (u, n) = s.import_complaints(&[row("봉일천리 113 일원", "고친 내용"), row("새리 9", "새 민원")], false).unwrap();
+        assert_eq!((u, n), (1, 1));
+        let all = s.complaints().unwrap();
+        assert_eq!(all.len(), 3);
+        let same = all.iter().find(|c| c.id == a.id).unwrap();
+        assert_eq!((same.no, same.body.as_str()), (a.no, "고친 내용"));
+        // 대체하기: 모두 지우고 파일 내용만
+        let (u, n) = s.import_complaints(&[row("새리 9", "하나만")], true).unwrap();
+        assert_eq!((u, n), (0, 1));
+        let all = s.complaints().unwrap();
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0].body, "하나만");
     }
 
     #[test]

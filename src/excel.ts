@@ -316,16 +316,27 @@ export function linesOfContent(text: string, who: string, myName: string): Journ
   return out.filter((l) => l.text.trim());
 }
 
-export type JournalImport = { entries: EntryInput[]; days: DayInfo[]; dup: number; bad: number };
+/**
+ * entries와 같은 순서로 same[i] = 덮어쓸 기존 기록 번호(날짜 + 시각 + 상대가 같은 기록, 없으면 null – 공통 ✔5).
+ * dup = 파일 안에서 똑같이 겹쳐 뺀 줄 수.
+ */
+export type JournalImport = { entries: EntryInput[]; same: (number | null)[]; days: DayInfo[]; dup: number; bad: number };
+
+/** 업무일지에서 "같은 기록"을 가리는 열쇠 – 날짜 + 시각 + 상대(2026-10-25 사용자 ②3안) */
+export const journalSameKey = (date: string, time: string, who: string) => `${date}|${time.trim()}|${who.trim()}`;
 
 /**
- * 읽은 시트 → 넣을 기록. 날짜·시각을 읽지 못한 줄(bad)과 이미 있는 기록·파일 안에서 겹친 줄(dup)은 빼요.
+ * 읽은 시트 → 넣을 기록. 날짜·시각을 읽지 못한 줄(bad)과 파일 안에서 똑같이 겹친 줄(dup)은 빼요.
+ * 이미 있는 기록과 날짜·시각·상대가 같으면 same에 그 기록 번호를 적어요(덮어쓰기 때 덮어요).
  * 프로젝트는 정식 이름·줄인 이름으로 찾고, 없으면 비워요.
  */
 export function journalImports(sheet: ExcelSheet, existing: Entry[], projects: Project[], myName: string): JournalImport {
   const get = picker(sheet.headers);
-  const seen = new Set(existing.map((e) => keyOf(e.date, e.time, e.kind, e.who, entryContent(e))));
+  const seen = new Set<string>();
+  const have = new Map<string, number>();
+  for (const e of existing) if (!have.has(journalSameKey(e.date, e.time, e.who))) have.set(journalSameKey(e.date, e.time, e.who), e.id);
   const entries: EntryInput[] = [];
+  const same: (number | null)[] = [];
   let dup = 0;
   let bad = 0;
   for (const r of dataRows(sheet)) {
@@ -350,6 +361,7 @@ export function journalImports(sheet: ExcelSheet, existing: Entry[], projects: P
     const pn = get(r, "프로젝트");
     const p = pn ? projects.find((x) => x.name === pn || (x.alias ?? "") === pn) : undefined;
     const memo = isMemo(kind);
+    same.push(have.get(journalSameKey(date, time, memo ? "" : who)) ?? null);
     entries.push({
       date,
       time,
@@ -372,7 +384,7 @@ export function journalImports(sheet: ExcelSheet, existing: Entry[], projects: P
       if (d.arrive || d.transport || d.weather || d.note) days.push(d);
     }
   }
-  return { entries, days, dup, bad };
+  return { entries, same, days, dup, bad };
 }
 
 /** 기본 파일 이름: 민원대장_2026-10-17.xlsx */

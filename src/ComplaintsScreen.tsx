@@ -304,7 +304,13 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
           total={all.length}
           build={() => ({ rows: complaintRows(all), intake: settings.intake, status: settings.status })}
           parse={complaintImports}
-          onImport={async (rows) => {
+          // 덮어쓰기의 "같은 민원" = 접수일 + 접수유형 + 위치(2026-10-25 사용자 ②3안, 공통 ✔5 – 연번은 다시 매겨질 수 있어 기준이 아니에요)
+          preview={(rows) => {
+            const k = (r: { received: string; intake: string; place: string }) => `${r.received.trim()}|${r.intake.trim()}|${r.place.trim()}`;
+            const have = new Set(all.map(k));
+            return { same: rows.filter((r) => (r.received.trim() || r.intake.trim() || r.place.trim()) && have.has(k(r))).length, total: all.length };
+          }}
+          onImport={async (rows, mode) => {
             // 위치가 도로명주소면 웹 먼저 바꿔 넣어요(한 번에 4줄, 웹이 안 되면 앱이 내장 표로 바꿔요 – 2026-10-21 사용자 2안).
             const { found, web, table } = await lookupMany(rows.map((r) => r.place));
             const conv = rows.map((r, i) => {
@@ -312,7 +318,8 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
               if (f?.kind !== "exact") return r;
               return { ...r, place: f.hit.place, area: areaFor(f.hit, r.area), road: r.road || f.original };
             });
-            const n = await api.importComplaints(conv);
+            const [u, a] = await api.importComplaints(conv, mode === "replace");
+            const n = u + a;
             setList(await api.complaints());
             return web + table ? { n, note: `주소 바꿈 웹 ${web} · 내장 ${table}` } : n;
           }}
