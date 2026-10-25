@@ -4634,7 +4634,7 @@ button.td-check:not(.on):hover .td-tick {
   min-width: 0;
 }
 
-/* 왼쪽: 종류와 주간일정 */
+/* 왼쪽: 종류와 앞으로 7일 */
 .cal-side {
   flex: 1 0 200px;
   max-width: 250px;

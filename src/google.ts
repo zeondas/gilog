@@ -399,47 +399,17 @@ export async function forgetClient(): Promise<void> {
 
 // ---------- 구글에 보낼 모양 ----------
 
-/** 기록 종류 색(구글 24색, tokens.css의 --gc-N 밝게 값)이에요. 구글이 일정에 받는 색 목록에서 가장 가까운 것을 골라요. */
-const GC_HEX = [
-  "#B55C76", "#CC6175", "#CD887C", "#CD5D3B", "#D77046", "#D37E40", "#D89949", "#E2BB5E", "#D5BE69", "#BEC162", "#8CAB61", "#588E63",
-  "#69AD83", "#56978E", "#5A98CE", "#6A8BDC", "#838BBF", "#6D73BF", "#AB9ECB", "#9E7CAE", "#9E61B6", "#917568", "#7C7C7C", "#A3998D",
-];
-/** 구글 일정 색 목록을 못 받았을 때 쓰는 표(예전 11색) */
+/**
+ * 기록 종류 색(24색 번호) → 구글 일정 색 colorId(11가지). 사람이 맞춰 둔 짝 표를 늘 써요(2026-10-25 사용자 3안 2).
+ * 구글 `/colors`가 알려 주는 바탕 색은 실제 구글 화면 색과 다른 옛 값이라, 그 값에 "가장 가까운 색"을 재면
+ * 24색 중 16개가 엉뚱한 색(회색 → 바질 초록 등)으로 갔어요. 그래서 `/colors`는 읽지 않아요.
+ * 1 라벤더 · 2 세이지 · 3 포도 · 4 플라밍고 · 5 바나나 · 6 귤 · 7 공작 · 8 흑연 · 9 블루베리 · 10 바질 · 11 토마토
+ */
 const GC_TO_EVENT = ["4", "4", "4", "11", "6", "6", "5", "5", "5", "2", "2", "10", "2", "2", "7", "9", "1", "9", "1", "3", "3", "8", "8", "8"];
 
-/** 구글이 알려 준 일정 색 목록: colorId → 바탕 색 */
-let palette: Record<string, string> | null = null;
-
-const rgb = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
-
-/** 24색 번호 → 구글 colorId. 구글 목록에 같은 색이 있으면 그 색, 없으면 가장 가까운 색이에요. */
-export function eventColorId(n: number, pal: Record<string, string> | null = palette): string {
-  const want = GC_HEX[n];
-  if (!pal || !want || !Object.keys(pal).length) return GC_TO_EVENT[n] ?? "8";
-  const [r, g, b] = rgb(want);
-  let best = "";
-  let bestD = Infinity;
-  for (const [id, hex] of Object.entries(pal)) {
-    if (!/^#[0-9a-f]{6}$/i.test(hex)) continue;
-    const [r2, g2, b2] = rgb(hex);
-    const d = (r - r2) ** 2 + (g - g2) ** 2 + (b - b2) ** 2;
-    if (d < bestD) [best, bestD] = [id, d];
-  }
-  return best || (GC_TO_EVENT[n] ?? "8");
-}
-
-/** 구글의 일정 색 목록을 읽어요(구글이 색을 늘리면 그대로 따라가요). 못 읽으면 예전 표를 써요. */
-async function loadPalette(): Promise<void> {
-  if (palette) return;
-  try {
-    const r = await gapi("GET", "/colors");
-    const ev = (r.json.event ?? {}) as Record<string, { background?: string }>;
-    const p: Record<string, string> = {};
-    for (const [id, v] of Object.entries(ev)) if (v.background) p[id] = v.background;
-    if (Object.keys(p).length) palette = p;
-  } catch {
-    /* 다음에 다시 */
-  }
+/** 24색 번호 → 구글 colorId (짝 표) */
+export function eventColorId(n: number): string {
+  return GC_TO_EVENT[n] ?? "8";
 }
 
 const RRULE: Record<Exclude<Repeat, "">, string> = {
@@ -804,7 +774,6 @@ async function runSync(forceFull: boolean): Promise<void> {
   publish({ busy: true });
   const save = () => putJson(K_STATE, s);
   try {
-    await loadPalette();
     s.titems = s.titems ?? {};
     s.listId = s.listId ?? "";
     const opts = await loadOpts();
