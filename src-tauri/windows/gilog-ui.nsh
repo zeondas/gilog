@@ -209,7 +209,7 @@ Function GilogInstShow
   ${GilogPx} $3 160
   ${GilogPx} $4 18
   System::Call "user32::CreateWindowEx(i 0, w 'STATIC', w '${VERSION}', i 0x54000000, i r1, i r2, i r3, i r4, p $R9, p 0, p 0, p 0) p .r0"
-  SetCtlColors $0 0xC9C0FF 0x4B37C4
+  SetCtlColors $0 0x8C8A98 0xF1EEFF
   CreateFont $1 "Malgun Gothic" 9 600
   SendMessage $0 ${WM_SETFONT} $1 1
   System::Call "user32::SetWindowPos(p r0, p 0, i 0, i 0, i 0, i 0, i 0x43)"
