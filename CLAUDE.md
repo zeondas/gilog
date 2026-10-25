@@ -27,7 +27,7 @@
 | 민원대장 | `wip/complaints6`(main `dfe2e95`에서) | 2026-10-25 사용자 18건 — ✔1~10 결정 끝(⑤ 줄 높이는 그대로), 시안 캔버스 `ComplaintEdits.dc.html`, 시안용 코드 올려 둠 | `8970dd5` | **결정 끝 — 코딩 기다림**(잔여일은 이상한 예 하나 받으면 확인) | 사용자 "코딩하자" |
 | 할 일 | `wip/todo2`(main `e31ca9a`에서) | 체크 움직임(구글 할 일식, 2026-10-25 사용자 ①~④ 전부 1안) 코딩 — 올리면 연한 체크·누르면 차오르기+선 그리기+살짝 커짐 0.4초·끝나면 완료됨으로·되돌리기와 하위 항목은 움직임 없음. 손댄 곳 `TasksScreen.tsx`(`justDone`·`check`)·`tasks.ts`(`split`의 hold)·`app.css`(`.td-check`)·`tools/guard/behave.py`(시험 5개). 기준판 `Todo.dc.html` 반영·체험 영역 지움, 사양서 "할 일 목록"에 (다음 빌드) | `9faa891` | **check 도는 중** — npm build·지킴이 65장면 0점·동작 시험 전부 통과 | check 통과 → "끝(합치기 기다림)" |
 | 캘린더 | `wip/calendar2`(main `e31ca9a`에서) | 2026-10-25 사용자 ①1안·②1안·③2안 코딩 — 옆 칸 제목 "주간일정" → "앞으로 7일"(동작·12건 그대로), 구글 일정 색은 "가까운 색 계산"(`/colors`)을 없애고 짝 표(`GC_TO_EVENT`)만 씀(16색 바로잡음). 지킴이: 캘린더 장면 8개가 제목 글자 자리만 다름(허용) · 나머지 0점, 동작 시험 통과. 사양서 "캘린더"·"구글 연동", 시안 `Calendar.dc.html` 제목 고침 | `37bc1fb` | **끝(합치기 기다림)** — check 통과(16분) | 빌드 묶음 · 빌드 뒤 윈도우에서 제목·구글 색 확인 |
-| 업무연락처 | (코딩할 때 main 최신에서 `wip/contacts2`) | 2026-10-25 19:57 사용자 ①②2안·③현행 유지 — 연락처를 그룹에 바로 넣기(core `contacts.group_id`·카드 그룹 칸·보기 카드 그룹 배지·왼쪽 목록 "바로 넣은 사람"), 사업 관리 창 스크롤은 원인(창 바탕 흐림)만 밝히고 그대로. [docs/qa/contacts2.md](https://github.com/zeondas/gilog/blob/main/docs/qa/contacts2.md), 시안 Contacts 기준판에 반영·ProjectGroups 판 지움 | – | **✔ 1건 쌓음 — 코딩 기다림** | 사용자 "코딩하자" |
+| 업무연락처 | `wip/contacts2`(main `a2d1de2`에서) | 2026-10-25 20:10 사용자: 그룹 바꾸기 **폐기·현행 유지**(연락처 그룹 칸 없음 — 사업마다 그룹이 있어 따로 적을 필요 없음), 사업 관리 창 스크롤도 현행 유지(원인은 창 바탕 흐림, [docs/qa/contacts2.md](https://github.com/zeondas/gilog/blob/main/docs/qa/contacts2.md)). 코딩: 화면 글자 "프로젝트" → "사업"(공통 결정 10-25 19:49 업무연락처 몫 — `ContactsScreen.tsx`·core 오류 문구·엑셀 업무연락처 머리글 "사업", 옛 "프로젝트" 머리글도 읽음). npm build·core 91 통과, 지킴이 65장면(바뀐 6장면은 글자만), 동작 시험 통과 | `2916e3f` | **check 도는 중** | check 통과 → "끝(합치기 기다림)" |
 | 집행현황 | `wip/share-twin`(main `dfe2e95`에서) | 팀 공유 시험용 **두 번째 기록**(2026-10-25 사용자 "없으면 만들어라") — 실행 인자 `--profile B`: 한 번 더 켜기 막기 풂·자료 `문서\giLog-B`·앱 설정 `profiles\B`·자격 증명 `giLog-B`·화면 저장소 따로·창 제목 "기록 · 시험 B", 설정 집행현황 카드 [열기], 구글 로그인 계정 고르기(`select_account`). 손댄 곳: `profile.rs`(새) · `lib.rs`·`window.rs`·`hello.rs`·`address_web.rs`·`autostart.rs`·`calendar.rs`(트레이 글자)·`accent_icon.rs`·`google.ts`(prompt)·`BudgetShareCard.tsx`. 시험 순서 [docs/qa/share-twin.md](https://github.com/zeondas/gilog/blob/main/docs/qa/share-twin.md) | `712516f` | **끝(합치기 기다림)** — check 통과(21분 11초, 윈도우 앱 cargo check 포함), npm build 통과 | 빌드 세션 합치기 · 사용자 두 계정 시험(docs/qa/share-twin.md) |
 | 업무일지 | (코딩할 때 main 최신에서 `wip/journal2`) | 2026-10-25 19:25 사용자 7건 — 19:49 답: ①1안 ②2안 ③검색 시안 ④단추만 ⑤승인 ⑥1안 ⑦1안 → 대기 ✔1~7 쌓음, 시안 캔버스 `Journal.dc.html`(사업 검색 목록·"민원대장으로 보내기" 단추) | – | **✔1~7 쌓음 · ③④ 시안 확인 기다림** | 사용자 ③④ 시안 확인 · "코딩하자" |
 | 공통 | (코딩할 때 main 최신에서 `wip/settings2`·`wip/installer`·`wip/google-one`) | 2026-10-25 19:36 사용자 일곱 건 — ①설정 칸 영문(원인: 민원처리 폴더 네 칸·Claude 실행 파일에 `data-ime="en"`) ②엑셀 가져오기 합치기/전부 바꾸기 ③설치 화면 그림·문구 ④제거 때 자료 지우기(문서\giLog·자격 증명) ⑤구글 카드 → 캘린더 ⑥잠그기 단축키 ⑦두 PC 구글 섞임(이름표 번호가 PC마다 같음). 검토 [docs/qa/common.md](https://github.com/zeondas/gilog/blob/main/docs/qa/common.md), 그림 `docs/qa/common/` | – | **✔ 6건 쌓음(①~⑥) · ✔6 설치 화면 크롬식 원클릭 · 보라 띠(3안) · ⑦ 현행 유지** | 사용자 "코딩하자" |
@@ -249,8 +249,7 @@
 - 줄의 "파일" 단추 = 탐색기를 열고 빠른 필터에 그 파일 이름 — 탐색기 `FilesScreen`이 "이 폴더 + 이 글로 열기" 값을 받게 해 달라고 탐색기 세션에 전달해요(지금은 윈도우 탐색기에서 그 파일을 골라 보여 줘요).
 
 ### 업무연락처 (4단계)
-- **(공통 세션 2026-10-25 전달, 공통 ✔5) 엑셀 가져오기 덮어쓰기/대체하기**: `onImport(rows, mode)`·`preview(rows)` — 같은 사람(이름 + 소속 + 무선, `same_person`)은 덮어쓰기 때 칸 값도 파일로 덮음(지금은 사업만 붙임), 대체하기는 연락처를 모두 지우고 넣음(사업·그룹 표는 남김) — core `import_contacts`에 mode.
-- ✔ 1. **연락처를 그룹에 바로 넣기(2026-10-25 19:57 사용자 2안, [docs/qa/contacts2.md](https://github.com/zeondas/gilog/blob/main/docs/qa/contacts2.md) 2절, 시안 Contacts 기준판, 사양서 "업무연락처" 절)**: core `contacts.group_id INTEGER`(`migrate()`에 칸 더하기, `Contact.group: Option<i64>`, `set_contact_group(id, 이름)` — 없는 이름이면 `add_group`, 빈 글자면 NULL, `delete_group`은 연락처도 NULL로, 시험 추가). 그룹 목록은 사업 그룹 `project_groups` 하나를 같이 써요(이름 나누지 않음). 화면: 고치는 카드 사업 칸 아래 "그룹" 칸(`GroupInput` 그대로 — 있는 그룹 고르기·새 이름·"그룹 없음", rowKeys Tab 흐름 안), 보기 카드 사업 배지 줄 끝에 흰 바탕·회색 테두리 그룹 배지(22·6·11.5), 왼쪽 목록 `pjSections`·`ProjectList`: 그룹 숫자 = 그 그룹 사업에 붙은 사람 ∪ 바로 넣은 사람, 묶음 끝 "바로 넣은 사람 N" 줄(빈 동그라미, 누르면 그 사람들만 — `sel`에 그룹 값 하나 더), 그룹 머리 누르기 = 지금처럼 접고 펴기, 사업도 사람도 없는 빈 그룹도 머리 줄 보임. 엑셀 내보내기·가져오기 숨긴 열 M "연락처 그룹"(없는 파일도 가져옴). 신규 입력 줄에는 그룹 칸을 더하지 않아요(칸이 넘쳐요 — 등록 뒤 카드에서). ③ 사업 관리 창 스크롤은 사용자 "현행 유지" — 고치지 않아요(원인 기록만).
+- (비어 있음 — 2026-10-25 "사업" 글자는 `wip/contacts2` 2916e3f에 코딩됨, 그룹 바꾸기는 사용자 폐기)
 
 ### 할 일 (7단계)
 - (비어 있음 — 2026-10-25 ✔1 체크 움직임은 `wip/todo2` 9faa891에 코딩됨) · 캘린더·업무일지 "챙길 일"의 동그라미 체크를 같은 움직임으로 바꿀지는 사용자에게 아직 안 물음
@@ -263,9 +262,6 @@
 
 ### 예산현황 (13단계)
 - **세부사업을 이름 대신 공유 uid로 잇기 (2026-10-20 집행현황 팀 공유 세션에서 전달)**: 집행현황 줄마다 `uid`가 생겼어요(core `budget_projects.uid` 등, `BudgetProject.uid`). 팀 공유로 다른 사람이 세부사업 이름을 고치면 예산현황 표 `bstatus`(세부사업 이름 → 설정)가 끊겨요. 키를 uid로 바꾸고(옛 이름 키는 읽을 때 uid로 옮기기) `split["해:공사 번호"]`도 공사 uid로 — 공사 번호는 PC마다 달라요. 예산현황 설정 자체는 내 PC에만 있어요(공유 안 함).
-
-### 업무연락처 (4단계)
-- (결정 기다림 — 2026-10-25 그룹 ①② · 사업 관리 창 흐림 ③, [docs/qa/contacts2.md](https://github.com/zeondas/gilog/blob/main/docs/qa/contacts2.md)) 업무일지 세션이 "프로젝트 → 사업" 이름을 앱 전체로 정하면 이 화면 글자도 함께 바꿔요.
 
 ### 업무일지 (5단계)
 - **(공통 세션 2026-10-25 전달, 공통 ✔5) 엑셀 가져오기 덮어쓰기/대체하기**: `onImport(rows, mode)`·`preview(rows)` — 같은 기록(날짜 + 시각 + 상대)은 덮어쓰기 때 파일 내용으로 덮음(지금은 건너뜀), 대체하기는 기록·날짜 머리 줄을 모두 지우고 넣음.
