@@ -5058,6 +5058,13 @@ button.td-check:not(.on):hover .td-tick {
   font-weight: 600;
 }
 
+/* 창이 낮아 일정 줄이 하나뿐일 때 "+N개"는 날짜 줄 오른쪽에 (2026-10-25) */
+.cal-more.top {
+  justify-self: end;
+  align-self: center;
+  margin: 0 4px;
+}
+
 .cal-more:hover {
   background: var(--surface-band);
   color: var(--ink);

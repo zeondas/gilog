@@ -299,8 +299,13 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
   });
   /** 달력 테두리 위아래 2px */
   const inner = fit.h - 2;
-  const cellH = Math.max(110, Math.floor((inner - fit.dow) / weeks));
-  const lanes = Math.max(2, Math.floor((cellH - 34) / 24));
+  // 창이 낮아지면 주 칸을 줄여 달력 전체를 화면에 맞춰요(2026-10-25 사용자 — 맨 아랫줄이 잘리지 않게).
+  // 한 주 = 날짜 줄 30 + 일정 줄(24 + 사이 2)마다 + 아래 여백 8 + 사이 2. 일정 줄이 하나만 들어가면 "+N개"를 날짜 줄로 올려요.
+  const WEEK_MIN = 66;
+  const cellH = Math.max(WEEK_MIN, Math.floor((inner - fit.dow) / weeks));
+  const fitLanes = Math.max(1, Math.floor((cellH - 40) / 26));
+  const compact = fitLanes === 1;
+  const lanes = compact ? 2 : fitLanes;
   /** 창이 너무 낮으면 높이를 정하지 않고 화면이 스크롤돼요. */
   const gridH = view === "week" ? (inner >= 300 ? fit.h : undefined) : cellH * weeks + fit.dow <= inner ? fit.h : undefined;
 
@@ -509,9 +514,9 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
           </div>
           {Array.from({ length: weeks }, (_, wi) => {
             const ws = addDays(start, wi * 7);
-            const { placed, more } = layoutWeek(occs, ws, lanes);
+            const { placed, more } = weekLayout(occs, ws, lanes, compact);
             return (
-              <div key={ws} className="cal-week" role="row" style={{ minHeight: cellH, gridTemplateRows: `30px repeat(${lanes}, 24px) 1fr` }}>
+              <div key={ws} className="cal-week" role="row" style={{ minHeight: cellH, gridTemplateRows: `30px repeat(${compact ? 1 : lanes}, 24px) 1fr` }}>
                 {Array.from({ length: 7 }, (_, i) => {
                   const d = addDays(ws, i);
                   const inMonth = Number(d.slice(5, 7)) - 1 === ym[1];
@@ -550,8 +555,8 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
                     <button
                       key={"m" + i}
                       type="button"
-                      className="cal-more"
-                      style={{ gridColumn: i + 1, gridRow: lanes + 1 }}
+                      className={compact ? "cal-more top" : "cal-more"}
+                      style={{ gridColumn: i + 1, gridRow: compact ? 1 : lanes + 1 }}
                       onClick={(e) => {
                         e.stopPropagation();
                         setSel(addDays(ws, i));
@@ -1918,4 +1923,15 @@ function Plus() {
   );
 }
 
-
+/** 주 한 줄 배치 — 일정 줄이 하나만 들어갈 때(compact)는 첫 줄만 그리고 나머지는 모두 "+N개"로 세요. */
+function weekLayout(occs: Parameters<typeof layoutWeek>[0], ws: string, lanes: number, compact: boolean) {
+  const r = layoutWeek(occs, ws, lanes);
+  if (!compact) return r;
+  const more = [...r.more];
+  const placed = r.placed.filter((p) => {
+    if (p.lane < 1) return true;
+    for (let c = p.col; c < p.col + p.span; c++) more[c]++;
+    return false;
+  });
+  return { placed, more };
+}
