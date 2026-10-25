@@ -100,17 +100,20 @@ export function itemMatches(it: Item, q: string): boolean {
  * - 남은 일: 완료가 아닌 위 항목. 그 아래에는 완료가 아닌 하위 항목만 보여요.
  * - 완료됨: 완료한 위 항목(하위 항목과 함께), 그리고 남은 위 항목 아래에서 먼저 완료한 하위 항목.
  * 검색 중이면 맞는 항목(또는 맞는 하위 항목이 있는 위 항목)만 남겨요.
+ * `hold`: 방금 체크한 항목의 key – 체크 움직임이 끝날 때까지 남은 일 자리에 그대로 둬요(위 항목이면 하위 항목도 함께, 2026-10-25 할 일 ③ 1안).
  */
-export function split(items: Item[], q: string): { open: Item[]; done: Item[] } {
+export function split(items: Item[], q: string, hold: string | null = null): { open: Item[]; done: Item[] } {
   const open: Item[] = [];
   const done: Item[] = [];
   for (const it of items) {
     const kids = q && !itemMatches(it, q) ? it.children.filter((c) => itemMatches(c, q)) : it.children;
     if (q && !itemMatches(it, q) && !kids.length) continue;
-    if (it.done) done.push({ ...it, children: kids });
+    const held = it.key === hold;
+    if (it.done && !held) done.push({ ...it, children: kids });
     else {
-      open.push({ ...it, children: kids.filter((c) => !c.done) });
-      for (const c of kids) if (c.done) done.push(c);
+      const stay = (c: Item) => !c.done || held || c.key === hold;
+      open.push({ ...it, children: kids.filter(stay) });
+      for (const c of kids) if (!stay(c)) done.push(c);
     }
   }
   open.sort(byDue);

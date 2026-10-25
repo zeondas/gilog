@@ -4307,13 +4307,76 @@ body.col-dragging * {
   cursor: pointer;
 }
 
-.td-check:hover {
-  border-color: var(--accent);
-}
-
 .td-check.on {
   border-color: var(--accent);
   background: var(--accent);
+}
+
+/*
+ * 체크 움직임(2026-10-25 할 일 ①~④ 1안, 시안 Todo.dc.html "체크 애니메이션 체험").
+ * ① 체크 전 상자에 마우스를 올리면 연한 체크가 미리 보여요(구글 할 일처럼).
+ * ② 방금 누른 상자(.pop)만: 원이 강조색으로 차오르고(0.2초) 체크가 선으로 그려지며(0.25초) 한 번 살짝 커졌다 돌아와요(0.4초).
+ *    되돌리기·함께 완료되는 하위 항목은 .pop이 없어 바로 바뀌어요. 상자 크기·자리는 그대로(scale은 그리기만 바꿔요).
+ */
+.td-check .td-tick path {
+  stroke-dasharray: 22 30;
+  stroke-dashoffset: 0;
+}
+
+button.td-check:not(.on) .td-tick {
+  opacity: 0;
+}
+
+button.td-check:not(.on):hover .td-tick {
+  opacity: 0.4;
+  color: var(--muted);
+}
+
+.td-check.pop {
+  animation: td-check-fill 0.2s ease both, td-check-pop 0.4s ease both;
+}
+
+.td-check.pop .td-tick path {
+  animation: td-check-draw 0.25s ease 0.08s both;
+}
+
+@keyframes td-check-fill {
+  from {
+    border-color: var(--muted);
+    background: var(--surface);
+  }
+}
+
+@keyframes td-check-draw {
+  from {
+    stroke-dashoffset: 22;
+  }
+}
+
+@keyframes td-check-pop {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  55% {
+    transform: scale(1.15);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .td-check.pop,
+  .td-check.pop .td-tick path {
+    animation: none;
+  }
+}
+
+/* 체크한 뒤 "완료됨"으로 내려가기 전 잠깐(약 0.4초): 글자만 완료 모양 – 줄 높이·여백은 남은 일 그대로 */
+.td-row.settling .td-row-main {
+  opacity: 0.6;
+}
+
+.td-row.settling .td-title-t {
+  text-decoration: line-through;
 }
 
 .td-row.done .td-check {
