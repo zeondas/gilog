@@ -199,7 +199,7 @@ export default function ContactsScreen() {
             const r = contactImports(sheet);
             const same = r.contacts.filter((c) => all.some((x) => samePerson(x, c))).length;
             const n = r.projects.length;
-            return [same ? `이미 있는 사람 ${same}명은 새로 만들지 않고 프로젝트만 붙여요` : "", n ? `프로젝트 ${n}개의 축약 공사명·그룹·색도 맞춰요` : ""]
+            return [same ? `이미 있는 사람 ${same}명은 새로 만들지 않고 사업만 붙여요` : "", n ? `사업 ${n}개의 축약 공사명·그룹·색도 맞춰요` : ""]
               .filter(Boolean)
               .join(" · ");
           }}
@@ -372,16 +372,16 @@ function ProjectList({ projects, groups, contacts, sel, onSel }: { projects: Pro
   const sections = pjSections(projects, groups);
   let shown = 0;
   return (
-    <aside className="ct-side" aria-label="프로젝트로 거르기">
+    <aside className="ct-side" aria-label="사업으로 거르기">
       <div className="ct-side-head">
         <div className="ct-side-top">
-          <span className="ct-side-label">프로젝트 {projects.length}</span>
+          <span className="ct-side-label">사업 {projects.length}</span>
           <span className="ct-sort" role="group" aria-label="정렬">
             <button type="button" aria-pressed={sort === "name"} onClick={() => pick("name")}>가나다</button>
             <button type="button" aria-pressed={sort === "count"} onClick={() => pick("count")}>많은 순</button>
           </span>
         </div>
-        <input className="input" aria-label="프로젝트 찾기" placeholder="프로젝트 찾기" value={pq} onChange={(e) => setPq(e.target.value)} onKeyDown={(e) => e.key === "Escape" && pq && (e.preventDefault(), setPq(""))} />
+        <input className="input" aria-label="사업 찾기" placeholder="사업 찾기" value={pq} onChange={(e) => setPq(e.target.value)} onKeyDown={(e) => e.key === "Escape" && pq && (e.preventDefault(), setPq(""))} />
       </div>
       <div className="ct-side-list">
         <button type="button" className="ct-pj ct-pj-all" aria-pressed={sel === null} onClick={() => onSel(null)}>
@@ -417,7 +417,7 @@ function ProjectList({ projects, groups, contacts, sel, onSel }: { projects: Pro
             </div>
           );
         })}
-        {shown === 0 && <p className="ct-side-none">맞는 프로젝트가 없어요</p>}
+        {shown === 0 && <p className="ct-side-none">맞는 사업이 없어요</p>}
       </div>
     </aside>
   );
@@ -472,7 +472,7 @@ function NewRow({ projects, groups, onAdd }: { projects: Project[]; groups: Proj
               {f.label}
             </div>
           ))}
-          <div role="columnheader">프로젝트</div>
+          <div role="columnheader">사업</div>
           <div role="columnheader" />
         </div>
         <div role="row" className="ct-new-row" onKeyDown={onKeyDown}>
@@ -591,7 +591,7 @@ function ProjectChips({
   const badges = value.map((label) => {
     const p = findProject(projects, label);
     return (
-      <span key={label} className={"pbadge pchip-b" + (p ? "" : " pchip-new")} style={p ? pjStyle(p) : undefined} title={p ? pjFull(p) : `${label} · 저장할 때 새 프로젝트로 만들어요`}>
+      <span key={label} className={"pbadge pchip-b" + (p ? "" : " pchip-new")} style={p ? pjStyle(p) : undefined} title={p ? pjFull(p) : `${label} · 저장할 때 새 사업으로 만들어요`}>
         <span className="pbadge-t">{label}</span>
         <button
           type="button"
@@ -614,8 +614,8 @@ function ProjectChips({
     <input
       ref={inputRef}
       name="proj"
-      aria-label="프로젝트"
-      placeholder={stacked ? "프로젝트 찾아 붙이기" : value.length ? "더하기" : "프로젝트"}
+      aria-label="사업"
+      placeholder={stacked ? "사업 찾아 붙이기" : value.length ? "더하기" : "사업"}
       autoComplete="off"
       className="pchips-in"
       value={q}
@@ -699,7 +699,7 @@ function ProjectChips({
                 </span>
               ) : (
                 <span className="pin-new">
-                  <b>＋ 새 프로젝트로 추가</b> <span className="pin-new-t">“{o.label}”</span>
+                  <b>＋ 새 사업으로 추가</b> <span className="pin-new-t">“{o.label}”</span>
                 </span>
               )}
             </div>,
@@ -957,7 +957,7 @@ function EditCard({
         <PhoneInput name="tel" aria-label="유선" placeholder="031-" className="cell-input num" value={v.tel} onChange={(x) => setV((old) => ({ ...old, tel: x }))} />
         <span>메일</span>
         {field("email", "이메일", "이메일")}
-        <span>프로젝트</span>
+        <span>사업</span>
         <ProjectChips projects={projects} groups={groups} stacked value={v.proj} onChange={(proj) => setV((old) => ({ ...old, proj }))} pending={pending} />
       </div>
       <div className="edit-foot">
@@ -1511,7 +1511,7 @@ function ProjectDialog({
           </button>
           <input
             className="input pjm-find"
-            aria-label="프로젝트 찾기"
+            aria-label="사업 찾기"
             placeholder="찾기"
             value={pq}
             onChange={(e) => setPq(e.target.value)}
@@ -1531,7 +1531,7 @@ function ProjectDialog({
             className={"input" + (badFull ? " invalid" : "")}
             aria-label="사업명"
             placeholder="사업명"
-            title={badFull ? "같은 이름의 프로젝트가 있어요" : undefined}
+            title={badFull ? "같은 이름의 사업이 있어요" : undefined}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
@@ -1545,7 +1545,7 @@ function ProjectDialog({
             className={"input" + (badShort ? " invalid" : "")}
             aria-label="축약 공사명"
             placeholder="축약 공사명"
-            title={badShort ? "같은 이름의 프로젝트가 있어요" : "비우면 공사명으로 보여요"}
+            title={badShort ? "같은 이름의 사업이 있어요" : "비우면 공사명으로 보여요"}
             value={draftShort}
             onChange={(e) => setDraftShort(e.target.value)}
             onKeyDown={(e) => {
@@ -1592,8 +1592,8 @@ function ProjectDialog({
               <span className="muted small pjm-grp-tip">Enter 만들기 · Esc 취소</span>
             </div>
           )}
-          {data.projects.length === 0 && groups.length === 0 && <p className="muted small pjm-empty">아직 프로젝트가 없어요.</p>}
-          {data.projects.length > 0 && nothing && !!ql && <p className="muted small pjm-empty">맞는 프로젝트가 없어요.</p>}
+          {data.projects.length === 0 && groups.length === 0 && <p className="muted small pjm-empty">아직 사업이 없어요.</p>}
+          {data.projects.length > 0 && nothing && !!ql && <p className="muted small pjm-empty">맞는 사업이 없어요.</p>}
           {sections.map((sec) => {
             // 그룹이 없으면 묶음 머리 없이 예전처럼, 찾는 중에는 맞는 것이 없는 묶음을 숨겨요.
             if (flat || (ql && sec.rows.length === 0) || (sec.id === null && sec.projects.length === 0)) {
@@ -1632,7 +1632,7 @@ function ProjectDialog({
                     <AskBand
                       className="ask-wide pjm-ask"
                       label="그룹 지우기 확인"
-                      text={sec.projects.length ? `그룹만 지워요. 프로젝트 ${sec.projects.length}개는 "그룹 없음"으로 가요.` : "빈 그룹이에요. 지울까요?"}
+                      text={sec.projects.length ? `그룹만 지워요. 사업 ${sec.projects.length}개는 "그룹 없음"으로 가요.` : "빈 그룹이에요. 지울까요?"}
                       yes="그룹 지우기"
                       onNo={() => setAskGroup(null)}
                       onYes={async () => {
@@ -1717,7 +1717,7 @@ function ProjectDialog({
           </>
         )}
         <span className={"pjm-n" + (users ? "" : " pjm-zero")}>{users}명</span>
-        <button type="button" className="tool-box pjm-tool" aria-label={`${p.name} 지우기`} title="이 프로젝트 지우기" onClick={() => setAsk(p.id)}>
+        <button type="button" className="tool-box pjm-tool" aria-label={`${p.name} 지우기`} title="이 사업 지우기" onClick={() => setAsk(p.id)}>
           <DelIcon />
         </button>
         {rowMenu?.id === p.id && (
@@ -1735,7 +1735,7 @@ function ProjectDialog({
         {ask === p.id && (
           <AskBand
             className="ask-wide pjm-ask"
-            label="프로젝트 지우기 확인"
+            label="사업 지우기 확인"
             text={users ? `${users}명에게 붙어 있어요. 지워도 사람은 남고 배지만 빠져요.` : "아무에게도 붙어 있지 않아요. 지울까요?"}
             onNo={() => setAsk(null)}
             onYes={async () => {
@@ -1957,7 +1957,7 @@ function NamesEdit({
       finish(false);
     }
   };
-  const tip = (b: boolean, wrong: boolean) => (b ? (wrong ? "같은 이름의 프로젝트가 있어요" : "둘 중 하나는 적어 주세요") : undefined);
+  const tip = (b: boolean, wrong: boolean) => (b ? (wrong ? "같은 이름의 사업이 있어요" : "둘 중 하나는 적어 주세요") : undefined);
   return (
     <div
       ref={box}
