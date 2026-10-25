@@ -20,7 +20,7 @@ pub const BUILTIN_DATE: &str = "2026-10-18";
 const MIN_ROWS: usize = 40000;
 
 fn table_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app.path().app_config_dir().map_err(io)?;
+    let dir = crate::profile::config_dir(app).map_err(io)?;
     fs::create_dir_all(&dir).map_err(io)?;
     Ok(dir.join("roadaddr.txt"))
 }
