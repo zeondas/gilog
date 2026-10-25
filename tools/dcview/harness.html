@@ -12,7 +12,7 @@ function render(node,sc,out){
   if(t==='sc-for'){const m=n.getAttribute('list').match(/\{\{(.+)\}\}/);const as=n.getAttribute('as');for(const it of (get(m[1],sc)||[]))render(n,{...sc,[as]:it},out);continue}
   if(t==='sc-if'){const m=n.getAttribute('value').match(/\{\{(.+)\}\}/);if(get(m[1],sc))render(n,sc,out);continue}
   if(t==='helmet'){continue}
-  const el=document.createElement(t);
+  const el=(n.namespaceURI==='http://www.w3.org/2000/svg')?document.createElementNS(n.namespaceURI,t):document.createElement(t);
   for(const a of n.attributes){const nm=a.name.toLowerCase();if(nm.startsWith('hint-'))continue;
    const m=a.value.match(/^\{\{(.+)\}\}$/);
    if(EV[nm]&&m){const f=get(m[1],sc);if(f)el.addEventListener(EV[nm],f);continue}
