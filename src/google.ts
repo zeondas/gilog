@@ -299,7 +299,8 @@ export async function connectGoogle(withTasks?: boolean, extraScopes: string[] =
       code_challenge: await challengeOf(verifier),
       code_challenge_method: "S256",
       access_type: "offline",
-      prompt: "consent",
+      // 계정 고르기를 늘 띄워요 – 브라우저에 로그인된 계정이 여럿이면(시험용 두 번째 기록 등) 고를 수 있게
+      prompt: "select_account consent",
       state: st,
     });
   await invoke("open_google_login", { url });

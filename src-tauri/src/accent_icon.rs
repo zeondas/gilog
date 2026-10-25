@@ -110,7 +110,8 @@ pub fn apply(app: &AppHandle, accent: &str) {
     #[cfg(windows)]
     {
         // 바로가기는 파일을 읽고 쓰니 따로 돌려요(창이 기다리지 않게).
-        let dir = app.path().app_config_dir().ok();
+        // 시험용 두 번째 기록(--profile B)은 바로가기 아이콘을 건드리지 않아요.
+        let dir = if crate::profile::name().is_some() { None } else { app.path().app_config_dir().ok() };
         let accent = accent.to_string();
         std::thread::spawn(move || {
             if let Some(dir) = dir {

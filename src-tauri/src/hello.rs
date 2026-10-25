@@ -18,7 +18,7 @@ use tauri::{AppHandle, Manager, WebviewWindow};
 use crate::{data_dir, io, read_prefs, write_prefs, AppState};
 
 fn blob_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app.path().app_config_dir().map_err(io)?;
+    let dir = crate::profile::config_dir(app).map_err(io)?;
     fs::create_dir_all(&dir).map_err(io)?;
     Ok(dir.join("pin.bin"))
 }

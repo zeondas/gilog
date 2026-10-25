@@ -22,11 +22,18 @@ pub fn launched() -> bool {
 
 /// 레지스트리의 실제 상태. 못 읽으면 None(그때는 prefs 값을 써요).
 pub fn is_on(app: &AppHandle) -> Option<bool> {
+    // 시험용 두 번째 기록(--profile B)은 원래 기록의 자동 실행을 읽지도 바꾸지도 않아요.
+    if crate::profile::name().is_some() {
+        return None;
+    }
     app.autolaunch().is_enabled().ok()
 }
 
 /// 켜기·끄기. 실패하면 "autostart"
 pub fn set(app: &AppHandle, on: bool) -> Result<(), String> {
+    if crate::profile::name().is_some() {
+        return Err("autostart".to_string());
+    }
     let al = app.autolaunch();
     let r = if on { al.enable() } else { al.disable() };
     r.map_err(|_| "autostart".to_string())

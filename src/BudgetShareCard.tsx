@@ -2,6 +2,8 @@
 // 공유 켜기 · 공유 시트(호스트는 [새로 만들기], 팀원은 주소 붙여 넣고 [연결]) · 함께 쓰는 사람(누구나 더하기·빼기·두 번 눌러 고치기,
 // 권한은 호스트 앱이 새로고침 때 반영) · 고친 사람 이름 · 마지막 새로고침.
 import { KeyboardEvent, useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { inApp } from "./api";
 import {
   addPerson,
   backupInfo,
@@ -38,6 +40,11 @@ export function BudgetShareRows({ myName }: { myName: string }) {
   const [ask, setAsk] = useState<{ t: "remove" | "new"; no: number } | null>(null);
   const [hostPick, setHostPick] = useState(false);
   const [backup, setBackup] = useState<{ at: string; n: number } | null>(null);
+  // 시험용 두 번째 기록(2026-10-25 사용자 – 한 PC에서 두 구글 계정으로 팀 공유 시험): 이 창이 시험 창이면 그 이름("B")
+  const [twin, setTwin] = useState<string | null>(null);
+  useEffect(() => {
+    if (inApp) invoke<string | null>("profile_name").then(setTwin, () => {});
+  }, []);
   useEffect(() => onShare(setSt), []);
   // 카드를 열 때 한 번 새로고침해 명단 상태(연결됨·초대함…)를 새로 봐요.
   const active = !!st && shareActive(st.conf);
@@ -390,6 +397,27 @@ export function BudgetShareRows({ myName }: { myName: string }) {
           )}
           <p className="g-foot small">공유 시트는 시청 밖 구글 서버에 있어요. 집행현황에는 민원인 정보가 없어요.</p>
         </>
+      )}
+      {inApp && (
+        <div className="row" data-k="시험용 두 번째 기록 다른 구글 계정 공유 시험">
+          <span className="row-text">
+            <span className="row-label">{twin ? `시험용 두 번째 기록 (${twin})` : "시험용 두 번째 기록"}</span>
+            <span className="muted small">
+              {twin
+                ? `지금 창이 시험용이에요 – 자료는 문서\\giLog-${twin}에 따로 있고, 원래 기록과 섞이지 않아요. 구글 로그인 때 다른 계정을 고르세요.`
+                : "같은 PC에서 다른 구글 계정으로 팀 공유를 시험할 때 써요. 자료·구글 연결이 따로인 기록 창이 하나 더 떠요(제목 \"기록 · 시험 B\")."}
+            </span>
+          </span>
+          {!twin && (
+            <button
+              type="button"
+              className="btn btn-xs"
+              onClick={() => invoke("open_twin").then(() => setMsg("시험용 두 번째 기록을 켰어요 – 새 창에서 비밀번호를 새로 정해요"), () => setMsg("두 번째 기록을 켜지 못했어요"))}
+            >
+              열기
+            </button>
+          )}
+        </div>
       )}
     </>
   );

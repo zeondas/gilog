@@ -43,7 +43,7 @@ pub struct Saved {
 static STATE: Mutex<Option<Saved>> = Mutex::new(None);
 
 fn state_path(app: &AppHandle) -> Option<PathBuf> {
-    let dir = app.path().app_config_dir().ok()?;
+    let dir = crate::profile::config_dir(app).ok()?;
     fs::create_dir_all(&dir).ok()?;
     Some(dir.join("window.json"))
 }
@@ -131,10 +131,14 @@ pub fn create(app: &mut App, theme_pref: &str, font_size: u32, tray_only: bool) 
         .find(|w| w.label == LABEL)
         .cloned()
         .expect("창 설정이 없어요");
-    let builder = WebviewWindowBuilder::from_config(&handle, &config)?
+    let mut builder = WebviewWindowBuilder::from_config(&handle, &config)?
         .visible(false)
         .theme(forced_theme(theme_pref))
         .background_color(bg_for(theme_pref, Theme::Light));
+    // 시험용 두 번째 기록(--profile B): 제목에 "시험 B", 화면 저장소도 따로(profile.rs)
+    if let Some(dir) = crate::profile::webview_dir(&handle) {
+        builder = builder.title(crate::profile::title()).data_directory(dir);
+    }
     let w = builder.build()?;
     // 보이기 전에 배율부터 – 첫 그림이 이미 고른 크기로 나와요.
     let _ = w.set_zoom(zoom_for(font_size));

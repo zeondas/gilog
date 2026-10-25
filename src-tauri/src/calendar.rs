@@ -322,7 +322,7 @@ pub fn setup_tray(app: &mut App) -> tauri::Result<()> {
     let quit = MenuItem::with_id(app, "quit", "끝내기", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&open, &quit])?;
     let mut tray = TrayIconBuilder::with_id("main")
-        .tooltip("기록")
+        .tooltip(crate::profile::title())
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, e| match e.id.as_ref() {

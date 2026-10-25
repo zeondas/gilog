@@ -1,3 +1,4 @@
+mod profile;
 mod accent_icon;
 mod address_web;
 mod autostart;
@@ -88,7 +89,7 @@ impl Default for Prefs {
 }
 
 fn prefs_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app.path().app_config_dir().map_err(io)?;
+    let dir = profile::config_dir(app).map_err(io)?;
     fs::create_dir_all(&dir).map_err(io)?;
     Ok(dir.join("prefs.json"))
 }
@@ -112,7 +113,8 @@ pub(crate) fn data_dir(app: &AppHandle) -> Result<PathBuf, String> {
     if !prefs.data_dir.is_empty() {
         return Ok(PathBuf::from(prefs.data_dir));
     }
-    app.path().document_dir().map(|d| d.join("giLog")).map_err(io)
+    // 시험용 두 번째 기록(--profile B)은 문서\giLog-B
+    app.path().document_dir().map(|d| d.join(format!("giLog{}", profile::suffix()))).map_err(io)
 }
 
 #[tauri::command]
@@ -184,7 +186,7 @@ fn set_prefs(app: AppHandle, state: State<AppState>, prefs: Prefs) -> Result<(),
 // ---------- 윈도우 자격 증명 관리자 ----------
 
 fn keyring_entry() -> Result<keyring::Entry, String> {
-    keyring::Entry::new("giLog", "data-key").map_err(|_| "keyring".to_string())
+    keyring::Entry::new(&format!("giLog{}", profile::suffix()), "data-key").map_err(|_| "keyring".to_string())
 }
 
 fn keyring_save(key_hex: &str) -> Result<(), String> {
@@ -618,11 +620,32 @@ fn move_data(app: AppHandle, state: State<AppState>, folder: String) -> Result<(
     write_prefs(&app, &prefs)
 }
 
+/// 이번 실행이 시험용 두 번째 기록이면 그 이름("B"), 아니면 null
+#[tauri::command]
+fn profile_name() -> Option<String> {
+    profile::name().map(str::to_string)
+}
+
+/// 시험용 두 번째 기록(--profile B)을 켜요. 원래 기록에서만 돼요.
+#[tauri::command]
+fn open_twin() -> Result<(), String> {
+    if profile::name().is_some() {
+        return Err("twin".into());
+    }
+    let exe = std::env::current_exe().map_err(io)?;
+    std::process::Command::new(exe).args(["--profile", profile::TWIN]).spawn().map_err(io)?;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        // 이미 떠 있으면(트레이에 있어도) 새로 열지 않고 그 창을 보여 줘요. 맨 먼저 붙여야 해요.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| calendar::show_main(app)))
+    let mut builder = tauri::Builder::default();
+    // 이미 떠 있으면(트레이에 있어도) 새로 열지 않고 그 창을 보여 줘요. 맨 먼저 붙여야 해요.
+    // 시험용 두 번째 기록(--profile B)은 원래 기록과 함께 떠야 하니 붙이지 않아요.
+    if profile::name().is_none() {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| calendar::show_main(app)));
+    }
+    builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::Builder::new().app_name(autostart::NAME).args([autostart::ARG]).build())
         .manage(AppState { store: Mutex::new(None) })
@@ -649,6 +672,8 @@ pub fn run() {
             calendar::on_window_event(w, e);
         })
         .invoke_handler(tauri::generate_handler![
+            profile_name,
+            open_twin,
             get_prefs,
             set_prefs,
             quit_app,
