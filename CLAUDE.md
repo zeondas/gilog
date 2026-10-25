@@ -27,6 +27,7 @@
 | 민원대장 | `wip/complaints6`(main `dfe2e95`에서, 작업 공간 로컬 – 아직 안 올림) | 2026-10-25 사용자 18건 — ✔1~10 결정 반영, 시안용으로 실제 코드를 만들어 화면을 찍음(캔버스 `ComplaintEdits.dc.html`) | – | **⑤ 줄 높이 결정 기다림** · 그 뒤 "코딩하자" | 사용자 ⑤ · "코딩하자" |
 | 할 일 | (코딩할 때 main 최신에서 `wip/todo2`) | 체크 애니메이션(구글 태스크식, 2026-10-25 사용자 요청) — 올렸을 때 미리 보기·누를 때 "짜잔" 체크·완료됨 내려가는 때. 시안 `Todo.dc.html`에 체험 영역 더함(판 새로 안 만듦), tools/dcview harness의 SVG가 안 그려지던 것 고침. 2026-10-25 19:39 사용자 ①~④ 전부 1안 | – | **✔ 1건 쌓음 — 코딩 기다림** | 사용자 "코딩하자" |
 | 캘린더 | (코딩할 때 main 최신에서 `wip/calendar2`) | 2026-10-25 19:51 사용자 ①1안·②1안·③2안 — 옆 칸 제목 "주간일정" → "앞으로 7일"(동작·12건 한도 그대로), 구글 일정 색은 "가까운 색 계산"을 버리고 짝 표(`GC_TO_EVENT`)를 늘 씀(24색 중 16개가 엉뚱하던 것 바로잡음, 관리 창 24색 그대로) | – | **✔ 2건 쌓음 — 코딩 기다림** | 사용자 "코딩하자" · 코딩 뒤 윈도우에서 구글 색 확인 |
+| 업무연락처 | (코딩할 때 main 최신에서 `wip/contacts2`) | 2026-10-25 19:36 사용자 요청 셋 — ①② 연락처를 그룹에 넣기(1안 지금 구조 + 빈 그룹 보이기·배지에 그룹 / 2안 core `contacts.group_id` + 카드 그룹 칸), ③ 사업 관리 창 스크롤 밀림: 원인 = 창 바탕 흐림(`.overlay` `backdrop-filter`) — 사업 30·200·500개 모두 15fps, 흐림 끄면 60fps. [docs/qa/contacts2.md](https://github.com/zeondas/gilog/blob/main/docs/qa/contacts2.md), 시안 `ProjectGroups.dc.html` | – | **결정 기다림** | 사용자 ①②③ |
 | 집행현황 | `wip/share-twin`(main `dfe2e95`에서) | 팀 공유 시험용 **두 번째 기록**(2026-10-25 사용자 "없으면 만들어라") — 실행 인자 `--profile B`: 한 번 더 켜기 막기 풂·자료 `문서\giLog-B`·앱 설정 `profiles\B`·자격 증명 `giLog-B`·화면 저장소 따로·창 제목 "기록 · 시험 B", 설정 집행현황 카드 [열기], 구글 로그인 계정 고르기(`select_account`). 손댄 곳: `profile.rs`(새) · `lib.rs`·`window.rs`·`hello.rs`·`address_web.rs`·`autostart.rs`·`calendar.rs`(트레이 글자)·`accent_icon.rs`·`google.ts`(prompt)·`BudgetShareCard.tsx`. 시험 순서 [docs/qa/share-twin.md](https://github.com/zeondas/gilog/blob/main/docs/qa/share-twin.md) | `712516f` | **끝(합치기 기다림)** — check 통과(21분 11초, 윈도우 앱 cargo check 포함), npm build 통과 | 빌드 세션 합치기 · 사용자 두 계정 시험(docs/qa/share-twin.md) |
 **공통 결정 로그** (나중 날짜가 이겨요)
 - 2026-10-21 22:59 신속 자동화 세션(사용자 결정, [docs/qa/fast-fetch.md](https://github.com/zeondas/gilog/blob/main/docs/qa/fast-fetch.md) 6~9절): **[민원 불러오기] 2차** — 신문고 안은 글자·접수번호로 찾아 화면 안 명령으로 바로 누름(첫 화면의 숨은 "민원처리" 링크 → 목록, 제목 링크로 열기, 나가기는 글자가 정확히 "목록"인 단추). **첨부는 [첨부파일일괄다운로드]를 커서로 진짜 누름**(위치를 재서, 화면 사진 없이) → `접수번호.zip`, 앱이 풀어 붙임. **현장사진은 AI가 열어 보고 가장 잘 보이는 1장만 지시부에**, 앱에서 바꿀 수 있음. 19:40 줄의 "[목록] 대신 뒤로 가기"·"사진 열어 보지 않음"은 이것으로 바뀌어요. 크롬에 신문고 "자동 다운로드" 허용이 필요(사용자 몫).
@@ -259,6 +260,9 @@
 
 ### 예산현황 (13단계)
 - **세부사업을 이름 대신 공유 uid로 잇기 (2026-10-20 집행현황 팀 공유 세션에서 전달)**: 집행현황 줄마다 `uid`가 생겼어요(core `budget_projects.uid` 등, `BudgetProject.uid`). 팀 공유로 다른 사람이 세부사업 이름을 고치면 예산현황 표 `bstatus`(세부사업 이름 → 설정)가 끊겨요. 키를 uid로 바꾸고(옛 이름 키는 읽을 때 uid로 옮기기) `split["해:공사 번호"]`도 공사 uid로 — 공사 번호는 PC마다 달라요. 예산현황 설정 자체는 내 PC에만 있어요(공유 안 함).
+
+### 업무연락처 (4단계)
+- (결정 기다림 — 2026-10-25 그룹 ①② · 사업 관리 창 흐림 ③, [docs/qa/contacts2.md](https://github.com/zeondas/gilog/blob/main/docs/qa/contacts2.md)) 업무일지 세션이 "프로젝트 → 사업" 이름을 앱 전체로 정하면 이 화면 글자도 함께 바꿔요.
 
 ### 업무일지 (5단계)
 - **`VirtualList` 끼우기(부품은 `wip/perf`)** — 2026-10-21 최적화 세션: 전체 검색 결과를 `src/VirtualList.tsx`로 보이는 만큼만 그려요(날짜 묶음 높이가 제각각이라 estimate + 재 두기). 쓰는 법은 민원대장 표(`ComplaintsScreen.tsx`)를 보면 돼요.
