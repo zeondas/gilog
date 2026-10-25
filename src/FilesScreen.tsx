@@ -1532,7 +1532,9 @@ export default function FilesScreen() {
   const toolsRef = useRef<HTMLDivElement>(null);
   const TOOL_W = 90;
   const TOOL_SQ = 34;
-  const [toolFit, setToolFit] = useState({ w: 90, compact: false });
+  /** 글자를 둔 채 줄일 수 있는 가장 좁은 폭 */
+  const TOOL_MIN = 80;
+  const [toolFit, setToolFit] = useState({ w: 90, compact: false, last: 0 });
   useEffect(() => {
     const el = toolsRef.current;
     if (!el) return;
@@ -1541,9 +1543,13 @@ export default function FilesScreen() {
       const btns = kids.filter((k) => k.classList.contains("fx-tool"));
       const other = kids.filter((k) => !k.classList.contains("fx-tool")).reduce((n, k) => n + k.offsetWidth + 4, 0); // 구분선 1 + 좌우 2
       const free = el.clientWidth - other - 8 * (kids.length - 1) - 1; // 마지막 단추 오른쪽 1px 착시 보정
-      const compact = free < TOOL_W * btns.length;
-      const w = compact ? TOOL_SQ : TOOL_W;
-      setToolFit((o) => (o.compact === compact ? o : { w, compact }));
+      // 90px가 다 안 들어가면 글자를 둔 채 고르게 줄여요(2026-10-25 사용자 1안 – 세칸보기 단추가 늘어 1600에서 81px). 남는 폭은 마지막 단추가 맡아 오른쪽 끝을 창 끝에 맞춰요.
+      const n = btns.length;
+      const fitW = Math.floor((free + 1) / n);
+      const compact = fitW < TOOL_MIN;
+      const w = compact ? TOOL_SQ : Math.min(TOOL_W, fitW);
+      const last = !compact && w < TOOL_W ? free - w * (n - 1) : 0;
+      setToolFit((o) => (o.compact === compact && o.w === w && o.last === last ? o : { w, compact, last }));
     };
     fit();
     const ro = new ResizeObserver(fit);
@@ -2630,7 +2636,7 @@ export default function FilesScreen() {
             </div>
           )}
         </div>
-        <div className="fx-tools" ref={toolsRef} data-compact={toolFit.compact ? "1" : "0"} style={{ ["--tool-w" as string]: toolFit.w + "px" }}>
+        <div className="fx-tools" ref={toolsRef} data-compact={toolFit.compact ? "1" : "0"} style={{ ["--tool-w" as string]: toolFit.w + "px", ...(toolFit.last ? { ["--tool-last" as string]: toolFit.last + "px" } : {}) }}>
           <button type="button" className="btn btn-ctrl fx-tool" title="새로 고침 (Ctrl+R)" onClick={refresh}>
             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7" /><path d="M20 4v7h-7" /></svg>
             <span className="fx-tl">새로고침</span>
