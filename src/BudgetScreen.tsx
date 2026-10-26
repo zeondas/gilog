@@ -1875,6 +1875,7 @@ export default function BudgetScreen() {
             }}
             onRemove={cur?.sent ? () => { saveBs(bsSend, { ...cur, sent: false }); setBsSend(null); setToast("예산현황에서 뺐어요"); } : null}
             onClose={() => setBsSend(null)}
+            onYearData={(y, d) => { if (y === year) setData(d); }}
           />
         );
       })()}

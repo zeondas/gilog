@@ -11219,6 +11219,10 @@ body.ew-dragging .pjm-colgrip:active::after {
 .bss2-amt { width: 100%; max-width: 160px; text-align: right; font-variant-numeric: tabular-nums; }
 .bss2-amt.bad { background: var(--danger-wash); }
 .bss2-amt::placeholder { color: var(--line); }
+/* [공사 추가] 줄 – 2026-10-26 연동 세션 */
+.bss2-addrow { display: flex; gap: 8px; padding: 6px 10px; align-items: center; }
+.bss2-addrow .bss2-addname { flex: 1; min-width: 160px; }
+.bss2-addrow .bss2-amt { max-width: 124px; }
 .bss2-ok { color: var(--st-done-fg); font-weight: 700; }
 .bss2-badtag { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 5px; background: var(--danger-wash); color: var(--danger); font-size: 11px; font-weight: 600; white-space: nowrap; }
 .bss2-oktag { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 5px; background: var(--st-done-bg); color: var(--st-done-fg); font-size: 11px; font-weight: 600; }
