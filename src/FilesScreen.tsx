@@ -1949,16 +1949,24 @@ export default function FilesScreen() {
         style={cellOf(st.layout, pane)}
         data-rest={!on && !isTarget ? "1" : "0"}
         aria-label={`창 ${pane + 1}`}
-        onMouseDown={(e) => {
-          focusPane(pane);
-          // 마우스 옆 단추(뒤로 3·앞으로 4): 화면이 통째로 뒤로 가지 않게 막고 이 창의 폴더만 움직여요.
-          if (e.button === 3 || e.button === 4) e.preventDefault();
+        onMouseDown={() => focusPane(pane)}
+        // Mouse side buttons (3 back, 4 forward): WebView2 sends only pointer events and
+        // auxclick for them (no mousedown/mouseup), so handle them on pointerup only —
+        // one place, so a browser that also sends mouse events cannot step twice.
+        onPointerDown={(e) => {
+          if (e.button === 3 || e.button === 4) {
+            e.preventDefault();
+            focusPane(pane);
+          }
         }}
-        onMouseUp={(e) => {
+        onPointerUp={(e) => {
           if (e.button === 3 || e.button === 4) {
             e.preventDefault();
             stepHistory(pane, e.button === 3 ? -1 : 1);
           }
+        }}
+        onAuxClick={(e) => {
+          if (e.button === 3 || e.button === 4) e.preventDefault();
         }}
         onDragOver={(e) => {
           if (!dragSrc.current) return;
