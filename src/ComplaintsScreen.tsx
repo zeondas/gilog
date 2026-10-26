@@ -20,7 +20,7 @@ import { DelIcon } from "./Icons";
 import { isInside, overlayDown, useOutsideClose } from "./useOutsideClose";
 import { VirtualList, type VirtualHandle } from "./VirtualList";
 import { onSelection } from "./noContextMenu";
-import { fieldScope, isKey, rowKeys } from "./keys";
+import { isKey, rowKeys } from "./keys";
 import { ExcelMenu } from "./ExcelMenu";
 import { complaintImports, complaintRows } from "./excel";
 import { REMOTE_CHANGE } from "./google";
@@ -99,7 +99,6 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
   const [openFilter, setOpenFilter] = useState<FilterKey | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
   // 두 번 누른 칸만 고쳐요(2026-10-25 사용자 ⑧1안). null이면 줄 전체(우클릭 "고치기").
-  const [editKey, setEditKey] = useState<CellKey | null>(null);
   // 한 번 누른 줄(골라 둔 줄). 두 번 누르거나 Enter를 누르면 고쳐요.
   const [selId, setSelId] = useState<number | null>(null);
   // 줄 우클릭 메뉴(2026-10-21 사용자 – 고치기·위로/아래로 옮기기·지우기). ask = 지우기를 눌러 붉은 띠로 바뀐 때.
@@ -421,12 +420,8 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
                 <EditRow
                   vi={i}
                   c={c}
-                  alt={i % 2 === 1}
                   lists={settings}
                   short={layout.short}
-                  only={editKey}
-                  doneFolded={doneFolded}
-                  placeStyle={settings.placeStyle}
                   onCancel={() => setEditId(null)}
                   onSave={async (input) => {
                     setEditId(null);
@@ -461,10 +456,9 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
                     setSelId(c.id);
                     setRowMenu({ id: c.id, x, y, ask: false });
                   }}
-                  onEdit={(k) => {
+                  onEdit={() => {
                     setMemoId(null);
                     setSelId(c.id);
-                    setEditKey(k);
                     setEditId(c.id);
                   }}
                   onMemo={() => setMemoId(c.id)}
@@ -514,7 +508,6 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
               onEdit={() => {
                 close();
                 setMemoId(null);
-                setEditKey(null);
                 setEditId(c.id);
               }}
               onAsk={() => setRowMenu({ ...rowMenu, ask: true })}
@@ -1096,10 +1089,6 @@ function Funnel() {
 type Draft = ComplaintInput;
 type DateKey = "received" | "due" | "done";
 
-/** 칸 하나만 고칠 때의 칸 이름과 Tab 순서(2026-10-25 사용자 ⑧1안) – 연번·메모 빼고 표 순서 */
-export type CellKey = "intake" | "received" | "ctype" | "place" | "person" | "body" | "action" | "due" | "status" | "done";
-const CELL_ORDER: CellKey[] = ["intake", "received", "ctype", "place", "person", "body", "action", "due", "status", "done"];
-
 type PlaceStyle = Settings["placeStyle"];
 
 /** 위치 표기(2026-10-25 사용자 ③1안): 법정동이면 동 지역은 행정동을 빼고 "동패동 1234", 리 지역·행정동 표기는 "조리읍 대원리 1234"·"운정3동 동패동 1234" */
@@ -1151,8 +1140,6 @@ function Cells({
   onDoneType,
   orig,
   short,
-  active,
-  placeStyle = "admin",
 }: {
   d: Draft;
   set: (patch: Partial<Draft>) => void;
@@ -1166,22 +1153,12 @@ function Cells({
   orig?: Draft;
   /** 폭이 모자라 줄인 모양으로 보이는 열(날짜 칸은 커서가 없을 때 짧게 보여요) */
   short: Set<ColKey>;
-  /** 칸 하나만 고칠 때 그 칸(나머지는 보기 모양) – 2026-10-25 사용자 ⑧1안 */
-  active?: CellKey | null;
-  placeStyle?: PlaceStyle;
 }) {
-  // 칸 하나만 고칠 때 나머지 칸은 보기 줄과 같은 글자로 보여요.
-  const view = (k: CellKey) => !!active && active !== k;
-  const cell = (k: CellKey, input: ReactNode, cls = "cm-c") =>
-    view(k) ? (
-      <div role="cell" key={k} className={"cm-c" + STATIC_CLS[k]}>
-        <StaticValue k={k} d={d} placeStyle={placeStyle} short={short} />
-      </div>
-    ) : (
-      <div role="cell" key={k} className={cls}>
-        {input}
-      </div>
-    );
+  const cell = (k: string, input: ReactNode, cls = "cm-c") => (
+    <div role="cell" key={k} className={cls}>
+      {input}
+    </div>
+  );
   return (
     <>
       {cell(
@@ -1248,7 +1225,7 @@ function Cells({
           options={lists.status}
           allow={orig?.status}
           invalid={bad.status}
-          stayOnTab={!active}
+          stayOnTab
           onChange={(status) =>
             // 완료·불가를 고르면 비어 있는 조치완료일에 오늘, 다른 상태로 돌리면 비워요(배지와 같게).
             set({ status, ...(isClosed(status) ? (d.done ? {} : { done: todayStr() }) : isClosed(d.status) ? { done: "" } : {}) })
@@ -1258,49 +1235,6 @@ function Cells({
       {cell("done", <DateField name="done" label="조치완료일" bad={bad.done} value={d.done ?? ""} onChange={onDoneType} onBlur={() => onDateBlur("done")} />, "cm-c cm-done-in")}
     </>
   );
-}
-
-/** 칸 하나만 고칠 때 다른 칸의 보기 모양(보기 줄과 같은 이름표) */
-const STATIC_CLS: Record<CellKey, string> = {
-  intake: " cm-strong",
-  received: " cm-num",
-  ctype: " cm-ell",
-  place: "",
-  person: " cm-person cm-ell",
-  body: " cm-multi",
-  action: " cm-multi",
-  due: " cm-num cm-due",
-  status: "",
-  done: " cm-num cm-due cm-done-c",
-};
-
-function StaticValue({ k, d, placeStyle, short }: { k: CellKey; d: Draft; placeStyle: PlaceStyle; short: Set<ColKey> }) {
-  if (k === "body" || k === "action") return <Bullets text={d[k]} q="" />;
-  if (k === "intake") return <>{short.has("intake") ? shortIntake(d.intake) : d.intake}</>;
-  if (k === "received") return <>{short.has("received") ? shortDate(d.received) : d.received}</>;
-  if (k === "due") {
-    const n = daysLeft(d, todayStr());
-    const date = <span className={d.due && isAnswered(d.status) ? "cm-due-done" : undefined}>{short.has("due") ? shortDate(d.due) : d.due}</span>;
-    if (n === null) return date;
-    return (
-      <>
-        {!short.has("due") && date}
-        <span className="cm-dday">{ddayText(n)}</span>
-      </>
-    );
-  }
-  if (k === "status") {
-    const [bg, fg] = statusColor(d.status);
-    return (
-      <span className="cm-status" style={{ background: bg, color: fg }}>
-        {d.status}
-      </span>
-    );
-  }
-  if (k === "place") return <>{short.has("place") ? d.place || d.area : placeText(d.area, d.place, placeStyle)}</>;
-  if (k === "ctype" || k === "person") return <span className="cm-ell-v">{d[k]}</span>;
-  if (k === "done") return <span className="cm-done-d">{d.done ?? ""}</span>;
-  return <>{d[k]}</>;
 }
 
 /**
@@ -1472,12 +1406,8 @@ function NewRow({ lists, short, onAdd }: { lists: Lists; short: Set<ColKey>; onA
 function EditRow({
   vi,
   c,
-  alt,
   lists,
   short,
-  only,
-  doneFolded,
-  placeStyle,
   onCancel,
   onSave,
   onRemove,
@@ -1485,13 +1415,8 @@ function EditRow({
 }: {
   vi?: number;
   c: Complaint;
-  alt?: boolean;
   lists: Lists;
   short: Set<ColKey>;
-  /** 두 번 누른 칸 하나만 고치기(2026-10-25 사용자 ⑧1안). null이면 줄 전체 */
-  only: CellKey | null;
-  doneFolded: boolean;
-  placeStyle: PlaceStyle;
   onCancel: () => void;
   onSave: (input: ComplaintInput) => void;
   onRemove: () => void;
@@ -1514,9 +1439,6 @@ function EditRow({
     done: c.done ?? "",
   }));
   const [asking, setAsking] = useState(false);
-  // 칸 하나만 고칠 때 지금 고치는 칸 – Tab·Shift+Tab으로 같은 줄의 다음·앞 칸(접은 조치완료일은 건너뜀)
-  const [active, setActive] = useState<CellKey | null>(only);
-  const order = CELL_ORDER.filter((k) => !(k === "done" && doneFolded));
   const ref = useRef<HTMLDivElement>(null);
   const askRef = useRef<HTMLDivElement>(null);
   const trashRef = useRef<HTMLButtonElement>(null);
@@ -1550,23 +1472,15 @@ function EditRow({
     foot.style.paddingLeft = `${Math.max(0, Math.round(base + delta))}px`;
   });
 
-  // 처음에 내용 칸(칸 하나만 고치면 그 칸)에 커서를 둬요.
+  // 처음에 내용 칸 끝에 커서를 둬요.
   useEffect(() => {
-    const row = ref.current;
-    if (!row) return;
-    if (active && active !== "body" && active !== "action") {
-      const el = row.querySelector<HTMLInputElement>(`[name="${active}"]`);
-      el?.focus();
-      if (el && active !== "received") el.setSelectionRange(el.value.length, el.value.length);
-      return;
-    }
-    const all = row.querySelectorAll<HTMLTextAreaElement>(".bl-ed")[active === "action" ? 1 : 0]?.querySelectorAll("textarea");
+    const all = ref.current?.querySelector(".bl-ed")?.querySelectorAll("textarea");
     const el = all?.[all.length - 1];
     if (el) {
       el.focus();
       el.setSelectionRange(el.value.length, el.value.length);
     }
-  }, [active]);
+  }, []);
 
   // 바깥을 누르면 저장해요. 묻는 띠가 펼쳐져 있으면 줄 안의 다른 곳을 눌렀을 때 띠만 접어요.
   useOutsideClose(true, [], (e) => {
@@ -1576,43 +1490,30 @@ function EditRow({
 
   const hasMemo = parseMemo(c.memo).length > 0;
 
-  /** 칸 하나만 고칠 때 Tab·Shift+Tab: 같은 줄의 다음·앞 칸을 열어요. 끝이면 false(저장) */
-  const step = (dir: 1 | -1): boolean => {
-    if (!active) return false;
-    const next = order[order.indexOf(active) + dir];
-    if (!next) return dir === -1;
-    setActive(next);
-    return true;
-  };
-
   return (
     <div
       ref={ref}
       role="row"
       data-cid={c.id}
       data-vi={vi}
-      className={active ? "cm-row cm-view cm-cell-edit" + (alt ? " alt" : "") : "cm-row cm-edit"}
+      className="cm-row cm-edit"
       onKeyDown={(e) => {
         if (e.defaultPrevented) return;
         if (isKey(e, "common.cancel")) {
           e.preventDefault();
           if (asking) setAsking(false);
           else onCancel();
-        } else if (active && e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.nativeEvent.isComposing && e.keyCode !== 229 && fieldScope(e.target) === "single") {
-          // 칸 하나만 고칠 때 한 줄 칸의 Enter는 저장(2026-10-25 ⑧1안).
-          e.preventDefault();
-          save();
-        } else rowKeys(e, ref.current, () => save(), active ? step : undefined);
+        } else rowKeys(e, ref.current, () => save());
       }}
     >
       <div role="cell" className="cm-c cm-no">
         {c.no}
       </div>
-      <Cells d={f.d} set={f.set} bad={f.bad} lists={lists} onDateBlur={f.onDateBlur} onDoneType={f.typeDone} orig={c} short={short} active={active} placeStyle={placeStyle} />
+      <Cells d={f.d} set={f.set} bad={f.bad} lists={lists} onDateBlur={f.onDateBlur} onDoneType={f.typeDone} orig={c} short={short} />
       <div role="cell" className="cm-c cm-center">
         <MemoButton has={hasMemo} memo={c.memo} onClick={onMemo} />
       </div>
-      {!active && <div className="cm-edit-foot">
+      <div className="cm-edit-foot">
         {asking ? (
           <AskBand bandRef={askRef} className="cm-ask" label="민원 지우기 확인" text={<>{c.no}번 민원을 지울까요? 메모도 함께 지워져요.</>} onNo={() => setAsking(false)} onYes={onRemove} />
         ) : (
@@ -1630,7 +1531,7 @@ function EditRow({
         <button type="button" className="btn-primary btn-xs" onClick={() => save()}>
           저장
         </button>
-      </div>}
+      </div>
     </div>
   );
 }
@@ -1680,7 +1581,7 @@ function ViewRow({
   /** 줄 우클릭 – 메뉴를 열 자리 */
   onMenu: (x: number, y: number) => void;
   /** 고치기: 두 번 누른 칸(null이면 줄 전체) */
-  onEdit: (k: CellKey | null) => void;
+  onEdit: () => void;
   onMemo: () => void;
   onStatus: (status: string) => void;
   onDone: (done: string) => void;
@@ -1708,7 +1609,7 @@ function ViewRow({
       data-vi={vi}
       aria-selected={selected}
       className={"cm-row cm-view" + (alt ? " alt" : "") + (flash ? " flash" : "") + (selected ? " sel" : "") + (isClosed(c.status) ? " done" : "")}
-      title="칸을 두 번 눌러 그 칸만 고치기 · 우클릭 메뉴: 줄 전체 고치기·위치·민원인 복사·지우기"
+      title="두 번 눌러 고치기 · 위치·민원인은 눌러서 복사 · 우클릭 메뉴: 고치기·복사·지우기"
       onClick={onSelect}
       onContextMenu={(e) => {
         // 글을 골라 두고 우클릭하면 복사 메뉴(앱 공통 – main.tsx)를 그대로 둬요.
@@ -1720,48 +1621,45 @@ function ViewRow({
         // 두 번 누를 때 글자가 골라지는 것을 풀어요.
         window.getSelection()?.removeAllRanges();
         e.preventDefault();
-        // 두 번 누른 칸만 고쳐요(2026-10-25 사용자 ⑧1안). 단추(상태 배지·메모 등)는 제 일을 해요.
-        const el = e.target as Element;
-        if (el.closest("button")) return;
-        const k = el.closest<HTMLElement>("[data-k]")?.dataset.k as CellKey | undefined;
-        if (k) onEdit(k);
+        // 줄 어디를 두 번 눌러도 줄 전체를 고쳐요(2026-10-25 23:43 사용자 – 칸 하나 고치기 되돌림).
+        onEdit();
       }}
       onKeyDown={(e) => {
         if (e.key === "Enter" && e.target === e.currentTarget) {
           e.preventDefault();
-          onEdit(null);
+          onEdit();
         }
       }}
     >
       <div role="cell" className="cm-c cm-no">
         {t(String(c.no))}
       </div>
-      <div role="cell" data-k="intake" className="cm-c cm-strong" title={intake !== c.intake ? c.intake : undefined}>
+      <div role="cell" className="cm-c cm-strong" title={intake !== c.intake ? c.intake : undefined}>
         {t(intake)}
       </div>
-      <div role="cell" data-k="received" className="cm-c cm-num" title={received !== c.received ? c.received : undefined}>
+      <div role="cell" className="cm-c cm-num" title={received !== c.received ? c.received : undefined}>
         {t(received)}
       </div>
       {/* 민원유형은 한 줄 – 넘치면 "…", 마우스를 올리면 전체(2026-10-25 사용자) */}
-      <div role="cell" data-k="ctype" className="cm-c cm-ell" title={c.ctype || undefined}>
+      <div role="cell" className="cm-c cm-ell" title={c.ctype || undefined}>
         <span className="cm-ell-v">{t(c.ctype)}</span>
       </div>
-      <div role="cell" data-k="place" className="cm-c" title={placeTitle}>
-        {/* 위치 칸에 지역(읍면동)을 붙여요(2026-10-21 사용자). 복사는 우클릭 메뉴(2026-10-25 ⑨1안). */}
-        {t(place)}
+      <div role="cell" className="cm-c">
+        {/* 위치 칸에 지역(읍면동)을 붙여요(2026-10-21 사용자) – 누르면 위치(리·동 지번)만 복사(2026-10-25 23:43 사용자 – 되살림) */}
+        {c.place ? <CopyCell value={c.place} shown={place} what="위치" render={t} title={placeTitle} /> : t(place)}
       </div>
-      <div role="cell" data-k="person" className="cm-c cm-person cm-ell" title={person || undefined}>
-        {/* 민원인 한 칸 – 넘치면 "…", 마우스를 올리면 전체. 복사는 우클릭 메뉴 */}
-        <span className="cm-ell-v">{t(person)}</span>
+      <div role="cell" className="cm-c cm-person">
+        {/* 민원인 한 칸 – 넘치면 "…", 마우스를 올리면 전체, 누르면 복사(2026-10-25 23:43 사용자 – 되살림) */}
+        {person && <CopyCell value={person} what="민원인" render={t} title={person} />}
       </div>
-      <div role="cell" data-k="body" className="cm-c cm-multi">
+      <div role="cell" className="cm-c cm-multi">
         <Bullets text={c.body} q={q} />
       </div>
       {/* 조치내용도 내용과 같은 글자색(2026-10-21 사용자 1안) */}
-      <div role="cell" data-k="action" className="cm-c cm-multi">
+      <div role="cell" className="cm-c cm-multi">
         <Bullets text={c.action} q={q} />
       </div>
-      <div role="cell" data-k="due" className={"cm-c cm-num cm-due" + (short.has("due") ? " cm-due-short" : "")}>
+      <div role="cell" className={"cm-c cm-num cm-due" + (short.has("due") ? " cm-due-short" : "")}>
         {/* 줄인 모양이면 날짜는 숨기고 D-day만(마우스를 올리면 날짜, 두 번 누르면 날짜 칸 – 2026-10-21 사용자). 답변 끝난 민원은 D-day가 없어 날짜를 그대로 보여요. */}
         {!(short.has("due") && n !== null) && (
           <span className={c.due && isAnswered(c.status) ? "cm-due-done" : undefined} title={c.due && isAnswered(c.status) ? "답변 끝남" : undefined}>
@@ -1775,10 +1673,10 @@ function ViewRow({
             <span className={"cm-dday" + (isUrgent(n, urgentDays) ? " urgent" : "")}>{ddayText(n)}</span>
           ))}
       </div>
-      <div role="cell" data-k="status" className="cm-c">
+      <div role="cell" className="cm-c">
         <StatusPick status={c.status} statuses={statuses} bg={bg} fg={fg} render={t} onPick={onStatus} />
       </div>
-      <div role="cell" data-k={doneFolded ? undefined : "done"} className="cm-c cm-num cm-due cm-done-c">
+      <div role="cell" className="cm-c cm-num cm-due cm-done-c">
         <span className="cm-done-d">{t(c.done ?? "")}</span>
         {/* 접은 열은 칸을 두 번 누르면 작은 날짜 칸(빈 칸은 마우스를 올리면 "+" – 2026-10-25 사용자 ⑥1안) */}
         {(taken !== null || (doneFolded && !c.done)) && <TakenPick c={c} taken={taken} onSave={onDone} />}
@@ -1811,6 +1709,33 @@ function MemoButton({ has, memo, onClick }: { has: boolean; memo: string; onClic
   );
 }
 
+
+function CopyCell({ value, shown, what, render, title }: { value: string; shown?: string; what: string; render: (s: string) => ReactNode; title?: string }) {
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<number>();
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  return (
+    <button
+      type="button"
+      className={"cm-copy" + (copied ? " copied" : "")}
+      onDoubleClick={(e) => e.stopPropagation()}
+      title={title ?? "눌러서 복사"}
+      aria-label={`${what} ${value} 복사`}
+      onClick={async (e) => {
+        e.stopPropagation();
+        await copyText(value);
+        setCopied(true);
+        window.clearTimeout(timer.current);
+        timer.current = window.setTimeout(() => setCopied(false), 1400);
+      }}
+    >
+      <span className="cm-copy-v">{render(shown ?? value)}</span>
+      <span className="cm-copy-note" aria-live="polite">
+        {copied ? "복사했어요" : ""}
+      </span>
+    </button>
+  );
+}
 
 /**
  * 상태 배지: 누르면 상태 목록이 바로 떠요(줄 고치기로 넘어가지 않아요). 고르면 바로 저장해요.
