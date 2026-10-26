@@ -424,7 +424,6 @@ button:focus-visible {
   cursor: default;
 }
 
-
 /* 본문이 길어지면 카드를 누르지 않고 스크롤해요. */
 .main > * {
   flex: none;
@@ -434,20 +433,7 @@ button:focus-visible {
   margin-bottom: 0;
 }
 
-
 /* ---------- 설정 화면 ---------- */
-.title-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2) var(--space-3);
-  max-width: 760px;
-  min-height: var(--size-ctrl);
-}
-
-.title-sub {
-  margin-right: auto;
-}
 
 .ask-row {
   display: flex;
@@ -757,7 +743,6 @@ select.input {
   min-height: 0;
 }
 
-
 /* ---------- 업무연락처 ---------- */
 mark {
   background: var(--mark);
@@ -884,14 +869,6 @@ mark {
   border-color: var(--accent);
   background: var(--accent);
   color: var(--on-accent);
-}
-
-.pchip-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  corner-shape: round;
-  background: var(--on-accent);
 }
 
 .pchip-n {
@@ -1267,16 +1244,6 @@ mark {
   overflow-wrap: anywhere;
 }
 
-.memo-dot {
-  flex: none;
-  width: 4px;
-  height: 4px;
-  margin-top: 0.62em;
-  border-radius: 50%;
-  corner-shape: round;
-  background: var(--muted);
-}
-
 .memo-add {
   align-self: flex-start;
   height: 28px;
@@ -1357,10 +1324,6 @@ mark {
   gap: 7px;
   padding: 0 6px;
   border-radius: var(--radius-sm);
-}
-
-.memo-row .memo-dot {
-  margin-top: 0;
 }
 
 .memo-row.on {
@@ -1501,12 +1464,6 @@ mark {
   min-width: 0;
 }
 
-.swatches {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1h);
-}
-
 .swatch {
   width: 18px;
   height: 18px;
@@ -1560,7 +1517,6 @@ mark {
 .dialog-body > .hint {
   padding-bottom: var(--space-1);
 }
-
 
 /* ---------- 업무일지 ---------- */
 /* 시안 JournalCal1.dc.html(1안): 왼쪽 열 320px(월 달력 + 챙길 일) | 본문(머리 줄, 신규 카드, 2열 카드) */
@@ -1924,7 +1880,6 @@ mark {
   flex-direction: column;
   min-width: 0;
 }
-
 
 /* 한 번 누른(골라 둔) 카드 */
 .jcard.sel {
@@ -3005,19 +2960,6 @@ body.col-dragging * {
   padding: 0 10px;
 }
 
-.cm-select {
-  padding: 0 2px;
-}
-
-.cm-area {
-  display: block;
-  min-height: var(--size-input);
-  padding: 4px 6px;
-  resize: none;
-  overflow: hidden;
-  line-height: round(1.45em, 1px);
-}
-
 .cm-center {
   justify-content: center;
 }
@@ -3093,22 +3035,6 @@ body.col-dragging * {
   display: flex;
   align-items: flex-start;
   gap: 7px;
-}
-
-.cm-dot {
-  flex: none;
-  width: 4px;
-  height: 4px;
-  margin-top: 0.62em;
-  border-radius: 50%;
-  corner-shape: round;
-  background: var(--muted);
-}
-
-.cm-bt {
-  line-height: round(1.5em, 1px);
-  word-break: keep-all;
-  overflow-wrap: anywhere;
 }
 
 .cm-due {
@@ -3304,13 +3230,6 @@ body.col-dragging * {
   text-decoration: underline;
 }
 
-.cm-fcount {
-  margin-left: auto;
-  font-size: 12.5px;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-
 .cm-fdd {
   position: absolute;
   top: calc(100% - 2px);
@@ -3448,13 +3367,6 @@ body.col-dragging * {
 }
 
 /* 신규·고치는 줄의 지역 칸: 위치에서 자동으로만 채워요(직접 치지 않아요) */
-.cm-new > .cm-area-auto,
-.cm-edit > .cm-area-auto {
-  padding: 5px 10px;
-  line-height: var(--size-input);
-  color: var(--ink-2);
-  white-space: nowrap;
-}
 
 /* 메모 창 */
 .cm-memo-dialog {
@@ -3757,12 +3669,6 @@ body.col-dragging * {
   background: var(--surface-band);
 }
 
-.cm-spick-now {
-  margin-left: auto;
-  font-size: 11px;
-  color: var(--muted);
-}
-
 /* 한 번 누른(골라 둔) 민원 줄 */
 .cm-view.sel {
   background: var(--accent-wash);
@@ -3781,17 +3687,6 @@ body.col-dragging * {
 /* 프로젝트 색 고르기 (색 단추를 누르면 펼쳐져요) */
 .cpick {
   position: relative;
-}
-
-.cpick-btn {
-  gap: var(--space-1h);
-}
-
-.cpick-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  corner-shape: round;
 }
 
 .cpick-pop {
@@ -3911,13 +3806,6 @@ body.col-dragging * {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-}
-
-.td-lists-head {
-  padding: 0 var(--space-2) 6px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
 }
 
 .td-list {
@@ -4838,7 +4726,6 @@ button.td-check:not(.on):hover .td-tick {
   background: var(--accent-wash);
 }
 
-
 .cal-detail-btn {
   justify-content: center;
   height: var(--size-input);
@@ -5074,11 +4961,6 @@ button.td-check:not(.on):hover .td-tick {
   color: var(--ink);
 }
 
-.cal-summary {
-  font-size: 12px;
-  color: var(--muted);
-}
-
 /* 상세 창 */
 .cal-dialog {
   width: 600px;
@@ -5145,10 +5027,6 @@ button.td-check:not(.on):hover .td-tick {
   width: 68px;
 }
 
-.cal-in-kind {
-  width: 180px;
-}
-
 .cal-allday {
   height: var(--size-mini);
   border-radius: var(--radius-sm);
@@ -5185,13 +5063,6 @@ button.td-check:not(.on):hover .td-tick {
   font-size: var(--fs);
 }
 
-.cal-kind-swatch {
-  flex: none;
-  width: 12px;
-  height: 12px;
-  border-radius: 4px;
-}
-
 .cal-ask {
   margin: 0 20px var(--space-3);
 }
@@ -5215,20 +5086,6 @@ button.td-check:not(.on):hover .td-tick {
 }
 
 /* 종류 관리 창 */
-.cal-kgroup {
-  padding: var(--space-3) 0 6px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
-}
-
-.cal-krow-name {
-  flex: 0 0 250px;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-}
 
 .cal-kbadge {
   display: inline-flex;
@@ -5238,18 +5095,6 @@ button.td-check:not(.on):hover .td-tick {
   border-radius: var(--radius-sm);
   font-size: var(--fs-badge);
   font-weight: 600;
-}
-
-.cal-swatches {
-  flex-wrap: wrap;
-  gap: 8px 4px;
-  width: 340px;
-  max-width: 100%;
-}
-
-.cal-knew {
-  flex: 1;
-  height: 34px;
 }
 
 .link-btn {
@@ -5557,14 +5402,6 @@ button.td-check:not(.on):hover .td-tick {
   box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
 }
 
-.cal-cbtn-dot {
-  flex: none;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  corner-shape: round;
-}
-
 .cal-cpop {
   position: absolute;
   z-index: 20;
@@ -5594,10 +5431,6 @@ button.td-check:not(.on):hover .td-tick {
 
 .cal-cauto {
   align-self: flex-start;
-}
-
-.cal-krow-name {
-  flex: 1 1 260px;
 }
 
 /* 공휴일 다시 받기 */
@@ -5662,11 +5495,6 @@ button.td-check:not(.on):hover .td-tick {
   margin-top: 0;
   background: var(--accent-wash);
   color: var(--ink);
-}
-
-.cal-notify-link {
-  margin-left: 8px;
-  font-size: 12px;
 }
 
 /* ---------- 캘린더 0.8.2 ---------- */
@@ -5773,16 +5601,6 @@ button.td-check:not(.on):hover .td-tick {
   align-items: center;
   gap: var(--space-4);
   padding: var(--space-4);
-}
-
-.about-text {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.cal-push {
-  margin-left: auto;
 }
 
 /* ---------- 구글 캘린더 연동 (9단계) ---------- */
@@ -5950,7 +5768,6 @@ button.td-check:not(.on):hover .td-tick {
 /* 입력칸: 0.9.4의 padding-bottom 2px은 Pretendard에서 한글을 1px 위로 띄웠어요(−2). 위아래 여백 0이 한글 0·숫자 +1로 맞아요
    (2026-10-18 UI 통일 – 재 보니 1px 바꾸면 위−아래가 2씩 바뀌어 0/−1 사이 값은 없어요). */
 
-
 .cm-bullets {
   gap: 4px;
 }
@@ -5970,18 +5787,7 @@ button.td-check:not(.on):hover .td-tick {
   padding-bottom: 2px;
 }
 
-
 /* 관리 창: 이름 배지를 누르면 그 자리에서 고쳐요 */
-.mgr-badge-btn {
-  border: 0;
-  font-family: inherit;
-  cursor: text;
-}
-
-.mgr-badge-btn:hover {
-  outline: 2px solid var(--accent-line);
-  outline-offset: 1px;
-}
 
 .mgr-name-in {
   flex: 1 1 auto;
@@ -7010,21 +6816,8 @@ button.td-check:not(.on):hover .td-tick {
 }
 
 /* 대장 등록(작은 단추) → 넣은 뒤 보라 채움 */
-.pr-icon.pr-reg:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
 
 /* 등록하면 보라로 채워요(2026-10-18 사용자 통과, 시안 ProcessReg) */
-.pr-icon.pr-reg.on {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--on-accent);
-}
-
-.pr-icon.pr-reg.on:hover {
-  color: var(--on-accent);
-}
 
 .pr-c {
   text-align: center;
@@ -7089,23 +6882,6 @@ button.td-check:not(.on):hover .td-tick {
 .pr-unknown {
   color: var(--st-work-fg);
   font-weight: 700;
-}
-
-.pr-dates {
-  display: grid;
-  grid-template-columns: auto auto;
-  justify-content: start;
-  align-items: center;
-  column-gap: var(--space-1h);
-  row-gap: 3px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  color: var(--ink-2);
-}
-
-.pr-lab {
-  font-size: 11.5px;
-  color: var(--muted);
 }
 
 /* 한 줄의 가운데 맞춤(2026-10-19 사용자): 첫 줄 글자 상자 11~29(가운데 20) – 고르기 칸·공사 배지 22·입력칸·단추 28도 가운데 20,
@@ -7196,13 +6972,6 @@ button.td-check:not(.on):hover .td-tick {
   width: 100%;
 }
 
-.pr-acts {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1h);
-  padding-top: 6px !important;
-}
-
 /* 표준 지시부(2026-10-19): 줄 앞 고르기 칸 · 지시부 이름 칩 · 고른 줄 띠 */
 .pr-check {
   display: flex;
@@ -7223,34 +6992,6 @@ button.td-check:not(.on):hover .td-tick {
   opacity: 0.35;
 }
 
-.pr-chip {
-  flex: none;
-  width: 84px;
-  height: 28px;
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-sm);
-  background: var(--accent-wash);
-  color: var(--accent);
-  font-size: 11.5px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.pr-chip.none {
-  background: none;
-  color: var(--line);
-  font-weight: 400;
-}
-
-.pr-next-gap {
-  flex: none;
-  width: 84px;
-}
-
 .pr-pickbar {
   display: flex;
   align-items: center;
@@ -7265,71 +7006,6 @@ button.td-check:not(.on):hover .td-tick {
 
 .pr-pickbar .pr-push {
   margin-left: auto;
-}
-
-.pr-next {
-  width: 84px;
-  height: 28px;
-  padding: 0;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--ink-2);
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.pr-next.go {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--on-accent);
-}
-
-.pr-next:disabled {
-  cursor: default;
-}
-
-.pr-next.go:disabled {
-  opacity: 0.6;
-}
-
-.pr-sent.pr-queued {
-  background: var(--accent-wash);
-  color: var(--accent);
-}
-
-.pr-sent {
-  width: 84px;
-  height: 28px;
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  border-radius: var(--radius-sm);
-  background: var(--st-done-bg);
-  color: var(--st-done-fg);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.pr-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--muted);
-}
-
-.pr-icon:disabled {
-  color: var(--line);
-  cursor: default;
 }
 
 .pr-del {
@@ -7558,26 +7234,6 @@ button.td-check:not(.on):hover .td-tick {
   color: var(--accent);
 }
 
-.pr-tel {
-  height: 18px;
-  padding: 0 0 0 18px;
-  border: 0;
-  background: transparent;
-  color: var(--ink-2);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.pr-tel:hover {
-  text-decoration: underline;
-}
-
-.pr-tel.ok {
-  color: var(--st-done-fg);
-  text-decoration: none;
-}
-
 .pr-scope {
   font-size: 12px;
   color: var(--ink-2);
@@ -7598,30 +7254,6 @@ button.td-check:not(.on):hover .td-tick {
 .pr-wgrid .cell-input {
   width: 100%;
   min-width: 0;
-}
-
-.pr-tpl {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1h);
-  min-width: 0;
-  max-width: 100%;
-  height: var(--size-mini);
-  padding: 0 8px;
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--ink-2);
-  font-size: 12px;
-  text-align: left;
-}
-
-.pr-tpl:hover {
-  background: var(--surface-band);
-}
-
-.pr-tpl-pick {
-  justify-content: center;
 }
 
 .pr-add {
@@ -7734,9 +7366,7 @@ button.td-check:not(.on):hover .td-tick {
   align-items: center;
   gap: var(--space-2);
 }
-.fx-title {
-  margin-right: auto;
-}
+
 .fx-rel {
   position: relative;
 }
@@ -7777,9 +7407,7 @@ button.td-check:not(.on):hover .td-tick {
   margin: 0 2px;
   background: var(--line-soft);
 }
-.fx-sq {
-  padding: 0 10px;
-}
+
 .fx-body {
   flex: 1;
   min-height: 0;
@@ -8044,9 +7672,7 @@ button.td-check:not(.on):hover .td-tick {
   margin: 4px 6px;
   background: var(--line-row);
 }
-.fx-fav {
-  width: 300px;
-}
+
 .fx-tabmenu {
   position: fixed;
 }
@@ -8770,13 +8396,6 @@ button.td-check:not(.on):hover .td-tick {
 }
 
 /* 민원처리: 신문고 위치를 도로명주소에서 바꿨을 때 원래 글(판단 근거 옆 작은 글) – 주소 변환 2026-10-18 */
-.pr-road {
-  margin-left: 8px;
-  opacity: 0.8;
-}
-.pr-road::before {
-  content: "· ";
-}
 
 /* 위치 칸 도로명주소 후보 – 줄바꿈 없이 넓게(주소 변환 2026-10-18) */
 .pin-list.pin-road {
@@ -8820,41 +8439,12 @@ button.td-check:not(.on):hover .td-tick {
   white-space: nowrap;
 }
 
-.pchip-t {
-  max-width: 260px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* 관리 창: 배지(줄인 이름) 아래에 정식 이름 */
 .mgr .pj-mname {
   flex-direction: column;
   flex-wrap: nowrap;
   align-items: flex-start;
   gap: 3px;
-}
-
-.mgr-badge-line {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-  max-width: 100%;
-}
-
-.mgr-badge-line .mgr-info {
-  flex: none;
-}
-
-.mgr-full {
-  max-width: 100%;
-  font-size: 11.5px;
-  line-height: round(1.3em, 1px);
-  color: var(--muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .mgr-names {
@@ -10184,11 +9774,11 @@ select.input.fx-set-date { width: 190px; }
 /* 탐색기 머리 줄 도구 모음(2026-10-18 시안): 검색창이 맨 앞, 단추는 아이콘 + 네 글자 */
 .fx-top > .fx-findbox { margin-right: 2px; }
 .fx-tool { gap: 6px; padding: 0; width: 90px; flex: none; justify-content: center; white-space: nowrap; }
-.fx-tool.fx-tool-wide { width: 108px; }
+
 /* 파일 찾기 칸이 남는 폭을 채워 마지막 단추 오른쪽 끝 = 오른쪽 창 끝 */
 .fx-top > .fx-findbox { flex: 1; min-width: 200px; }
 .fx-top > .fx-findbox .fx-search { width: 100%; }
-.fx-top > .fx-title { margin-right: 10px; flex: none; }
+
 .fx-tool svg { flex: none; }
 /* 켜진 단추 = 고른 탭처럼 강조색 바탕 + 흰 글자(2026-10-18 사용자) */
 .fx-tool[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 700; }
@@ -10219,7 +9809,7 @@ select.input.fx-set-date { width: 190px; }
 .fx-psplit-y { left: 0; right: 0; height: 12px; cursor: row-resize; }
 .fx-psplit-x:hover { background: linear-gradient(var(--accent-line), var(--accent-line)) center / 2px 100% no-repeat; }
 .fx-psplit-y:hover { background: linear-gradient(var(--accent-line), var(--accent-line)) center / 100% 2px no-repeat; }
-.fx-top .fx-sq { width: 34px; padding: 0; justify-content: center; flex: none; }
+
 /* 머리 줄(2026-10-18 사용자): 제목 없음, 파일 찾기 = 폴더트리 폭(그 위), 단추 줄 = 창들 폭(12px 띄우고 오른쪽 끝까지 꽉) */
 .fx-top { gap: 12px; }
 .fx-top > .fx-findbox { flex: none; min-width: 0; }
@@ -10492,14 +10082,6 @@ select.input.fx-set-date { width: 190px; }
 }
 
 /* 프로젝트 관리 창 추가 줄: 전체 공사명 + 축약 공사명 */
-.mgr-padd .input {
-  flex: 1 1 0;
-  min-width: 0;
-}
-
-.mgr-padd .mgr-short-in {
-  flex: 0 0 140px;
-}
 
 /* ---------- 프로젝트 관리 창 · 표 모양 (2026-10-19 사용자 1안, 시안 ProjectMgr) ---------- */
 .mgr.pjm {
@@ -10647,7 +10229,6 @@ select.input.fx-set-date { width: 190px; }
   display: none;
 }
 
-
 .pjm-ask {
   grid-column: 1 / -1;
   margin: 2px 0 6px;
@@ -10669,7 +10250,6 @@ select.input.fx-set-date { width: 190px; }
 .dialog .pjm-row .cal-cbtn[aria-expanded="true"] {
   box-shadow: 0 0 0 2px var(--surface-raised), 0 0 0 3px var(--accent);
 }
-
 
 /* 머리 줄 단추(2026-10-19 사용자 1안): 90px 고정(기준 크기 1600×900에서 오른쪽 끝 = 창 끝), 넓어지면 남는 폭은 오른쪽 빈 곳.
    좁아서 다 안 들어가면 글자 없이 34×34 정사각형 고정, 앞에서부터 차례로. 폭은 FilesScreen이 --tool-w로 넣어요. */
@@ -10944,7 +10524,7 @@ body.ew-dragging * {
 .bs-noexp { pointer-events: none; }
 .bs .bd-rw > .bd-c { user-select: none; } /* 두 번 누르기가 글자를 긁지 않게 */
 .bs .bd-in { user-select: text; }
-.bs-lab2 { margin-left: 8px; } /* 집행현황의 2·9·11·12열 가운데 규칙을 덮어요 – 숫자는 모두 오른쪽 */
+ /* 집행현황의 2·9·11·12열 가운데 규칙을 덮어요 – 숫자는 모두 오른쪽 */
 .bs .bd-rw.pj > .bd-c.bs-yrs { overflow: visible; }
 .bs .bd-rw.pj .bd-nm { flex: 0 1 auto; min-width: 0; }
 .bs-years { flex: none; font-size: 13px; font-weight: 500; color: var(--ink-2); white-space: nowrap; }
@@ -10953,7 +10533,7 @@ body.ew-dragging * {
 .bs-note { margin-left: 8px; font-size: 11.5px; font-weight: 500; color: var(--muted); white-space: nowrap; }
 .bs .bd-rw.it .bd-nm { flex: none; }
 .bs .bd-rw.gun > .bd-c .bd-nm { font-weight: 500; color: var(--ink-2); }
-.bs-open { color: var(--muted); }
+
 .bs .bd-rw.edit > .bd-c.n { padding: 0 4px; }
 .bs .bd-rw.edit .bd-in { height: 28px; }
 /* 자세히 머리 줄 두 줄(28+28): 위 줄 묶음 이름은 가운데, 아래 줄 열 이름은 숫자처럼 오른쪽 */
@@ -10971,16 +10551,7 @@ body.ew-dragging * {
 /* 예산현황으로 보내기 창(집행현황·예산현황 공용) */
 .dialog.bss { width: 560px; }
 .bss-sub { font-size: 13px; color: var(--muted); }
-.bss-body { gap: 10px; padding-bottom: 16px; }
-.bss-sec { display: flex; align-items: flex-start; gap: 8px; }
-.bss-sec > .bs-lab { padding-top: 6px; }
-.bss-match { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.bss-note { padding-top: 0; border-top: 0; }
-.bss-item { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--surface); }
-.bss-item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
-.bss-item-num { flex: none; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.bss-pick { height: 28px; padding: 2px; }
-.bss-pick button { height: 22px; padding: 0 8px; font-size: 12px; }
+
 .bss-foot { justify-content: space-between; align-items: center; }
 .bss-btns { display: flex; gap: 8px; }
 .bss-remove { color: var(--danger); }
@@ -10990,10 +10561,7 @@ body.ew-dragging * {
 .bs .bd-hd.bs-hd2 .bd-h.bs-grp { border-bottom: 1px solid var(--line-soft); }
 .bs .bd-hd .bd-h { white-space: nowrap; }
 /* ⚙ 설정 상자 – 줄마다 이름표 64 + 28 높이 부품(한 줄 칸 규칙 .fld), 단년도/다년도는 묶음 단추(34 상자 안 26) */
-.bs-setup { display: flex; flex-direction: column; gap: 10px; width: 480px; padding: 12px 14px 10px; }
-.bs-row { display: flex; align-items: center; gap: 8px; min-height: 28px; }
-.bs-lab { flex: none; width: 64px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
-.bs-lab2 { width: auto; margin-left: 12px; }
+
 .bs-tilde { color: var(--muted); }
 .bs-yr { width: 68px; text-align: center; }
 .bs-srcs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
@@ -11003,10 +10571,7 @@ body.ew-dragging * {
 .bs-src-x { padding-right: 3px; }
 .bs-src-x .chip-x { width: 20px; height: 20px; color: var(--accent); }
 .bs-src-x .chip-x:disabled { opacity: 0.3; cursor: default; }
-.bs-other { width: 120px; }
-.bs-sel { flex: 1; }
-.bs-sel2 { flex: none; width: 96px; }
-.bs-hint { padding-top: 10px; border-top: 1px solid var(--line-soft); font-size: 11.5px; line-height: 16px; color: var(--muted); }
+
 /* 우클릭 메뉴: 아이콘 자리 없이 글자만, 폭 160 */
 .bs-mi { padding: 0 12px; min-width: 160px; }
 /* 집행률 막대·숫자는 재원 줄도 또렷하게(2026-10-19 사용자 1안) */
@@ -11028,7 +10593,7 @@ body.ew-dragging * {
    아래 띠는 점선 위 – 왼쪽 "× 이 민원 지우기"(×를 연번 숫자 왼쪽 끝에 맞춤, 재서 넣어요), 오른쪽 짧은 안내·취소·저장 */
 .cm-edit > .cm-c { padding: 6px 4px; min-height: 0; }
 .cm-edit > .cm-no { display: block; padding: 6px 10px; line-height: 28px; text-align: right; }
-.cm-edit > .cm-area-auto { padding: 6px 10px; line-height: 28px; }
+
 .cm-edit input.cell-input { height: 28px; }
 .cm-edit-foot { margin: 0 8px; padding: 6px 4px 8px 0; border-top: 1px dashed var(--line); gap: 8px; }
 .cm-edit-foot > .cm-del { width: auto; gap: 4px; padding: 0 10px 0 0; margin-left: 0; border-radius: var(--radius-sm); font-size: 12.5px; font-weight: 600; }
@@ -11252,26 +10817,6 @@ body.ew-dragging .pjm-colgrip:active::after {
 .fx-findpanel .fx-fgrid > * { min-width: 0; }
 .fx-findpanel .fx-hrow > .fx-grow { flex: 1 1 0; min-width: 0; }
 /* 지시부 보내기(2026-10-20): [보내기 ▾] 메뉴 · 메일 확인 창 – 시안 캔버스 ProcessMail */
-.pr-next.pr-send {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-}
-
-.pr-caret {
-  font-size: 10px;
-}
-
-.pr-sent-btn {
-  padding: 0;
-  border: 0;
-  cursor: pointer;
-}
-
-.pr-sent-btn:hover {
-  filter: brightness(0.97);
-}
 
 .pr-sendmenu {
   width: 300px;
@@ -11480,10 +11025,6 @@ body.ew-dragging .pjm-colgrip:active::after {
   max-width: 240px;
 }
 
-.pr-acts {
-  gap: 6px;
-}
-
 .pr-icon:not(:disabled) {
   cursor: pointer;
 }
@@ -11491,18 +11032,6 @@ body.ew-dragging .pjm-colgrip:active::after {
 .pr-icon.pr-doc:not(:disabled):hover {
   border-color: var(--accent);
   color: var(--accent);
-}
-
-.pr-icon.pr-doc.on {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--on-accent);
-}
-
-.pr-icon.pr-doc.done {
-  border-color: var(--st-done-bg);
-  background: var(--st-done-bg);
-  color: var(--st-done-fg);
 }
 
 .pr-icon.pr-doc.on:not(:disabled):hover {
@@ -11518,45 +11047,6 @@ body.ew-dragging .pjm-colgrip:active::after {
 }
 
 /* 위 띠: 고른 지시부의 상태 · [지시부 열기] [다시 만들기] [선택 해제] [보내기 ▾] */
-.pr-stat {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: var(--size-badge-h);
-  padding: 0 8px;
-  border-radius: var(--radius-sm);
-  background: var(--st-hold-bg);
-  color: var(--st-hold-fg);
-  font-size: var(--fs-badge);
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.pr-stat.done {
-  background: var(--st-done-bg);
-  color: var(--st-done-fg);
-}
-
-.pr-stat.busy {
-  background: var(--accent-tint);
-  color: var(--accent);
-}
-
-.pr-stat.warn {
-  background: var(--st-work-bg);
-  color: var(--st-work-fg);
-}
-
-.pr-stat > svg {
-  width: 12px;
-  height: 12px;
-}
-
-.pr-ibtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
 
 .pr-pickbar .pr-push ~ .btn,
 .pr-pickbar .pr-push ~ .btn-primary {
@@ -12496,3 +11986,15 @@ button.del-btn:hover:not(:disabled) { filter: brightness(0.86); }
 /* 업무연락처 고치는 카드: 지우기는 왼쪽 아래(2026-10-26 사용자) – 붉은 단추 28(옆 취소·저장과 같은 높이·모서리), 안내 글을 사이에 두고 취소·저장과 떨어뜨려요. */
 .edit-foot .ct-trash { flex: none; margin-left: 0; }
 .ccard-edit .ask-band.ct-ask { margin-top: var(--space-1); }
+
+/* 공통 부품 ✔8(2026-10-26) – 이미 정한 규칙을 어긴 것 고치기 */
+/* 검색창 × 가 끝에 있으면 오른쪽 안쪽 6(집행현황과 같게) */
+.search:has(> .search-x:last-child) { padding-right: 6px; }
+/* 탐색기 찾기 칸 1안: × 와 "자세히 ▾" 사이 가는 세로줄 */
+.fx-search .fx-find-sep { height: 18px; margin: 0 6px 0 4px; flex: none; }
+/* 높이 28 단추는 모서리 6(10-18 17:09 규칙: 34는 8, 28은 6) */
+.btn-primary.btn-xs,
+.btn-danger.btn-xs { border-radius: var(--radius-sm); }
+/* 설정 [구글 로그인] – 흰 보조 단추 모양(.btn)이 덮던 것을 주 단추 모양으로 */
+.btn.btn-primary.g-login { border-color: transparent; background: var(--accent); color: var(--on-accent); }
+.btn.btn-primary.g-login:hover:not(:disabled) { background: var(--accent); filter: brightness(1.08); }

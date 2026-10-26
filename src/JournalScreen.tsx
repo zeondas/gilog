@@ -46,6 +46,7 @@ import { ExcelMenu } from "./ExcelMenu";
 import { journalDayRows, journalImports, journalRows } from "./excel";
 import { DEFAULT_SETTINGS, Kind, loadSettings } from "./settingsStore";
 import { AskBand } from "./AskBand";
+import { SearchBox } from "./SearchBox";
 
 const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
 
@@ -292,25 +293,7 @@ export default function JournalScreen({
               오늘
             </button>
           )}
-          <label className="search jn-search">
-            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <circle cx="11" cy="11" r="7" />
-              <path d="M20 20l-3.5-3.5" />
-            </svg>
-            <input
-              type="search"
-              aria-label="일지 검색"
-              placeholder="사람, 내용으로 전체 일지 검색"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape" && q) {
-                  e.preventDefault();
-                  setQ("");
-                }
-              }}
-            />
-          </label>
+          <SearchBox className="jn-search" aria-label="일지 검색" placeholder="사람, 내용으로 전체 일지 검색" value={q} onChange={(e) => setQ(e.target.value)} onClear={() => setQ("")} />
           <ExcelMenu
             kind="journal"
             total={data.entries.length}
@@ -1088,7 +1071,11 @@ function NewCard({ date, ctx, onAdd }: { date: string; ctx: Ctx; onAdd: (e: Entr
   }, [memo]);
 
   // 화면을 열면 구분 칸에 커서가 가 있어요. (시간은 지금 시각으로 채워져 있어요)
-  useEffect(() => kindRef.current?.focus(), []);
+  // 검색창 Esc·×로 검색을 지워 이 카드가 다시 나올 때는 커서를 검색창에 둬요(공통 규칙 · 검색, ✔8).
+  useEffect(() => {
+    if ((document.activeElement as HTMLElement | null)?.closest(".jn-search")) return;
+    kindRef.current?.focus();
+  }, []);
 
   // 시간을 직접 고치지 않았으면 지금 시각을 따라가요.
   useEffect(() => {

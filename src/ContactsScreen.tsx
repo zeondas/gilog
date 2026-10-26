@@ -16,6 +16,7 @@ import { PhoneInput } from "./PhoneInput";
 import { finalizePhone } from "./phone";
 import { api, Contact, ContactInput, ContactsData, errorText, Project, ProjectGroup } from "./api";
 import { AskBand } from "./AskBand";
+import { SearchBox } from "./SearchBox";
 
 // ---------- 메모 ----------
 // 메모 한 줄은 머릿기호 규칙(bullets.ts)의 줄 모양이에요. b 굵게, s 취소선, k 머릿기호 종류.
@@ -175,21 +176,15 @@ export default function ContactsScreen() {
         <button type="button" className="btn btn-ctrl btn-text tb-pop" onClick={() => setProjOpen(true)}>
           사업 관리
         </button>
-        <label className="search">
-          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <circle cx="11" cy="11" r="7" />
-            <path d="M20 20l-3.5-3.5" />
-          </svg>
-          <input
-            type="search"
-            aria-label="연락처 검색"
-            placeholder="이름, 소속, 번호 검색"
-            value={q}
-            onKeyDown={qGuard.onKeyDown}
-            onChange={qGuard.onChange}
-            onCompositionEnd={qGuard.onCompositionEnd}
-          />
-        </label>
+        <SearchBox
+          aria-label="연락처 검색"
+          placeholder="이름, 소속, 번호 검색"
+          value={q}
+          onClear={() => setQ("")}
+          onKeyDown={qGuard.onKeyDown}
+          onChange={qGuard.onChange}
+          onCompositionEnd={qGuard.onCompositionEnd}
+        />
         <ExcelMenu
           kind="contacts"
           total={all.length}
@@ -1498,26 +1493,16 @@ function ProjectDialog({
         </div>
         <DialogX onClick={onClose} />
         {/* 3안(2026-10-26 사용자, 시안 PjmHead): 찾기는 제목 아래 한 줄 전체 폭, [그룹 추가]는 그룹 칸 옆 [+] */}
-        <label className="search pjm-search">
-          <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <circle cx="11" cy="11" r="7" />
-            <path d="M20 20l-3.5-3.5" />
-          </svg>
-          <input
-            className="pjm-find"
-            aria-label="사업 찾기"
-            placeholder="사업명·공사명 찾기"
-            value={pq}
-            onChange={(e) => setPq(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Escape" && pq) {
-                e.preventDefault();
-                e.nativeEvent.stopImmediatePropagation();
-                setPq("");
-              }
-            }}
-          />
-        </label>
+        <SearchBox
+          className="pjm-search"
+          inputClassName="pjm-find"
+          iconSize={14}
+          aria-label="사업 찾기"
+          placeholder="사업명·공사명 찾기"
+          value={pq}
+          onChange={(e) => setPq(e.target.value)}
+          onClear={() => setPq("")}
+        />
         <div className="pjm-add">
           <div className="pjm-grp">
             <GroupInput groups={groups} value={draftGroup} onChange={setDraftGroup} onEnter={add} />

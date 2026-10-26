@@ -65,6 +65,7 @@ import { ListGroup } from "./SettingsScreen";
 import { DEFAULT_SETTINGS, DONE_STATUS, isAnswered, isClosed, loadSettings, saveSettings, Settings, STATUS_RENAME, statusColor } from "./settingsStore";
 import { AskBand } from "./AskBand";
 import { DateInput } from "./DateInput";
+import { SearchBox } from "./SearchBox";
 
 
 /**
@@ -328,21 +329,15 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
         <button type="button" className="btn btn-ctrl btn-text tb-pop" onClick={() => setCatsOpen(true)}>
           분류 관리
         </button>
-        <label className="search">
-          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <circle cx="11" cy="11" r="7" />
-            <path d="M20 20l-3.5-3.5" />
-          </svg>
-          <input
-            type="search"
-            aria-label="민원 검색"
-            placeholder="위치, 내용, 민원인 검색"
-            value={q}
-            onKeyDown={qGuard.onKeyDown}
-            onChange={qGuard.onChange}
-            onCompositionEnd={qGuard.onCompositionEnd}
-          />
-        </label>
+        <SearchBox
+          aria-label="민원 검색"
+          placeholder="위치, 내용, 민원인 검색"
+          value={q}
+          onClear={() => setQ("")}
+          onKeyDown={qGuard.onKeyDown}
+          onChange={qGuard.onChange}
+          onCompositionEnd={qGuard.onCompositionEnd}
+        />
         <ExcelMenu
           kind="complaints"
           total={all.length}
@@ -989,21 +984,18 @@ function FilterMenu({
         <span className="cm-fdd-sub">{sel === null ? "모두 보는 중" : `${sel.length}개 고름`}</span>
       </div>
       {k !== "status" && (
-        <label className="search cm-fdd-search">
-          <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <circle cx="11" cy="11" r="7" />
-            <path d="M20 20l-3.5-3.5" />
-          </svg>
-          <input
-            aria-label="값 찾기"
-            placeholder={k === "area" ? "읍면동 찾기" : "찾기"}
-            value={fq}
-            autoFocus
-            onKeyDown={guard.onKeyDown}
-            onChange={guard.onChange}
-            onCompositionEnd={guard.onCompositionEnd}
-          />
-        </label>
+        <SearchBox
+          className="cm-fdd-search"
+          iconSize={14}
+          aria-label="값 찾기"
+          placeholder={k === "area" ? "읍면동 찾기" : "찾기"}
+          value={fq}
+          autoFocus
+          onClear={() => setFq("")}
+          onKeyDown={guard.onKeyDown}
+          onChange={guard.onChange}
+          onCompositionEnd={guard.onCompositionEnd}
+        />
       )}
       <div className="cm-fdd-list" role="group" aria-label="값 목록">
         <button type="button" role="menuitemcheckbox" aria-checked={sel === null} className="cm-fdd-opt all" onClick={() => onChange(sel === null ? [] : null)}>
