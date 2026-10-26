@@ -12492,3 +12492,7 @@ button.del-btn:hover:not(:disabled) { filter: brightness(0.86); }
   overflow-x: auto;
   overflow-y: hidden;
 }
+
+/* 업무연락처 고치는 카드: 지우기는 왼쪽 아래(2026-10-26 사용자) – 붉은 단추 28(옆 취소·저장과 같은 높이·모서리), 안내 글을 사이에 두고 취소·저장과 떨어뜨려요. */
+.edit-foot .ct-trash { flex: none; margin-left: 0; }
+.ccard-edit .ask-band.ct-ask { margin-top: var(--space-1); }

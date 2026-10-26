@@ -58,6 +58,8 @@ async def c_contacts_band(p):
     assert await shown(p, ".ask-band"), "띠 안 열림"
     await press_out(p, (700, 800))
     assert not await shown(p, ".ask-band"), "바깥 눌러도 띠가 남음"
+    # 고치는 카드 안 띠 – 바깥을 누르면 띠가 접히며 고친 것은 저장(카드가 보기로 돌아감)
+    assert not await shown(p, ".ccard-edit"), "바깥 눌러도 고치는 카드가 남음"
 
 
 async def c_settings_band(p):
@@ -385,7 +387,7 @@ CASES = {
     "band_journal_edit": band_esc("업무일지", shoot.s_journal_edit_ask, ".ask-band", keep=".jcard-edit"),
     "band_complaints_edit": band_esc("민원대장", shoot.s_complaints_edit_ask, ".ask-band"),
     "band_calendar_event": band_esc("캘린더", shoot.s_calendar_event_ask, ".ask-band"),
-    "band_contacts_card": band_esc("업무연락처", shoot.s_contacts_card_ask, ".ask-band"),
+    "band_contacts_card": band_esc("업무연락처", shoot.s_contacts_card_ask, ".ask-band", keep=".ccard-edit"),
     "band_process_row": band_esc("민원처리", shoot.s_process_ask, ".ask-band"),
     "band_process_works": band_esc("민원처리", shoot.s_process_works_ask, ".ask-band", keep=".dialog.pr-works"),
     "band_budget": band_esc("집행현황", shoot.s_budget_confirm, ".ask-band"),
