@@ -774,10 +774,9 @@ export default function FilesScreen() {
     const t = activeTab(st.panes[pane]);
     if (t.find || isSpecial(t.path)) return;
     if (zipOrIn(t.path)) return flash(ZIP_RO);
-    const taken = new Set(lists[pane].entries.map((e) => e.name.toLowerCase()));
-    const name = taken.has("새 폴더") ? bothName("새 폴더", (n) => taken.has(n.toLowerCase())) : "새 폴더";
     try {
-      const p = await fsApi.mkdir(t.path, name);
+      const p = await mkdirFree(t.path, lists[pane].entries.map((e) => e.name));
+      const name = baseName(p);
       newDirRef.current = { path: p, h: recordMkdir(p) };
       await load(pane, t.path, true);
       setSel(pane, { paths: new Set([p]), cursor: p, anchor: p });
@@ -807,14 +806,15 @@ export default function FilesScreen() {
   /** 트리 줄 안에 새 폴더(이름을 먼저 물어요) */
   const treeNewFolder = (dir: string) =>
     setNameAsk({
-      title: "새 폴더",
-      value: "새 폴더",
+      title: NEW_DIR,
+      value: NEW_DIR,
       ok: async (v) => {
         setNameAsk(null);
         const name = tidyName(v);
         if (!name) return;
         try {
-          recordMkdir(await fsApi.mkdir(dir, name));
+          // 처음 값 "새 폴더" 그대로면 같은 이름이 있을 때 "새 폴더 (2)"처럼 비는 번호로
+          recordMkdir(name === NEW_DIR ? await mkdirFree(dir, []) : await fsApi.mkdir(dir, name));
           refreshAll();
         } catch (e) {
           flash(fsErrorText(e));
@@ -3113,6 +3113,24 @@ function dateParts(t: string) {
 
 /** 창 사이를 끌 때 창 하나가 줄어들 수 있는 끝(이름 열이 보일 만큼) */
 const PANE_MIN_W = 460;
+
+const NEW_DIR = "새 폴더";
+/** 새 폴더를 비는 이름으로 만들어요(2026-10-25 사용자: 같은 이름이 있으면 "새 폴더 (2)"·"(3)"…, 윈도우와 같은 꼴).
+    목록에 안 보이는 숨김·시스템 폴더나 아직 안 읽힌 이름과 겹쳐도 앱이 "있어요"라고 하면 다음 번호로 다시 해요. */
+async function mkdirFree(dir: string, names: string[]): Promise<string> {
+  const taken = new Set(names.map((n) => n.toLowerCase()));
+  let name = taken.has(NEW_DIR) ? bothName(NEW_DIR, (n) => taken.has(n.toLowerCase())) : NEW_DIR;
+  for (let i = 0; i < 200; i++) {
+    try {
+      return await fsApi.mkdir(dir, name);
+    } catch (e) {
+      if (String(e) !== "exists") throw e;
+      taken.add(name.toLowerCase());
+      name = bothName(NEW_DIR, (n) => taken.has(n.toLowerCase()));
+    }
+  }
+  throw "exists";
+}
 
 /** 세칸의 위아래 경계선은 짧은 칸 쪽에만 걸쳐요 */
 function ySplitSide(l: Layout, split: number): React.CSSProperties {
