@@ -1,5 +1,6 @@
 // 업무일지 화면이에요. 시안 Journal.dc.html과 사양서의 "업무일지" 절을 따라요.
 // 누가 언제 무슨 말을 했는지 남기는 곳이라, 손을 키보드에서 떼지 않고 한 건을 끝낼 수 있게 만들었어요.
+import { PopMenu } from "./PopMenu";
 import { KeyboardEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { DelGlyph } from "./Icons";
@@ -812,13 +813,6 @@ function DayMenu({
   onDelete: () => void;
 }) {
   const box = useRef<HTMLDivElement>(null);
-  useOutsideClose(true, [box], () => onClose(), {
-    onBlur: () => onClose(),
-    onEsc: (e) => {
-      e.preventDefault();
-      onClose();
-    },
-  });
   // 메뉴가 열리면 첫 항목(묻는 중이면 취소)에 커서를 둬요.
   useEffect(() => {
     box.current?.querySelector<HTMLButtonElement>(ask ? ".dmenu-ask .btn" : ".dmenu-item")?.focus();
@@ -826,9 +820,8 @@ function DayMenu({
 
   const [, m, d] = date.split("-").map(Number);
   const what = [count ? `기록 ${count}건` : "", head ? "출근·교통·날씨·비고" : ""].filter(Boolean).join("과 ");
-  const style = { left: Math.min(x, window.innerWidth - 300), top: Math.min(y, window.innerHeight - 160) };
   return (
-    <div ref={box} className="dmenu" role="menu" aria-label={`${m}월 ${d}일 메뉴`} style={style}>
+    <PopMenu boxRef={box} x={x} y={y} onClose={onClose} label={`${m}월 ${d}일 메뉴`}>
       {!ask ? (
         <>
           <button type="button" role="menuitem" className="dmenu-item" onClick={onOpen}>
@@ -851,7 +844,7 @@ function DayMenu({
           onYes={onDelete}
         />
       )}
-    </div>
+    </PopMenu>
   );
 }
 

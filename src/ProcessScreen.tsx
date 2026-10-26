@@ -1123,7 +1123,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
               </Floating>
             );
           return (
-            <Floating rect={menu.rect} align="right" onClose={close}>
+            <Floating rect={menu.rect} align="right" onClose={close} menu>
               <div className="dmenu pr-rowmenu" role="menu" aria-label="이 민원">
                 <p className="dmenu-note pr-rowmenu-note">
                   {`사진 ${c.photos.filter(isPath).length}장`}
@@ -1406,7 +1406,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
           const r = recipientOf(o);
           const why = !r.work?.contact ? "공사 관리에서 현장대리인을 골라 주세요" : !r.email ? "현장대리인 메일 주소가 없어요 – 업무연락처에서 넣어 주세요" : run || mailRun ? "Claude가 다른 일을 하고 있어요" : "";
           return (
-            <Floating rect={sendMenu.rect} align="right" onClose={() => setSendMenu(null)}>
+            <Floating rect={sendMenu.rect} align="right" onClose={() => setSendMenu(null)} menu>
               <div className="pr-menu pr-sendmenu" role="menu" aria-label="지시부 보내기">
                 <button type="button" role="menuitem" className="pr-sopt" disabled={!!why} onClick={() => openMail(o)}>
                   <MailIcon />
@@ -1535,7 +1535,7 @@ function HeadRow({
         </div>
       ))}
       {menu && (
-        <Floating rect={menu} align="left" onClose={() => setMenu(null)}>
+        <Floating rect={menu} align="left" onClose={() => setMenu(null)} menu>
           <div className="dmenu pr-hmenu" role="menu" aria-label="열 제목 메뉴">
             <button
               type="button"
@@ -1739,7 +1739,7 @@ function NoteCell({ value, disabled, onSave }: { value: string; disabled: boolea
 
 // ---------- 화면 기준으로 띄우는 상자 (표가 스크롤돼도 잘리지 않게) ----------
 
-function Floating({ rect, align, onClose, children }: { rect: DOMRect; align: "left" | "right"; onClose: () => void; children: ReactNode }) {
+function Floating({ rect, align, onClose, menu, children }: { rect: DOMRect; align: "left" | "right"; onClose: () => void; /** 떠 있는 메뉴(✔5): 앱 창 밖으로 가면 닫혀요 */ menu?: boolean; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<CSSProperties>({ visibility: "hidden" });
   useLayoutEffect(() => {
@@ -1753,7 +1753,17 @@ function Floating({ rect, align, onClose, children }: { rect: DOMRect; align: "l
     setPos({ top: Math.round(top), left: Math.round(Math.max(8, Math.min(left, window.innerWidth - w - 8))) });
   }, [rect, align]);
   // 띄운 그 누르기가 바로 닫지 않게 한 박자 뒤에 들어요.
-  useOutsideClose(true, [ref], () => onClose(), { on: "window", defer: true });
+  // Esc도 닫아요(떠 있는 메뉴 공통 규칙 ✔5 – 열 제목 메뉴는 Esc가 없었어요).
+  useOutsideClose(true, [ref], () => onClose(), {
+    on: "window",
+    defer: true,
+    onBlur: menu ? () => onClose() : undefined,
+    onEsc: (e) => {
+      if (e.isComposing) return;
+      e.preventDefault();
+      onClose();
+    },
+  });
   // 화면 맨 위(body)에 띄워요 – 가운데 뜨는 창(.overlay) 안에 두면 창 자리 맞추기(snap.ts)가 이 상자까지 옮겨 화면 밖으로 밀려났어요(2026-10-19 공사 지우기 버그).
   return createPortal(
     <div ref={ref} className="pr-float" style={pos} onClick={(e) => e.stopPropagation()}>

@@ -4,6 +4,7 @@
 // - 항목을 한 번 누르면 골라지고 세부정보가 펼쳐져요. 두 번 누르면(또는 골라 둔 채 Enter) 고쳐요. 삭제는 "지울까요?"를 물어요.
 // - "민원" 카드에는 민원대장의 민원(마감일 있는 것)이 함께 보여요. 따로 저장하지 않고 민원을 그대로 읽어요.
 //   체크하면 민원대장의 상태가 완료로 바뀌고, 체크를 풀면 그 전 상태로 돌아가요. 제목·마감일은 민원대장에서만 고쳐요.
+import { PopMenu } from "./PopMenu";
 import { KeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DelGlyph } from "./Icons";
 import { isInside, useOutsideClose } from "./useOutsideClose";
@@ -555,21 +556,14 @@ function ListMenu({
 }) {
   const box = useRef<HTMLDivElement>(null);
   const [name, setName] = useState(list.name);
-  useOutsideClose(true, [box], () => onClose(), {
-    onEsc: (e) => {
-      e.preventDefault();
-      onClose();
-    },
-  });
   useEffect(() => {
     const el = box.current?.querySelector<HTMLElement>(mode === "rename" ? "input" : mode === "ask" ? ".dmenu-ask .btn" : ".dmenu-item:not(:disabled)");
     el?.focus();
     if (el instanceof HTMLInputElement) el.select();
   }, [mode]);
 
-  const style = { left: Math.min(x, window.innerWidth - 300), top: Math.min(y, window.innerHeight - 200) };
   return (
-    <div ref={box} className="dmenu" role="menu" aria-label={`${list.name} 목록 메뉴`} style={style}>
+    <PopMenu boxRef={box} x={x} y={y} onClose={onClose} label={`${list.name} 목록 메뉴`}>
       {mode === "menu" && (
         <>
           {!deleteOnly && (
@@ -625,7 +619,7 @@ function ListMenu({
           onYes={onDelete}
         />
       )}
-    </div>
+    </PopMenu>
   );
 }
 

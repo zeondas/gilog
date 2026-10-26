@@ -1,5 +1,6 @@
 // 업무연락처 화면이에요. 시안 Contacts.dc.html과 사양서의 "업무연락처" 절을 따라요.
-import { KeyboardEvent, MutableRefObject, RefObject, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { PopMenu } from "./PopMenu";
+import { KeyboardEvent, MutableRefObject, RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ExcelMenu } from "./ExcelMenu";
 import { ProjectImport, contactImports, contactRows, samePerson } from "./excel";
 import { DelGlyph, DelMark } from "./Icons";
@@ -1294,12 +1295,7 @@ function PjMenu({
   const ref = useRef<HTMLDivElement>(null);
   const subBtn = useRef<HTMLButtonElement>(null);
   const [sub, setSub] = useState(false);
-  const [pos, setPos] = useState({ x, y });
-  useLayoutEffect(() => {
-    const r = ref.current?.getBoundingClientRect();
-    if (!r) return;
-    setPos({ x: Math.min(x, window.innerWidth - r.width - 8), y: Math.min(y, window.innerHeight - r.height - 8) });
-  }, [x, y]);
+  // 바깥 누르기·창 밖은 PopMenu가, Esc는 여기서(하위 메뉴가 열려 있으면 하위만 닫아요).
   useOutsideClose(true, [ref], () => onClose(), {
     escCapture: true,
     onEsc: (e) => {
@@ -1317,9 +1313,9 @@ function PjMenu({
   };
   const opts: { id: number | null; name: string }[] = [...groups.map((g) => ({ id: g.id, name: g.name })), { id: null, name: "그룹 없음" }];
   // 하위 메뉴가 화면 오른쪽에 걸리면 왼쪽으로 열어요.
-  const left = pos.x + 160 + 4 + 200 > window.innerWidth;
+  const left = sub && (ref.current?.getBoundingClientRect().right ?? 0) + 4 + 200 > window.innerWidth;
   return (
-    <div ref={ref} className="dmenu pjm-menu" role="menu" style={{ position: "fixed", left: pos.x, top: pos.y }} onContextMenu={(e) => e.preventDefault()}>
+    <PopMenu boxRef={ref} x={x} y={y} onClose={onClose} esc={false} className="dmenu pjm-menu">
       <button type="button" role="menuitem" className="dmenu-item" autoFocus onMouseEnter={() => setSub(false)} onClick={pick(onEdit)}>
         수정
       </button>
@@ -1377,7 +1373,7 @@ function PjMenu({
           {groups.length === 0 && <p className="dmenu-note">그룹은 위 그룹 칸에 이름을 적어 만들어요.</p>}
         </div>
       )}
-    </div>
+    </PopMenu>
   );
 }
 
@@ -1887,7 +1883,7 @@ function CtxMenu({ x, y, items, onClose }: { x: number; y: number; items: { labe
     },
   });
   return (
-    <div ref={ref} className="dmenu" role="menu" style={{ position: "fixed", left: x, top: y }}>
+    <PopMenu boxRef={ref} x={x} y={y} onClose={onClose} esc={false}>
       {items.map((it) => (
         <button
           key={it.label}
@@ -1903,7 +1899,7 @@ function CtxMenu({ x, y, items, onClose }: { x: number; y: number; items: { labe
           {it.label}
         </button>
       ))}
-    </div>
+    </PopMenu>
   );
 }
 
