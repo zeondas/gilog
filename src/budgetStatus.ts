@@ -37,9 +37,11 @@ export type Setup = {
   rows: Record<string, Manual>; // "2025:시비" → 직접 적은 값
   memo?: string; // 메모(메모 편집기 HTML)
   sent?: boolean; // 집행현황에서 "예산현황으로 보내기"를 한 사업만 예산현황에 보여요(2026-10-20 사용자 2안)
-  /** 공사별 재원(재원이 둘 이상일 때, 2026-10-20 사용자 1안): "해:공사 번호" → 재원 이름(통째로) 또는 { 재원: 금액 }(계약금액을 나눈 것 – 집행액은 그 비율대로).
-   *  안 고른 공사는 첫 재원으로 들어가요. */
+  /** 공사별 재원(재원이 둘 이상일 때, 2026-10-20 사용자 1안): "해:공사 uid" → 재원 이름(통째로) 또는 { 재원: 금액 }(계약금액을 나눈 것 – 집행액은 그 비율대로).
+   *  안 고른 공사는 첫 재원으로 들어가요. 옛 자료의 "해:공사 번호"(숫자)는 core가 읽을 때 uid로 옮겨요(2026-10-26 연동 세션). */
   split?: Record<string, string | Record<string, number>>;
+  /** 이 사업의 집행현황 세부사업 줄 uid(해마다 하나) — 팀 공유로 이름이 바뀌어도 설정이 따라가게 core가 써요(2026-10-26 연동 세션) */
+  uids?: string[];
 };
 
 export const defaultSetup = (years: number[]): Setup => ({ multi: false, from: Math.min(...years), to: Math.max(...years), sources: ["시비"], carry: "", carrySrc: "", rows: {} });
@@ -52,12 +54,15 @@ export function linkedOf(projects: BudgetProject[], name: string): Linked | null
   const exp = p.items.flatMap((i) => i.rows).reduce((s, r) => s + r.exp, 0);
   return { budget: p.budget ?? 0, exp };
 }
+/** 공사별 재원 값 찾기: uid 키 먼저, 옛 숫자 키(공사 번호)는 예비로 */
+export const splitOf = (setup: Setup, year: number, row: { id: number; uid?: string }) =>
+  (row.uid ? setup.split?.[`${year}:${row.uid}`] : undefined) ?? setup.split?.[`${year}:${row.id}`];
 /** 공사 한 줄의 집행액을 재원별로 나눠요(재원이 둘 이상일 때). 통째로면 그 재원, 나눔이면 적은 금액 비율(마지막 재원이 나머지 – 합이 십원 단위로 맞게), 안 골랐으면 첫 재원 */
-export function rowShares(row: { id: number; exp: number }, setup: Setup, year: number): Record<string, number> {
+export function rowShares(row: { id: number; uid?: string; exp: number }, setup: Setup, year: number): Record<string, number> {
   const out: Record<string, number> = {};
   for (const s of setup.sources) out[s] = 0;
   const first = setup.sources[0];
-  const spec = setup.split?.[`${year}:${row.id}`];
+  const spec = splitOf(setup, year, row);
   if (spec == null || typeof spec === "string") {
     out[typeof spec === "string" && spec in out ? spec : first] = row.exp;
     return out;
@@ -87,8 +92,14 @@ export function splitExp(projects: BudgetProject[], name: string, setup: Setup, 
 export function unsplitCount(p: BudgetProject | null, setup: Setup, year: number): number {
   if (!p) return 0;
   let n = 0;
-  for (const it of p.items) for (const r of it.rows) if (setup.split?.[`${year}:${r.id}`] == null) n++;
+  for (const it of p.items) for (const r of it.rows) if (splitOf(setup, year, r) == null) n++;
   return n;
+}
+/** 이어 붙인 이월 사업의 짝 이름: "(명시이월) X" ↔ "(사고이월) X" — 사고분까지 함께 잇게(2026-10-26 연동 세션) */
+export function carryPair(carry: string): { m: string; s: string } {
+  if (/^\(명시이월\)/.test(carry)) return { m: carry, s: carry.replace(/^\(명시이월\)/, "(사고이월)") };
+  if (/^\(사고이월\)/.test(carry)) return { m: carry.replace(/^\(사고이월\)/, "(명시이월)"), s: carry };
+  return { m: carry, s: "" };
 }
 
 /** 한 줄(연도×재원 또는 합계)의 계산 결과 */
@@ -118,11 +129,14 @@ export function compute(name: string, setup: Setup, byYear: Record<number, Budge
   const prevLeft: Record<string, { nm: number; ns: number } | null> = {};
   // 이 세부사업 자체가 집행현황의 이월 세부사업이면(잇지 않은 것) 그 예산·집행은 명시/사고 칸으로
   const selfCarry = /^\(명시이월\)/.test(name) ? "m" : /^\(사고이월\)/.test(name) ? "s" : null;
+  const pair = setup.carry ? carryPair(setup.carry) : { m: "", s: "" };
   for (const y of years) {
     const projs = byYear[y] ?? [];
     const main = linkedOf(projs, name);
-    const carry = setup.carry ? linkedOf(projs, setup.carry) : null;
-    const linked = main != null || carry != null;
+    // 이어 붙인 이월 사업: 명시분과 그 짝(사고분)을 해마다 함께 찾아요
+    const lkM = pair.m ? linkedOf(projs, pair.m) : null;
+    const lkS = pair.s && pair.s !== pair.m ? linkedOf(projs, pair.s) : null;
+    const linked = main != null || lkM != null || lkS != null;
     const one = setup.sources.length === 1;
     const bySrc: Record<string, Line> = {};
     for (const s of setup.sources) {
@@ -135,14 +149,17 @@ export function compute(name: string, setup: Setup, byYear: Record<number, Budge
       const cur = auto ? auto.budget : z(m.cur);
       const en = auto ? auto.exp : splitEn != null ? splitEn : z(m.en);
       const pl = prevLeft[s];
-      const mine = carry != null && (one || s === (setup.carrySrc || setup.sources[0]));
-      // 이어 붙인 이월 사업이 "(사고이월)"이면 사고 칸으로, 아니면 명시 칸으로
-      const mineM = mine && !/^\(사고이월\)/.test(setup.carry) ? carry : null;
-      const mineS = mine && /^\(사고이월\)/.test(setup.carry) ? carry : null;
+      // 재원이 둘 이상이면 이월 사업 집행도 공사별 재원대로 나누고, 전년도 이월은 앞 해의
+      // 다음연도 이월(재원별)에서 이어받아요 — 이월 전액이 한 재원에 몰리지 않게(2026-10-26 연동 세션, 2안).
+      const exM = !one && lkM ? splitExp(projs, pair.m, setup, y, s) : null;
+      const exS = !one && lkS ? splitExp(projs, pair.s, setup, y, s) : null;
+      // 재원이 하나면 이월 사업의 예산·집행이 그대로 명시/사고 칸이에요
+      const mineM = one ? lkM : null;
+      const mineS = one ? lkS : null;
       const pm = mineM ? mineM.budget : autoM ? autoM.budget : pl ? pl.nm : z(m.pm);
       const ps = mineS ? mineS.budget : autoS ? autoS.budget : pl ? pl.ns : z(m.ps);
-      const em = mineM ? mineM.exp : autoM ? autoM.exp : z(m.em);
-      const es = mineS ? mineS.exp : autoS ? autoS.exp : z(m.es);
+      const em = mineM ? mineM.exp : autoM ? autoM.exp : exM != null ? exM : z(m.em);
+      const es = mineS ? mineS.exp : autoS ? autoS.exp : exS != null ? exS : z(m.es);
       const a = [z(m.a1), z(m.a2), z(m.a3), z(m.a4)];
       const curSum = cur + a[0] + a[1] + a[2] + a[3];
       const prev = pm + ps;

@@ -7,7 +7,11 @@ use crate::{code, with_store, AppState};
 
 #[tauri::command]
 pub fn bstatus_list(state: State<AppState>) -> Result<Vec<BStatusSetup>, String> {
-    with_store(&state, |s| s.bstatus_list())
+    // 읽기 전에 이름·공사 번호를 uid로 맞춰요(집행현황에서 이름이 바뀌어도 설정이 따라가게)
+    with_store(&state, |s| {
+        s.bstatus_sync()?;
+        s.bstatus_list()
+    })
 }
 
 #[tauri::command]

@@ -53,6 +53,119 @@ impl Store {
         self.conn.execute("UPDATE OR REPLACE bstatus SET name = ?2 WHERE name = ?1", params![from, to])?;
         Ok(())
     }
+
+    /// 이름이 바뀌어도 설정이 따라가게 — 읽기 전에 한 번 맞춰요(2026-10-26 집행·예산 연동 세션).
+    /// - 설정 JSON의 `uids`(그 사업의 집행현황 세부사업 줄 uid, 해마다 하나)로 지금 이름을 찾아 키가 다르면 키를 옮겨요.
+    /// - `uids`가 없는 옛 설정은 키와 같은 이름의 세부사업 uid들을 채워 넣어요(옛 이름 키 옮기기의 시작점).
+    /// - `split`의 "해:공사 번호"(숫자 — PC마다 다름)는 "해:공사 uid"로 옮겨요.
+    /// - 무언가를 바꾸기 전, kv `bstatus.backup`에 바꾸기 전 전체를 한 번만 남겨요(옮기다 잘못되어도 되살리게).
+    pub fn bstatus_sync(&self) -> Result<()> {
+        let rows = self.bstatus_list()?;
+        let mut changes: Vec<(String, Option<String>, String)> = Vec::new(); // (옛 키, 새 키, 새 setup)
+        for r in &rows {
+            let Ok(mut v) = serde_json::from_str::<serde_json::Value>(&r.setup) else { continue };
+            if !v.is_object() {
+                continue;
+            }
+            let mut dirty = false;
+            // 1) uids 채우기(옛 설정): 키와 같은 이름의 세부사업 줄(해마다)
+            let mut uids: Vec<String> = v
+                .get("uids")
+                .and_then(|x| x.as_array())
+                .map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect())
+                .unwrap_or_default();
+            if uids.is_empty() {
+                let mut st = self.conn.prepare("SELECT uid FROM budget_projects WHERE name = ?1 ORDER BY year")?;
+                let found = st.query_map(params![r.name], |x| x.get::<_, String>(0))?;
+                uids = found.collect::<std::result::Result<Vec<_>, _>>()?;
+                if !uids.is_empty() {
+                    dirty = true;
+                }
+            }
+            // 2) 지금 이름 찾기(가장 최근 해 기준) → 키 옮기기
+            let mut new_key: Option<String> = None;
+            if !uids.is_empty() {
+                let marks = vec!["?"; uids.len()].join(",");
+                let sql = format!("SELECT name FROM budget_projects WHERE uid IN ({marks}) ORDER BY year DESC LIMIT 1");
+                let mut st = self.conn.prepare(&sql)?;
+                let cur: Option<String> = st
+                    .query_map(rusqlite::params_from_iter(uids.iter()), |x| x.get::<_, String>(0))?
+                    .next()
+                    .transpose()?;
+                if let Some(cur) = cur {
+                    if cur != r.name {
+                        new_key = Some(cur.clone());
+                    }
+                    // 같은 이름으로 새 해 줄이 생겼으면 uid 목록에 더해요
+                    let name_now = new_key.as_deref().unwrap_or(&r.name);
+                    let mut st = self.conn.prepare("SELECT uid FROM budget_projects WHERE name = ?1 ORDER BY year")?;
+                    let all: Vec<String> = st
+                        .query_map(params![name_now], |x| x.get::<_, String>(0))?
+                        .collect::<std::result::Result<Vec<_>, _>>()?;
+                    for u in all {
+                        if !uids.contains(&u) {
+                            uids.push(u);
+                            dirty = true;
+                        }
+                    }
+                }
+            }
+            if dirty || v.get("uids").is_none() && !uids.is_empty() {
+                v["uids"] = serde_json::json!(uids);
+                dirty = true;
+            }
+            // 3) split "해:공사 번호" → "해:공사 uid"
+            if let Some(split) = v.get_mut("split").and_then(|x| x.as_object_mut()) {
+                let keys: Vec<String> = split.keys().cloned().collect();
+                for k in keys {
+                    let Some((year, id_part)) = k.split_once(':') else { continue };
+                    if id_part.is_empty() || !id_part.bytes().all(|b| b.is_ascii_digit()) {
+                        continue; // 이미 uid
+                    }
+                    let Ok(rid) = id_part.parse::<i64>() else { continue };
+                    let uid: Option<String> = self
+                        .conn
+                        .query_row("SELECT uid FROM budget_rows WHERE id = ?1", params![rid], |x| x.get(0))
+                        .map(Some)
+                        .or_else(|e| if e == rusqlite::Error::QueryReturnedNoRows { Ok(None) } else { Err(e) })?;
+                    if let Some(uid) = uid {
+                        if let Some(val) = split.remove(&k) {
+                            split.insert(format!("{year}:{uid}"), val);
+                            dirty = true;
+                        }
+                    }
+                }
+            }
+            if dirty || new_key.is_some() {
+                changes.push((r.name.clone(), new_key, serde_json::to_string(&v).map_err(|e| Error::Invalid(e.to_string()))?));
+            }
+        }
+        if changes.is_empty() {
+            return Ok(());
+        }
+        // 바꾸기 전 백업(한 번만)
+        if self.get("bstatus.backup")?.is_none() {
+            let backup = serde_json::to_string(&rows).map_err(|e| Error::Invalid(e.to_string()))?;
+            self.set("bstatus.backup", &backup)?;
+        }
+        for (old, new_key, setup) in changes {
+            match new_key {
+                Some(nk) => {
+                    // 옮길 자리에 이미 다른 설정이 있으면 키는 두고 내용만 고쳐요(지워 보이는 일이 없게)
+                    let exists: bool = self.conn.prepare("SELECT 1 FROM bstatus WHERE name = ?1")?.exists(params![&nk])?;
+                    if exists {
+                        self.conn.execute("UPDATE bstatus SET setup = ?2 WHERE name = ?1", params![old, setup])?;
+                    } else {
+                        self.conn.execute("UPDATE bstatus SET name = ?2, setup = ?3 WHERE name = ?1", params![old, nk, setup])?;
+                    }
+                }
+                None => {
+                    self.conn.execute("UPDATE bstatus SET setup = ?2 WHERE name = ?1", params![old, setup])?;
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 // ---------- 엑셀 ----------
@@ -249,6 +362,39 @@ mod tests {
         assert!(s.bstatus_set("  ", "{}").is_err());
         s.bstatus_rename("도로포장", "도로포장 유지관리").unwrap();
         assert!(s.bstatus_list().unwrap().iter().any(|x| x.name == "도로포장 유지관리"));
+    }
+
+    #[test]
+    fn sync_follows_rename_and_maps_row_ids() {
+        use crate::BudgetRowInput;
+        let dir = tempfile::tempdir().unwrap();
+        let mut s = Store::create(dir.path(), "1234").unwrap();
+        s.save_budget_project(2026, None, None, "시도1호선 포장", Some(1_000_000)).unwrap();
+        let p = s.budget_data(2026).unwrap().remove(0);
+        s.save_budget_item(p.id, None, "공사", None).unwrap();
+        let item = s.budget_data(2026).unwrap().remove(0).items.remove(0);
+        let input = BudgetRowInput { name: "1차 포장".into(), kind: "공사".into(), co: "".into(), cmt: 500_000, exp: 500_000, act: 0, stage: "완료".into() };
+        let (_, rid) = s.save_budget_row(item.id, None, &input).unwrap();
+        let ruid = s.budget_data(2026).unwrap().remove(0).items.remove(0).rows.remove(0).uid;
+        // 옛 설정: uids 없음 + split이 공사 번호(숫자)
+        s.bstatus_set("시도1호선 포장", &format!(r#"{{"multi":false,"split":{{"2026:{rid}":{{"국비":100000}}}}}}"#)).unwrap();
+        s.bstatus_sync().unwrap();
+        let l = s.bstatus_list().unwrap();
+        let v: serde_json::Value = serde_json::from_str(&l[0].setup).unwrap();
+        assert_eq!(v["uids"][0].as_str().unwrap(), p.uid, "옛 이름 키에 uid가 채워져요");
+        assert!(v["split"].get(format!("2026:{ruid}")).is_some(), "공사 번호가 uid로 옮겨져요");
+        assert!(v["split"].get(format!("2026:{rid}")).is_none());
+        // 백업이 남아요
+        assert!(s.get("bstatus.backup").unwrap().is_some());
+        // 이름을 바꿔도 설정이 따라가요
+        s.save_budget_project(2026, Some(p.id), None, "시도1호선(구간 변경) 포장", Some(1_000_000)).unwrap();
+        s.bstatus_sync().unwrap();
+        let l = s.bstatus_list().unwrap();
+        assert_eq!(l.len(), 1);
+        assert_eq!(l[0].name, "시도1호선(구간 변경) 포장");
+        // 한 번 더 돌려도 그대로(멱등)
+        s.bstatus_sync().unwrap();
+        assert_eq!(s.bstatus_list().unwrap()[0].name, "시도1호선(구간 변경) 포장");
     }
 
     #[test]

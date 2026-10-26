@@ -9,8 +9,8 @@
 // 창 폭은 재원 수만큼 넓어져요(재원 2 → 1040, 하나 더마다 +124, 화면 폭 −80까지). 보낸 사업만 예산현황에 보여요 – "예산현황에서 빼기"로 되돌려요.
 import { useEffect, useState, type MouseEvent as RMouseEvent } from "react";
 import { api } from "./api";
-import { BudgetProject } from "./budget";
-import { defaultSetup, isCarryName, Manual, rowShares, Setup, SOURCES } from "./budgetStatus";
+import { BudgetProject, KINDS, typing } from "./budget";
+import { defaultSetup, isCarryName, Manual, rowShares, Setup, SOURCES, splitOf } from "./budgetStatus";
 import { overlayDown } from "./useOutsideClose";
 
 const X = "M6 6l12 12M18 6L6 18";
@@ -67,23 +67,24 @@ export function BudgetStatusSend({
   onAttach,
   onRemove,
   onClose,
+  onYearData,
 }: {
   target: SendTarget;
   /** 이미 보낸 설정(없으면 처음 값) */
   setup: Setup | null;
   onSave: (s: Setup) => void;
-  /** 이월 세부사업을 기존 사업에 잇기: 부모 이름·재원 */
+  /** 이월 세부사업을 기존 사업에 잇기: 부모 이름·재원(지금은 "" — 집행이 공사별 재원대로 나뉘어요) */
   onAttach: (parent: string, src: string) => void;
   onRemove: (() => void) | null;
   onClose: () => void;
+  /** [공사 추가]로 집행현황이 바뀌면 부모 화면에 알려요(그 해 전체 자료) */
+  onYearData?: (year: number, data: BudgetProject[]) => void;
 }) {
   const carry = isCarryName(target.name);
   const [s, setS] = useState<Setup>(() => setup ?? defaultSetup(target.years.length ? target.years : [new Date().getFullYear()]));
   const [mode, setMode] = useState<"new" | "attach">(carry && !setup ? "attach" : "new");
   const [parent, setParent] = useState(target.parents[0]?.name ?? "");
   const [other, setOther] = useState("");
-  const [parentSrc, setParentSrc] = useState("");
-  const parentSetup = target.parents.find((p) => p.name === parent)?.setup;
   const multi = s.sources.length > 1;
   const attaching = carry && mode === "attach";
 
@@ -91,7 +92,7 @@ export function BudgetStatusSend({
   const [year, setYear] = useState(target.year);
   const years = s.multi ? Array.from({ length: Math.max(0, s.to - s.from + 1) }, (_, i) => s.from + i) : [...new Set([...target.years, target.year])].sort();
   const [extra, setExtra] = useState<Record<number, BudgetProject[]>>({});
-  const projs = target.byYear[year] ?? extra[year];
+  const projs = extra[year] ?? target.byYear[year];
   useEffect(() => {
     if (projs) return;
     let on = true;
@@ -104,8 +105,11 @@ export function BudgetStatusSend({
     };
   }, [year, projs]);
   const project = projs?.find((p) => p.name === target.name) ?? null;
-  const rows = project ? project.items.flatMap((it) => it.rows.map((r) => ({ ...r, item: it.name }))) : [];
-  const mainBudget = project?.budget ?? 0;
+  // (시안 프로토타입 2026-10-25) 그 해에 사업이 이월 세부사업("(명시이월) …")으로만 있으면 그 공사들로 재원을 나눠요
+  const carryPj = !project && s.carry ? projs?.find((p) => p.name === s.carry) ?? null : null;
+  const eff = project ?? carryPj;
+  const rows = eff ? eff.items.flatMap((it) => it.rows.map((r) => ({ ...r, item: it.name }))) : [];
+  const mainBudget = eff?.budget ?? 0;
   const mainExp = rows.reduce((a, r) => a + r.exp, 0);
 
   // ---------- 열 폭(공사별 재원 표) ----------
@@ -150,15 +154,19 @@ export function BudgetStatusSend({
   };
   const curSum = s.sources.reduce((a, x) => a + curOf(x), 0);
   const curDiff = project ? curSum - mainBudget : 0;
-  const specOf = (id: number, cmt: number): Record<string, number> | null => {
-    const v = s.split?.[`${year}:${id}`];
+  // 공사별 재원은 공사 uid로 저장해요(공사 번호는 PC마다 달라요 — 옛 숫자 키는 읽기 예비, 2026-10-26 연동 세션)
+  const specOf = (r: { id: number; uid?: string }, cmt: number): Record<string, number> | null => {
+    const v = splitOf(s, year, r);
     if (v == null) return null;
     if (typeof v === "string") return { [v]: cmt };
     return v;
   };
-  const setCell = (id: number, cmt: number, src: string, v: number) => {
-    const spec = { ...(specOf(id, cmt) ?? {}), [src]: v };
-    setS({ ...s, split: { ...(s.split ?? {}), [`${year}:${id}`]: spec } });
+  const setCell = (r: { id: number; uid?: string }, cmt: number, src: string, v: number) => {
+    const spec = { ...(specOf(r, cmt) ?? {}), [src]: v };
+    const next = { ...(s.split ?? {}) };
+    if (r.uid) delete next[`${year}:${r.id}`];
+    next[`${year}:${r.uid || r.id}`] = spec;
+    setS({ ...s, split: next });
   };
   const sumOf = (spec: Record<string, number> | null) => s.sources.reduce((a, x) => a + (spec?.[x] ?? 0), 0);
   const expBySrc: Record<string, number> = {};
@@ -168,18 +176,18 @@ export function BudgetStatusSend({
     for (const x of s.sources) expBySrc[x] += sh[x] ?? 0;
   }
   const cmtBySrc: Record<string, number> = {};
-  for (const x of s.sources) cmtBySrc[x] = rows.reduce((a, r) => a + (specOf(r.id, r.cmt)?.[x] ?? 0), 0);
+  for (const x of s.sources) cmtBySrc[x] = rows.reduce((a, r) => a + (specOf(r, r.cmt)?.[x] ?? 0), 0);
   const cmtSum = rows.reduce((a, r) => a + r.cmt, 0);
   const restSum = rows.reduce((a, r) => {
-    const sp = specOf(r.id, r.cmt);
+    const sp = specOf(r, r.cmt);
     return a + (sp ? r.cmt - sumOf(sp) : 0);
   }, 0);
   const badRows = rows.filter((r) => {
-    const sp = specOf(r.id, r.cmt);
+    const sp = specOf(r, r.cmt);
     return sp != null && sumOf(sp) !== r.cmt;
   }).length;
   const badCount = (project && curDiff !== 0 ? 1 : 0) + badRows;
-  const unsplit = rows.filter((r) => specOf(r.id, r.cmt) == null).length;
+  const unsplit = rows.filter((r) => specOf(r, r.cmt) == null).length;
 
   // 연도 칸: 치는 동안은 글자 그대로 두고(지우다 세 자리가 되면 바로 막혀 "안 고쳐지는" 문제 – 2026-10-20 사용자), 떠날 때 네 자리면 반영
   const [yrText, setYrText] = useState<{ from: string; to: string }>({ from: String(s.from), to: String(s.to) });
@@ -227,10 +235,53 @@ export function BudgetStatusSend({
   const save = () => {
     if (attaching) {
       if (!parent) return;
-      onAttach(parent, parentSrc || parentSetup?.sources[0] || "");
+      onAttach(parent, "");
       return;
     }
-    onSave({ ...s, sent: true });
+    // 이 사업의 집행현황 줄 uid를 함께 저장해요 — 이름이 바뀌어도 설정이 따라가게(2026-10-26 연동 세션)
+    const uids = new Set(s.uids ?? []);
+    for (const y of years) {
+      const p = (extra[y] ?? target.byYear[y])?.find((x) => x.name === target.name);
+      if (p) uids.add(p.uid);
+    }
+    onSave({ ...s, uids: [...uids], sent: true });
+  };
+
+  // ---------- [공사 추가] — 과거 해 등 집행현황에 없는 공사를 여기서 바로 등록해요(2026-10-26 사용자 2.) ----------
+  const [adding, setAdding] = useState(false);
+  const [addF, setAddF] = useState({ name: "", kind: "공사", cmt: "", exp: "" });
+  const [busy, setBusy] = useState(false);
+  const addRow = async () => {
+    const nm = addF.name.trim();
+    const won10 = (t: string) => Math.round((Number(t.replace(/\D/g, "")) || 0) / 10) * 10;
+    if (!nm || busy) return;
+    setBusy(true);
+    try {
+      let data = projs ?? (await api.budgetData(year));
+      // 본사업이 있으면 거기, 이월분 해면 이어 붙인 이월 사업에, 둘 다 없으면 본사업을 새로 만들어요(집행현황에 진짜로 등록 — 사용자 1안)
+      let pj = data.find((p) => p.name === target.name) ?? (s.carry ? data.find((p) => p.name === s.carry) : undefined) ?? null;
+      if (!pj) {
+        data = await api.saveBudgetProject(year, null, null, target.name, null);
+        pj = data.find((p) => p.name === target.name) ?? null;
+      }
+      if (!pj) return;
+      let item = pj.items[0];
+      if (!item) {
+        data = await api.saveBudgetItem(pj.id, null, "공사", null);
+        const again = data.find((x) => x.id === pj.id);
+        item = again?.items[0] ?? item;
+      }
+      if (!item) return;
+      const [after] = await api.saveBudgetRow(item.id, null, { name: nm, kind: addF.kind, co: "", cmt: won10(addF.cmt), exp: won10(addF.exp), act: 0, stage: "완료" });
+      setExtra((o) => ({ ...o, [year]: after }));
+      onYearData?.(year, after);
+      setAddF({ name: "", kind: "공사", cmt: "", exp: "" });
+      setAdding(false);
+    } catch {
+      /* 저장 실패 — 칸은 그대로 남아요 */
+    } finally {
+      setBusy(false);
+    }
   };
 
   // 창 폭: 재원 수만큼(화면 폭 −80까지)
@@ -255,15 +306,8 @@ export function BudgetStatusSend({
             <option key={p.name} value={p.name}>{p.name}</option>
           ))}
         </select>
-        {parentSetup && parentSetup.sources.length > 1 && (
-          <select className="fld bd-in" aria-label="들어갈 재원" value={parentSrc || parentSetup.sources[0]} onChange={(e) => setParentSrc(e.target.value)}>
-            {parentSetup.sources.map((x) => (
-              <option key={x} value={x}>{x} 줄로</option>
-            ))}
-          </select>
-        )}
       </div>
-      <div className="bss2-hint">이 세부사업의 예산은 그 사업의 전년도 이월({/^\(사고/.test(target.name) ? "사고" : "명시"}), 집행액은 집행({/^\(사고/.test(target.name) ? "사고" : "명시"}) 칸으로 들어가요.</div>
+      <div className="bss2-hint">이 세부사업의 집행액은 그 사업의 집행({/^\(사고/.test(target.name) ? "사고" : "명시"}) 칸으로 들어가요. 그 사업의 재원이 둘 이상이면 공사별 재원대로 나뉘어요.</div>
     </>
   ) : (
     <>
@@ -341,13 +385,7 @@ export function BudgetStatusSend({
               </option>
             ))}
           </select>
-          {s.carry && multi && (
-            <select className="fld bd-in" aria-label="이월 사업 값이 들어갈 재원" value={s.carrySrc || s.sources[0]} onChange={(e) => setS({ ...s, carrySrc: e.target.value })}>
-              {s.sources.map((x) => (
-                <option key={x} value={x}>{x} 줄로</option>
-              ))}
-            </select>
-          )}
+          {s.carry && multi && <div className="bss2-hint">이월분 집행도 공사별 재원대로 나뉘어요 – 전년도 이월은 앞 해의 다음연도 이월(재원별)에서 이어져요.</div>}
         </div>
       )}
       {!multi && <div className="bss2-hint">재원이 하나라 집행현황의 예산·집행액이 그대로 {s.sources[0]} 줄에 들어가요. 재원을 둘 이상 고르면 오른쪽에 나누는 표가 생겨요.</div>}
@@ -368,7 +406,7 @@ export function BudgetStatusSend({
         </span>
         <span className="bss2-sum">
           {badCount > 0 ? <span className="bss2-badtag">맞지 않는 곳 {badCount}</span> : project && curSum > 0 && rows.length > 0 ? <span className="bss2-oktag">모두 맞아요</span> : null}
-          {!project && (projs ? <>{year}년 집행현황에 없는 사업 – 재원별 예산만 적어요</> : <>읽는 중…</>)}
+          {!project && (projs ? (carryPj ? <>{year}년은 이월분이에요 – 예산은 앞 해 다음연도 이월에서 오고, 공사는 "(명시이월)" 사업에서 와요</> : <>{year}년 집행현황에 없는 사업 – 재원별 예산만 적어요</>) : <>읽는 중…</>)}
         </span>
       </div>
 
@@ -443,7 +481,7 @@ export function BudgetStatusSend({
           </div>
         ) : (
           rows.map((r) => {
-            const spec = specOf(r.id, r.cmt);
+            const spec = specOf(r, r.cmt);
             const sum = sumOf(spec);
             const rest = r.cmt - sum;
             const bad = spec != null && rest !== 0;
@@ -458,11 +496,11 @@ export function BudgetStatusSend({
                   <span key={x} className="n">
                     <Amt
                       value={spec?.[x] ?? 0}
-                      onChange={(v) => setCell(r.id, r.cmt, x, v)}
+                      onChange={(v) => setCell(r, r.cmt, x, v)}
                       label={`${r.name} ${x} 금액`}
                       bad={bad && (spec?.[x] ?? 0) !== 0}
                       onFill={() => {
-                        if ((spec?.[x] ?? 0) === 0 && rest > 0) setCell(r.id, r.cmt, x, rest);
+                        if ((spec?.[x] ?? 0) === 0 && rest > 0) setCell(r, r.cmt, x, rest);
                       }}
                     />
                   </span>
@@ -484,6 +522,24 @@ export function BudgetStatusSend({
             </div>
           </>
         )}
+        <div className="bss2-tr bss2-addrow">
+          {adding ? (
+            <>
+              <input className="fld bd-in bss2-addname" placeholder="공사(용역·물품) 이름" aria-label="공사 이름" value={addF.name} onChange={(e) => setAddF((o) => ({ ...o, name: e.target.value }))} autoFocus />
+              <select className="fld bd-in" aria-label="종류" value={addF.kind} onChange={(e) => setAddF((o) => ({ ...o, kind: e.target.value }))}>
+                {KINDS.map((k) => (
+                  <option key={k} value={k}>{k}</option>
+                ))}
+              </select>
+              <input className="fld bd-in n bss2-amt" placeholder="계약금액" aria-label="계약금액" inputMode="numeric" data-ime="en" value={addF.cmt} onChange={(e) => setAddF((o) => ({ ...o, cmt: typing(e.target.value) }))} />
+              <input className="fld bd-in n bss2-amt" placeholder="집행액" aria-label="집행액" inputMode="numeric" data-ime="en" value={addF.exp} onChange={(e) => setAddF((o) => ({ ...o, exp: typing(e.target.value) }))} />
+              <button type="button" className="btn btn-primary btn-ctrl" disabled={!addF.name.trim() || busy} onClick={() => void addRow()}>추가</button>
+              <button type="button" className="btn btn-ctrl btn-text" onClick={() => setAdding(false)}>취소</button>
+            </>
+          ) : (
+            <button type="button" className="btn btn-ctrl btn-text" onClick={() => setAdding(true)}>+ 공사 추가</button>
+          )}
+        </div>
       </div>
       <div className="bss2-help">
         <b>적는 방법</b>
