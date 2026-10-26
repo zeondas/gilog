@@ -11190,7 +11190,16 @@ body.ew-dragging .pjm-colgrip:active::after {
 .fx-tr[data-extdrop="1"] { background: var(--accent-tint); box-shadow: inset 0 0 0 1px var(--accent-line); }
 
 /* 예산현황 설정 창 2안 – 두 단(2026-10-20 사용자): 왼쪽 사업 설정 · 오른쪽 재원 나누기 표 */
-.bss2 { max-width: calc(100vw - 80px); }
+.bss2 { position: relative; max-width: calc(100vw - 80px); }
+/* 창 크기 끌기(✔1 ②) – 오른쪽 끝 세로 띠 6px · 오른쪽 아래 모서리 14px, 모서리를 끌면 높이도 */
+.bss2-rsz-r { position: absolute; top: 14px; right: 0; bottom: 14px; width: 6px; cursor: ew-resize; }
+.bss2-rsz-c { position: absolute; right: 0; bottom: 0; width: 14px; height: 14px; cursor: nwse-resize; }
+.bss2-rsz-r:hover, .bss2-rsz-r.drag { background: var(--accent-wash); }
+.bss2.sized .bss2-body { flex: 1; max-height: none; min-height: 0; }
+/* 공사명 같은 앞부분(✔1 ①) – 머리에 한 번, 줄엔 "…" 뒤 뒷부분만 */
+.bss2-lead { display: flex; align-items: baseline; gap: 8px; min-width: 0; white-space: nowrap; overflow: hidden; }
+.bss2-lead b { font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
+.bss2-dots { color: var(--muted); margin-right: 4px; }
 .bss2-head { flex-direction: row; align-items: baseline; gap: 10px; }
 .bss2-head .bss-sub b { color: var(--ink); font-weight: 600; }
 .bss2-body { gap: 0; padding-bottom: 8px; max-height: calc(100vh - 200px); }
