@@ -15,6 +15,8 @@ assert(!m.toLocal.length && !m.updates.length && !m.appends.length && !m.conflic
 let rs = sheet(local0, (r) => { if (r.uid === "r1") r.f.exp = "50"; });
 m = merge(local0, rs, base, [], 1, "t");
 assert(m.toLocal.length === 1 && m.toLocal[0].f.exp === "50" && m.receivedCells === 1 && !m.updates.length, "receive");
+// 2b) 받은 것 창(2026-10-26): 칸·옛 값·새 값·줄 이름
+{ const g = m.changes[0]; assert(m.changes.length === 1 && g.field === "exp" && g.old !== "50" && g.val === "50" && g.uid === "r1" && g.path.includes("›"), "got change"); }
 // 3) 나만 바뀜 → 올리기
 const l2 = structuredClone(local0); l2.get("r1")!.f.cmt = "200";
 m = merge(l2, sheet(local0), base, [], 1, "t");
@@ -37,6 +39,7 @@ assert(m.appends.length === 1 && m.appends[0].uid === "r2", "append mine");
 const withNew = new Map(local0); withNew.set("r9", { ...structuredClone(local0.get("r1")!), uid: "r9" });
 m = merge(local0, sheet(withNew), base, [], 1, "t");
 assert(m.toLocal.length === 1 && m.toLocal[0].uid === "r9" && m.received.has("r9"), "receive new row");
+assert(m.changes.length === 1 && m.changes[0].field === "new" && m.changes[0].uid === "r9", "got new row");
 // 6) 내가 지움 → 시트 지움 표시, 다른 사람이 지움 → 내 PC에서 지움
 const l4 = structuredClone(local0); l4.delete("r1");
 m = merge(l4, sheet(local0), base, [], 1, "t");
@@ -44,6 +47,7 @@ assert(m.updates.some((u) => u.col === "Q" && u.value === 1), "mark delete");
 rs = sheet(local0, (r) => { if (r.uid === "r1") r.del = true; });
 m = merge(local0, rs, base, [], 1, "t");
 assert(m.toLocal.length === 1 && m.toLocal[0].del, "remote delete");
+assert(m.changes.length === 1 && m.changes[0].field === "del", "got delete");
 // 7) 순서는 묻지 않고 시트 따름
 const l5 = structuredClone(local0); l5.get("r1")!.f.ord = "5";
 rs = sheet(local0, (r) => { if (r.uid === "r1") r.f.ord = "7"; });

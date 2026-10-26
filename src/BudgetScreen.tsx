@@ -8,6 +8,7 @@
 // - 금액 단위 원/천원(천원은 반올림한 정수만 보여요, 저장은 늘 원). 손대지 않은 금액 칸은 원래 원 값 그대로 저장해요.
 import { fitSub } from "./PopMenu";
 import { DialogX } from "./DialogX";
+import { BudgetGot } from "./BudgetGot";
 import { AskBand } from "./AskBand";
 import { orgsOf, projectHits, projectSub, Suggest, SuggestInput } from "./BudgetSuggest";
 import { Fragment, KeyboardEvent as RKeyboardEvent, MouseEvent as RMouseEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -45,6 +46,7 @@ import {
   AUTO_MS,
   Conflict,
   Field,
+  Got,
   keepMine,
   onShare,
   personColor,
@@ -174,6 +176,8 @@ export default function BudgetScreen() {
   const VC = shareOn ? COLS : COLS_SOLO;
   /** 닫은 결과 띠(새로고침 시각) – 다음 새로고침까지 받은 줄 초록 선도 지워요 */
   const [bandOff, setBandOff] = useState("");
+  /** 받은 것 창(✔1, 2026-10-26) */
+  const [gotOpen, setGotOpen] = useState(false);
   const [ask, setAsk] = useState<(BudgetImport & { path: string }) | null>(null);
   const formRow = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
@@ -936,6 +940,48 @@ export default function BudgetScreen() {
     setPop(null);
     await run(() => api.setBudgetOwner(id, owner));
   };
+  /** 받은 것 창의 줄 → 표의 그 줄로(해가 다르면 그 해로, 접혀 있으면 펼쳐서) */
+  const jumpGot = async (g: Got) => {
+    setGotOpen(false);
+    if (g.field === "del") {
+      setToast("지운 줄이라 표에는 없어요");
+      return;
+    }
+    if (!(await commit())) return;
+    const y = Number(g.year) || year;
+    let d: BudgetProject[];
+    try {
+      d = y === year && data ? data : await api.budgetData(y);
+    } catch (e) {
+      setToast(errorText(e));
+      return;
+    }
+    let p0: BudgetProject | null = null;
+    let it0: BudgetProject["items"][number] | null = null;
+    let r0: BudgetRow | null = null;
+    for (const p of d)
+      for (const it of [null, ...p.items])
+        for (const r of it ? [null, ...it.rows] : [null]) {
+          const u = r ? r.uid : it ? it.uid : p.uid;
+          if (u === g.uid) [p0, it0, r0] = [p, it, r];
+        }
+    if (!p0) {
+      setToast("그 줄은 지금 표에 없어요");
+      return;
+    }
+    const P: BudgetProject = p0;
+    if (y !== year) setYear(y);
+    setData(d);
+    setQ("");
+    if (it0 && !P.open) await run(() => api.setBudgetOpen("project", P.id, true));
+    if (r0 && it0 && !it0.open) {
+      const I = it0;
+      await run(() => api.setBudgetOpen("item", I.id, true));
+    }
+    setSel(r0 ? selKey("row", r0.id) : it0 ? selKey("item", it0.id) : selKey("project", P.id));
+    if (r0) setFlash(r0.id);
+    window.setTimeout(() => document.querySelector(`.bd-body .bd-rw[data-uid="${g.uid}"]`)?.scrollIntoView({ block: "center" }), 60);
+  };
   /** 같은 칸 → 표 열 */
   const CF_COL: Partial<Record<Field, ColId>> = { name: "name", budget: "bud", kind: "kind", co: "co", cmt: "cmt", exp: "exp", act: "act", stage: "stage", owner: "owner", memo: "memo" };
   const cfs: Conflict[] = shareOn ? (share?.conflicts ?? []) : [];
@@ -1692,7 +1738,18 @@ export default function BudgetScreen() {
               <span className="fx-tl">새로고침</span>
             </button>
             <span className={"bs-st" + (share.conf.error ? " bad" : "")} role="status" title={share.conf.error || undefined}>
-              {share.busy ? "새로고침 중…" : share.conf.up || share.conf.down ? `올림 ${shortTime(share.conf.up) || "–"} · 받음 ${shortTime(share.conf.down) || "–"}` : "아직 새로고침 전"}
+              {share.busy ? (
+                "새로고침 중…"
+              ) : share.conf.up || share.conf.down ? (
+                <>
+                  {`올림 ${shortTime(share.conf.up) || "–"} · `}
+                  <button type="button" className="bs-got" title="받은 것 보기 – 최근 7일" onClick={() => setGotOpen(true)}>
+                    받음 {shortTime(share.conf.down) || "–"}
+                  </button>
+                </>
+              ) : (
+                "아직 새로고침 전"
+              )}
             </span>
           </>
         )}
@@ -1809,6 +1866,11 @@ export default function BudgetScreen() {
             </span>
           )}
           <span className="sp" />
+          {!last.error && last.receivedCells > 0 && (
+            <button type="button" className="btn btn-ctrl" onClick={() => setGotOpen(true)}>
+              바뀐 것 보기
+            </button>
+          )}
           {bandShown && (
             <button type="button" className="btn x" aria-label="닫기" title="닫기" onClick={() => setBandOff(last.at)}>
               {ICON("M6 6l12 12M18 6L6 18", 14, 2.4)}
@@ -1954,6 +2016,7 @@ export default function BudgetScreen() {
         </div>
       )}
 
+      {gotOpen && <BudgetGot people={people} onClose={() => setGotOpen(false)} onJump={(g) => void jumpGot(g)} />}
       {toast && (
         <div className="bd-toast" role="status">
           {toast}

@@ -12496,3 +12496,29 @@ button.del-btn:hover:not(:disabled) { filter: brightness(0.86); }
 /* 업무연락처 고치는 카드: 지우기는 왼쪽 아래(2026-10-26 사용자) – 붉은 단추 28(옆 취소·저장과 같은 높이·모서리), 안내 글을 사이에 두고 취소·저장과 떨어뜨려요. */
 .edit-foot .ct-trash { flex: none; margin-left: 0; }
 .ccard-edit .ask-band.ct-ask { margin-top: var(--space-1); }
+
+/* 집행현황 팀 공유 – 받은 것 창(✔1, 2026-10-26 시안 BudgetShare ⑦⑧) */
+.dialog.bg-dlg { position: relative; width: 820px; max-height: min(640px, calc(100% - 48px)); }
+.bg-head { display: flex; align-items: baseline; gap: 10px; padding: 16px 64px 12px 20px; }
+.bg-sub { font-size: 12px; color: var(--muted); }
+.bg-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 20px 12px; }
+.bg-chip { display: inline-flex; align-items: center; height: 28px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink-2); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.bg-chip:hover { background: var(--surface-band); }
+.bg-chip.on { border-color: var(--accent-line); background: var(--accent-tint); color: var(--accent); }
+.bg-list { flex: 1; min-height: 120px; overflow: auto; padding: 0 12px 14px; border-top: 1px solid var(--line-row); }
+.bg-empty { padding: 40px 0; text-align: center; color: var(--muted); }
+.bg-dh { position: sticky; top: 0; z-index: 1; padding: 10px 8px 4px; background: var(--surface-raised); font-size: 11.5px; font-weight: 700; color: var(--muted); }
+.bg-row { display: grid; grid-template-columns: 52px minmax(0, 1.4fr) 64px minmax(0, 1fr) 76px; align-items: center; gap: 10px; width: 100%; min-height: 36px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.bg-row:hover, .bg-row:focus-visible { background: var(--surface-band); outline: none; }
+.bg-row .bg-who { justify-self: start; max-width: 52px; cursor: inherit; }
+.bg-path, .bg-v { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bg-f { color: var(--ink-2); font-weight: 600; white-space: nowrap; }
+.bg-v { display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.bg-old { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 60%, transparent); }
+.bg-ar { flex: none; color: var(--muted); }
+.bg-nv { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.bg-new { color: var(--share-new); font-weight: 700; }
+.bg-del { color: var(--danger); font-weight: 700; }
+.bg-t { justify-self: end; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bs-st .bs-got { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; }
+.bs-st .bs-got:hover { color: var(--accent); }
