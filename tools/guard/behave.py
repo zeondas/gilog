@@ -206,6 +206,40 @@ async def c_tasks_check_reduced(p):
     assert not await _in_open(p, "행정사무감사 자료"), "움직임 줄이기면 바로 내려가야 함"
 
 
+async def c_files_side_buttons(p):
+    # Mouse side buttons (2026-10-26): WebView2 sends only pointer events + auxclick
+    # for buttons 3/4 – no mousedown/mouseup. Back = 3, forward = 4, in the pane under the mouse.
+    await shoot.nav(p, "탐색기")
+    await p.wait_for_timeout(500)
+    pane = "section[aria-label='창 1']"
+    tab = f"{pane} .fx-tab[data-on='1']"
+    start = await p.get_attribute(tab, "title")
+    await p.click(f"{pane} .fx-drv[title^='C:']")
+    await p.wait_for_timeout(400)
+    moved = await p.get_attribute(tab, "title")
+    assert moved != start, f"드라이브 이동 안 됨: {moved}"
+
+    async def side(btn):
+        await p.evaluate(
+            """([sel, b]) => {
+              const el = document.querySelector(sel + ' .fx-tabs');
+              const o = { bubbles: true, cancelable: true, button: b, pointerType: 'mouse', isPrimary: true };
+              el.dispatchEvent(new PointerEvent('pointerdown', { ...o, buttons: b === 3 ? 8 : 16 }));
+              el.dispatchEvent(new PointerEvent('pointerup', { ...o, buttons: 0 }));
+              el.dispatchEvent(new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: b }));
+            }""",
+            [pane, btn],
+        )
+        await p.wait_for_timeout(400)
+
+    await side(3)
+    back = await p.get_attribute(tab, "title")
+    assert back == start, f"뒤로 안 됨: {back} (기대 {start})"
+    await side(4)
+    fwd = await p.get_attribute(tab, "title")
+    assert fwd == moved, f"앞으로 안 됨: {fwd} (기대 {moved})"
+
+
 async def c_complaints_save(p):
     await shoot.nav(p, "민원대장")
     await shoot.s_complaints_edit(p)
@@ -376,6 +410,7 @@ CASES = {
     "tasks_check_complaint": c_tasks_check_complaint,
     "tasks_check_reduced": c_tasks_check_reduced,
     "complaints_save": c_complaints_save,
+    "files_side_buttons": c_files_side_buttons,
 }
 
 
