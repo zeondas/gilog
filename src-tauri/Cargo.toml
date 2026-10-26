@@ -1,6 +1,6 @@
 [package]
 name = "gilog"
-version = "0.32.0"
+version = "0.33.0"
 description = "giLog"
 edition = "2021"
 
