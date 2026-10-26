@@ -278,6 +278,16 @@ export function RenameDialog({
   };
   const anyBad = rows.some(bad);
   const changes = included.filter((r) => preview.get(r.path) !== r.name);
+  const apply = async (close: boolean) => {
+    const err = await onRename(changes.map((r) => ({ path: r.path, name: preview.get(r.path)! })), close);
+    setMsg(err ?? "");
+  };
+  // [확인] (2026-10-26 사용자 1안): 바꾸고 닫기 – 바뀔 이름이 없으면 그냥 닫고, 빨간 줄이 있으면 아무것도 안 해요(아래 줄에 까닭).
+  const ok = () => {
+    if (anyBad) return;
+    if (!changes.length) onClose();
+    else void apply(true);
+  };
   const insert = (field: "tpl" | "extTpl" | "repl", code: string) => {
     set({ [field]: (o[field] as string) + code } as Partial<RenameOpts>);
     setMenu("");
@@ -436,10 +446,7 @@ export function RenameDialog({
               type="button"
               className="btn-primary btn-ctrl fx-mt"
               disabled={anyBad || !changes.length}
-              onClick={async () => {
-                const err = await onRename(changes.map((r) => ({ path: r.path, name: preview.get(r.path)! })), closeAfter);
-                setMsg(err ?? "");
-              }}
+              onClick={() => void apply(closeAfter)}
             >
               이름 바꾸기
             </button>
@@ -461,6 +468,9 @@ export function RenameDialog({
           </span>
           <span className="fx-grow" />
           <span className="fx-err">{anyBad ? "빨간 줄을 고쳐야 바꿀 수 있어요" : msg}</span>
+          <button type="button" className="btn-primary btn-ctrl fx-rn-ok" disabled={anyBad} onClick={ok}>
+            확인
+          </button>
         </div>
       </div>
     </Overlay>
