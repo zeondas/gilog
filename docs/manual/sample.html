@@ -20,7 +20,12 @@ body { font-family: "Pretendard", sans-serif; color: var(--ink); font-size: 13px
 
 /* 대구분: 검은 채운 원 */
 .sec { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; }
-.sec .no { width: 24px; height: 24px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 13px; font-weight: 700; display: grid; place-items: center; flex: none; }
+.sec .no { width: 24px; height: 24px; flex: none; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+/* 대구분 번호: 연회색 네모 (2026-10-26 21:34 사용자 1안) */
+.sec .no { background: var(--band); border-radius: 5px; color: var(--ink); }
+.mod { padding: 4px 0 6px; margin-bottom: 20px; border-bottom: 1px solid var(--line); }
+.mod h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.6px; line-height: 1.25; }
+.mod p { font-size: 16px; font-weight: 500; color: var(--ink2); margin-top: 6px; padding-bottom: 12px; }
 .sec h2 { font-size: 17px; font-weight: 700; letter-spacing: -0.2px; }
 .block { margin-bottom: 18px; }
 
@@ -64,16 +69,13 @@ kbd { font-family: inherit; font-size: 11px; font-weight: 600; border: 1px solid
   <div class="band"><img src="logo-black.svg" alt="기록"><span>사용자 매뉴얼</span></div>
   <div class="body">
 
-    <div class="block">
-      <div class="sec"><div class="no">1</div><h2>모듈명 – 기능</h2></div>
-      <div style="padding-left:34px">
-        <div class="title"><h1>민원대장</h1></div>
-        <div class="title"><span class="def">모든 민원을 하나의 플랫폼에 정리하여, 민원 처리에 빈틈이 없도록 활용하는 도구</span></div>
-      </div>
+    <div class="mod">
+      <h1>민원대장</h1>
+      <p>모든 민원을 하나의 플랫폼에 정리하여, 민원 처리에 빈틈이 없도록 활용하는 도구</p>
     </div>
 
     <div class="block">
-      <div class="sec"><div class="no">2</div><h2>기획 의도</h2></div>
+      <div class="sec"><div class="no">1</div><h2>기획 의도</h2></div>
       <ul class="dots">
         <li>국민신문고·진정민원·정보공개청구·전화·메신저 등 여러 창구로 들어온 민원을 하나의 양식으로 정리해요.</li>
         <li>처리 현황판으로 써요 – 시공사에 업무를 지시했는지, 끝났는지를 한눈에 확인해요.</li>
@@ -83,12 +85,12 @@ kbd { font-family: inherit; font-size: 11px; font-weight: 600; border: 1px solid
     </div>
 
     <div class="block">
-      <div class="sec"><div class="no">3</div><h2>화면</h2></div>
+      <div class="sec"><div class="no">2</div><h2>화면</h2></div>
       <div class="shot" id="shot"></div>
     </div>
 
     <div class="block" style="margin-bottom:0">
-      <div class="sec"><div class="no">4</div><h2>기능별 설명</h2></div>
+      <div class="sec"><div class="no">3</div><h2>기능별 설명</h2></div>
       <div class="feats" id="feats"></div>
       <div class="tips">
         <h3>알아 두면 좋은 것</h3>
@@ -166,6 +168,17 @@ MARKS.forEach((m, i) => {
   f.className = "feat";
   f.innerHTML = `<div class="ring inline">${i + 1}</div><p><b>${m.name}</b>${m.text}</p>`;
   document.getElementById("feats").appendChild(f);
+});
+
+// 번호를 도형 한가운데에: 글꼴마다 숫자 잉크가 조금씩 치우쳐 있어 숫자별로 바로잡아요(그려 보고 잰 값)
+const FIX = { s1:[-0.38,0.12], s3:[0.12,0], r1:[-0.25,-0.5], r2:[0,-0.75], r3:[0,-0.12], r4:[0,-0.12], r5:[0.12,-0.75], r6:[-0.12,-0.5], r7:[0,-0.38], r8:[0,-0.38], r9:[0,-0.6] };
+document.fonts.ready.then(() => {
+  document.querySelectorAll(".sec .no, .ring").forEach(el => {
+    const k = (el.matches(".ring") ? "r" : "s") + el.textContent, f = FIX[k];
+    if (!f) return;
+    const [dx, dy] = f;   // 잉크가 오른쪽·아래로 치우친 만큼
+    el.style.padding = `${Math.max(0,-dy*2)}px ${Math.max(0,dx*2)}px ${Math.max(0,dy*2)}px ${Math.max(0,-dx*2)}px`;
+  });
 });
 </script>
 </body>
