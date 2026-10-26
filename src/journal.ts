@@ -224,6 +224,9 @@ export function resolveDraft(lines: DraftLine[], n: number, first: number): numb
 
 const SPEAKER_COLORS = [2, 3, 4, 5, 6, 7, 0];
 
+/** 말 배지 글자: 넉 자 이상 이름은 앞 세 글자만(2026-10-26 사용자 – 집행현황 담당 배지와 같은 규칙). 전체 이름은 title로. */
+export const badgeName = (who: string) => [...who].slice(0, 3).join("");
+
 /** 상대 말 배지의 색 번호(프로젝트 배지와 같은 8색 가운데). 이름마다 늘 같은 색이에요. */
 export function speakerColor(name: string): number {
   let h = 0;

@@ -162,7 +162,7 @@
 
 ## 작업 방법
 - 작업 공간이 리눅스라 윈도우 설치 파일은 GitHub Actions가 만들어요. `main`에 올리면 자동으로 Releases에 `giLog_<버전>_x64-setup.exe`가 올라와요. **그래서 코드를 `main`에 올리기 전에 꼭 사용자 허가를 받아요(위 "빌드 규칙").**
-- 올리기 전에: `npm run build`(TS 검사 포함), `cargo test --manifest-path src-tauri/core/Cargo.toml`, 가능하면 `cargo check --manifest-path src-tauri/Cargo.toml`(리눅스는 libwebkit2gtk-4.1-dev 필요).
+- 올리기 전에: `npm test`(규칙 함수 시험 – `src/*.test.ts`, 지금 동작을 고정한 값이라 규칙을 일부러 바꿀 때만 시험 값도 고쳐요, check.yml에도 있어요), `npm run build`(TS 검사 포함), `cargo test --manifest-path src-tauri/core/Cargo.toml`, 가능하면 `cargo check --manifest-path src-tauri/Cargo.toml`(리눅스는 libwebkit2gtk-4.1-dev 필요).
 - 화면 확인은 `dist/`를 로컬 서버로 띄워 Playwright로 1920×1080 스크린샷을 찍어 봐요.
 - 단계마다 `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`의 버전을 0.N.0으로 올려요.
 - 빌드가 실패하면 오류가 커밋 댓글로 남아요: `gh api repos/zeondas/gilog/commits/<sha>/comments`.
