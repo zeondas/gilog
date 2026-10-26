@@ -8,7 +8,7 @@
 //   맞지 않아도 저장돼요(예산현황 표에 붉게 남아요). 머리 줄에 "맞지 않는 곳 N". 아래에 원인·지출재원 확인 방법 안내(2026-10-20 사용자).
 // 창 폭은 재원 수만큼 넓어져요(재원 2 → 1040, 하나 더마다 +124, 화면 폭 −80까지). 보낸 사업만 예산현황에 보여요 – "예산현황에서 빼기"로 되돌려요.
 import { DialogX } from "./DialogX";
-import { useEffect, useState, type MouseEvent as RMouseEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent as RMouseEvent } from "react";
 import { api } from "./api";
 import { BudgetProject, KINDS, typing } from "./budget";
 import { defaultSetup, isCarryName, Manual, rowShares, Setup, SOURCES, splitOf } from "./budgetStatus";
@@ -144,6 +144,16 @@ export function BudgetStatusSend({
     addEventListener("mousemove", mv);
     addEventListener("mouseup", up);
   };
+  // 공사명 같은 앞부분(✔1 ①): 둘 이상이고 모두 같은 말로 시작하면 표 머리에 한 번만 적고 줄에선 떼요 –
+  // 같게 시작하는 데까지를 띄어쓰기 자리에서 끊고, 4글자 이상·뗀 뒤 모든 줄에 글자가 남을 때만
+  const lead = (() => {
+    if (rows.length < 2) return "";
+    let p = rows[0].name;
+    for (const r of rows) while (p && !r.name.startsWith(p)) p = p.slice(0, -1);
+    const cut = p.lastIndexOf(" ");
+    p = cut > 0 ? p.slice(0, cut + 1) : "";
+    return p.trim().length >= 4 && rows.every((r) => r.name.slice(p.length).trim() !== "") ? p : "";
+  })();
   const grid = `minmax(140px, 1fr) ${cols.cmt}px repeat(${s.sources.length}, ${cols.src}px) ${cols.rest}px`;
   
   // ---------- 값 ----------
@@ -286,8 +296,48 @@ export function BudgetStatusSend({
   };
 
   // 창 폭: 재원 수만큼(화면 폭 −80까지)
+  // 창 크기(✔1 ②): 처음엔 가장 긴 공사명이 다 보이는 폭(기본 폭 ~ 앱 창 −80), 오른쪽 끝·모서리를 끌어 바꿔요 – 닫으면 잊어요
   const wide = multi && !attaching;
-  const width = wide ? Math.min(1040 + 124 * Math.max(0, s.sources.length - 2), (typeof window !== "undefined" ? window.innerWidth : 1600) - 80) : 560;
+  const maxW = (typeof window !== "undefined" ? window.innerWidth : 1600) - 80;
+  const baseW = Math.min(1040 + 124 * Math.max(0, s.sources.length - 2), maxW);
+  const minW = Math.min(maxW, 300 + 40 + 20 + 22 + 140 + cols.cmt + s.sources.length * cols.src + cols.rest + 8 * (s.sources.length + 2));
+  const [fitW, setFitW] = useState<number | null>(null);
+  const [dragSize, setDragSize] = useState<{ w: number; h: number | null } | null>(null);
+  const dlgRef = useRef<HTMLDivElement>(null);
+  const fitKey = wide ? `${year}|${lead}|${s.sources.join(",")}|${rows.map((r) => r.name + r.kind).join("|")}|${cols.cmt},${cols.src},${cols.rest}` : "";
+  useLayoutEffect(() => setFitW(null), [fitKey]);
+  useLayoutEffect(() => {
+    if (!wide || fitW !== null || !dlgRef.current) return;
+    let extra = 0;
+    dlgRef.current.querySelectorAll<HTMLElement>(".bss2-tb .bss2-tr > .nm, .bss2-tb .bss2-lead > b").forEach((el) => {
+      extra = Math.max(extra, el.scrollWidth - el.clientWidth);
+    });
+    setFitW(Math.min(maxW, baseW + (extra > 0 ? extra + 4 : 0)));
+  }, [wide, fitW, baseW, maxW]);
+  const width = wide ? Math.max(minW, Math.min(maxW, dragSize?.w ?? fitW ?? baseW)) : 560;
+  const height = wide && dragSize?.h != null ? Math.min(dragSize.h, (typeof window !== "undefined" ? window.innerHeight : 900) - 32) : undefined;
+  const startResize = (e: RMouseEvent, corner: boolean) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    const w0 = width;
+    const h0 = dlgRef.current?.getBoundingClientRect().height ?? 600;
+    const grip = e.currentTarget as HTMLElement;
+    grip.classList.add("drag");
+    document.body.style.cursor = corner ? "nwse-resize" : "ew-resize";
+    // 창이 가운데에 있어 양쪽으로 함께 커지니 움직인 만큼의 두 배
+    const mv = (ev: MouseEvent) =>
+      setDragSize({ w: Math.round(w0 + 2 * (ev.clientX - x0)), h: corner ? Math.max(420, Math.round(h0 + 2 * (ev.clientY - y0))) : height ?? null });
+    const up = () => {
+      grip.classList.remove("drag");
+      document.body.style.cursor = "";
+      removeEventListener("mousemove", mv);
+      removeEventListener("mouseup", up);
+    };
+    addEventListener("mousemove", mv);
+    addEventListener("mouseup", up);
+  };
 
   // ---------- 왼쪽: 사업 설정 ----------
   const left = attaching ? (
@@ -460,7 +510,10 @@ export function BudgetStatusSend({
 
       <div className="bss2-tb" role="table" aria-label="공사별 재원">
         <div className="bss2-tr h" style={{ gridTemplateColumns: grid }}>
-          <span>공사(용역·물품)</span>
+          <span className="bss2-lead" title={lead ? lead.trim() : undefined}>
+            공사(용역·물품)
+            {lead && <b>{lead.trim()} …</b>}
+          </span>
           <span className="bss2-th">
             계약금액
             <span className="bd-grip" title="끌어서 너비" onMouseDown={(e) => startDrag(e, "cmt")} />
@@ -489,7 +542,14 @@ export function BudgetStatusSend({
             return (
               <div key={r.id} className="bss2-tr" style={{ gridTemplateColumns: grid }}>
                 <span className="nm" title={(project && project.items.length > 1 ? r.item + " · " : "") + r.name}>
-                  {r.name}
+                  {lead ? (
+                    <>
+                      <span className="bss2-dots">…</span>
+                      {r.name.slice(lead.length).trimStart()}
+                    </>
+                  ) : (
+                    r.name
+                  )}
                   <span className="bss2-kind">{r.kind}</span>
                 </span>
                 <span className="n m">{won(r.cmt)}</span>
@@ -556,11 +616,12 @@ export function BudgetStatusSend({
   return (
     <div className="overlay" onMouseDown={overlayDown(onClose)}>
       <div
-        className="dialog bss2"
+        ref={dlgRef}
+        className={"dialog bss2" + (height ? " sized" : "")}
         role="dialog"
         aria-modal="true"
         aria-label="예산현황 설정"
-        style={{ width }}
+        style={{ width, height }}
         onKeyDown={(e) => {
           // Esc = 취소(✔7) – 안쪽 칸·목록이 먼저 받았으면 그대로 둬요
           if (e.key === "Escape" && !e.defaultPrevented && !e.nativeEvent.isComposing) {
@@ -598,6 +659,12 @@ export function BudgetStatusSend({
             </button>
           </span>
         </div>
+        {wide && (
+          <>
+            <span className="bss2-rsz-r" title="끌어서 창 너비" onMouseDown={(e) => startResize(e, false)} />
+            <span className="bss2-rsz-c" title="끌어서 창 크기" onMouseDown={(e) => startResize(e, true)} />
+          </>
+        )}
       </div>
     </div>
   );
