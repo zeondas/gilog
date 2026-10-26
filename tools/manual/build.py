@@ -48,7 +48,7 @@ OPEN_H = 340       # 열린 모습 그림 가장 큰 높이
 # ---------- md 읽기 ----------
 def parse(path):
     """docs/manual/<화면>.md → dict. 틀은 README "② 글 틀"."""
-    d = {"title": "", "def": "", "scene": "", "crop": "", "intent": [], "marks": [], "opens": [], "tips": [], "check": []}
+    d = {"title": "", "def": "", "scene": "", "crop": "", "intent": [], "marks": [], "opens": [], "tips": [], "check": [], "detail": []}
     sec = None
     for raw in open(path, encoding="utf-8"):
         line = raw.rstrip("\n")
@@ -57,8 +57,24 @@ def parse(path):
         if line.startswith("# "):
             d["title"] = line[2:].strip()
             continue
+        if line.startswith("### ") and sec == "상세 설명":
+            d["detail"].append({"title": line[4:].strip(), "parts": []})
+            continue
         if line.startswith("## "):
             sec = line[3:].strip()
+            continue
+        if sec == "상세 설명" and d["detail"]:
+            t = line.strip()
+            m = re.match(r"^그림:\s*(.*)$", t)
+            if m:
+                f = [x.strip() for x in m.group(1).split("|")] + ["", "", ""]
+                d["detail"][-1]["parts"].append(("fig", {"scene": f[0], "sel": f[1], "cap": f[2]}))
+            elif re.match(r"^\d+\.\s", t):
+                d["detail"][-1]["parts"].append(("step", re.sub(r"^\d+\.\s+", "", t)))
+            elif t.startswith("- "):
+                d["detail"][-1]["parts"].append(("dot", t[2:].strip()))
+            else:
+                d["detail"][-1]["parts"].append(("p", t))
             continue
         m = re.match(r"^(정의|장면|자르기):\s*(.*)$", line)
         if m and sec is None:
@@ -203,8 +219,24 @@ async def shoot_chapter(br, url, ch, missing):
       boxes.sort((a, b) => a[0] - b[0]); let b = 0;
       for (const [t, bt] of boxes) { if (b && t - b > 150) break; b = Math.max(b, bt); }
       return b; }""", ch["crop"] or ".main")
+    # 글 속 {{선택자}} – 그 요소를 작게 잘라 글 줄 안에 넣어요(머리 줄 단추 모양 등)
+    chips = {}
+    for sub in ch["detail"]:
+        for kind, v in sub["parts"]:
+            for sel in re.findall(r"\{\{(.+?)\}\}", v if isinstance(v, str) else v.get("cap", "")):
+                if sel not in chips:
+                    chips[sel] = await cap.box(p, sel)
+                    if not chips[sel]:
+                        missing.append(f'{ch["title"]} 글 속 그림 – `{sel}`')
     shot = Image.open(io.BytesIO(await p.screenshot())).convert("RGB")
     await ctx.close()
+    D0 = cap.DPR
+    ch["chips"] = {}
+    for sel, b in chips.items():
+        if b:
+            im = shot.crop((int(b["x"] * D0), int(b["y"] * D0), int((b["x"] + b["width"]) * D0), int((b["y"] + b["height"]) * D0)))
+            h = 22
+            ch["chips"][sel] = f'<img class="chip" src="{png_uri(im)}" style="height:{h}px;width:{b["width"] * h / b["height"]:.0f}px" alt="">'
 
     D = cap.DPR
     x0, y0 = int(main["x"]), int(main["y"])
@@ -241,7 +273,7 @@ async def shoot_chapter(br, url, ch, missing):
     return {"img": png_uri(region), "h": h, "marks": marks}
 
 
-async def shoot_open(br, url, o, missing, title):
+async def shoot_open(br, url, o, missing, title, full=False):
     ctx, p = await cap.open_scene(br, url, o["scene"])
     b = await cap.box(p, o["sel"]) if o["sel"] else None
     if not b:
@@ -255,7 +287,8 @@ async def shoot_open(br, url, o, missing, title):
     x1, y1 = min(1600, b["x"] + b["width"] + m), min(900, b["y"] + b["height"] + m)
     region = shot.crop((int(x0 * D), int(y0 * D), int(x1 * D), int(y1 * D)))
     wide = (x1 - x0) > OPEN_W * 1.4  # 넓은 창은 두 칸을 다 써요(글자가 너무 작아지지 않게)
-    sc = min(OPEN_SCALE, (IMG_W if wide else OPEN_W) / (x1 - x0), OPEN_H / (y1 - y0))
+    room = (IMG_W - 29) if full else (IMG_W if wide else OPEN_W)
+    sc = min(OPEN_SCALE, room / (x1 - x0), (560 if full else OPEN_H) / (y1 - y0))
     return {"img": png_uri(region), "w": (x1 - x0) * sc, "h": (y1 - y0) * sc, "wide": wide}
 
 
@@ -304,6 +337,25 @@ ul.dots li::before { content: ""; position: absolute; left: 0; top: 9px; width: 
 .tips li { list-style: none; color: var(--ink2); }
 kbd { font-family: inherit; font-size: 11px; font-weight: 600; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: #fff; color: var(--ink); white-space: nowrap; }
 .foot { position: absolute; left: %(pad)dpx; right: %(pad)dpx; bottom: 22px; display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 8px; }
+/* 상세 설명 – 번호 절(속 빈 원) > 딸린 절(굵은 글) > 단계(1. 2.)·점 항목, 본문은 모두 같은 왼쪽 선 */
+.dpart { padding-left: %(ind)dpx; display: flow-root; }
+.dtitle { display: flex; align-items: center; gap: 9px; margin: 14px 0 6px; font-size: 14.5px; font-weight: 700; }
+.dtitle.dplain { padding-left: 29px; }
+.dsub { margin: 10px 0 4px 29px; font-size: 13.5px; font-weight: 700; }
+.dpart > .dp, .dpart > .dstep, .dpart > .ddot, .dpart > .dfig { margin-left: 29px; }
+.dp { color: var(--ink2); margin: 3px 0; }
+.dstep { display: flex; gap: 6px; align-items: baseline; margin: 4px 0; }
+.dstep .dsn { flex: none; min-width: 16px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+.dstep p, .ddot p { color: var(--ink2); }
+.ddot { position: relative; padding-left: 12px; margin: 3px 0; }
+.ddot::before { content: ""; position: absolute; left: 2px; top: 9px; width: 4px; height: 4px; border-radius: 50%%; background: var(--ink2); }
+.dfig { margin: 8px 0 8px 29px; }
+.dfig img { display: block; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
+.dfig figcaption { margin-top: 5px; font-size: 12px; color: var(--muted); }
+img.chip { display: inline-block; vertical-align: middle; margin: -3px 4px 0 0; border-radius: 6px; box-shadow: 0 0 0 1px var(--line-soft, #E5E4EC); }
+.ddot.dchipline { padding-left: 0; margin: 5px 0; }
+.ddot.dchipline::before { display: none; }
+.dend { margin-bottom: 6px; }
 /* 차례 */
 .cover { padding: 120px %(pad)dpx 0; }
 .cover .logo svg { height: 40px; width: auto; display: block; }
@@ -338,7 +390,22 @@ def shot_html(sh, fix):
     return "".join(out)
 
 
-def chapter_html(no, ch, sh, opens, fix, logo):
+def ordered_detail(ch):
+    """상세 설명 절 차례: 번호 절마다 뒤따르는 번호 없는 절을 묶어 그림 번호 차례로, "설정"으로 시작하는 절은 맨 뒤."""
+    names = {m["name"]: i for i, m in enumerate(ch["marks"], 1)}
+    groups, tail = [], []
+    for sub in ch["detail"]:
+        if sub["title"].startswith("설정"):
+            tail.append(sub)
+        elif sub["title"] in names or not groups:
+            groups.append([names.get(sub["title"], 0), [sub]])
+        else:
+            groups[-1][1].append(sub)
+    return [x for _, g in sorted(groups, key=lambda g: g[0]) for x in g] + tail
+
+
+def chapter_parts(no, ch, sh, opens, fix, figs):
+    """첫 쪽(제목·기획 의도·화면·기능별 설명) HTML과, 다음 쪽부터 차례로 채울 덩어리 목록."""
     sec = 0
 
     def head(title):
@@ -346,8 +413,7 @@ def chapter_html(no, ch, sh, opens, fix, logo):
         sec += 1
         return f'<div class="sec"><div class="no" style="{fix_style(fix, "s" + str(sec))}">{sec}</div><h2>{title}</h2></div>'
 
-    o = [f'<section class="page" id="ch{no}"><div class="band">{logo}<span>사용자 매뉴얼</span></div><div class="body">',
-         f'<div class="mod"><h1>{html.escape(ch["title"])}</h1><p>{inline(ch["def"])}</p></div>']
+    o = [f'<div class="mod"><h1>{html.escape(ch["title"])}</h1><p>{inline(ch["def"])}</p></div>']
     if ch["intent"]:
         o.append('<div class="block">' + head("기획 의도") + '<ul class="dots">' + "".join(f"<li>{inline(x)}</li>" for x in ch["intent"]) + "</ul></div>")
     o.append('<div class="block">' + head("화면") + shot_html(sh, fix) + "</div>")
@@ -355,22 +421,61 @@ def chapter_html(no, ch, sh, opens, fix, logo):
         f'<div class="feat"><div class="ring" style="{fix_style(fix, "r" + str(i))}">{i}</div><p><b>{html.escape(m["name"])}</b>{inline(m["text"])}</p></div>'
         for i, m in enumerate(ch["marks"], 1))
     o.append('<div class="block" style="margin-bottom:0">' + head("기능별 설명") + f'<div class="feats">{feats}</div></div>')
-    # 열린 모습·알아 두면 좋은 것은 다음 쪽에(첫 쪽이 A4 한 장에 들어가게)
-    if opens or ch["tips"]:
-        o.append(f'</div><div class="foot"><span>기록 사용자 매뉴얼</span><span>{no:02d} · {html.escape(ch["title"])}</span></div></section>')
-        o.append(f'<section class="page"><div class="band">{logo}<span>사용자 매뉴얼</span></div><div class="body">')
-        if opens:
-            o.append('<div class="block">' + head("열린 모습") + '<div class="opens">')
-            for op, img in zip(ch["opens"], opens):
-                span = ' style="grid-column:1/-1"' if img["wide"] else ""
-                o.append(f'<figure{span}><img src="{img["img"]}" style="width:{img["w"]:.0f}px;height:{img["h"]:.0f}px" alt="">'
-                         f'<figcaption><b>{html.escape(op["title"])}</b>{inline(op["text"])}</figcaption></figure>')
-            o.append("</div></div>")
-        if ch["tips"]:
-            o.append('<div class="tips" style="margin-left:0"><h3>알아 두면 좋은 것</h3><ul>' + "".join(f"<li>{inline(x)}</li>" for x in ch["tips"]) + "</ul></div>")
-    o.append("</div>")
-    o.append(f'<div class="foot"><span>기록 사용자 매뉴얼</span><span>{no:02d} · {html.escape(ch["title"])}</span></div></section>')
-    return "".join(o)
+    rest = []
+    # 4 상세 설명 – 화면 구성요소마다 사용법. 덩어리(문단·단계·그림)마다 따로 재서 쪽을 넘겨요
+    names = {m["name"]: i for i, m in enumerate(ch["marks"], 1)}
+    ordered = ordered_detail(ch)
+    chips = ch.get("chips", {})
+
+    def txt(v):
+        return re.sub(r"\{\{(.+?)\}\}", lambda m: chips.get(html.unescape(m.group(1)), ""), inline(v))
+
+    seen_marked = False
+    for si, sub in enumerate(ordered):
+        top = head("상세 설명") if si == 0 else ""
+        no = names.get(sub["title"])
+        if no:
+            seen_marked = True
+            title = (f'<h3 class="dtitle"><div class="ring" style="{fix_style(fix, "r" + str(no))}">{no}</div>'
+                     f'<span>{html.escape(sub["title"])}</span></h3>')
+        elif seen_marked and not sub["title"].startswith("설정"):
+            title = f'<h4 class="dsub">{html.escape(sub["title"])}</h4>'   # 바로 위 번호 절에 딸린 작은 절
+        else:
+            title = f'<h3 class="dtitle dplain"><span>{html.escape(sub["title"])}</span></h3>'
+        step = 0
+        for pi, (kind, v) in enumerate(sub["parts"]):
+            if kind == "step":
+                step += 1
+                body = f'<div class="dstep"><span class="dsn">{step}.</span><p>{txt(v)}</p></div>'
+            elif kind == "dot":
+                cls = "ddot dchipline" if v.startswith("{{") else "ddot"   # 단추 그림으로 시작하는 줄은 점 없이
+                body = f'<div class="{cls}"><p>{txt(v)}</p></div>'
+            elif kind == "fig":
+                img = figs.get((v["scene"], v["sel"]))
+                body = (f'<figure class="dfig"><img src="{img["img"]}" style="width:{img["w"]:.0f}px;height:{img["h"]:.0f}px" alt="">'
+                        f'<figcaption>{txt(v["cap"])}</figcaption></figure>') if img else ""
+            else:
+                body = f'<p class="dp">{txt(v)}</p>'
+            last = pi == len(sub["parts"]) - 1
+            rest.append(f'<div class="dpart{" dend" if last else ""}">{top if pi == 0 else ""}{title if pi == 0 else ""}{body}</div>')
+        if not sub["parts"]:
+            rest.append(f'<div class="dpart dend">{top}{title}</div>')
+    if opens:
+        r = ['<div class="block">' + head("메뉴·창 모습") + '<div class="opens">']
+        for op, img in zip(ch["opens"], opens):
+            span = ' style="grid-column:1/-1"' if img["wide"] else ""
+            r.append(f'<figure{span}><img src="{img["img"]}" style="width:{img["w"]:.0f}px;height:{img["h"]:.0f}px" alt="">'
+                     f'<figcaption><b>{html.escape(op["title"])}</b>{inline(op["text"])}</figcaption></figure>')
+        r.append("</div></div>")
+        rest.append("".join(r))
+    if ch["tips"]:
+        rest.append('<div class="block"><div class="tips" style="margin-left:0"><h3>알아 두면 좋은 것</h3><ul>' + "".join(f"<li>{inline(x)}</li>" for x in ch["tips"]) + "</ul></div></div>")
+    return "".join(o), rest
+
+
+def page_html(no, title, logo, inner):
+    return (f'<section class="page"{f" id=ch{no}" if inner.startswith("<div class=\"mod\"") else ""}><div class="band">{logo}<span>사용자 매뉴얼</span></div>'
+            f'<div class="body">{inner}</div><div class="foot"><span>기록 사용자 매뉴얼</span><span>{no:02d} · {html.escape(title)}</span></div></section>')
 
 
 def logo_svg(height):
@@ -381,8 +486,9 @@ def logo_svg(height):
 
 
 async def main():
-    site = sys.argv[1]
-    out = sys.argv[2] if len(sys.argv) > 2 else os.path.join(DOCS, "기록-매뉴얼.html")
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    site = args[0]
+    out = args[1] if len(args) > 1 else os.path.join(DOCS, "기록-매뉴얼.html")
     chapters = []
     for key, name in ORDER:
         path = os.path.join(DOCS, key + ".md")
@@ -396,10 +502,16 @@ async def main():
     async with async_playwright() as pw:
         br = await pw.chromium.launch()
         fix = await measure_fix(br)
-        shots, opens = [], []
+        shots, opens, figs_all = [], [], []
         for ch in chapters:
             shots.append(await shoot_chapter(br, url, ch, missing))
             opens.append([await shoot_open(br, url, o, missing, ch["title"]) for o in ch["opens"]])
+            fg = {}
+            for sub in ch["detail"]:
+                for kind, v in sub["parts"]:
+                    if kind == "fig" and (v["scene"], v["sel"]) not in fg:
+                        fg[(v["scene"], v["sel"])] = await shoot_open(br, url, {"scene": v["scene"], "sel": v["sel"]}, missing, ch["title"], full=True)
+            figs_all.append(fg)
             print(f'찍음 {ch["title"]} · 번호 {len(ch["marks"])} · 열린 모습 {len(ch["opens"])}')
         await br.close()
     srv.shutdown()
@@ -413,8 +525,37 @@ async def main():
     pages = [f'<section class="page"><div class="cover"><div class="logo">{logo_l}</div><h1>사용자 매뉴얼</h1>'
              f'<p class="date">{today} 화면 기준</p><nav class="toc">{toc}</nav></div>'
              '<div class="foot"><span>기록 사용자 매뉴얼</span><span>차례</span></div></section>']
-    for i, (ch, sh, op) in enumerate(zip(chapters, shots, opens), 1):
-        pages.append(chapter_html(i, ch, sh, op, fix, logo_s))
+    parts = [chapter_parts(i, ch, sh, op, fix, fg) for i, (ch, sh, op, fg) in enumerate(zip(chapters, shots, opens, figs_all), 1)]
+    # 다음 쪽 덩어리 높이를 재서 A4 쪽마다 차례로 채워요
+    flat = [(ci, bi, b) for ci, (_, rest) in enumerate(parts) for bi, b in enumerate(rest)]
+    probe_doc = (f'<!doctype html><html lang="ko"><head><meta charset="utf-8"><style>{css}</style></head><body>'
+                 + "".join(f'<section class="page"><div class="body" id="m{n}">{b}</div></section>' for n, (_, _, b) in enumerate(flat)) + "</body></html>")
+    tmp = out + ".measure.html"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(probe_doc)
+    async with async_playwright() as pw:
+        br = await pw.chromium.launch()
+        p = await br.new_page(viewport={"width": 900, "height": 1200})
+        await p.goto("file://" + os.path.abspath(tmp))
+        await p.evaluate("() => document.fonts.ready")
+        heights = await p.evaluate("(n) => [...Array(n).keys()].map(i => { const e = document.getElementById('m' + i).firstElementChild; const s = getComputedStyle(e); return e.getBoundingClientRect().height + parseFloat(s.marginTop) + parseFloat(s.marginBottom); })", len(flat))
+        await br.close()
+    os.remove(tmp)
+    ROOM = 1123 - 60 - 46 - 22   # 쪽 높이 − 아래 여백 − 머리 띠 − 위 여백
+    for ci, (ch, (first, rest)) in enumerate(zip(chapters, parts)):
+        no = ci + 1
+        pages.append(page_html(no, ch["title"], logo_s, first))
+        cur, used = [], 0
+        for (cj, bi, b), hgt in zip(flat, heights):
+            if cj != ci:
+                continue
+            if cur and used + hgt > ROOM:
+                pages.append(page_html(no, ch["title"], logo_s, "".join(cur)))
+                cur, used = [], 0
+            cur.append(b)
+            used += hgt
+        if cur:
+            pages.append(page_html(no, ch["title"], logo_s, "".join(cur)))
     doc = f'<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>기록 사용자 매뉴얼</title><style>{css}</style></head><body>{"".join(pages)}</body></html>'
     with open(out, "w", encoding="utf-8") as f:
         f.write(doc)
@@ -431,6 +572,8 @@ async def main():
             return [i, Math.round(bottom), foot ? foot.lastElementChild.textContent : ''];
           }).filter(([i, b]) => b > 1123 - 60)""")
         await br.close()
+    if "--word" in sys.argv:
+        await export_word(out, chapters, opens, figs_all)
     for i, b, t in over:
         missing.append(f"{t} – {i + 1}쪽 글이 A4 한 장을 넘어요(아래 끝 {b}px, 1063 안이어야 해요 – 설명을 줄여요)")
     if missing:
@@ -438,6 +581,81 @@ async def main():
         for m in missing:
             print("  - " + m)
         sys.exit(1)
+
+
+# ---------- 워드(.docx) ----------
+def _save_uri(uri, path):
+    with open(path, "wb") as f:
+        f.write(base64.b64decode(uri.split(",", 1)[1]))
+
+
+async def export_word(out, chapters, opens_all, figs_all):
+    """HTML과 같은 글·그림으로 워드 파일을 만들어요(tools/manual/word.cjs). 화면 그림은 번호·지시선까지 그린 그대로 찍어 넣어요."""
+    import json
+    import subprocess
+    base = os.path.splitext(out)[0]
+    imgdir = base + "_word"
+    os.makedirs(imgdir, exist_ok=True)
+    model = {"chapters": [], "date": datetime.date.today().strftime("%Y-%m-%d")}
+    async with async_playwright() as pw:
+        br = await pw.chromium.launch()
+        p = await br.new_page(viewport={"width": 900, "height": 1200}, device_scale_factor=2)
+        await p.goto("file://" + os.path.abspath(out))
+        await p.evaluate("() => document.fonts.ready")
+        for i, ch in enumerate(chapters, 1):
+            el = p.locator(f"#ch{i} .shot").first
+            bb = await el.bounding_box()
+            shot = os.path.join(imgdir, f"ch{i:02d}_shot.png")
+            await el.screenshot(path=shot)
+            logo = os.path.join(imgdir, "logo.png")
+            if i == 1:
+                await p.locator(".band svg").first.screenshot(path=logo)
+            c = {"no": i, "title": ch["title"], "def": ch["def"], "intent": ch["intent"],
+                 "shot": {"img": shot, "w": bb["width"], "h": bb["height"]},
+                 "feats": [{"no": k, "name": m["name"], "text": m["text"]} for k, m in enumerate(ch["marks"], 1)],
+                 "detail": [], "opens": [], "tips": ch["tips"], "chips": {}}
+            for n, (sel, html_img) in enumerate(ch.get("chips", {}).items()):
+                m = re.search(r'src="([^"]+)" style="height:(\d+)px;width:(\d+)px', html_img)
+                f = os.path.join(imgdir, f"ch{i:02d}_chip{n}.png")
+                _save_uri(m.group(1), f)
+                c["chips"][sel] = {"img": f, "h": int(m.group(2)), "w": int(m.group(3))}
+            names = {m["name"]: k for k, m in enumerate(ch["marks"], 1)}
+            seen = False
+            for sub in ordered_detail(ch):
+                no = names.get(sub["title"])
+                if no:
+                    seen = True
+                    kind = "title"
+                elif seen and not sub["title"].startswith("설정"):
+                    kind = "sub"
+                else:
+                    kind = "plain"
+                c["detail"].append({"kind": kind, "no": no, "text": sub["title"]})
+                step = 0
+                for k, v in sub["parts"]:
+                    if k == "step":
+                        step += 1
+                        c["detail"].append({"kind": "step", "n": step, "text": v})
+                    elif k == "fig":
+                        img = figs_all[i - 1].get((v["scene"], v["sel"]))
+                        if img:
+                            f = os.path.join(imgdir, f"ch{i:02d}_fig{len(c['detail'])}.png")
+                            _save_uri(img["img"], f)
+                            c["detail"].append({"kind": "fig", "img": f, "w": img["w"], "h": img["h"], "text": v["cap"]})
+                    else:
+                        c["detail"].append({"kind": k, "text": v})
+            for op, img in zip(ch["opens"], opens_all[i - 1]):
+                f = os.path.join(imgdir, f"ch{i:02d}_open{len(c['opens'])}.png")
+                _save_uri(img["img"], f)
+                c["opens"].append({"img": f, "w": img["w"], "h": img["h"], "title": op["title"], "text": op["text"]})
+            model["chapters"].append(c)
+        await br.close()
+    mpath = base + ".model.json"
+    with open(mpath, "w", encoding="utf-8") as f:
+        json.dump(model, f, ensure_ascii=False)
+    docx = base + ".docx"
+    subprocess.run(["node", os.path.join(os.path.dirname(os.path.abspath(__file__)), "word.cjs"), mpath, docx], check=True)
+    print(f"만듦 {docx} ({os.path.getsize(docx) // 1024}KB)")
 
 
 if __name__ == "__main__":
