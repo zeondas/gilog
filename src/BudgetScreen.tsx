@@ -8,8 +8,9 @@
 // - 금액 단위 원/천원(천원은 반올림한 정수만 보여요, 저장은 늘 원). 손대지 않은 금액 칸은 원래 원 값 그대로 저장해요.
 import { DialogX } from "./DialogX";
 import { AskBand } from "./AskBand";
+import { orgsOf, projectHits, projectSub, Suggest, SuggestInput } from "./BudgetSuggest";
 import { Fragment, KeyboardEvent as RKeyboardEvent, MouseEvent as RMouseEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { api, errorText, inApp } from "./api";
+import { api, ContactsData, errorText, inApp } from "./api";
 import {
   allRows,
   balance,
@@ -417,6 +418,15 @@ export default function BudgetScreen() {
   useOutsideClose(!!form, [formRow], () => void commit(), { ignore: ".bd-pop", capture: true });
 
   const setF = (patch: Partial<Form>) => setForm((f) => (f ? ({ ...f, ...patch } as Form) : f));
+
+  // 업무연락처(✔2, 2026-10-26) – 화면을 열 때 한 번 읽어 공사명·업체 후보로만 써요(글자만 복사).
+  const [cdata, setCdata] = useState<ContactsData | null>(null);
+  useEffect(() => {
+    api.contactsData().then(setCdata, () => setCdata(null));
+  }, []);
+  /** 공사명에서 고른 사업의 업체가 여럿이면 업체 칸 후보(그 줄에서만) */
+  const [coOpts, setCoOpts] = useState<Suggest[] | null>(null);
+  useEffect(() => setCoOpts(null), [formKey]);
 
   // ---------- 뜨는 것 ----------
   useOutsideClose(!!pop && pop.t !== "memo", [], () => setPop(null), { ignore: ".bd-pop, [data-pick]", capture: true, onBlur: () => setPop(null) });
@@ -995,7 +1005,25 @@ export default function BudgetScreen() {
         {cell(
           <>
             {lines([...(itemLast ? [] : ["v1"]), "v2", "h2"])}
-            <span className="bd-gpad bd-fill">{nameInput("공사명")}</span>
+            <span className="bd-gpad bd-fill">
+              <SuggestInput
+                className={"fld bd-in" + (bad === "name" ? " bad" : "")}
+                label="공사명"
+                value={f.name}
+                options={projectHits(cdata, f.name).map((p) => ({ key: String(p.id), label: p.alias || p.name, sub: projectSub(cdata, p) }))}
+                hint="업무연락처 사업 · ↑↓ 고르기 · Tab 확정 · Esc 친 그대로"
+                onChange={(v) => {
+                  setF({ name: v });
+                  if (bad === "name") setBad(null);
+                }}
+                onPick={(o) => {
+                  const orgs = orgsOf(cdata, Number(o.key));
+                  if (orgs.length === 1 && !f.co.trim()) setF({ name: o.label, co: orgs[0].label });
+                  else setF({ name: o.label });
+                  setCoOpts(orgs.length > 1 ? orgs : null);
+                }}
+              />
+            </span>
           </>,
         )}
         {cell(
@@ -1018,12 +1046,15 @@ export default function BudgetScreen() {
           </button>,
         )}
         {cell(
-          <input
+          <SuggestInput
             className="fld bd-in"
-            aria-label="업체"
-            placeholder="업체"
+            label="업체"
             value={f.co}
-            onChange={(e) => setF({ co: e.target.value })}
+            options={(coOpts ?? []).filter((o) => !f.co.trim() || (o.label.startsWith(f.co.trim()) && o.label !== f.co.trim()))}
+            hint="이 사업의 업체 · ↑↓ 고르기 · Tab 확정 · Esc 친 그대로"
+            openOnFocus
+            onChange={(v) => setF({ co: v })}
+            onPick={(o) => setF({ co: o.label })}
           />,
         )}
         {cell("")}
