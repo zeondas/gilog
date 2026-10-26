@@ -565,7 +565,7 @@ function inputOf(c: Complaint): ComplaintInput {
 /** 민원인 칸의 처음 폭 = 휴대폰 번호 폭(2026-10-21 사용자) */
 const PHONE_SAMPLE = "010-7280-5715";
 const HEAD_FONT = { weight: 600, size: 12 };
-/** 상태 배지 폭(app.css .cm-status width) · 메모 단추 · 접힌 조치완료일 단추 */
+/** 상태 배지 폭(styles/*.css .cm-status width) · 메모 단추 · 접힌 조치완료일 단추 */
 const STATUS_BADGE = 52;
 const MEMO_BTN = 22;
 const FOLD_BTN = 14;

@@ -1,5 +1,5 @@
 // "지울까요?" 붉은 띠 공통 부품(2026-10-21 공통 부품 세션 ✔2, docs/qa/parts.md 2-2절).
-// 모양은 app.css `.ask-band` 그대로 – 자리만 다른 화면 이름표(cm-ask·td-ask·dmenu-ask 등)는 className으로 붙여요.
+// 모양은 styles/*.css `.ask-band` 그대로 – 자리만 다른 화면 이름표(cm-ask·td-ask·dmenu-ask 등)는 className으로 붙여요.
 // 단추 순서는 취소 · 지우기 고정, 열리면 취소에 커서, Esc는 띠만 접어요(감싼 카드·창·메뉴로 넘기지 않음).
 // 바깥 누르기는 띠를 품은 쪽이 useOutsideClose로 정해요(띠만 접기 / 고친 것 저장).
 import { useEffect, useRef } from "react";

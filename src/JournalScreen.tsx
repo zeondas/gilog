@@ -17,6 +17,7 @@ import {
   contactLabel,
   dayTitle,
   DraftLine,
+  badgeName,
   expandKind,
   findContact,
   firstContact,
@@ -1023,8 +1024,6 @@ function badgeStyle(s: Speaker) {
 }
 
 /** 입력 중의 배지. 누르면 말한 사람이 바뀌어요. */
-/** 말 배지 글자: 넉 자 이상 이름은 앞 세 글자만(2026-10-26 사용자 – 집행현황 담당 배지와 같은 규칙). 전체 이름은 title로. */
-const badgeName = (who: string) => [...who].slice(0, 3).join("");
 
 function SpeakerButton({ s, onClick }: { s: Speaker; onClick: () => void }) {
   return (
@@ -1358,7 +1357,7 @@ function NewCard({ date, ctx, onAdd }: { date: string; ctx: Ctx; onAdd: (e: Entr
 
 function stripe(e: Entry, ctx: Ctx) {
   const p = e.project !== null ? ctx.byId.get(e.project) : undefined;
-  // 띠는 테두리 두께를 바꾸지 않고 카드 안쪽 왼쪽에 겹쳐 그려요(app.css의 .jcard[style*="--stripe"]::before).
+  // 띠는 테두리 두께를 바꾸지 않고 카드 안쪽 왼쪽에 겹쳐 그려요(styles/*.css의 .jcard[style*="--stripe"]::before).
   // 테두리를 4px로 두꺼우면 그만큼 시간 기둥이 밀려 띠 없는 카드와 기둥 폭이 달라 보였어요(사용자 신고).
   return p ? ({ "--stripe": `var(--pj-${projectColor(p)}-line)` } as React.CSSProperties) : undefined;
 }

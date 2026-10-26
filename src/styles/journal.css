@@ -1,0 +1,1902 @@
+/* ===== journal.css – 업무일지(메모 편집기·인쇄 포함) (원래 app.css 순서 그대로, 정리 2차 2026-10-26) ===== */
+
+/* 시안 JournalCal1.dc.html(1안): 왼쪽 열 320px(월 달력 + 챙길 일) | 본문(머리 줄, 신규 카드, 2열 카드) */
+.jn {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-6);
+}
+
+/* 위쪽 고정(2026-10-25 사용자 ⑦): 업무일지가 화면 높이에 꼭 맞아 화면 전체는 움직이지 않고, 기록 목록 상자(.jn-scroll)만 스크롤해요.
+   오른쪽 열(달력·챙길 일)은 제 높이대로, 넘치면 그 열만 스크롤. 신규 카드가 아주 길어져 목록 상자가 최소 높이에 닿을 때만
+   예전처럼 화면 전체(.main)가 스크롤해요. */
+.main > .jn {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.main > .jn > .jn-body {
+  align-self: stretch;
+  min-height: 0;
+}
+
+.main > .jn > .jn-left {
+  /* 넘치면 이 열만 스크롤 – 카드 그림자가 잘리지 않게 바깥으로 8px 넓혀요(폭 260 + 양쪽 8) */
+  width: calc(260px + 16px);
+  max-height: calc(100% + 16px);
+  margin: -8px;
+  padding: 8px;
+  overflow-y: auto;
+}
+
+.jn-scroll {
+  flex: 1 1 0;
+  min-height: 160px;
+  overflow-y: auto;
+  /* 카드 그림자·고른 테두리가 잘리지 않게 바깥으로 조금 넓혀요 */
+  margin: -4px -6px;
+  padding: 4px 6px;
+}
+
+.jn-left {
+  flex: none;
+  width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* 월 달력 */
+.jcal {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.jcal-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 10px 10px 10px 14px;
+  background: var(--surface-band);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.jcal-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1h);
+  height: 30px;
+  margin-right: auto;
+  padding: 0 8px 0 4px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.jcal-title:hover {
+  background: var(--line-soft);
+}
+
+.jcal-nav,
+.jcal-today {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink-2);
+}
+
+.jcal-nav {
+  width: 28px;
+  padding: 0;
+}
+
+.jcal-today {
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.jcal-nav:hover,
+.jcal-today:hover {
+  background: var(--surface-band);
+}
+
+.jcal-body {
+  padding: var(--space-2) var(--space-3) var(--space-3);
+}
+
+.jcal-week,
+.jcal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.jcal-week {
+  padding-bottom: var(--space-1);
+}
+
+.jcal-week span {
+  text-align: center;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.jcal-week .sun {
+  color: var(--urgent);
+}
+
+.jcal-week .sat {
+  color: var(--saturday);
+}
+
+.jcal-grid {
+  gap: 2px;
+}
+
+.jcal-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  height: 36px;
+  padding: 5px 0 0;
+  border: 1.5px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--ink);
+  font-size: var(--fs);
+  font-weight: 400;
+  line-height: round(1.2em, 1px);
+  font-variant-numeric: tabular-nums;
+}
+
+.jcal-day:hover {
+  background: var(--surface-band);
+}
+
+.jcal-day.red {
+  color: var(--urgent);
+}
+
+.jcal-day.sat {
+  color: var(--saturday);
+}
+
+.jcal-day.has {
+  font-weight: 700;
+}
+
+.jcal-day.out {
+  opacity: 0.35;
+}
+
+.jcal-day.today {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+}
+
+.jcal-day[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+}
+
+.jcal-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent-line);
+  visibility: hidden;
+  corner-shape: round;
+}
+
+.jcal-day.has .jcal-dot {
+  visibility: visible;
+}
+
+.jcal-day[aria-pressed="true"] .jcal-dot {
+  background: var(--on-accent);
+  opacity: 0.6;
+}
+
+/* 12달 고르기 */
+.jcal-months {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-1h);
+  padding-top: var(--space-1);
+}
+
+.jcal-mon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 54px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--fs);
+  font-weight: 600;
+}
+
+.jcal-mon:hover {
+  background: var(--surface-band);
+}
+
+.jcal-mon.empty {
+  opacity: 0.45;
+}
+
+.jcal-mon-n {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.jcal-mon[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.jcal-mon[aria-pressed="true"] .jcal-mon-n {
+  color: var(--on-accent);
+}
+
+/* 본문 */
+.jn-body {
+  flex: 999 1 620px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.jn-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.jn-head .title {
+  margin-right: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.jn-search {
+  width: 260px;
+}
+
+/* 날짜 머리 줄 */
+.jday {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) 20px;
+  padding: 10px var(--space-4);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-lg);
+  background: var(--surface-side);
+}
+
+.jday-f {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.jday-in {
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 400;
+}
+
+.jday-in:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.jday-in.invalid {
+  border-color: var(--urgent);
+  outline: 2px solid var(--urgent);
+  outline-offset: -1px;
+}
+
+.jday-time .jday-in {
+  width: 64px;
+  font-variant-numeric: tabular-nums;
+}
+
+.jday-short .jday-in {
+  width: 90px;
+}
+
+.jday-mid .jday-in {
+  width: 220px;
+}
+
+.jday-grow {
+  flex: 1 1 220px;
+}
+
+.jday-grow .jday-in {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 카드 2열: 왼쪽 위가 가장 최근, 오른쪽 아래가 가장 오래된 기록 */
+.jn-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--space-3);
+}
+
+.jn-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* 한 번 누른(골라 둔) 카드 */
+.jcard.sel {
+  outline: 2px solid var(--accent-line);
+  outline-offset: -1px;
+}
+
+/* 시간 기둥형 카드 */
+.jcard {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  break-inside: avoid;
+  margin-bottom: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  cursor: text;
+}
+
+.jcard:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.jcard-static {
+  cursor: default;
+}
+
+.jpillar {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 14px var(--space-3);
+  background: var(--surface-band);
+  border-right: 1px solid var(--line-soft);
+}
+
+.jtime {
+  font-size: 17px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: round(1.2em, 1px);
+}
+
+.jkind {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.jtel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  align-self: flex-start;
+  max-width: 100%;
+  margin: auto 0 0;
+  padding: var(--space-2) 0 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: round(1.3em, 1px);
+  text-align: left;
+  cursor: copy;
+}
+
+.jtel > span {
+  white-space: nowrap;
+}
+
+.jtel:hover {
+  color: var(--ink);
+}
+
+.jtel.copied {
+  color: var(--st-done-fg);
+}
+
+.jtel-note {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.jmain {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.jhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px var(--space-2);
+  padding: var(--space-3) var(--space-4) 10px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.jname {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.jrest {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.jhead-tel {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.jproj-wrap {
+  position: relative;
+  margin-left: auto;
+}
+
+.jproj {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.jproj:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.jproj.none {
+  opacity: 0.55;
+}
+
+.jlines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1h);
+  padding: var(--space-3) var(--space-4) 14px;
+}
+
+.jline {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.jline.dim {
+  opacity: 0.5;
+}
+
+.jsp {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-badge);
+  height: var(--size-badge-h);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 0 3px;
+  font-size: 11.5px;
+  font-weight: 700;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* 내 말은 흰 바탕에 회색 테두리 */
+.jsp.me {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--ink-2);
+}
+
+.jline-t {
+  flex: 1;
+  min-width: 0;
+  line-height: round(1.7em, 1px);
+  overflow-wrap: anywhere;
+  /* 한 말 안 줄 바꿈(왼쪽 Alt+Enter, 엔터규칙)을 그대로 보여요 */
+  white-space: pre-wrap;
+}
+
+/* 프로젝트 고르기 목록 */
+.jmenu {
+  position: absolute;
+  z-index: 6;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 200px;
+  max-width: 280px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  cursor: default;
+}
+
+.jproj-pillar .jmenu {
+  left: 0;
+  right: auto;
+}
+
+.jmenu-opt {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 26px;
+  padding: 3px 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: round(1.2em, 1px);
+  text-align: left;
+}
+
+.jmenu-opt:hover,
+.jmenu-opt:focus-visible {
+  background: var(--surface-band);
+  outline: 0;
+}
+
+.jmenu-opt[aria-pressed="true"] {
+  background: var(--line-soft);
+  font-weight: 700;
+}
+
+.jmenu-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  corner-shape: round;
+}
+
+.jmenu-hint {
+  padding: 4px 6px;
+}
+
+/* 사업 고르기(2026-10-25 ③): 화면 위에 띄워 카드에 잘리지 않게, 맨 위 검색 칸 + 안에서 스크롤하는 목록 */
+.jmenu.jmenu-pop {
+  position: fixed;
+  z-index: 60;
+  right: auto;
+  width: 260px;
+  min-width: 0;
+  max-width: none;
+  padding: 4px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-pop);
+}
+
+.jmenu.jmenu-pop.up {
+  transform: translateY(-100%);
+}
+
+.jmenu-q {
+  display: block;
+  width: 100%;
+  margin: 0 0 4px;
+}
+
+.jmenu-list {
+  max-height: 176px;
+  overflow-y: auto;
+}
+
+.jmenu-opt.hi {
+  background: var(--surface-band);
+}
+
+.jmenu-opt .jmenu-name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jmenu-alias {
+  flex: none;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* 신규 입력 카드(점선)와 고치는 카드(실선) */
+.jcard-new,
+.jcard-edit {
+  background: var(--accent-wash);
+  cursor: default;
+  overflow: visible;
+}
+
+.jcard-new {
+  border: 1.5px dashed var(--accent-line);
+  box-shadow: none;
+  margin-bottom: 0;
+}
+
+.jcard-edit {
+  border: 1.5px solid var(--accent);
+}
+
+.jcard-new > .jpillar,
+.jcard-edit > .jpillar {
+  gap: var(--space-1);
+  padding: 10px var(--space-2);
+  background: var(--accent-tint);
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+}
+
+.jcard-new > .jpillar {
+  /* 구분 칸을 오른쪽 말 줄과 같은 높이에 맞춰요(위아래 줄 사이 6px) */
+  gap: var(--space-1h);
+  border-right: 1px dashed var(--accent-line);
+}
+
+.jcard-edit > .jpillar {
+  border-right: 1px solid var(--accent-line);
+}
+
+.jproj-pillar {
+  margin: 6px 0 0;
+  align-self: flex-start;
+  max-width: 100%;
+}
+
+.jproj-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: var(--size-badge-h);
+  padding: 3px 8px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--fs-badge);
+  font-weight: 700;
+  line-height: round(1.4em, 1px);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.jnew-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1h);
+  min-width: 0;
+  padding: 10px var(--space-3);
+}
+
+.jnew-top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.jwho {
+  flex: 1 1 280px;
+  max-width: 420px;
+}
+
+.jcard-edit .jwho {
+  flex: 1 1 160px;
+  max-width: none;
+}
+
+.jnew-tel {
+  flex: 0 1 190px;
+  width: auto;
+}
+
+.jedit-tel {
+  flex: 0 1 150px;
+  width: auto;
+}
+
+.jnew-hint {
+  flex: 1 1 240px;
+  align-self: center;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jwho-list {
+  min-width: 100%;
+  width: max-content;
+  max-width: 460px;
+}
+
+.jwho-opt {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.jwho-name {
+  font-weight: 700;
+}
+
+.jwho-rest {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.jwho-tel {
+  margin-left: auto;
+  padding-left: var(--space-3);
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.jnew-bottom {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.jlines-in {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.jline-in {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+/* 말 줄 칸: 한 말 안 줄 바꿈(왼쪽 Alt+Enter)이 있으면 글 높이만큼 늘어나요. 한 줄일 때는 다른 입력칸과 같은 높이·글자 자리예요. */
+.cell-input.jtalk {
+  display: block;
+  height: auto;
+  min-height: var(--size-input);
+  field-sizing: content;
+  resize: none;
+  overflow: hidden;
+  line-height: round(1.4em, 1px);
+  padding: calc((var(--size-input) - 20px) / 2) 6px;
+}
+
+.jsp-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* 보기 카드 배지와 같은 폭으로 고정 – 이름 길이와 상관없이 말 칸 시작이 한 줄로 맞아요(넉 자부터 앞 세 글자만) */
+  width: var(--size-badge);
+  height: 28px;
+  padding: 0 3px;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.jsp-btn.me {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--ink-2);
+}
+
+.jbtn-add {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1h);
+  height: var(--size-input);
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+}
+
+.jedit-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.jedit-foot .hint {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jedit-foot .btn-primary.btn-xs {
+  height: 28px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+}
+
+/* 휴지통은 맨 왼쪽 – 안내 글을 사이에 두고 오른쪽 끝 취소·저장과 떨어뜨려요(2026-10-26) */
+.jtrash {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  /* 붉은 단추(28) 왼쪽 끝을 위 말 배지 왼쪽 끝에 맞춰요 – 공통 .tool-box 왼쪽 여백 12를 없앰(2026-10-26 사용자) */
+  margin: 0 var(--space-1) 0 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+}
+
+.jask {
+  margin-top: 0;
+}
+
+/* 검색 결과 */
+.jsearch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.jsearch-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: 10px var(--space-4);
+  border: 1px solid var(--search-line);
+  border-radius: var(--radius-md);
+  background: var(--search-bg);
+}
+
+.jsearch-title {
+  font-size: 14.5px;
+  font-weight: 700;
+}
+
+.jonly {
+  margin-left: auto;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.jonly[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.jsearch-day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.jsearch-date {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-1) 0 6px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.jsearch-go {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0 -6px;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.jsearch-go:hover {
+  background: var(--surface-band);
+}
+
+.jsearch-arrow {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.jsearch-none {
+  padding: var(--space-6) var(--space-4);
+  margin: 0;
+}
+
+/* 챙길 일 (왼쪽 열 달력 아래) */
+.jn-aside {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.jn-aside-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: 10px 14px;
+  background: var(--surface-band);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.jn-aside-title {
+  font-size: 14.5px;
+  font-weight: 700;
+}
+
+.jn-aside-empty {
+  margin: 0;
+  padding: var(--space-3) 14px;
+}
+
+/* 구분 칸의 목록 화살표는 시안처럼 숨겨요(목록은 그대로 떠요). */
+.jpillar input[list]::-webkit-calendar-picker-indicator {
+  display: none !important;
+}
+
+/* ---------- 업무일지 0.5.1: 날짜로 가기, 메모 편집기 ---------- */
+.jn-head .title {
+  margin-right: var(--space-2);
+}
+
+.jn-search {
+  margin-left: auto;
+}
+
+/* 메모 카드: 머리글 없이 본문만 */
+.jmemo-main {
+  padding: var(--space-3) var(--space-4) 14px;
+}
+
+.jcard-memo .jnew-main {
+  gap: var(--space-2);
+}
+
+.jmemo-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.jmemo-foot .hint {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 편집기 */
+.rte {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.rte:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.rte-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--surface-side);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+.tb-wide {
+  width: auto;
+  padding: 0 7px;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.rte-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 3px;
+  background: var(--line);
+}
+
+.rte-grid-wrap {
+  position: relative;
+}
+
+.rte-grid {
+  position: absolute;
+  z-index: 7;
+  top: calc(100% + 4px);
+  left: 0;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.rte-grid-cells {
+  display: grid;
+  grid-template-columns: repeat(8, 16px);
+  gap: 3px;
+}
+
+.rte-grid-cell {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--surface);
+}
+
+.rte-grid-cell[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+}
+
+.rte-grid-size {
+  margin-top: 4px;
+  text-align: center;
+}
+
+.rte-area {
+  position: relative;
+  min-height: 96px;
+  max-height: 520px;
+  overflow: auto;
+  padding: 8px 10px;
+  color: var(--ink);
+  outline: 0;
+  cursor: text;
+  line-height: round(1.55em, 1px);
+}
+
+.rte-area.is-empty::before {
+  content: attr(data-placeholder);
+  position: absolute;
+  color: var(--muted);
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+/* 글머리 목록 = 머릿기호 규칙(2026-10-17 위계 규칙): 목록은 한 겹이고 줄마다 기호 종류를 이름표로 적어요.
+   없음 ●(기본) · k-sq □ · k-da 작대기 · nb 기호 지움. 들여쓰기는 위계(lv1·lv2, RichMemo relayout) × 띄어쓰기 두 칸(--bl-indent).
+   앱이 그려요(윈도우 글자 □를 쓰지 않아요). 기호와 글 사이 6px, 기호 칸 폭은 □ 폭(7px), 기호는 한글 글자 높이 정중앙(--bl-shift). */
+.rte-area ul,
+.rte-view ul {
+  margin: 2px 0 4px;
+  padding-left: 0;
+  list-style: none;
+}
+
+.rte-area ul > li,
+.rte-view ul > li {
+  position: relative;
+  padding-left: 13px;
+}
+
+.rte-area ul > li.lv1,
+.rte-view ul > li.lv1 {
+  margin-left: var(--bl-indent, 6.5px);
+}
+
+.rte-area ul > li.lv2,
+.rte-view ul > li.lv2 {
+  margin-left: calc(var(--bl-indent, 6.5px) * 2);
+}
+
+/* □ */
+.rte-area ul > li.k-sq::before,
+.rte-view ul > li.k-sq::before {
+  left: 0;
+  top: calc(var(--fs) * 0.775 + var(--bl-shift, 0px) - 3.5px);
+  width: 7px;
+  height: 7px;
+  box-sizing: border-box;
+  border: 1.4px solid var(--muted);
+  border-radius: 1px;
+  background: transparent;
+}
+
+/* 작대기 */
+.rte-area ul > li.k-da::before,
+.rte-view ul > li.k-da::before {
+  left: 1px;
+  top: calc(var(--fs) * 0.775 + var(--bl-shift, 0px) - 0.75px);
+  width: 5px;
+  height: 1.5px;
+  border-radius: 1px;
+}
+
+/* 기호를 지운 줄(줄 맨 앞 Backspace), 빈 줄(묶음 나누기 – 적는 중인 줄은 보여요) */
+.rte-area ul > li.nb::before,
+.rte-view ul > li.nb::before,
+.rte-view ul > li.blank::before,
+.rte-area ul > li.blank:not(.caret)::before {
+  display: none;
+}
+
+/* 메모 정렬 (가운데 · 오른쪽). 표 칸에도 같은 이름을 써요. */
+.rte-area .al-c,
+.rte-view .al-c {
+  text-align: center;
+}
+
+.rte-area .al-r,
+.rte-view .al-r {
+  text-align: right;
+}
+
+.rte-area td > :is(div, p),
+.rte-view td > p {
+  margin: 0;
+}
+
+/* ---------- 민원대장 ---------- */
+/* 업무일지 "챙길 일"의 민원 */
+.jn-due {
+  display: flex;
+  flex-direction: column;
+}
+
+.jn-due-item {
+  display: grid;
+  /* 글 칸이 긴 글만큼 넓어지지 않게 0까지 줄 수 있게 해요 → 넘치는 글은 "…"(사용자 2026-10-18) */
+  grid-template-columns: 40px minmax(0, 1fr);
+  min-width: 0;
+  gap: 2px 10px;
+  align-items: baseline;
+  padding: 9px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--line-row);
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+}
+
+.jn-due-item:last-child {
+  border-bottom: 0;
+}
+
+.jn-due-item:hover {
+  background: var(--accent-wash);
+}
+
+.jn-due-d {
+  grid-row: span 2;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--st-work-fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.jn-due-d.urgent {
+  color: var(--urgent);
+}
+
+.jn-due-t {
+  min-width: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jn-due-s {
+  min-width: 0;
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cm-c > .pin {
+  flex: 1;
+}
+
+.cm-edit-foot > .tool-box {
+  margin-left: 0;
+}
+
+/* ---------- 머릿기호 규칙 (bullets.ts, Bullets.tsx) ---------- */
+/* ---------- 업무일지 인쇄 – 기간 창 (시안 JournalPrint.dc.html) ---------- */
+.jn-print {
+  gap: var(--space-1h);
+}
+
+.dialog.jp-dlg {
+  width: 648px;
+  max-height: none;
+  overflow: visible;
+}
+
+.jp-head {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  padding: 18px 20px 0;
+}
+
+.jp-title {
+  margin: 0 auto 0 0;
+  font-size: 16px;
+  line-height: round(1.5em, 1px);
+  font-weight: 700;
+}
+
+.jp-top {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 14px 24px 0;
+}
+
+.jp-chips {
+  align-self: flex-start;
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: var(--radius-md);
+  background: var(--surface-band);
+}
+
+.jp-chip {
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.jp-chip[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(var(--shadow-rgb), 0.14);
+}
+
+.jp-fields {
+  display: grid;
+  grid-template-columns: 1fr 20px 1fr;
+  align-items: end;
+}
+
+.jp-tilde {
+  height: 35px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+
+.jp-field {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.jp-field-l {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.jp-field.on .jp-field-l {
+  color: var(--accent);
+}
+
+.jp-field-box {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.jp-field.on .jp-field-box {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 0.5px var(--accent);
+}
+
+.jp-field-box.invalid,
+.jp-field.on .jp-field-box.invalid {
+  border-color: var(--urgent);
+  box-shadow: inset 0 0 0 0.5px var(--urgent);
+}
+
+.jp-field-box input {
+  flex: 1;
+  min-width: 0;
+  height: 20px;
+  padding: 0 0 1px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.jp-wd {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.jp-cal {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  margin: 16px 24px 0;
+  padding: 14px 12px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-md);
+}
+
+.jp-nav {
+  position: absolute;
+  top: 10px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-2);
+}
+
+.jp-nav:hover {
+  background: var(--surface-band);
+}
+
+.jp-nav.prev {
+  left: 8px;
+}
+
+.jp-nav.next {
+  right: 8px;
+}
+
+.jp-month {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1h);
+}
+
+.jp-mtitle {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.jp-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  font-size: 11.5px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--muted);
+}
+
+.jp-week .red {
+  color: var(--urgent);
+}
+
+.jp-week .sat {
+  color: var(--saturday);
+}
+
+.jp-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  row-gap: 2px;
+}
+
+.jp-cell {
+  height: 36px;
+}
+
+.jp-cell.band {
+  background: var(--accent-tint);
+}
+
+.jp-cell.band-l {
+  border-radius: 8px 0 0 8px;
+}
+
+.jp-cell.band-r {
+  border-radius: 0 8px 8px 0;
+}
+
+.jp-day {
+  width: 100%;
+  height: 36px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.jp-day > span:first-child {
+  line-height: 16px;
+}
+
+.jp-day:hover {
+  outline: 1px solid var(--accent-line);
+  outline-offset: -1px;
+}
+
+.jp-day.red {
+  color: var(--urgent);
+}
+
+.jp-day.sat {
+  color: var(--saturday);
+}
+
+.jp-day.today {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+  font-weight: 700;
+}
+
+.jp-day.end {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.jp-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  corner-shape: round;
+  background: transparent;
+}
+
+.jp-day.has .jp-dot,
+.jp-legend .jp-dot {
+  background: var(--accent-line);
+}
+
+.jp-day.end.has .jp-dot {
+  background: var(--on-accent);
+  opacity: 0.75;
+}
+
+.jp-legend {
+  display: flex;
+  gap: 14px;
+  margin: 8px 24px 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.jp-legend-i {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.jp-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: 16px;
+  padding: 14px 20px 16px;
+  border-top: 1px solid var(--line-row);
+}
+
+.jp-sum {
+  margin-right: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.jp-sum1 {
+  font-weight: 600;
+}
+
+.jp-sum1.bad {
+  color: var(--urgent);
+}
+
+.jp-sum2 {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.jp-go {
+  padding: 0 18px;
+}
+
+/* ---------- 업무일지 인쇄 – 종이 (시안 JournalPdf.dc.html, A4 가로) ----------
+   화면에서는 창 밖에 숨겨 두고(재기용), 인쇄할 때만 이것만 찍어요. */
+.jp-root {
+  position: fixed;
+  left: -20000px;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.jp-measure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.jp-page {
+  position: relative;
+  width: 297mm;
+  height: 210mm;
+  padding: 5mm 5mm 15mm 25mm;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+  background: var(--surface);
+  break-after: page;
+}
+
+.jp-page:last-child {
+  break-after: auto;
+}
+
+.jp-page,
+.jp-measure {
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 17px;
+  word-break: keep-all;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+.jp-phead {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 6px 0 8px;
+  border-bottom: 1.5px solid var(--accent);
+}
+
+.jp-phead h1 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.jp-phead-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  color: var(--ink-2);
+}
+
+.jp-phead-items b {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.jp-phead-me {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.jp-cols {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.jp-col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.jp-card {
+  flex: none;
+  padding: 7.5px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  break-inside: avoid;
+}
+
+.jp-chead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1h);
+  margin-bottom: 5px;
+}
+
+.jp-time {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.jp-kind {
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 17px;
+}
+
+.jp-kind.send {
+  background: var(--accent-tint);
+  color: var(--accent);
+}
+
+.jp-kind.recv {
+  background: var(--st-done-bg);
+  color: var(--st-done-fg);
+}
+
+.jp-kind.meet {
+  background: var(--st-work-bg);
+  color: var(--st-work-fg);
+}
+
+.jp-kind.memo {
+  background: var(--st-hold-bg);
+  color: var(--st-hold-fg);
+}
+
+.jp-who {
+  font-weight: 600;
+}
+
+.jp-sub {
+  color: var(--muted);
+}
+
+.jp-num {
+  font-variant-numeric: tabular-nums;
+}
+
+.jp-proj {
+  margin-left: auto;
+  padding: 0 6px;
+  border: 1px solid;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.jp-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.jp-line {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1h);
+}
+
+.jp-sp {
+  flex: none;
+  min-width: 38px;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 17px;
+  text-align: center;
+}
+
+.jp-sp.me {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.jp-line-t {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* 메모 본문: 화면과 같은 그린 머릿기호(.rte-view)를 종이 글자 크기(12px)에 맞춰요. */
+.jp-memo {
+  --fs: 12px;
+  --bl-indent: 6px;
+  line-height: 18px;
+}
+
+.jp-pfoot {
+  position: absolute;
+  left: 25mm;
+  right: 5mm;
+  bottom: 6mm;
+  display: flex;
+  justify-content: space-between;
+  font-size: 10.5px;
+  line-height: 14px;
+  color: var(--muted);
+}
+
+@page {
+  size: A4 landscape;
+  margin: 0;
+}
+
+@media print {
+  html,
+  body {
+    height: auto;
+    background: var(--surface);
+  }
+
+  #root {
+    display: none !important;
+  }
+
+  .jp-root {
+    position: static;
+    visibility: visible;
+  }
+
+  .jp-measure {
+    display: none;
+  }
+}
+
+/* 프로젝트 색 띠: 테두리는 모든 카드가 1px 그대로이고, 띠는 안쪽에 겹쳐 그려 시간 기둥 폭이 같아요. */
+.jcard[style*="--stripe"] {
+  position: relative;
+}
+
+.jcard[style*="--stripe"]::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  background: var(--stripe);
+  pointer-events: none;
+}
+
+/* 업무일지 프로젝트 배지: 줄인 이름(pjLabel), 긴 이름은 "…" – 마우스를 올리면 정식 이름(빌드 0.15.0, wip/contacts 합친 뒤) */
+.jproj,
+.jproj-badge {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 260px;
+}
+
+.jmenu-opt .pbadge-t {
+  min-width: 0;
+}
+

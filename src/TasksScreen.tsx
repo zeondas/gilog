@@ -23,7 +23,7 @@ import { SearchBox } from "./SearchBox";
 
 const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
 
-/** 체크 움직임 시간(ms) – app.css `.td-check.pop`의 td-check-pop과 같게 */
+/** 체크 움직임 시간(ms) – styles/*.css `.td-check.pop`의 td-check-pop과 같게 */
 const CHECK_MS = 400;
 
 
@@ -1127,7 +1127,7 @@ function TaskEditor({
 
 // ---------- 아이콘 ----------
 
-/** 체크 표시. 목록 줄의 체크 상자에는 늘 그려 두고, 체크 전엔 감췄다가 마우스를 올리면 연하게 미리 보여요(app.css `.td-tick`). */
+/** 체크 표시. 목록 줄의 체크 상자에는 늘 그려 두고, 체크 전엔 감췄다가 마우스를 올리면 연하게 미리 보여요(styles/*.css `.td-tick`). */
 function Tick() {
   return (
     <svg className="td-tick" aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round">

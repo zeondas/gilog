@@ -48,6 +48,11 @@ jobs:
         shell: bash
         run: npm run build 2>&1 | tee -a check.log; exit ${PIPESTATUS[0]}
 
+      # 규칙 함수 시험(2026-10-26 정리 2차 – 날짜·전화·머릿기호·민원·할 일·캘린더·예산현황·탐색기·키, vitest 1분 안쪽).
+      - name: 규칙 함수 시험
+        shell: bash
+        run: npm test 2>&1 | tee -a check.log; exit ${PIPESTATUS[0]}
+
       # 암호 풀기(argon2)는 시험 모드에서 아주 느려서 그 둘만 빠르게 만들어요(시험 결과는 같아요).
       # 만들기와 돌리기를 나눠 두면 어디서 시간이 드는지 단계 시간으로 보여요.
       - name: 저장·암호화 시험 만들기

@@ -3,7 +3,7 @@
 // 본문이 그보다 좁으면 본문 영역(.main)만 가로로 스크롤해요. 사이드바는 그대로예요.
 //
 // 되돌리기: VIEWPORT_SCROLL을 false로 바꾸면 10-21 방식(열·칸이 창 폭을 따라 줄어듦)으로 돌아가요.
-// 이 파일과 App.tsx의 `vp` 한 줄, app.css 끝 "창 크기" 묶음만 이 기능이에요.
+// 이 파일과 App.tsx의 `vp` 한 줄, styles/late.css "창 크기" 묶음만 이 기능이에요.
 
 import type { ScreenId } from "./screens";
 
