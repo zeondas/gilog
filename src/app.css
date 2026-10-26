@@ -2096,6 +2096,7 @@ mark {
   height: var(--size-badge-h);
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
+  padding: 0 3px;
   font-size: 11.5px;
   font-weight: 700;
   overflow: hidden;
@@ -2397,9 +2398,11 @@ mark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: var(--size-badge);
+  /* 보기 카드 배지와 같은 폭으로 고정 – 이름 길이와 상관없이 말 칸 시작이 한 줄로 맞아요(넉 자부터 앞 세 글자만) */
+  width: var(--size-badge);
   height: 28px;
-  padding: 0 var(--space-2);
+  padding: 0 3px;
+  overflow: hidden;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   font-size: 11.5px;
@@ -2443,7 +2446,7 @@ mark {
   border-radius: var(--radius-sm);
 }
 
-/* 휴지통은 저장·취소에서 떨어뜨려요 */
+/* 휴지통은 맨 왼쪽 – 안내 글을 사이에 두고 오른쪽 끝 취소·저장과 떨어뜨려요(2026-10-26) */
 .jtrash {
   display: inline-flex;
   align-items: center;
@@ -2451,7 +2454,8 @@ mark {
   flex: none;
   width: 28px;
   height: 28px;
-  margin-left: var(--space-3);
+  /* 붉은 단추(28) 왼쪽 끝을 위 말 배지 왼쪽 끝에 맞춰요 – 공통 .tool-box 왼쪽 여백 12를 없앰(2026-10-26 사용자) */
+  margin: 0 var(--space-1) 0 0;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;

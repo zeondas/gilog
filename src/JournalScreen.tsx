@@ -904,7 +904,7 @@ function DayHead({ info, onSave }: { info: DayInfo; onSave: (d: DayInfo) => void
 // ---------- 상대 칸 (업무연락처에서 찾기) ----------
 
 /**
- * 상대 칸. "/"로 여러 명을 적고(예전 쉼표도 나눠요), 마지막으로 적는 이름에 맞는 연락처를 아래에 보여 줘요.
+ * 상대 칸. "/"로 여러 명을 적고(쉼표는 글자 그대로), 마지막으로 적는 이름에 맞는 연락처를 아래에 보여 줘요.
  * ↑↓로 고르고 Enter로 넣어요(고르지 않았으면 Enter는 등록이에요). 이름만 적고 칸을 떠나도 그 사람이 한 명이면 채워요.
  */
 function WhoInput({
@@ -929,7 +929,7 @@ function WhoInput({
   // 이름 초성: Shift 없이 같은 자음을 두 번 쳐서 묶인 된소리(ㅆ)는 ㅅㅅ으로 풀어요.
   const guard = useJamoGuard(onChange);
   guard.follow(value);
-  const segs = value.split(/[,/]/);
+  const segs = value.split("/");
   const last = segs[segs.length - 1].trim();
   const lastLc = last.toLowerCase();
   // 이름은 초성으로도 찾아요("ㅂㅈㅎ", "박ㅈ"). 소속·직위는 글자 그대로 찾아요. 겹자음(ㅄ)은 풀어서 봐요.
@@ -1040,6 +1040,9 @@ function badgeStyle(s: Speaker) {
 }
 
 /** 입력 중의 배지. 누르면 말한 사람이 바뀌어요. */
+/** 말 배지 글자: 넉 자 이상 이름은 앞 세 글자만(2026-10-26 사용자 – 집행현황 담당 배지와 같은 규칙). 전체 이름은 title로. */
+const badgeName = (who: string) => [...who].slice(0, 3).join("");
+
 function SpeakerButton({ s, onClick }: { s: Speaker; onClick: () => void }) {
   return (
     <button
@@ -1047,12 +1050,12 @@ function SpeakerButton({ s, onClick }: { s: Speaker; onClick: () => void }) {
       tabIndex={-1}
       className={"jsp-btn" + (s.me ? " me" : "")}
       style={badgeStyle(s)}
-      title="눌러서 말한 사람 바꾸기"
+      title={(s.me ? "" : s.who + " – ") + "눌러서 말한 사람 바꾸기"}
       aria-label={`말한 사람: ${s.me ? "나" : s.who} (눌러서 변경)`}
       onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
     >
-      {s.me ? "나" : s.who}
+      {s.me ? "나" : badgeName(s.who)}
     </button>
   );
 }
@@ -1380,8 +1383,8 @@ function Lines({ entry, q = "", show, dim }: { entry: Entry; q?: string; show?: 
       {entry.lines.map((l, i) =>
         show && !show[i] ? null : (
           <div key={i} className={"jline" + (dim?.[i] ? " dim" : "")}>
-            <span className={"jsp" + (l.me ? " me" : "")} style={badgeStyle(l)}>
-              {l.me ? "나" : <Hl text={l.who} q={q} />}
+            <span className={"jsp" + (l.me ? " me" : "")} style={badgeStyle(l)} title={l.me ? undefined : l.who}>
+              {l.me ? "나" : <Hl text={badgeName(l.who)} q={q} />}
             </span>
             <span className="jline-t">
               <Hl text={l.text} q={q} />
@@ -1933,6 +1936,10 @@ function EditCard({
           <AskBand className="jask" label="기록 지우기 확인" text="이 기록을 지울까요?" onNo={() => setAsking(false)} onYes={onRemove} />
         ) : (
           <div className="jedit-foot">
+            {/* 지우기는 맨 왼쪽, 취소·저장은 오른쪽 끝(2026-10-26 사용자 – 저장 옆 바깥에 있으면 잘못 누르기 쉬워요) */}
+            <button type="button" className="tool-box jtrash del-btn" aria-label="이 기록 지우기" title="이 기록 지우기" onClick={() => setAsking(true)}>
+              <DelGlyph />
+            </button>
             {memo ? (
               <span className="hint">Tab 저장 · Esc 취소</span>
             ) : (
@@ -1945,9 +1952,6 @@ function EditCard({
             </button>
             <button type="button" className="btn-primary btn-xs" onClick={() => save()}>
               저장
-            </button>
-            <button type="button" className="tool-box jtrash del-btn" aria-label="이 기록 지우기" title="이 기록 지우기" onClick={() => setAsking(true)}>
-              <DelGlyph />
             </button>
           </div>
         )}

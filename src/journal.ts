@@ -122,9 +122,9 @@ export function koIndex(text: string, q: string): number {
 
 // ---------- 상대 ----------
 
-/** 상대 여러 명을 나누는 글자(2026-10-25 사용자: "," → "/"). 예전 기록의 ","도 나눠요. */
+/** 상대 여러 명을 나누는 글자는 "/" 하나예요(2026-10-26 사용자: ","는 글자 그대로 – 이름·소속에 쓸 수 있게). */
 export const WHO_SEP = " / ";
-const WHO_SPLIT = /[,/]/;
+const WHO_SPLIT = /\//;
 
 /** 상대 칸을 사람마다 나눠요(빈 것 뺌). */
 export function splitPeople(who: string): string[] {
@@ -144,7 +144,8 @@ export function splitWho(who: string): { name: string; rest: string } {
 /** 상대 칸에 적힌 사람 이름들 ("김○○ 주무관 · 경기도청, 팀장" → ["김○○", "팀장"]) */
 export function whoNames(who: string): string[] {
   return splitPeople(who)
-    .map((s) => s.split(" · ")[0].trim().split(/\s+/)[0])
+    // 예전에 쉼표로 적은 기록("팀장, 서무")의 첫 이름 끝 쉼표는 떼요.
+    .map((s) => s.split(" · ")[0].trim().split(/\s+/)[0].replace(/[,，]+$/, ""))
     .filter(Boolean);
 }
 

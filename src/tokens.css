@@ -133,7 +133,8 @@
   /* 배지 높이 하나 (결정 ④ – 모서리 sm·글자 11.5) */
   --size-badge-h: 22px;
   --size-row: 36px;
-  --size-badge: 62px;
+  /* 업무일지 말 배지 폭 – 세 글자 이름(11.5px·700 약 32px) + 좌우 6 (2026-10-26 사용자, 넉 자 이상은 앞 세 글자만) */
+  --size-badge: 44px;
   --size-pillar: 88px;
   --size-side: 180px;
   --size-card-min: 280px;
