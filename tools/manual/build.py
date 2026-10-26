@@ -42,7 +42,7 @@ RING = 20               # 번호 원 지름
 GAP = 26                # 번호 원 사이 가장 좁은 간격
 OPEN_W = (IMG_W - 24) // 2  # 열린 모습 그림 한 칸 폭(두 칸)
 OPEN_SCALE = 1.0   # 열린 모습은 화면 크기 그대로(키우지 않아요)
-OPEN_H = 380       # 열린 모습 그림 가장 큰 높이
+OPEN_H = 340       # 열린 모습 그림 가장 큰 높이
 
 
 # ---------- md 읽기 ----------
@@ -191,6 +191,18 @@ async def shoot_chapter(br, url, ch, missing):
         if not b:
             missing.append(f'{ch["title"]} {i + 1}. {m["name"]} – `{m["sel"]}`')
         marks.append({**m, "box": b})
+    low_v = await p.evaluate("""(sel) => {
+      const root = document.querySelector(sel) || document.body; const boxes = [];
+      for (const e of root.querySelectorAll('*')) {
+        const r = e.getBoundingClientRect();
+        if (r.width < 4 || r.height < 4 || r.height > 160 || r.bottom > innerHeight) continue;
+        const leaf = e.matches('input, textarea, button, svg, img, select') || [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim());
+        if (leaf) boxes.push([r.top, r.bottom]);
+      }
+      // 위에서부터 내려가다 빈 곳이 150px 넘게 이어지면 거기서 끊어요(표 아래 안내 줄 같은 외딴 글은 빼요)
+      boxes.sort((a, b) => a[0] - b[0]); let b = 0;
+      for (const [t, bt] of boxes) { if (b && t - b > 150) break; b = Math.max(b, bt); }
+      return b; }""", ch["crop"] or ".main")
     shot = Image.open(io.BytesIO(await p.screenshot())).convert("RGB")
     await ctx.close()
 
@@ -200,7 +212,9 @@ async def shoot_chapter(br, url, ch, missing):
     # 번호가 가리키는 요소가 다 들어가게 아래를 늘리고, 빈 바탕은 잘라요
     need = max([int(m["box"]["y"] + m["box"]["height"]) + 12 for m in marks if m["box"]] + [y0 + 60])
     region = shot.crop((x0 * D, y0 * D, x1 * D, y1 * D))
-    cut = max(trim_bottom(region) // D, need - y0)
+    # 내용 아래 끝: 글·칸·단추가 있는 가장 아래 요소(표 테두리처럼 빈 틀은 빼요) – 없으면 그림으로 잘라요
+    low = low_v
+    cut = max(min(trim_bottom(region) // D, (low - y0 + 16) if low else 10**6), need - y0)
     region = region.crop((0, 0, region.width, min(region.height, cut * D)))
     s = IMG_W / (x1 - x0)
     h = region.height / D * s
@@ -221,6 +235,9 @@ async def shoot_chapter(br, url, ch, missing):
         m["ty"] = BAND + ((b["y"] - y0) if side == "top" else (b["y"] + b["height"] - y0)) * s
         m["ty"] = m["ty"] - 1.5 if side == "top" else m["ty"] + 1.5
     place([m for m in marks if m["box"]], IMG_W)
+    # 번호는 그림을 읽는 차례대로 다시 매겨요: 위 줄 왼쪽 → 오른쪽, 다음 아래 줄 왼쪽 → 오른쪽
+    marks.sort(key=lambda m: (m["box"] is None, m.get("side") != "top", m.get("cx", 0)))
+    ch["marks"] = marks
     return {"img": png_uri(region), "h": h, "marks": marks}
 
 
@@ -237,8 +254,9 @@ async def shoot_open(br, url, o, missing, title):
     x0, y0 = max(0, b["x"] - m), max(0, b["y"] - m)
     x1, y1 = min(1600, b["x"] + b["width"] + m), min(900, b["y"] + b["height"] + m)
     region = shot.crop((int(x0 * D), int(y0 * D), int(x1 * D), int(y1 * D)))
-    sc = min(OPEN_SCALE, OPEN_W / (x1 - x0), OPEN_H / (y1 - y0))
-    return {"img": png_uri(region), "w": (x1 - x0) * sc, "h": (y1 - y0) * sc}
+    wide = (x1 - x0) > OPEN_W * 1.4  # 넓은 창은 두 칸을 다 써요(글자가 너무 작아지지 않게)
+    sc = min(OPEN_SCALE, (IMG_W if wide else OPEN_W) / (x1 - x0), OPEN_H / (y1 - y0))
+    return {"img": png_uri(region), "w": (x1 - x0) * sc, "h": (y1 - y0) * sc, "wide": wide}
 
 
 # ---------- HTML ----------
@@ -248,7 +266,7 @@ CSS = """
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { background: #E9E8EE; }
 body { font-family: "Pretendard", sans-serif; color: var(--ink); font-size: 13px; line-height: 1.6; word-break: keep-all; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-.page { width: %(pw)dpx; min-height: 1123px; margin: 24px auto; background: #fff; position: relative; padding-bottom: 72px; box-shadow: 0 1px 4px rgba(28,27,34,.12); }
+.page { width: %(pw)dpx; min-height: 1123px; margin: 24px auto; background: #fff; position: relative; padding-bottom: 60px; box-shadow: 0 1px 4px rgba(28,27,34,.12); }
 @page { size: A4; margin: 0; }
 @media print { html { background: #fff; } .page { margin: 0; box-shadow: none; break-after: page; } }
 .band { background: var(--band); height: 46px; padding: 0 %(pad)dpx; display: flex; align-items: center; justify-content: space-between; }
@@ -344,7 +362,8 @@ def chapter_html(no, ch, sh, opens, fix, logo):
         if opens:
             o.append('<div class="block">' + head("열린 모습") + '<div class="opens">')
             for op, img in zip(ch["opens"], opens):
-                o.append(f'<figure><img src="{img["img"]}" style="width:{img["w"]:.0f}px;height:{img["h"]:.0f}px" alt="">'
+                span = ' style="grid-column:1/-1"' if img["wide"] else ""
+                o.append(f'<figure{span}><img src="{img["img"]}" style="width:{img["w"]:.0f}px;height:{img["h"]:.0f}px" alt="">'
                          f'<figcaption><b>{html.escape(op["title"])}</b>{inline(op["text"])}</figcaption></figure>')
             o.append("</div></div>")
         if ch["tips"]:
@@ -413,7 +432,7 @@ async def main():
           }).filter(([i, b]) => b > 1123 - 60)""")
         await br.close()
     for i, b, t in over:
-        missing.append(f"{t} – {i + 1}쪽 글이 A4 한 장을 넘어요(아래 끝 {b}px, 1063 안이어야 해요)")
+        missing.append(f"{t} – {i + 1}쪽 글이 A4 한 장을 넘어요(아래 끝 {b}px, 1063 안이어야 해요 – 설명을 줄여요)")
     if missing:
         print("잴 수 없는 요소 – 선택자를 고치거나 그 화면 세션에 이름표(data-help)를 부탁해요:")
         for m in missing:
