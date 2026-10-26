@@ -219,8 +219,24 @@ async def shoot_chapter(br, url, ch, missing):
       boxes.sort((a, b) => a[0] - b[0]); let b = 0;
       for (const [t, bt] of boxes) { if (b && t - b > 150) break; b = Math.max(b, bt); }
       return b; }""", ch["crop"] or ".main")
+    # 글 속 {{선택자}} – 그 요소를 작게 잘라 글 줄 안에 넣어요(머리 줄 단추 모양 등)
+    chips = {}
+    for sub in ch["detail"]:
+        for kind, v in sub["parts"]:
+            for sel in re.findall(r"\{\{(.+?)\}\}", v if isinstance(v, str) else v.get("cap", "")):
+                if sel not in chips:
+                    chips[sel] = await cap.box(p, sel)
+                    if not chips[sel]:
+                        missing.append(f'{ch["title"]} 글 속 그림 – `{sel}`')
     shot = Image.open(io.BytesIO(await p.screenshot())).convert("RGB")
     await ctx.close()
+    D0 = cap.DPR
+    ch["chips"] = {}
+    for sel, b in chips.items():
+        if b:
+            im = shot.crop((int(b["x"] * D0), int(b["y"] * D0), int((b["x"] + b["width"]) * D0), int((b["y"] + b["height"]) * D0)))
+            h = 22
+            ch["chips"][sel] = f'<img class="chip" src="{png_uri(im)}" style="height:{h}px;width:{b["width"] * h / b["height"]:.0f}px" alt="">'
 
     D = cap.DPR
     x0, y0 = int(main["x"]), int(main["y"])
@@ -321,20 +337,24 @@ ul.dots li::before { content: ""; position: absolute; left: 0; top: 9px; width: 
 .tips li { list-style: none; color: var(--ink2); }
 kbd { font-family: inherit; font-size: 11px; font-weight: 600; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: #fff; color: var(--ink); white-space: nowrap; }
 .foot { position: absolute; left: %(pad)dpx; right: %(pad)dpx; bottom: 22px; display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 8px; }
-/* 상세 설명 */
-.dtitle { display: flex; align-items: center; gap: 9px; margin: 14px 0 6px %(ind)dpx; font-size: 14.5px; font-weight: 700; break-after: avoid; }
-.dtitle .dbar { width: 20px; height: 3px; background: var(--ink); border-radius: 2px; flex: none; }
+/* 상세 설명 – 번호 절(속 빈 원) > 딸린 절(굵은 글) > 단계(1. 2.)·점 항목, 본문은 모두 같은 왼쪽 선 */
 .dpart { padding-left: %(ind)dpx; display: flow-root; }
+.dtitle { display: flex; align-items: center; gap: 9px; margin: 14px 0 6px; font-size: 14.5px; font-weight: 700; }
+.dtitle.dplain { padding-left: 29px; }
+.dsub { margin: 10px 0 4px 29px; font-size: 13.5px; font-weight: 700; }
 .dpart > .dp, .dpart > .dstep, .dpart > .ddot, .dpart > .dfig { margin-left: 29px; }
 .dp { color: var(--ink2); margin: 3px 0; }
-.dstep { display: flex; gap: 8px; align-items: flex-start; margin: 4px 0; }
-.dstep .dsn { flex: none; width: 18px; height: 18px; margin-top: 2px; border-radius: 4px; background: var(--band); color: var(--ink); font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; line-height: 1; }
+.dstep { display: flex; gap: 6px; align-items: baseline; margin: 4px 0; }
+.dstep .dsn { flex: none; min-width: 16px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
 .dstep p, .ddot p { color: var(--ink2); }
 .ddot { position: relative; padding-left: 12px; margin: 3px 0; }
-.ddot::before { content: ""; position: absolute; left: 0; top: 9px; width: 4px; height: 4px; border-radius: 50%%; background: var(--ink2); }
+.ddot::before { content: ""; position: absolute; left: 2px; top: 9px; width: 4px; height: 4px; border-radius: 50%%; background: var(--ink2); }
 .dfig { margin: 8px 0 8px 29px; }
 .dfig img { display: block; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
 .dfig figcaption { margin-top: 5px; font-size: 12px; color: var(--muted); }
+img.chip { display: inline-block; vertical-align: middle; margin: -3px 4px 0 0; border-radius: 6px; box-shadow: 0 0 0 1px var(--line-soft, #E5E4EC); }
+.ddot.dchipline { padding-left: 0; margin: 5px 0; }
+.ddot.dchipline::before { display: none; }
 .dend { margin-bottom: 6px; }
 /* 차례 */
 .cover { padding: 120px %(pad)dpx 0; }
@@ -400,24 +420,37 @@ def chapter_parts(no, ch, sh, opens, fix, figs):
         else:
             groups[-1][1].append(sub)
     ordered = [x for _, g in sorted(groups, key=lambda g: g[0]) for x in g] + tail
+    chips = ch.get("chips", {})
+
+    def txt(v):
+        return re.sub(r"\{\{(.+?)\}\}", lambda m: chips.get(html.unescape(m.group(1)), ""), inline(v))
+
+    seen_marked = False
     for si, sub in enumerate(ordered):
         top = head("상세 설명") if si == 0 else ""
         no = names.get(sub["title"])
-        ring = f'<div class="ring" style="{fix_style(fix, "r" + str(no))}">{no}</div>' if no else '<span class="dbar"></span>'
-        title = f'<h3 class="dtitle">{ring}<span>{html.escape(sub["title"])}</span></h3>'
+        if no:
+            seen_marked = True
+            title = (f'<h3 class="dtitle"><div class="ring" style="{fix_style(fix, "r" + str(no))}">{no}</div>'
+                     f'<span>{html.escape(sub["title"])}</span></h3>')
+        elif seen_marked and not sub["title"].startswith("설정"):
+            title = f'<h4 class="dsub">{html.escape(sub["title"])}</h4>'   # 바로 위 번호 절에 딸린 작은 절
+        else:
+            title = f'<h3 class="dtitle dplain"><span>{html.escape(sub["title"])}</span></h3>'
         step = 0
         for pi, (kind, v) in enumerate(sub["parts"]):
             if kind == "step":
                 step += 1
-                body = f'<div class="dstep"><span class="dsn">{step}</span><p>{inline(v)}</p></div>'
+                body = f'<div class="dstep"><span class="dsn">{step}.</span><p>{txt(v)}</p></div>'
             elif kind == "dot":
-                body = f'<div class="ddot"><p>{inline(v)}</p></div>'
+                cls = "ddot dchipline" if v.startswith("{{") else "ddot"   # 단추 그림으로 시작하는 줄은 점 없이
+                body = f'<div class="{cls}"><p>{txt(v)}</p></div>'
             elif kind == "fig":
                 img = figs.get((v["scene"], v["sel"]))
                 body = (f'<figure class="dfig"><img src="{img["img"]}" style="width:{img["w"]:.0f}px;height:{img["h"]:.0f}px" alt="">'
-                        f'<figcaption>{inline(v["cap"])}</figcaption></figure>') if img else ""
+                        f'<figcaption>{txt(v["cap"])}</figcaption></figure>') if img else ""
             else:
-                body = f'<p class="dp">{inline(v)}</p>'
+                body = f'<p class="dp">{txt(v)}</p>'
             last = pi == len(sub["parts"]) - 1
             rest.append(f'<div class="dpart{" dend" if last else ""}">{top if pi == 0 else ""}{title if pi == 0 else ""}{body}</div>')
         if not sub["parts"]:
