@@ -9868,10 +9868,12 @@ select.input.fx-set-date { width: 190px; }
 
 /* 민원대장: 답변 끝난 민원(답변·완료·보류·장기)의 법정 답변기한 – 날짜는 남기고 가운데 줄 (2026-10-19 사용자 1안) */
 .cm-due-done {
-  color: var(--muted);
-  text-decoration: line-through;
-  text-decoration-thickness: 1px;
+  /* 2026-10-26 18:55 사용자 1안 – 날짜·가운데 줄 대신 흐린 체크 */
+  display: inline-flex;
+  align-items: center;
+  color: var(--cs-done-fg);
 }
+.cm-due-done > svg { display: block; }
 
 /* 민원대장 상태 배지 – 집행현황 단계 배지(.bd-chip.bd-stc)와 같은 규칙(2026-10-19 사용자): 폭 52 고정·가운데·▾, 글자 600, 누르면 살짝 어둡게 */
 .cm-status {

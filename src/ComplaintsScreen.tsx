@@ -1431,7 +1431,7 @@ function EditRow({
     const row = ref.current;
     const foot = row?.querySelector<HTMLElement>(".cm-edit-foot");
     const no = row?.querySelector<HTMLElement>(".cm-no");
-    const mark = foot?.querySelector<HTMLElement>(".cm-del-x");
+    const mark = foot?.querySelector<HTMLElement>(".del-mark");
     if (!row || !foot || !no || !mark || !no.firstChild) return;
     foot.style.paddingLeft = "";
     const g = document.createRange();
@@ -1629,10 +1629,15 @@ function ViewRow({
       </div>
       <div role="cell" className={"cm-c cm-num cm-due" + (short.has("due") ? " cm-due-short" : "")}>
         {/* 줄인 모양이면 날짜는 숨기고 D-day만(마우스를 올리면 날짜, 두 번 누르면 날짜 칸 – 2026-10-21 사용자). 답변 끝난 민원은 D-day가 없어 날짜를 그대로 보여요. */}
-        {!(short.has("due") && n !== null) && (
-          <span className={c.due && isAnswered(c.status) ? "cm-due-done" : undefined} title={c.due && isAnswered(c.status) ? "답변 끝남" : undefined}>
-            {t(short.has("due") ? shortDate(c.due) : c.due)}
+        {c.due && isAnswered(c.status) ? (
+          // 답변 끝난 민원은 날짜 대신 흐린 체크만 – 마우스를 올리면 마감일(2026-10-26 18:55 사용자 1안)
+          <span className="cm-due-done" title={`${c.due.slice(5)} 마감 · 답변 끝남`} aria-label={`${c.due} 마감 · 답변 끝남`}>
+            <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
+              <path d="M3 7.4l2.6 2.6L11 4.6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </span>
+        ) : (
+          !(short.has("due") && n !== null) && <span>{t(short.has("due") ? shortDate(c.due) : c.due)}</span>
         )}
         {n !== null &&
           (short.has("due") ? (
