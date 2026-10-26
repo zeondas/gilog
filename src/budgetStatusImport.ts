@@ -153,7 +153,7 @@ export function allocate(c: V3Contract, sources: string[]): { payYear: number; p
       const cap = Object.values(rem[by]).reduce((a, v) => a + v, 0);
       if (cap <= 0 || p <= 0) continue;
       const take = Math.min(p, cap);
-      if (y - by < 0 || y - by > 2) return `"${c.name}" — ${y}년 지급이 ${by}년 예산보다 ${y - by}년 뒤예요(이월은 2회까지)`;
+      if (y - by < 0 || y - by > 2) return `"${c.name}" – ${y}년 지급이 ${by}년 예산보다 ${y - by}년 뒤예요(이월은 2회까지)`;
       const fs = sources.filter((f) => (rem[by][f] ?? 0) > 0);
       const funds: Record<string, number> = {};
       let rest = take;
@@ -166,7 +166,7 @@ export function allocate(c: V3Contract, sources: string[]): { payYear: number; p
       out.push({ payYear: y, potYear: by, funds, amount: take });
       p -= take;
     }
-    if (p > 0) return `"${c.name}" — ${y}년 지급 ${p.toLocaleString("ko-KR")}원이 원인행위(예산 배정)보다 많아요`;
+    if (p > 0) return `"${c.name}" – ${y}년 지급 ${p.toLocaleString("ko-KR")}원이 원인행위(예산 배정)보다 많아요`;
   }
   return out;
 }

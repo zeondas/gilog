@@ -986,7 +986,7 @@ export default function BudgetStatusScreen() {
               <h2 className="xl-ask-title">"{askV3.parsed.name}"을(를) 가져올까요?</h2>
               <div className="xl-ask-path">
                 {askV3.parsed.from === askV3.parsed.to ? `${askV3.parsed.from}년` : `${askV3.parsed.from}~${askV3.parsed.to}년`} · 재원 {askV3.parsed.sources.join("·")} · 계약 {askV3.parsed.contracts.length}건
-                {" — "}집행현황에 {askV3.years.join("·")}년의 공사 줄을 만들고 예산현황 설정을 채워요
+                {" – "}집행현황에 {askV3.years.join("·")}년의 공사 줄을 만들고 예산현황 설정을 채워요
                 {askV3.skipped.length > 0 && ` · ${askV3.skipped.join("·")}년은 집행현황 자료가 있어 건너뛰어요`}
               </div>
             </div>
