@@ -2,6 +2,7 @@
 // 시안: 캔버스 BudgetStatus(요약)·BudgetStatusDetail(자세히), 2026-10-19 사용자 결정(설정 단추는 작은 네모 하나, 숫자는 모두 오른쪽, 추경 열은 빼지 않음, 엑셀 열 비율 참고).
 // - 세부사업은 집행현황에서 자동으로 와요(이월 세부사업은 이어 붙이는 쪽). 사업명 옆 ⚙ 단추 → 단년도/다년도(기간)·재원·이월 사업.
 // - 재원 줄 두 번 누르기 = 고치는 줄(직접 적는 칸만 열려요), 바깥 누르기 = 저장, Esc = 취소. 규칙은 budgetStatus.ts.
+import { DialogX } from "./DialogX";
 import React, { KeyboardEvent as RKeyboardEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Fragment } from "react";
 import { api, errorText, inApp } from "./api";
 import { BudgetProject, fmt, okWon, parseWon, typing, Unit } from "./budget";
@@ -865,7 +866,20 @@ export default function BudgetStatusScreen() {
       })()}
       {ask && (
         <div className="overlay" onMouseDown={overlayDown(() => setAsk(null))}>
-          <div className="dialog xl-ask" role="dialog" aria-modal="true" aria-label="엑셀 가져오기">
+          <div
+            className="dialog xl-ask"
+            role="dialog"
+            aria-modal="true"
+            aria-label="엑셀 가져오기"
+            onKeyDown={(e) => {
+              // Esc = 취소(✔7)
+              if (e.key === "Escape" && !e.defaultPrevented && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                setAsk(null);
+              }
+            }}
+          >
+            <DialogX label="닫기(가져오지 않음)" onClick={() => setAsk(null)} />
             <div className="xl-ask-body">
               <h2 className="xl-ask-title">{ask.cells.length ? `${ask.cells.length}줄의 직접 적는 값을 가져올까요?` : "가져올 줄이 없어요"}</h2>
               <div className="xl-ask-path">

@@ -5,7 +5,7 @@
 // - "민원" 카드에는 민원대장의 민원(마감일 있는 것)이 함께 보여요. 따로 저장하지 않고 민원을 그대로 읽어요.
 //   체크하면 민원대장의 상태가 완료로 바뀌고, 체크를 풀면 그 전 상태로 돌아가요. 제목·마감일은 민원대장에서만 고쳐요.
 import { KeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { DelIcon } from "./Icons";
+import { DelGlyph } from "./Icons";
 import { isInside, useOutsideClose } from "./useOutsideClose";
 import { isKey, rowKeys } from "./keys";
 import { REMOTE_CHANGE } from "./google";
@@ -1005,8 +1005,8 @@ function ItemRow({
                     onYes={onRemove}
                   />
                 ) : (
-                  <button type="button" className="tool-box" aria-label="이 할 일 지우기" title="이 할 일 지우기" onClick={() => setAsking(true)}>
-                    <DelIcon />
+                  <button type="button" className="tool-box del-btn" aria-label="이 할 일 지우기" title="이 할 일 지우기" onClick={() => setAsking(true)}>
+                    <DelGlyph />
                   </button>
                 )}
               </>
@@ -1118,8 +1118,8 @@ function TaskEditor({
           {asking ? (
             <AskBand bandRef={askRef} className="td-ask" label="할 일 지우기 확인" text="이 할 일을 지울까요?" onNo={() => setAsking(false)} onYes={onRemove} />
           ) : (
-            <button ref={trashRef} type="button" tabIndex={-1} className="tool-box" aria-label="이 할 일 지우기" title="이 할 일 지우기" onClick={() => setAsking(true)}>
-              <DelIcon />
+            <button ref={trashRef} type="button" tabIndex={-1} className="tool-box del-btn" aria-label="이 할 일 지우기" title="이 할 일 지우기" onClick={() => setAsking(true)}>
+              <DelGlyph />
             </button>
           )}
           <span className="td-acts-gap" />

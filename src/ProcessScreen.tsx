@@ -18,7 +18,8 @@ import { COL_MIN, daysBetween, fitWidths, gridTemplate, maxWidthOf } from "./com
 import { projectColor } from "./ContactsScreen";
 import { BLine, linesToText, parseLines, plainOf, stringifyLines } from "./bullets";
 import { BulletEditor, Mark } from "./BulletParts";
-import { DelIcon } from "./Icons";
+import { DelMark } from "./Icons";
+import { DialogX } from "./DialogX";
 import { overlayDown, useOutsideClose } from "./useOutsideClose";
 import { koIndex, todayStr } from "./journal";
 import { PlaceInput } from "./PlaceInputs";
@@ -1230,7 +1231,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
                 )}
                 <div className="dmenu-sep" />
                 <button type="button" role="menuitem" className="dmenu-item danger" onClick={() => setAsk({ no: c.no, rect: menu.rect })}>
-                  <DelIcon />
+                  <DelMark />
                   지우기
                 </button>
               </div>
@@ -1951,14 +1952,14 @@ function WorksDialog({
                 <span className="pr-num">{String(w.nextSeq).padStart(2, "0")}</span>
                 <button
                   type="button"
-                  className="pr-del"
+                  className="pr-del del-hit"
                   aria-label={`${w.name} 지우기`}
                   onClick={(e) => {
                     e.stopPropagation();
                     setAsk({ id: w.id, rect: e.currentTarget.getBoundingClientRect() });
                   }}
                 >
-                  <DelIcon />
+                  <DelMark />
                 </button>
               </div>
             );
@@ -1982,11 +1983,8 @@ function WorksDialog({
           <span>공사명 칸에 치면 업무연락처 사업이 떠요. 고르면 축약 공사명·현장대리인·시공사를 업무연락처에서 채워요(목록에 없으면 새 사업으로 등록돼요). 현장대리인은 업무연락처와 같은 연락처예요(어느 쪽에서 고쳐도 함께 바뀌어요) – 고르면 시공사가 그 사람 소속으로 채워져요. 줄을 두 번 누르면 고치고 [저장]·Enter로 저장해요(Esc 취소).</span>
           <span>지시부는 모든 공사가 표준 양식 하나를 써요(설정 “민원처리”). 정식 공사명은 지시부 맨 위, 축약 공사명은 표의 공사 배지·지시부 번호·파일 이름에 들어가요.</span>
         </div>
-        <div className="dialog-foot">
-          <button type="button" className="btn btn-ctrl btn-text" onClick={() => (editing != null ? saveEdit().then(onClose) : onClose())}>
-            닫기
-          </button>
-        </div>
+        {/* 닫기 = 위 오른쪽 ×(✔7) – 고치는 줄이 있으면 저장하고 닫아요 */}
+        <DialogX onClick={() => (editing != null ? saveEdit().then(onClose) : onClose())} />
       </div>
       {ask && (
         <Floating rect={ask.rect} align="right" onClose={() => setAsk(null)}>
@@ -2308,6 +2306,7 @@ function MailDialog({ draft, files, from, onChange, onSend, onClose }: { draft: 
         <div className="dialog-head">
           <span className="dialog-title">메일로 보낼까요?</span>
         </div>
+        <DialogX label="닫기(보내지 않음)" onClick={onClose} />
         <div className="pr-mail-grid">
           <span className="pr-mail-k">받는 사람</span>
           <span>

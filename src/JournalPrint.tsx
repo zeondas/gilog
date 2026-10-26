@@ -6,6 +6,7 @@
 //   (한 장이 열 높이보다 크면 그 카드만 줄여 한 열에 맞춰요.)
 // - 머리 줄은 출근·교통·날씨·메모만. 메모 카드도 시각·"메모"와 본문을 찍어요. 머릿기호는 화면과 같은 그린 모양(.rte-view 규칙).
 // - 아래 여백에 "기록 업무일지"와 쪽 번호 "1 / 2".
+import { DialogX } from "./DialogX";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { DayInfo, Entry, Project } from "./api";
@@ -225,13 +226,11 @@ export function PrintDialog({
       <div className="overlay jp-overlay" onMouseDown={overlayDown(onClose)}>
         <div className="dialog jp-dlg" role="dialog" aria-modal="true" aria-label="업무일지 인쇄">
           <div className="jp-head">
-            <h2 className="jp-title">업무일지 인쇄</h2>
-            <button type="button" className="jp-x" aria-label="닫기" onClick={onClose}>
-              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <path d="M6 6l12 12M18 6L6 18" />
-              </svg>
-            </button>
+            <h2 className="jp-title" data-dialog-title>
+              업무일지 인쇄
+            </h2>
           </div>
+          <DialogX onClick={onClose} />
 
           <div className="jp-top">
             <div className="jp-chips" role="group" aria-label="빠른 선택">

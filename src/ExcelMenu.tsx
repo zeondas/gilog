@@ -3,6 +3,7 @@
 // 가져오기(2026-10-25 사용자 ②3안, 공통 ✔5, 그림 docs/qa/common/excel_import2.png): 파일을 고르면 "어떻게 가져올까요?" 창에서
 // 덮어쓰기(같은 것은 파일 내용으로 덮고 새 것은 더함 – 파일에 없는 것은 그대로) / 대체하기(지금 자료를 모두 지우고 파일 내용만)를 고르고,
 // 다음 창에서 건수를 보고 한 번 더 눌러요. 대체하기는 붉은 띠 + 붉은 단추. "같은 것"의 기준은 화면마다 preview가 정해요.
+import { DialogX } from "./DialogX";
 import { useEffect, useRef, useState } from "react";
 import { api, errorText, inApp } from "./api";
 import { ExcelExport, ExcelSheet, SHEET_TITLE, SheetKind, defaultName } from "./excel";
@@ -191,6 +192,7 @@ export function ExcelMenu<T>({
       {ask && (
         <div className="overlay" onMouseDown={overlayDown(() => setAsk(null))}>
           <div className="dialog xl-ask" role="dialog" aria-modal="true" aria-label="엑셀 가져오기">
+            <DialogX label="닫기(가져오지 않음)" onClick={() => setAsk(null)} />
             <ImportSteps
               title={title}
               noun={NOUN[kind]}

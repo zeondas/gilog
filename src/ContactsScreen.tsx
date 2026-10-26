@@ -2,7 +2,8 @@
 import { KeyboardEvent, MutableRefObject, RefObject, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ExcelMenu } from "./ExcelMenu";
 import { ProjectImport, contactImports, contactRows, samePerson } from "./excel";
-import { DelIcon, TrashIcon } from "./Icons";
+import { DelGlyph, DelMark } from "./Icons";
+import { DialogX } from "./DialogX";
 import { VirtualList } from "./VirtualList";
 import { overlayDown, useOutsideClose } from "./useOutsideClose";
 import { BLine, CYCLE, isBlank, kindOf, layout, newLineFor, NewLineMode, parseLines, stringifyLines, TRIGGERS, withKind } from "./bullets";
@@ -786,8 +787,8 @@ function ViewCard({ vi, contact: c, byId, q, asking, memoOpen, onEdit, onAsk, on
             <button type="button" className="tool" aria-label={`${c.name} 고치기`} title="이 연락처 고치기" onClick={onEdit}>
               <Pencil />
             </button>
-            <button type="button" className="tool tool-danger" aria-label={`${c.name} 지우기`} title="이 연락처 지우기" ref={trashRef} onClick={() => onAsk(!asking)}>
-              <DelIcon />
+            <button type="button" className="tool tool-danger del-hit" aria-label={`${c.name} 지우기`} title="이 연락처 지우기" ref={trashRef} onClick={() => onAsk(!asking)}>
+              <DelMark />
             </button>
           </span>
         </div>
@@ -1135,7 +1136,7 @@ export function MemoEditor({
         {/* 줄 지우기는 휴지통 그림으로 줄 위·아래 옆에(2026-10-25 사용자 – 오른쪽 끝 ×는 창 닫기로 보였어요) */}
         <button
           type="button"
-          className="tb tb-del"
+          className="tb tb-del del-btn"
           aria-label="줄 지우기"
           title="이 줄 지우기"
           onClick={() =>
@@ -1149,7 +1150,7 @@ export function MemoEditor({
             )
           }
         >
-          <TrashIcon />
+          <DelGlyph />
         </button>
       </div>
       <div className="memo-lines">
@@ -1504,13 +1505,18 @@ function ProjectDialog({
         <div className="dialog-head pjm-head">
           <span className="dialog-title">사업 관리</span>
           <span className="mgr-info">{data.projects.length}개</span>
-          <button type="button" className="btn pjm-grp-add" onClick={() => setNewGroup(true)} disabled={newGroup}>
-            <Plus size={14} /> 그룹 추가
-          </button>
+        </div>
+        <DialogX onClick={onClose} />
+        {/* 3안(2026-10-26 사용자, 시안 PjmHead): 찾기는 제목 아래 한 줄 전체 폭, [그룹 추가]는 그룹 칸 옆 [+] */}
+        <label className="search pjm-search">
+          <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <circle cx="11" cy="11" r="7" />
+            <path d="M20 20l-3.5-3.5" />
+          </svg>
           <input
-            className="input pjm-find"
+            className="pjm-find"
             aria-label="사업 찾기"
-            placeholder="찾기"
+            placeholder="사업명·공사명 찾기"
             value={pq}
             onChange={(e) => setPq(e.target.value)}
             onKeyDown={(e) => {
@@ -1521,9 +1527,14 @@ function ProjectDialog({
               }
             }}
           />
-        </div>
+        </label>
         <div className="pjm-add">
-          <GroupInput groups={groups} value={draftGroup} onChange={setDraftGroup} onEnter={add} />
+          <div className="pjm-grp">
+            <GroupInput groups={groups} value={draftGroup} onChange={setDraftGroup} onEnter={add} />
+            <button type="button" className="btn pjm-grp-add" aria-label="그룹 추가" title="그룹 추가" onClick={() => setNewGroup(true)} disabled={newGroup}>
+              <Plus size={14} />
+            </button>
+          </div>
           <input
             ref={inputRef}
             className={"input" + (badFull ? " invalid" : "")}
@@ -1661,11 +1672,6 @@ function ProjectDialog({
             );
           })}
         </div>
-        <div className="dialog-foot">
-          <button type="button" className="btn btn-ctrl btn-text" onClick={onClose}>
-            닫기
-          </button>
-        </div>
       </div>
     </div>
   );
@@ -1715,8 +1721,8 @@ function ProjectDialog({
           </>
         )}
         <span className={"pjm-n" + (users ? "" : " pjm-zero")}>{users}명</span>
-        <button type="button" className="tool-box pjm-tool" aria-label={`${p.name} 지우기`} title="이 사업 지우기" onClick={() => setAsk(p.id)}>
-          <DelIcon />
+        <button type="button" className="tool-box pjm-tool del-hit" aria-label={`${p.name} 지우기`} title="이 사업 지우기" onClick={() => setAsk(p.id)}>
+          <DelMark />
         </button>
         {rowMenu?.id === p.id && (
           <PjMenu

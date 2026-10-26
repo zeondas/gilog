@@ -7,6 +7,7 @@
 //      빈 칸 두 번 누르기 = 남은 금액 채우기, 안 적은 공사는 첫 재원, 머리 글 왼쪽·숫자 오른쪽, 열 경계 끌기(kv bstatus.sendCols)).
 //   맞지 않아도 저장돼요(예산현황 표에 붉게 남아요). 머리 줄에 "맞지 않는 곳 N". 아래에 원인·지출재원 확인 방법 안내(2026-10-20 사용자).
 // 창 폭은 재원 수만큼 넓어져요(재원 2 → 1040, 하나 더마다 +124, 화면 폭 −80까지). 보낸 사업만 예산현황에 보여요 – "예산현황에서 빼기"로 되돌려요.
+import { DialogX } from "./DialogX";
 import { useEffect, useState, type MouseEvent as RMouseEvent } from "react";
 import { api } from "./api";
 import { BudgetProject } from "./budget";
@@ -498,7 +499,20 @@ export function BudgetStatusSend({
 
   return (
     <div className="overlay" onMouseDown={overlayDown(onClose)}>
-      <div className="dialog bss2" role="dialog" aria-modal="true" aria-label="예산현황 설정" style={{ width }}>
+      <div
+        className="dialog bss2"
+        role="dialog"
+        aria-modal="true"
+        aria-label="예산현황 설정"
+        style={{ width }}
+        onKeyDown={(e) => {
+          // Esc = 취소(✔7) – 안쪽 칸·목록이 먼저 받았으면 그대로 둬요
+          if (e.key === "Escape" && !e.defaultPrevented && !e.nativeEvent.isComposing) {
+            e.preventDefault();
+            onClose();
+          }
+        }}
+      >
         <div className="dialog-head bss2-head">
           <span className="dialog-title">{setup ? "예산현황 설정" : "예산현황으로 보내기"}</span>
           <span className="bss-sub">
@@ -506,6 +520,7 @@ export function BudgetStatusSend({
             {!wide && ` · ${target.year}년`}
           </span>
         </div>
+        <DialogX label="닫기(저장하지 않음)" onClick={onClose} />
         <div className={"dialog-body bss2-body" + (wide ? " wide" : "")}>
           <div className="bss2-l">
             {wide && <div className="bss2-ttl">사업 설정</div>}
