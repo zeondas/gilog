@@ -1,0 +1,107 @@
+diff --git a/src/ProcessScreen.tsx b/src/ProcessScreen.tsx
+index f980a22..c7b406b 100644
+--- a/src/ProcessScreen.tsx
++++ b/src/ProcessScreen.tsx
+@@ -14,7 +14,7 @@
+ import { createPortal } from "react-dom";
+ import { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+ import { api, Case, Complaint, Contact, ContactsData, errorText, inApp, Order, OrderResult, previewInbox, RunStatus, Work, WorkInput } from "./api";
+-import { COL_MIN, daysBetween, fitWidths, gridTemplate, maxWidthOf } from "./complaints";
++import { COL_MIN, daysBetween, FLEX_MIN, gridTemplate, maxWidthOf } from "./complaints";
+ import { projectColor } from "./ContactsScreen";
+ import { BLine, linesToText, parseLines, plainOf, stringifyLines } from "./bullets";
+ import { BulletEditor, Mark } from "./BulletParts";
+@@ -66,7 +66,6 @@ const COLUMNS: { label: string; w: number | null; center?: boolean; fixed?: bool
+ ];
+ 
+ /** 창이 좁을 때(큰 화면 크기) 줄이지 않는 열 */
+-const FIXED_COLS = COLUMNS.map((c) => !!c.fixed);
+ 
+ /** 끌어서 바꿔 저장한 폭. 없거나 맞지 않으면 null(자동 – 글자에 맞춰요). */
+ function readWidths(raw: string | null): (number | null)[] | null {
+@@ -105,6 +104,37 @@ function textWidth(el: Element): number {
+   const right = Math.max(...kids.map((k) => k.getBoundingClientRect().right));
+   return right - left;
+ }
++/**
++ * 창이 좁을 때 줄이는 차례(2026-10-26 사용자 신고 – 비율로 줄이면 번호·날짜가 겹쳤어요):
++ * 고려사항(300 → 140, 원래 "…" 칸) → 민원 요약(140 → 120) → 위치(→ 110, 넘치는 주소는 두 줄).
++ * 번호·접수·기한·판단 공사·진행은 줄이지 않아요(글자가 겹치니까). 그래도 모자라면 표 안 가로 스크롤.
++ */
++const NOTE_MIN = 140;
++const SUM_MIN = 120;
++const PLACE_MIN = 110;
++function fitProcess(ws: (number | null)[], avail: number): { ws: (number | null)[]; flexMin: number } {
++  const out = ws.slice();
++  if (!(avail > 0)) return { ws: out, flexMin: FLEX_MIN };
++  const sum = out.reduce<number>((a, w) => a + (w ?? 0), 0);
++  let over = sum + FLEX_MIN - avail;
++  if (over <= 0) return { ws: out, flexMin: FLEX_MIN };
++  const cut = (i: number, min: number) => {
++    const w = out[i] ?? 0;
++    const c = Math.max(0, Math.min(over, w - min));
++    out[i] = w - c;
++    over -= c;
++  };
++  cut(7, NOTE_MIN);
++  let flexMin = FLEX_MIN;
++  if (over > 0) {
++    const c = Math.min(over, FLEX_MIN - SUM_MIN);
++    flexMin -= c;
++    over -= c;
++  }
++  if (over > 0) cut(4, PLACE_MIN);
++  return { ws: out, flexMin };
++}
++
+ /** 위치 칸 한 줄일 때 지역과 위치 사이(.pr-sub margin-right) */
+ const PLACE_SPACE = 5;
+ 
+@@ -800,8 +830,9 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
+   const toggleAll = () => setChosen(allState === "all" ? [] : [...new Set([...chosen, ...sameWork.map((c) => c.no)])]);
+   const total = cases.filter((c) => !isDone(c)).length;
+   const baseWidths = widths ?? COLUMNS.map((c, i) => auto[i] ?? c.w);
+-  const shownWidths = fitWidths(baseWidths, avail, FIXED_COLS);
+-  const tableStyle = { "--pr-cols": gridTemplate(shownWidths), "--pr-gutter": `${gutter}px` } as CSSProperties;
++  const fitted = fitProcess(baseWidths, avail);
++  const shownWidths = fitted.ws;
++  const tableStyle = { "--pr-cols": gridTemplate(shownWidths, fitted.flexMin), "--pr-gutter": `${gutter}px` } as CSSProperties;
+ 
+   /** 진행 막대 한 칸(2026-10-20 1안): 채움·단계(색 진하기)·글자·아이콘 – 민원대장 답변·완료가 지시부보다 앞서요. */
+   const progOf = (c: Case): Prog => {
+@@ -909,7 +940,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
+             </span>
+           )}
+         </div>
+-        <PlaceCell c={c} disabled={isD || !!b} onSave={(a, pl, r) => saveAddress(c, a, pl, r)} />
++        <PlaceCell c={c} width={shownWidths[4] ?? PLACE_MAX} disabled={isD || !!b} onSave={(a, pl, r) => saveAddress(c, a, pl, r)} />
+         <div
+           className="pr-sum"
+           onMouseEnter={(e) => {
+@@ -1556,7 +1587,7 @@ function HeadRow({
+ 
+ // ---------- 위치 칸: 그 자리에서 고쳐요(법정리·동 + 지번, 리·동을 고르면 지역이 채워져요 – 민원대장 위치 칸과 같은 부품) ----------
+ 
+-function PlaceCell({ c, disabled, onSave }: { c: Case; disabled: boolean; onSave: (area: string, place: string, road: string) => void }) {
++function PlaceCell({ c, width, disabled, onSave }: { c: Case; width: number; disabled: boolean; onSave: (area: string, place: string, road: string) => void }) {
+   const start = c.place === UNKNOWN ? "" : c.place;
+   const [place, setPlace] = useState(start);
+   const [area, setArea] = useState(c.area);
+@@ -1576,14 +1607,15 @@ function PlaceCell({ c, disabled, onSave }: { c: Case; disabled: boolean; onSave
+   useLayoutEffect(() => {
+     const el = viewRef.current;
+     if (!el) return;
+-    const fit = () => setTwo(textWidth(el) + COL_GAP > PLACE_MAX);
++    // 열 폭(창이 좁으면 줄어요)에 한 줄로 안 들어가면 두 줄 – 칸 안쪽 여백 좌우 10씩
++    const fit = () => setTwo(textWidth(el) + 20 > Math.min(width, PLACE_MAX));
+     fit();
+     let alive = true;
+     document.fonts?.ready.then(() => alive && fit());
+     return () => {
+       alive = false;
+     };
+-  }, [c.area, c.place, editing]);
++  }, [c.area, c.place, editing, width]);
+   if (disabled || !editing) {
+     return (
+       <div
