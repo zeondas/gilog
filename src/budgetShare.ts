@@ -127,18 +127,39 @@ export type Merged = {
   receivedBy: Map<number, number>;
   receivedCells: number;
   sentCells: number;
+  /** 받은 칸 하나하나(받은 것 창 – 2026-10-26 ✔1). at은 새로고침이 채워요 */
+  changes: Got[];
 };
+
+/**
+ * 받은 것 한 칸(2026-10-26 사용자 1안·①2안). 내 PC에 최근 7일까지 둬요(kv budget.share.got).
+ * field: 바뀐 칸 · "new" 새 줄 · "del" 지운 줄. old = 합치기가 덮기 직전 내 값, when = 시트 "고친 기록"의 시각.
+ */
+export type Got = { at: string; who: number; uid: string; level: Level; year: string; path: string; field: Field | "new" | "del"; old: string; val: string; when: string };
+/** 받은 것 창에 보이는 칸 이름 */
+export const FIELD_KO: Partial<Record<Field, string>> = { name: "이름", budget: "예산", carry: "이월", owner: "담당", kind: "구분", co: "업체", cmt: "원인행위", exp: "집행액", act: "시공량", stage: "단계", memo: "메모" };
 
 /**
  * 세 갈래 합치기. local = 내 PC, remote = 시트, base = 지난번 맞춘 값, pending = 아직 고르지 않은 같은 칸.
  * me·now는 올리는 칸의 고친 기록에 들어가요.
  */
 export function merge(local: Map<string, Rec>, remote: Map<string, SheetRec>, base: Map<string, Rec>, pending: Conflict[], me: number, now: string): Merged {
-  const out: Merged = { toLocal: [], updates: [], appends: [], conflicts: [], base: new Map(), received: new Set(), receivedBy: new Map(), receivedCells: 0, sentCells: 0 };
+  const out: Merged = { toLocal: [], updates: [], appends: [], conflicts: [], base: new Map(), received: new Set(), receivedBy: new Map(), receivedCells: 0, sentCells: 0, changes: [] };
   const pend = new Map(pending.map((c) => [c.uid + "|" + c.field, c]));
-  const got = (who: number, n = 1) => {
-    out.receivedCells += n;
-    out.receivedBy.set(who, (out.receivedBy.get(who) ?? 0) + n);
+  // 줄 이름(세부사업 › 공사) – 시트 값이 먼저, 없으면 내 값
+  const fOf = (u: string) => remote.get(u)?.f ?? local.get(u)?.f;
+  const pathOf = (r: Rec) => {
+    const up = (u: string) => fOf(u)?.parent ?? "";
+    const top = r.level === "row" ? up(up(r.uid)) : r.level === "item" ? up(r.uid) : "";
+    const tn = top ? (fOf(top)?.name ?? "") : "";
+    return tn ? `${tn} › ${r.f.name}` : r.f.name;
+  };
+  const got = (r: SheetRec, field: Got["field"], old: string, val: string) => {
+    const k = field === "new" || field === "del" ? "name" : field;
+    const who = r.meta[k]?.[0] ?? 0;
+    out.receivedCells += 1;
+    out.receivedBy.set(who, (out.receivedBy.get(who) ?? 0) + 1);
+    out.changes.push({ at: "", who, uid: r.uid, level: r.level, year: r.f.year, path: pathOf(r), field, old, val, when: r.meta[k]?.[1] ?? "" });
   };
   const keys = new Set([...local.keys(), ...remote.keys()]);
   for (const uid of keys) {
@@ -148,7 +169,7 @@ export function merge(local: Map<string, Rec>, remote: Map<string, SheetRec>, ba
     if (r?.del) {
       if (l) {
         out.toLocal.push({ ...l, del: true });
-        got(r.meta.name?.[0] ?? 0);
+        got(r, "del", l.f.name, "");
       }
       out.base.set(uid, { level: r.level, uid, del: true, f: r.f });
       continue;
@@ -174,7 +195,7 @@ export function merge(local: Map<string, Rec>, remote: Map<string, SheetRec>, ba
         out.toLocal.push({ level: r.level, uid, del: false, f: r.f });
         out.base.set(uid, { level: r.level, uid, del: false, f: r.f });
         out.received.add(uid);
-        got(r.meta.name?.[0] ?? 0); // 새 줄은 한 칸으로 세요
+        got(r, "new", "", r.f.name); // 새 줄은 한 칸으로 세요
       }
       continue;
     }
@@ -203,7 +224,7 @@ export function merge(local: Map<string, Rec>, remote: Map<string, SheetRec>, ba
         changed = true;
         if (!STRUCT.has(k)) {
           out.received.add(uid);
-          got(r.meta[k]?.[0] ?? 0);
+          got(r, k, lv, rv);
         }
       } else if (rv === bv) {
         bf[k] = lv;
@@ -409,6 +430,9 @@ const K_BASE = "budget.share.base";
 const K_CF = "budget.share.conflicts";
 const K_PEOPLE = "budget.share.people";
 const K_BACKUP = "budget.share.backup";
+const K_GOT = "budget.share.got";
+/** 받은 것은 최근 7일까지 */
+const GOT_DAYS = 7;
 
 export type ShareConf = {
   on: boolean;
@@ -476,6 +500,17 @@ const pad = (n: number) => String(n).padStart(2, "0");
 function stampNow(): string {
   const d = new Date();
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+/** 오늘부터 d일 뒤(앞이면 음수)의 "YYYY-MM-DD" */
+function stampDay(d: number): string {
+  const t = new Date();
+  t.setDate(t.getDate() + d);
+  return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`;
+}
+/** 받은 것(최근 7일, 새로고침 최근 것부터) – 지난 것은 빼고 돌려줘요 */
+export async function loadGot(): Promise<Got[]> {
+  const from = stampDay(-GOT_DAYS + 1);
+  return (await getJson<Got[]>(K_GOT, [])).filter((g) => g && typeof g.at === "string" && g.at.slice(0, 10) >= from);
 }
 /** "2026-10-20 09:12" → 오늘이면 "09:12", 아니면 "10-19 09:12" */
 export function shortTime(s: string): string {
@@ -559,6 +594,11 @@ async function doRefresh(): Promise<RefreshResult | null> {
     }
     conf.up = now;
     await putJson(K_BASE, [...m.base.values()]);
+    if (m.changes.length) {
+      const from = stampDay(-GOT_DAYS + 1);
+      const keep = (await loadGot()).filter((g) => g.at.slice(0, 10) >= from);
+      await putJson(K_GOT, [...m.changes.map((g) => ({ ...g, at: now })), ...keep]);
+    }
     await putJson(K_CF, m.conflicts);
     meP.seen = now;
     // 호스트 일: 명단대로 권한 주기·거두기
