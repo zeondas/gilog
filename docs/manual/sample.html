@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>기록 매뉴얼 – 민원대장</title>
+<style>
+@font-face { font-family: "Pretendard"; src: url("PretendardVariable.woff2") format("woff2"); font-weight: 100 900; }
+:root { --ink:#1C1B22; --ink2:#3B3A45; --muted:#6A6876; --line:#D6D4DE; --band:#EDECF1; --soft:#F6F6F8; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: #fff; }
+body { font-family: "Pretendard", sans-serif; color: var(--ink); font-size: 13px; line-height: 1.6; word-break: keep-all; }
+.page { width: 794px; height: 1123px; padding: 0 0 40px; position: relative; overflow: hidden; }
+
+/* 머리 띠 */
+.band { background: var(--band); height: 46px; padding: 0 48px; display: flex; align-items: center; justify-content: space-between; }
+.band img { height: 15px; display: block; }
+.band span { font-size: 12px; color: var(--ink2); font-weight: 500; }
+
+.body { padding: 22px 48px 0; }
+
+/* 대구분: 검은 채운 원 */
+.sec { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; }
+.sec .no { width: 24px; height: 24px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 13px; font-weight: 700; display: grid; place-items: center; flex: none; }
+.sec h2 { font-size: 17px; font-weight: 700; letter-spacing: -0.2px; }
+.block { margin-bottom: 18px; }
+
+/* ① 모듈명 – 기능 */
+.title { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+.title h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
+.title .def { font-size: 14px; color: var(--ink2); font-weight: 500; }
+
+ul.dots { list-style: none; padding-left: 34px; }
+ul.dots li { position: relative; padding-left: 12px; margin: 2px 0; }
+ul.dots li::before { content: ""; position: absolute; left: 0; top: 9px; width: 4px; height: 4px; border-radius: 50%; background: var(--ink2); }
+
+/* ③ 화면 */
+.shot { position: relative; margin-left: 0; }
+.shot .frame { position: absolute; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; background: #fff; }
+.shot .frame img { position: absolute; display: block; }
+.shot svg { position: absolute; left: 0; top: 0; overflow: visible; }
+
+/* 기능 번호: 속 빈 원 */
+.ring { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--ink); background: #fff; color: var(--ink); font-size: 11px; font-weight: 700; display: grid; place-items: center; flex: none; position: absolute; }
+.ring.inline { position: static; margin-top: 1px; }
+
+/* ④ 기능별 설명 */
+.feats { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 26px; padding-left: 34px; }
+.feat { display: flex; gap: 9px; align-items: flex-start; }
+.feat b { font-weight: 700; }
+.feat p { color: var(--ink2); }
+.feat p b { color: var(--ink); margin-right: 4px; }
+
+/* 알아 두면 좋은 것 */
+.tips { margin: 18px 0 0 34px; background: var(--soft); border-left: 3px solid var(--ink); padding: 10px 14px; border-radius: 0 4px 4px 0; }
+.tips h3 { font-size: 13px; font-weight: 700; margin-bottom: 3px; }
+.tips li { list-style: none; color: var(--ink2); }
+kbd { font-family: inherit; font-size: 11px; font-weight: 600; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: #fff; color: var(--ink); }
+
+.foot { position: absolute; left: 48px; right: 48px; bottom: 22px; display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 8px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="band"><img src="logo-black.svg" alt="기록"><span>사용자 매뉴얼</span></div>
+  <div class="body">
+
+    <div class="block">
+      <div class="sec"><div class="no">1</div><h2>모듈명 – 기능</h2></div>
+      <div style="padding-left:34px">
+        <div class="title"><h1>민원대장</h1></div>
+        <div class="title"><span class="def">모든 민원을 하나의 플랫폼에 정리하여, 민원 처리에 빈틈이 없도록 활용하는 도구</span></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="sec"><div class="no">2</div><h2>기획 의도</h2></div>
+      <ul class="dots">
+        <li>국민신문고·진정민원·정보공개청구·전화·메신저 등 여러 창구로 들어온 민원을 하나의 양식으로 정리해요.</li>
+        <li>처리 현황판으로 써요 – 시공사에 업무를 지시했는지, 끝났는지를 한눈에 확인해요.</li>
+        <li>기한이 있는 민원은 답변 기한을 캘린더·할 일과 이어서 챙겨요.</li>
+        <li>지역·위치·접수 창구·처리에 걸린 날 등 내가 처리한 민원이 업무 통계의 기초 자료가 돼요.</li>
+      </ul>
+    </div>
+
+    <div class="block">
+      <div class="sec"><div class="no">3</div><h2>화면</h2></div>
+      <div class="shot" id="shot"></div>
+    </div>
+
+    <div class="block" style="margin-bottom:0">
+      <div class="sec"><div class="no">4</div><h2>기능별 설명</h2></div>
+      <div class="feats" id="feats"></div>
+      <div class="tips">
+        <h3>알아 두면 좋은 것</h3>
+        <ul>
+          <li>줄을 두 번 누르면 그 줄 전체를 고쳐요. 우클릭하면 고치기·위치 복사·민원인 복사·지우기가 나와요.</li>
+          <li>적을 때 <kbd>Tab</kbd> 다음 칸 · <kbd>Enter</kbd> 등록·저장 · <kbd>Esc</kbd> 고친 것 버리기</li>
+          <li>연번은 접수일 순서로 저절로 매겨져요. 지우면 아래 번호가 당겨져요.</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+  <div class="foot"><span>기록 사용자 매뉴얼</span><span>민원대장 · 1</span></div>
+</div>
+
+<script>
+// 캡처(1600×900)에서 잘라 쓸 곳 – 사이드바 빼고 표까지
+const CROP = { x: 196, y: 12, w: 1392, h: 416 };
+const W = 698 - 34;                    // 본문 폭에서 들여쓰기 뺀 폭
+const S = W / CROP.w;
+const IMG_H = CROP.h * S;
+const BAND = 38;                       // 그림 위·아래 번호 자리
+
+// 번호: 캡처 위 좌표(점), 위·아래 어느 쪽에 둘지, 이름, 설명
+const MARKS = [
+  { x: 440,  y: 27,  side: "top", name: "상태 칩",    text: "누른 상태의 민원만 보여요. 여러 개를 함께 고를 수 있고, 옆 숫자는 건수예요." },
+  { x: 1080, y: 25,  side: "top", name: "배치최적화", text: "글 길이에 맞춰 열 폭을 다시 잡아요. 끌어서 바꾼 폭도 처음대로 돌아가요." },
+  { x: 1180, y: 25,  side: "top", name: "분류 관리",  text: "접수유형·민원유형 목록을 고쳐요. 설정의 목록과 같은 목록이에요." },
+  { x: 1355, y: 25,  side: "top", name: "검색",       text: "위치·내용·민원인에서 찾아요. 상태 칩과 함께 걸려요." },
+  { x: 1533, y: 25,  side: "top", name: "엑셀",       text: "엑셀 민원대장을 가져오거나, 전체를 엑셀로 내보내요." },
+  { x: 214,  y: 135, side: "bot", name: "신규 줄",    text: "표 맨 윗줄에 바로 적어요. 칸 하나만 적어도 등록되고, 접수일은 오늘이 들어가 있어요." },
+  { x: 1330, y: 392, side: "bot", name: "마감일",     text: "답변 기한까지 남은 날을 보여요(D-2). 답변이 끝난 민원은 흐리게 바뀌어요." },
+  { x: 1435, y: 392, side: "bot", name: "상태",       text: "배지를 눌러 바로 바꿔요. 완료·불가로 바꾸면 조치완료일에 오늘이 들어가요." },
+  { x: 1545, y: 392, side: "bot", name: "메모",       text: "민원마다 따로 적어 두는 메모예요. 눌러서 적어요." },
+];
+
+const shot = document.getElementById("shot");
+shot.style.height = (BAND + IMG_H + BAND) + "px";
+shot.style.marginLeft = "34px";
+shot.style.width = W + "px";
+
+const frame = document.createElement("div");
+frame.className = "frame";
+Object.assign(frame.style, { left: 0, top: BAND + "px", width: W + "px", height: IMG_H + "px" });
+const img = new Image();
+img.src = "screen_01.png";
+Object.assign(img.style, { width: 1600 * S + "px", left: -CROP.x * S + "px", top: -CROP.y * S + "px" });
+frame.appendChild(img);
+shot.appendChild(frame);
+
+const NS = "http://www.w3.org/2000/svg";
+const svg = document.createElementNS(NS, "svg");
+svg.setAttribute("width", W); svg.setAttribute("height", BAND * 2 + IMG_H);
+shot.appendChild(svg);
+
+MARKS.forEach((m, i) => {
+  const tx = (m.x - CROP.x) * S, ty = BAND + (m.y - CROP.y) * S;
+  const cy = m.side === "top" ? 10 : BAND + IMG_H + BAND - 10;
+  // 지시선
+  const ln = document.createElementNS(NS, "line");
+  Object.entries({ x1: tx, y1: m.side === "top" ? cy + 10 : cy - 10, x2: tx, y2: ty, stroke: "#1C1B22", "stroke-width": 1 })
+    .forEach(([k, v]) => ln.setAttribute(k, v));
+  svg.appendChild(ln);
+  const dot = document.createElementNS(NS, "circle");
+  Object.entries({ cx: tx, cy: ty, r: 3, fill: "#1C1B22", stroke: "#fff", "stroke-width": 1.5 })
+    .forEach(([k, v]) => dot.setAttribute(k, v));
+  svg.appendChild(dot);
+  // 번호 원
+  const r = document.createElement("div");
+  r.className = "ring"; r.textContent = i + 1;
+  Object.assign(r.style, { left: tx - 10 + "px", top: cy - 10 + "px" });
+  shot.appendChild(r);
+  // 설명
+  const f = document.createElement("div");
+  f.className = "feat";
+  f.innerHTML = `<div class="ring inline">${i + 1}</div><p><b>${m.name}</b>${m.text}</p>`;
+  document.getElementById("feats").appendChild(f);
+});
+</script>
+</body>
+</html>
