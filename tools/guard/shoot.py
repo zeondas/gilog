@@ -346,10 +346,17 @@ for _z in ZOOMS:
         ZOOM_OF[f"zoom{_z}_{_i:02d}"] = _z
 
 
+# 작은 창 장면(2026-10-26 창 크기 세션, docs/qa/viewport.md): 창 1200×700·13에서 화면 10개 – 본문 가로 스크롤 자리를 지켜요.
+SMALL = set()
+for _i, _n in enumerate(SCREENS):
+    SCENES[f"small_{_i:02d}"] = (_n, None)
+    SMALL.add(f"small_{_i:02d}")
+
+
 async def one(br, url, out, name):
     screen, act = SCENES[name]
     z = ZOOM_OF.get(name, 13) / 13
-    vp = {"width": round(1600 / z), "height": round(900 / z)}
+    vp = {"width": 1200, "height": 700} if name in SMALL else {"width": round(1600 / z), "height": round(900 / z)}
     ctx = await br.new_context(viewport=vp, device_scale_factor=z, locale="ko-KR", timezone_id="Asia/Seoul")
     ctx.set_default_timeout(5000)
     p = await ctx.new_page()
@@ -382,9 +389,12 @@ async def main():
     names = only or list(SCENES)
     async with async_playwright() as pw:
         br = await pw.chromium.launch()
+        bars = await pw.chromium.launch(ignore_default_args=["--hide-scrollbars"]) if any(n in SMALL for n in names) else None
         for n in names:
-            await one(br, f"http://127.0.0.1:{port}/", out, n)
+            await one(bars if n in SMALL else br, f"http://127.0.0.1:{port}/", out, n)
         await br.close()
+        if bars:
+            await bars.close()
     srv.shutdown()
     bad = [n for n in names if os.path.exists(os.path.join(out, n + ".fail.txt"))]
     print(f"{len(names) - len(bad)}/{len(names)} 장면 찍음" + (f" · 실패 {', '.join(bad)}" if bad else ""))

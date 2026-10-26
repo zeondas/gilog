@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { CSSProperties, Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { api, applyAccent, DEFAULT_PREFS, errorText, inApp, Prefs, Reminder, Status } from "./api";
 import { measureBullets } from "./bullets";
@@ -18,6 +18,7 @@ import SettingsScreen from "./SettingsScreen";
 import TasksScreen from "./TasksScreen";
 import { applyNotifyMode, refreshHolidaysDaily, syncReminders } from "./reminders";
 import { startGoogleSync } from "./google";
+import { minWidthOf } from "./viewport";
 import { firstOn, isOn, Modules, onScreens, SCREENS, SETTINGS, ScreenId } from "./screens";
 import { loadSettings } from "./settingsStore";
 import { isLockKey, setKeyMap } from "./keys";
@@ -276,7 +277,10 @@ export default function App() {
           </button>
         </div>
       </nav>
-      <main className={current === "explorer" || current === "budget" || current === "bstatus" ? "main main-fill" : "main"}>
+      <main
+        className={(current === "explorer" || current === "budget" || current === "bstatus" ? "main main-fill" : "main") + (minWidthOf(current) ? " vp" : "")}
+        style={minWidthOf(current) ? ({ "--vp-min": `${minWidthOf(current)}px` } as CSSProperties) : undefined}
+      >
         {current === SETTINGS.id ? (
           <SettingsScreen prefs={prefs} onPrefs={savePrefs} status={status} onLocked={refresh} onModules={changeModules} onClose={closeSettings} />
         ) : current === "explorer" ? (
