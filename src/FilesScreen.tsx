@@ -3,7 +3,7 @@
 // - 창마다 탭 줄 → 드라이브 줄(드라이브 · 빠른 필터 · 보기 ▾) → 경로 줄(경로 · 경로 복사 · 윈도우 탐색기로 열기 · ★) → 목록 → 상태 줄.
 // - 우클릭(파일·폴더·빈 곳)은 윈도우 우클릭 메뉴 그대로(2안), 탭 우클릭만 기록 메뉴.
 // - 상태(탭·열 폭·정렬·보기·트리·즐겨찾기·찾기 조건·일괄 이름 바꾸기 설정)는 암호화 파일 kv "files.state".
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, inApp } from "./api";
 import { FileIcon } from "./FileIcon";
 import { AskDialog, ConflictDialog, Decision, DeleteDialog, NameDialog, RenameDialog, TransferAsk } from "./FilesDialogs";
@@ -58,6 +58,7 @@ import { Conflict, FastStatus, Found, MenuExtra, MenuResult, Step, TreeDir, fsAp
 import { parseDate } from "./journal";
 import { DateInput } from "./DateInput";
 import { useOutsideClose } from "./useOutsideClose";
+import { useMenuPlace } from "./PopMenu";
 import { DEFAULT_FILES_SETTINGS, FilesSettings, loadSettings, saveSettings } from "./settingsStore";
 
 const STATE_KEY = "files.state";
@@ -1291,7 +1292,15 @@ export default function FilesScreen() {
       setPop(null);
       if (!(e.target as HTMLElement).closest(".fx-findbox")) setFindOpen(false);
     },
-    { ignore: ".fx-menu, .fx-menu-btn", on: "window" },
+    {
+      ignore: ".fx-menu, .fx-menu-btn",
+      on: "window",
+      // 앱 창 밖으로 가면 메뉴도 닫혀요(✔5)
+      onBlur: () => {
+        setMenu(null);
+        setPop(null);
+      },
+    },
   );
 
   // Ctrl+휠: 보기 크기 바꾸기(자세히 ↔ 간단히 ↔ 큰 아이콘 ↔ 썸네일, 호환 B)
@@ -2892,7 +2901,7 @@ export default function FilesScreen() {
         {toast && <span className="fx-toast">{toast}</span>}
       </div>
 
-      {pop && <PopMenu pop={pop} onClose={() => setPop(null)} />}
+      {pop && <PickMenu pop={pop} onClose={() => setPop(null)} />}
       {rdrag && (
         <div className="fx-rdrag" style={{ left: rdrag.x + 12, top: rdrag.y + 12 }}>
           {rdrag.paths.length === 1 ? baseName(rdrag.paths[0]) : `${rdrag.paths.length}개`}
@@ -3018,16 +3027,10 @@ function Thumb({ path }: { path: string }) {
   return src ? <img className="fx-thumb" src={src} alt="" loading="lazy" draggable={false} /> : <span className="fx-thumb fx-thumb-ph" />;
 }
 
-/** 작은 고르기 메뉴 – 화면 밖으로 나가지 않게 자리를 맞춰요 */
-function PopMenu({ pop, onClose }: { pop: Pop; onClose: () => void }) {
+/** 작은 고르기 메뉴 – 자리는 공통 메뉴 규칙(useMenuPlace: 화면 안 8px, 아래가 모자라면 위로) */
+function PickMenu({ pop, onClose }: { pop: Pop; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ left: pop.x, top: pop.y });
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    setPos({ left: Math.max(4, Math.min(pop.x, window.innerWidth - r.width - 4)), top: Math.max(4, Math.min(pop.y, window.innerHeight - r.height - 4)) });
-  }, [pop]);
+  const pos = useMenuPlace(ref, pop.x, pop.y);
   const checks = pop.items.some((it) => it !== "-" && it.checked !== undefined);
   return (
     <div ref={ref} className={pop.scroll ? "fx-menu fx-tabmenu fx-pop fx-pop-scroll" : "fx-menu fx-tabmenu fx-pop"} role="menu" style={pos}>
@@ -3057,8 +3060,11 @@ function PopMenu({ pop, onClose }: { pop: Pop; onClose: () => void }) {
 }
 
 function TabMenu({ x, y, tab, canClose, onAction }: { x: number; y: number; tab: RTab; canClose: boolean; onAction: (a: "pin" | "dup" | "other" | "close" | "others") => void }) {
+  // 탭 메뉴 잘림 막기(✔5): 공통 메뉴 자리 규칙
+  const ref = useRef<HTMLDivElement>(null);
+  const pos = useMenuPlace(ref, x, y);
   return (
-    <div className="fx-menu fx-tabmenu" role="menu" style={{ left: x, top: y }}>
+    <div ref={ref} className="fx-menu fx-tabmenu" role="menu" style={pos}>
       {!tab.find && (
         <button type="button" className="fx-mi" onClick={() => onAction("pin")}>
           {tab.pinned ? "고정 풀기" : "고정"}

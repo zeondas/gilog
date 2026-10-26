@@ -6,6 +6,7 @@
 // - 열 제목: 누르면 그 열 칠하기(다시 누르면 풀기), 끝선 끌기 = 너비, 끝선 두 번 = 내용에 맞춤, 우클릭 = 처음 너비.
 //   구분·집행률·단계·메모는 고정 폭. 모든 줄이 같은 px 틀을 써요(세부사업 열을 1fr로 두면 긴 이름 줄만 넓어져 열이 밀려요).
 // - 금액 단위 원/천원(천원은 반올림한 정수만 보여요, 저장은 늘 원). 손대지 않은 금액 칸은 원래 원 값 그대로 저장해요.
+import { fitSub } from "./PopMenu";
 import { DialogX } from "./DialogX";
 import { AskBand } from "./AskBand";
 import { orgsOf, projectHits, projectSub, Suggest, SuggestInput } from "./BudgetSuggest";
@@ -1263,7 +1264,9 @@ export default function BudgetScreen() {
       return;
     }
     const r = popRef.current.getBoundingClientRect();
-    setPopPos({ left: Math.max(8, Math.min(pop.x, innerWidth - r.width - 8)), top: Math.max(8, Math.min(pop.y, innerHeight - r.height - 8)) });
+    // 떠 있는 메뉴 공통 규칙(✔5): 화면 안 8px, 아래가 모자라면 위로 열어요.
+    const top = pop.y + r.height + 8 > innerHeight ? pop.y - r.height : pop.y;
+    setPopPos({ left: Math.max(8, Math.min(pop.x, innerWidth - r.width - 8)), top: Math.max(8, Math.min(top, innerHeight - r.height - 8)) });
   }, [pop]);
 
   const mi = (t: string, onClick: (() => void) | null, o: { cls?: string; icon?: ReactNode; k?: string; sub?: ReactNode } = {}) => (
@@ -1271,6 +1274,8 @@ export default function BudgetScreen() {
       className={"bd-mi" + (o.cls ? " " + o.cls : "") + (!onClick && !o.sub ? " off" : "")}
       role="menuitem"
       aria-disabled={!onClick && !o.sub}
+      aria-haspopup={o.sub ? "menu" : undefined}
+      onMouseEnter={o.sub ? (e) => fitSub(e.currentTarget) : undefined}
       onClick={(e) => {
         e.stopPropagation();
         onClick?.();

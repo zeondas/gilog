@@ -4,6 +4,7 @@
 // - 내용·조치내용은 여러 줄 칸이에요. Enter 같은 위계로 새 줄, Shift+Enter 아래, Ctrl+Enter 위, 왼쪽 Alt+Enter 항목 안 줄 바꿈.
 // - 줄을 누르면 그 자리에서 고치고, 바깥을 누르면 저장해요. 삭제는 "이 민원을 지울까요?"를 물어요.
 // - 메모는 창에서 고쳐요. 여러 줄 칸 규칙, Tab 저장하고 닫기, 바깥을 누르면 저장이에요.
+import { PopMenu } from "./PopMenu";
 import {
   CSSProperties,
   Fragment,
@@ -781,22 +782,15 @@ function HeadRow({
 /** 열 제목 줄 우클릭 메뉴 */
 function HeadMenu({ x, y, onClose, onReset }: { x: number; y: number; onClose: () => void; onReset: () => void }) {
   const box = useRef<HTMLDivElement>(null);
-  useOutsideClose(true, [box], () => onClose(), {
-    onEsc: (e) => {
-      e.preventDefault();
-      onClose();
-    },
-  });
   useEffect(() => {
     box.current?.querySelector<HTMLElement>(".dmenu-item")?.focus();
   }, []);
-  const style = { left: Math.min(x, window.innerWidth - 200), top: Math.min(y, window.innerHeight - 80) };
   return (
-    <div ref={box} className="dmenu" role="menu" aria-label="열 제목 메뉴" style={style} onContextMenu={(e) => e.preventDefault()}>
+    <PopMenu boxRef={box} x={x} y={y} onClose={onClose} label="열 제목 메뉴">
       <button type="button" role="menuitem" className="dmenu-item" onClick={onReset}>
         열 너비 초기화
       </button>
-    </div>
+    </PopMenu>
   );
 }
 
@@ -828,28 +822,11 @@ function RowMenu({
   onDelete: () => void;
 }) {
   const box = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ left: x, top: y, visibility: "hidden" as "hidden" | "visible" });
-  useOutsideClose(true, [box], () => onClose(), {
-    onBlur: () => onClose(),
-    onEsc: (e) => {
-      e.preventDefault();
-      onClose();
-    },
-  });
-  // 그린 뒤 재서 화면 안 8px로 밀고, 아래가 모자라면 위로 열어요.
-  useLayoutEffect(() => {
-    const el = box.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    const left = Math.max(8, Math.min(x, window.innerWidth - r.width - 8));
-    const top = y + r.height + 8 > window.innerHeight ? Math.max(8, y - r.height) : y;
-    setPos({ left, top, visibility: "visible" });
-  }, [x, y, ask]);
   useEffect(() => {
     box.current?.querySelector<HTMLButtonElement>(ask ? ".ask-band .btn" : ".dmenu-item:not(:disabled)")?.focus();
   }, [ask]);
   return (
-    <div ref={box} className="dmenu cm-rowmenu" role="menu" aria-label={`${no}번 민원`} style={pos} onContextMenu={(e) => e.preventDefault()}>
+    <PopMenu boxRef={box} x={x} y={y} onClose={onClose} className="dmenu cm-rowmenu" label={`${no}번 민원`}>
       {!ask ? (
         <>
           <button type="button" role="menuitem" className="dmenu-item" onClick={onEdit}>
@@ -878,7 +855,7 @@ function RowMenu({
           </button>
         </div>
       )}
-    </div>
+    </PopMenu>
   );
 }
 

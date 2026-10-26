@@ -253,9 +253,19 @@ export default function BudgetStatusScreen() {
       return;
     }
     const r = popRef.current.getBoundingClientRect();
-    setPopPos({ left: Math.max(8, Math.min(pop.x, innerWidth - r.width - 8)), top: Math.max(8, Math.min(pop.y, innerHeight - r.height - 8)) });
+    // 떠 있는 메뉴 공통 규칙(✔4): 화면 안 8px, 아래가 모자라면 위로 열어요.
+    const top = pop.y + r.height + 8 > innerHeight ? pop.y - r.height : pop.y;
+    setPopPos({ left: Math.max(8, Math.min(pop.x, innerWidth - r.width - 8)), top: Math.max(8, Math.min(top, innerHeight - r.height - 8)) });
   }, [pop]);
-  useOutsideClose(!!pop, [], () => setPop(null), { ignore: ".bd-pop" });
+  // 바깥 누르기·Esc·앱 창 밖으로 가면 닫혀요(메모는 고친 것을 지키려고 Esc·창 밖에는 그대로).
+  useOutsideClose(!!pop, [], () => setPop(null), {
+    ignore: ".bd-pop",
+    onBlur: () => setPop((p) => (p && p.t !== "memo" ? null : p)),
+    onEsc: (e) => {
+      if (e.isComposing) return;
+      setPop((p) => (p && p.t !== "memo" ? (e.preventDefault(), null) : p));
+    },
+  });
 
   const view = detail ? "detail" : "summary";
   const base = detail ? DET_COLS : SUM_COLS;

@@ -12444,3 +12444,35 @@ button.del-btn:hover:not(:disabled) { filter: brightness(0.86); }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ---------- 떠 있는 메뉴 한 모양(2026-10-26 공통 부품 ✔4·✔5, 결정 로그 10-21 14:58 · 시안 MenuUnify) ----------
+   우클릭·⋯·▾ 메뉴의 바탕·그림자·테두리·안쪽 4·모서리 8, 줄 30·글자 13·좌우 10·줄 모서리 6, 구분선 위아래 4.
+   자리·닫기는 PopMenu.tsx(useMenuPlace·fitSub) – 고르기 목록(role=listbox)·엑셀 메뉴는 그대로예요. */
+:is(.dmenu, .bd-pop[role="menu"], .bd-sub, .fx-menu[role="menu"], .pr-sendmenu) {
+  padding: 4px;
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-pop);
+  font-size: 13px;
+}
+:is(.dmenu-item, .bd-mi, .fx-mi) {
+  min-height: 30px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+:is(.dmenu-sep, .bd-mdiv, .fx-sep) {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--line-row);
+}
+/* 하위 메뉴가 오른쪽에 들어가지 않으면 왼쪽으로(fitSub) */
+.bd-sub.flip {
+  left: auto;
+  right: 100%;
+  margin-left: 0;
+  margin-right: 4px;
+}
