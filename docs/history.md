@@ -395,3 +395,4 @@ JournalCal1·JournalCal2·ComplaintFilter·BulletRule·JournalPdf·ProjectRename
 
 - 2026-10-26 공통 부품 세션: 지우기 단추 휴지통 비교 판 `Trash`·`TrashRef`(레퍼런스 21개)·`Trash14`(14칸 가~라)·`TrashUser`(보내 주신 모양 자~타)·`TrashFill`(채움 + 줄 파~너)·`TrashPaper`·`TrashInside`(구겨진 휴지) 지움 – `TrashIOS`의 "사" 확정(결정 로그 10-26 00:15), 캔버스 판본 370에 남아 있어요.
 - 2026-10-26 09:1x 공통 부품 세션: 휴지통 비교 판 `TrashIOS`·`TrashX`·`TrashSquare` 지움 – 붉은 스퀴클 네모 + 채움 휴지통 확정(결정 로그 10-26 09:07), 캔버스 판본 374에 남아 있어요.
+- 2026-10-26 11:1x 공통 부품 세션: `TrashFinal`·`DialogClose`·`PjmHead` 지움 – ✔6 지우기 휴지통·✔7 창 닫기 통일(사업 관리 3안)을 `wip/parts4` 6a828b2에 코딩, 캔버스 판본 379에 남아 있어요. ✔6·✔7 원문: ✔6 `DelMark`(붉은 스퀴클 18·모서리 6, 그림 viewBox -1.4 -.9 16.8 16.8)·`DelGlyph`(붉은 단추 안 viewBox 0 .5 14 14), 옆에 테두리 단추·칸이 있으면 단추 자체가 붉은 단추(일정 상세 34·메모 창 26·업무일지·할 일 28) · ✔7 `DialogX`(28×28·오른쪽 12·제목 줄 가운데·머리 줄 52 비움), 관리·보기 창 아래 닫기 없앰, 일정 상세·공사 관리 고치는 줄 × = 저장하고 닫기, 예산현황 설정·엑셀 가져오기 Esc.
