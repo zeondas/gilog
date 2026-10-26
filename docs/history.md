@@ -394,3 +394,4 @@ JournalCal1·JournalCal2·ComplaintFilter·BulletRule·JournalPdf·ProjectRename
   - **쉬는 날 붉은 음영 (2026-10-17 사용자 결정, 시안 https://claude.ai/artifact/ND2V6G1gFkb3TWnuC8GyTD — **다음 빌드에 넣어요**, 사용자 "다음 빌드때 반영" — **next에 넣음**(2026-10-17 캘린더 세션: 토큰 `--rest-wash`·`--rest-band`, 설정 "화면" 카드 스위치 "캘린더 쉬는 날 음영" = 암호화 파일 `settings`의 `restShade`, 공휴일 종류를 숨겨도 음영은 칠해요, 주 보기 오늘 테두리는 `.cal-wk-today`))**:
 
 - 2026-10-26 공통 부품 세션: 지우기 단추 휴지통 비교 판 `Trash`·`TrashRef`(레퍼런스 21개)·`Trash14`(14칸 가~라)·`TrashUser`(보내 주신 모양 자~타)·`TrashFill`(채움 + 줄 파~너)·`TrashPaper`·`TrashInside`(구겨진 휴지) 지움 – `TrashIOS`의 "사" 확정(결정 로그 10-26 00:15), 캔버스 판본 370에 남아 있어요.
+- 2026-10-26 09:1x 공통 부품 세션: 휴지통 비교 판 `TrashIOS`·`TrashX`·`TrashSquare` 지움 – 붉은 스퀴클 네모 + 채움 휴지통 확정(결정 로그 10-26 09:07), 캔버스 판본 374에 남아 있어요.
