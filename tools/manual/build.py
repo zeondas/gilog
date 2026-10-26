@@ -324,7 +324,7 @@ kbd { font-family: inherit; font-size: 11px; font-weight: 600; border: 1px solid
 /* 상세 설명 */
 .dtitle { display: flex; align-items: center; gap: 9px; margin: 14px 0 6px %(ind)dpx; font-size: 14.5px; font-weight: 700; break-after: avoid; }
 .dtitle .dbar { width: 20px; height: 3px; background: var(--ink); border-radius: 2px; flex: none; }
-.dpart { padding-left: %(ind)dpx; }
+.dpart { padding-left: %(ind)dpx; display: flow-root; }
 .dpart > .dp, .dpart > .dstep, .dpart > .ddot, .dpart > .dfig { margin-left: 29px; }
 .dp { color: var(--ink2); margin: 3px 0; }
 .dstep { display: flex; gap: 8px; align-items: flex-start; margin: 4px 0; }
@@ -390,7 +390,17 @@ def chapter_parts(no, ch, sh, opens, fix, figs):
     rest = []
     # 4 상세 설명 – 화면 구성요소마다 사용법. 덩어리(문단·단계·그림)마다 따로 재서 쪽을 넘겨요
     names = {m["name"]: i for i, m in enumerate(ch["marks"], 1)}
-    for si, sub in enumerate(ch["detail"]):
+    # 그림 번호 차례로: 번호가 붙은 절마다 뒤따르는 번호 없는 절을 묶어 옮기고, "설정"으로 시작하는 절은 맨 뒤
+    groups, tail = [], []
+    for sub in ch["detail"]:
+        if sub["title"].startswith("설정"):
+            tail.append(sub)
+        elif sub["title"] in names or not groups:
+            groups.append([names.get(sub["title"], 0), [sub]])
+        else:
+            groups[-1][1].append(sub)
+    ordered = [x for _, g in sorted(groups, key=lambda g: g[0]) for x in g] + tail
+    for si, sub in enumerate(ordered):
         top = head("상세 설명") if si == 0 else ""
         no = names.get(sub["title"])
         ring = f'<div class="ring" style="{fix_style(fix, "r" + str(no))}">{no}</div>' if no else '<span class="dbar"></span>'
