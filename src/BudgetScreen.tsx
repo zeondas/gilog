@@ -41,6 +41,7 @@ import { todayStr } from "./journal";
 import { keyAction, rowKeys } from "./keys";
 import { overlayDown, useOutsideClose } from "./useOutsideClose";
 import { isEmptyMemo, MemoEditor, sanitize } from "./RichMemo";
+import { SearchBox } from "./SearchBox";
 import {
   AUTO_MS,
   Conflict,
@@ -1728,41 +1729,7 @@ export default function BudgetScreen() {
         >
           사업 추가
         </button>
-        <label className="search bd-search">
-          {searchIcon}
-          <input
-            ref={qInput}
-            type="text"
-            aria-label="공사 검색"
-            placeholder="공사명, 업체 검색"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Escape" && q) {
-                e.preventDefault();
-                e.stopPropagation();
-                setQ("");
-              }
-            }}
-          />
-          {q && (
-            <button
-              type="button"
-              className="search-x"
-              aria-label="검색어 지우기"
-              title="지우기"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                setQ("");
-                qInput.current?.focus();
-              }}
-            >
-              <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
-                <path d="M6 6l12 12M18 6L6 18" />
-              </svg>
-            </button>
-          )}
-        </label>
+        <SearchBox className="bd-search" icon={searchIcon} inputRef={qInput} aria-label="공사 검색" placeholder="공사명, 업체 검색" value={q} onChange={(e) => setQ(e.target.value)} onClear={() => setQ("")} />
         <button
           type="button"
           className="btn btn-ctrl btn-text xl-btn"

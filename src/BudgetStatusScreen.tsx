@@ -15,6 +15,7 @@ import { memoToText } from "./budget";
 import { todayStr } from "./journal";
 import { keyAction } from "./keys";
 import { overlayDown, useOutsideClose } from "./useOutsideClose";
+import { SearchBox } from "./SearchBox";
 
 const ICON = (d: string, s = 14, w = 2) => (
   <svg aria-hidden="true" width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={w} strokeLinecap="round" strokeLinejoin="miter">
@@ -873,10 +874,16 @@ export default function BudgetStatusScreen() {
           배치최적화
         </button>
         <span className="tb-hole-pop" aria-hidden="true" />
-        <label className="search bd-search">
-          {ICON("M11 4a7 7 0 1 1 0 14a7 7 0 1 1 0-14z M20 20l-3.5-3.5", 16)}
-          <input type="text" aria-label="세부사업 검색" placeholder="세부사업 검색" value={q} onChange={(e) => setQ(e.target.value)} autoComplete="off" />
-        </label>
+        <SearchBox
+          className="bd-search"
+          icon={ICON("M11 4a7 7 0 1 1 0 14a7 7 0 1 1 0-14z M20 20l-3.5-3.5", 16)}
+          aria-label="세부사업 검색"
+          placeholder="세부사업 검색"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onClear={() => setQ("")}
+          autoComplete="off"
+        />
         <button
           type="button"
           className="btn btn-ctrl btn-text xl-btn"

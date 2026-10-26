@@ -24,6 +24,7 @@ import { ANSWER_STATUS, DEFAULT_SETTINGS, isAnswered, loadSettings } from "./set
 import { exportNow, GStatus, onGoogleStatus, REMOTE_CHANGE, whenText } from "./google";
 import { loadNotifyMode, refreshHolidaysDaily, saveNotifyMode, stamp, syncReminders, updateHolidays } from "./reminders";
 import { AskBand } from "./AskBand";
+import { SearchBox } from "./SearchBox";
 
 const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
 const plainEnter = (e: KeyboardEvent) => e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey;
@@ -464,13 +465,7 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
               주
             </button>
           </div>
-          <label className="search">
-            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <circle cx="11" cy="11" r="7" />
-              <path d="M20 20l-3.5-3.5" />
-            </svg>
-            <input type="search" aria-label="일정 검색" placeholder="일정 검색" value={q} onChange={(e) => setQ(e.target.value)} />
-          </label>
+          <SearchBox aria-label="일정 검색" placeholder="일정 검색" value={q} onChange={(e) => setQ(e.target.value)} onClear={() => setQ("")} />
         </div>
         {note && <p className="note" role="status">{note}</p>}
 

@@ -19,6 +19,7 @@ import { DateInput, MiniCal } from "./DateInput";
 import { ANSWER_STATUS, DEFAULT_SETTINGS, isAnswered, loadSettings } from "./settingsStore";
 import { complaintItems, dueBadge, Item, openCount, split, treeOf } from "./tasks";
 import { AskBand } from "./AskBand";
+import { SearchBox } from "./SearchBox";
 
 const isComposing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
 
@@ -258,13 +259,7 @@ export default function TasksScreen({ urgentDays, focusId, onFocused, onOpenComp
       <div className="ct-head">
         <h1 className="title">할 일 목록</h1>
         <span className="td-summary">남은 일 {remaining}건</span>
-        <label className="search">
-          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <circle cx="11" cy="11" r="7" />
-            <path d="M20 20l-3.5-3.5" />
-          </svg>
-          <input type="search" aria-label="할 일 검색" placeholder="할 일 검색" value={q} onChange={(e) => setQ(e.target.value)} />
-        </label>
+        <SearchBox aria-label="할 일 검색" placeholder="할 일 검색" value={q} onChange={(e) => setQ(e.target.value)} onClear={() => setQ("")} />
       </div>
       {note && <p className="note" role="status">{note}</p>}
       <div className="td-screen">

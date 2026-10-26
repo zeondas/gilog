@@ -840,7 +840,7 @@ function GoogleRows() {
           {!ask ? (
             <>
               {g.lastError.includes("다시 로그인") && (
-                <button type="button" className="btn btn-primary" disabled={wait} onClick={login}>
+                <button type="button" className="btn btn-primary g-login" disabled={wait} onClick={login}>
                   {wait ? "로그인 기다리는 중…" : "다시 로그인"}
                 </button>
               )}
@@ -882,7 +882,7 @@ function GoogleRows() {
           </Row>
           )}
           <Row label="구글 로그인" desc={g.lastError || "로그인하면 구글 계정에 giLog 캘린더를 만들어 그 안에만 써요."}>
-            <button type="button" className="btn btn-primary" disabled={!g.configured || wait || !inApp} onClick={login}>
+            <button type="button" className="btn btn-primary g-login" disabled={!g.configured || wait || !inApp} onClick={login}>
               {wait ? "로그인 기다리는 중…" : "구글 로그인"}
             </button>
           </Row>

@@ -60,6 +60,7 @@ import { DateInput } from "./DateInput";
 import { useOutsideClose } from "./useOutsideClose";
 import { useMenuPlace } from "./PopMenu";
 import { DEFAULT_FILES_SETTINGS, FilesSettings, loadSettings, saveSettings } from "./settingsStore";
+import { SearchBox } from "./SearchBox";
 
 const STATE_KEY = "files.state";
 const ZIP_RO = "zip 파일 안은 읽기만 돼요 – 꺼내려면 다른 폴더로 복사해 주세요";
@@ -2516,40 +2517,39 @@ export default function FilesScreen() {
     <div className="fx-root">
       <div className="fx-top">
         <div className="fx-findbox fx-rel" style={{ width: st.tree.width }}>
-          <label className="search fx-search">
-            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <circle cx="11" cy="11" r="7" />
-              <path d="M20 20l-3.5-3.5" />
-            </svg>
-            <input
-              ref={quickRef}
-              aria-label="파일 찾기"
-              placeholder={fastReady ? "모든 드라이브에서 찾기" : "파일 찾기"}
-              value={quickFind}
-              onChange={(e) => setQuickFind(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && quickFind.trim()) {
-                  // 빠른 찾기는 이미 치는 대로 나와 있어요 – Enter는 결과 목록으로 옮겨 가기
-                  if (!fastReady) void runFind({ ...EMPTY_FIND, name: quickFind.trim(), sub: true });
-                  e.currentTarget.blur();
-                }
-                if (e.key === "Escape") {
-                  setQuickFind("");
-                  e.currentTarget.blur();
-                }
-              }}
-            />
-            <button
-              type="button"
-              className="fx-more fx-menu-btn"
-              onClick={() => {
-                if (!findOpen) setForm({ ...form, name: form.name || quickFind, where: form.where || curPath });
-                setFindOpen(!findOpen);
-              }}
-            >
-              자세히 ▾
-            </button>
-          </label>
+          <SearchBox
+            className="fx-search"
+            inputRef={quickRef}
+            aria-label="파일 찾기"
+            placeholder={fastReady ? "모든 드라이브에서 찾기" : "파일 찾기"}
+            value={quickFind}
+            onChange={(e) => setQuickFind(e.target.value)}
+            onClear={() => setQuickFind("")}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && quickFind.trim()) {
+                // 빠른 찾기는 이미 치는 대로 나와 있어요 – Enter는 결과 목록으로 옮겨 가기
+                if (!fastReady) void runFind({ ...EMPTY_FIND, name: quickFind.trim(), sub: true });
+                e.currentTarget.blur();
+              }
+              // 글자가 있으면 SearchBox가 지우고 커서를 둬요 – 빈 칸에서 Esc면 칸을 떠나요
+              if (e.key === "Escape") e.currentTarget.blur();
+            }}
+            tail={
+              <>
+                {quickFind && <span className="fx-vsep fx-find-sep" aria-hidden="true" />}
+                <button
+                  type="button"
+                  className="fx-more fx-menu-btn"
+                  onClick={() => {
+                    if (!findOpen) setForm({ ...form, name: form.name || quickFind, where: form.where || curPath });
+                    setFindOpen(!findOpen);
+                  }}
+                >
+                  자세히 ▾
+                </button>
+              </>
+            }
+          />
           {findOpen && (
             <div className="fx-menu fx-findpanel" onKeyDown={(e) => e.key === "Escape" && setFindOpen(false)}>
               <div className="fx-fgrid">

@@ -28,6 +28,7 @@ import { areaFor, looksRoad } from "./address";
 import { actionLine, aiGuide, fileName, mailDraft, mailGuide, md, orderLabel, orderTag, PORTAL_URL, processError, SAMPLE_WORKS, SAMPLES } from "./process";
 import { DEFAULT_PROCESS, DONE_STATUS, isAnswered, isClosed, loadSettings, ProcessSettings } from "./settingsStore";
 import { AskBand } from "./AskBand";
+import { SearchBox } from "./SearchBox";
 
 type Props = { urgentDays: number; onOpenComplaint: (id: number) => void };
 
@@ -988,13 +989,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
         <button type="button" className="btn btn-ctrl btn-text tb-pop pr-push" onClick={() => setWorksOpen(true)}>
           공사 관리
         </button>
-        <label className="search">
-          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <circle cx="11" cy="11" r="7" />
-            <path d="M20 20l-3.5-3.5" />
-          </svg>
-          <input type="search" aria-label="민원처리 검색" placeholder="접수번호, 위치, 내용 검색" value={q} onChange={(e) => setQ(e.target.value)} />
-        </label>
+        <SearchBox aria-label="민원처리 검색" placeholder="접수번호, 위치, 내용 검색" value={q} onChange={(e) => setQ(e.target.value)} onClear={() => setQ("")} />
         <span className="tb-hole-xl" aria-hidden="true" />
       </div>
 
