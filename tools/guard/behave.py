@@ -242,6 +242,29 @@ async def c_files_side_buttons(p):
     assert fwd == moved, f"앞으로 안 됨: {fwd} (기대 {moved})"
 
 
+async def c_files_rename_ok(p):
+    # Batch rename [확인] (2026-10-26): rename + close; no change = just close; red rows = disabled.
+    await shoot.nav(p, "탐색기")
+    await p.wait_for_timeout(500)
+    tool = ".fx-tool[title='일괄 이름 바꾸기']"
+    pat = "input[aria-label='파일 이름 패턴']"
+    await p.click(tool)
+    await p.fill(pat, "같음")
+    await p.wait_for_timeout(200)
+    assert await p.locator(".fx-rn-ok").is_disabled(), "빨간 줄인데 확인이 눌림"
+    await p.fill(pat, "[n]")
+    await p.click(".fx-rn-ok")
+    await p.wait_for_timeout(300)
+    assert await p.locator(".fx-rn").count() == 0, "바뀔 것 없는데 안 닫힘"
+    await p.click(tool)
+    await p.fill(pat, "[n]_x")
+    await p.click(".fx-rn-ok")
+    await p.wait_for_timeout(500)
+    assert await p.locator(".fx-rn").count() == 0, "바꾼 뒤 안 닫힘"
+    text = await p.locator("section[aria-label='창 1']").inner_text()
+    assert "_x." in text, "이름이 안 바뀜"
+
+
 async def c_complaints_save(p):
     await shoot.nav(p, "민원대장")
     await shoot.s_complaints_edit(p)
@@ -413,6 +436,7 @@ CASES = {
     "tasks_check_reduced": c_tasks_check_reduced,
     "complaints_save": c_complaints_save,
     "files_side_buttons": c_files_side_buttons,
+    "files_rename_ok": c_files_rename_ok,
 }
 
 

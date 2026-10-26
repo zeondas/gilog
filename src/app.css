@@ -8339,6 +8339,12 @@ button.td-check:not(.on):hover .td-tick {
   font-size: 12px;
   color: var(--muted);
 }
+.fx-rn-foot .fx-rn-ok {
+  /* same width as the right button column, so its right edge lines up */
+  width: 190px;
+  flex: none;
+  justify-content: center;
+}
 .fx-icon {
   flex: none;
 }
