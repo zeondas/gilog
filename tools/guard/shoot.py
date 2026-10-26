@@ -288,6 +288,31 @@ async def s_settings_calendar(p):
     await p.wait_for_timeout(200)
 
 
+
+# ---------- 매뉴얼 장면(2026-10-26 매뉴얼 세션 – 창이 열린 모습) ----------
+async def s_process_works(p):
+    await p.locator("button", has_text="공사 관리").first.click()
+    await p.wait_for_timeout(300)
+
+
+async def s_budgetstatus_settings(p):
+    await p.locator("button.bs-gear").first.click()
+    await p.wait_for_timeout(300)
+
+
+async def s_calendar_event(p):
+    await p.locator(".cal-ev", has_text="방호벽 협의").first.dblclick()
+    await p.wait_for_timeout(300)
+
+
+async def s_journal_memo(p):
+    i = p.locator("input.cell-input[placeholder='구분']").first
+    await i.click()
+    await i.fill("메모")
+    await i.press("Tab")
+    await p.wait_for_timeout(300)
+
+
 SCREENS = ["탐색기", "민원대장", "민원처리", "집행현황", "예산현황", "캘린더", "할 일", "업무일지", "업무연락처", "설정"]
 SCENES = {f"screen_{i:02d}": (n, None) for i, n in enumerate(SCREENS)}
 SCENES.update({
@@ -334,6 +359,10 @@ SCENES.update({
     "complaints_import": ("민원대장", s_complaints_import),
     "complaints_import_merge": ("민원대장", s_complaints_import_merge),
     "complaints_import_replace": ("민원대장", s_complaints_import_replace),
+    "process_works": ("민원처리", s_process_works),
+    "budgetstatus_settings": ("예산현황", s_budgetstatus_settings),
+    "calendar_event": ("캘린더", s_calendar_event),
+    "journal_memo": ("업무일지", s_journal_memo),
     "settings_calendar": ("설정", s_settings_calendar),
 })
 

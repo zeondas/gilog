@@ -45,3 +45,16 @@
 - …
 ```
 생성기가 캡처를 찍을 때 요소 위치를 함께 재서 번호를 얹어요. 위치가 안 재지는 요소는 그 화면 대기 목록에 "이름표(`data-help`) 붙여 주세요" 한 줄로 전달해요.
+
+## 만들기 (2026-10-26 매뉴얼 세션 – `tools/manual/`)
+빌드 뒤 매뉴얼 다시 만들기 – 지킴이 빌드 하나만 있으면 돼요:
+```
+npx vite build -c tools/guard/vite.config.ts --outDir /tmp/g_cur
+python3 tools/manual/build.py /tmp/g_cur            # → docs/manual/기록-매뉴얼.html (그림·글꼴을 모두 넣은 한 파일, A4 인쇄)
+```
+- 글은 `docs/manual/<키>.md`(키: explorer·complaints·process·budget·bstatus·calendar·tasks·journal·contacts·settings, 사이드바 순서).
+- 번호 선택자를 찾을 때: `python3 tools/manual/probe.py /tmp/g_cur <장면> [찾을 글]`(요소·자리·글을 적고 장면 그림을 남겨요).
+- 잴 수 없는 요소나 A4 한 장을 넘는 쪽이 있으면 끝에 목록을 적고 끝 값 1 – 선택자를 고치거나, 화면이 바뀌어 못 찾으면 그 화면 대기 목록에 "이름표(`data-help`) 붙여 주세요" 한 줄.
+- 한 장 = 첫 쪽(제목·1 기획 의도·2 화면·3 기능별 설명) + 둘째 쪽(4 열린 모습·알아 두면 좋은 것). 첫 쪽은 A4 한 장 안.
+- 번호 숫자 가운데 맞춤 값은 만들 때마다 글꼴로 재요(`measure_fix`).
+- 지킴이 장면 넷을 더함(매뉴얼 열린 모습): `process_works`(공사 관리 창)·`budgetstatus_settings`(예산현황 설정 상자)·`calendar_event`(일정 상세 창)·`journal_memo`(메모 편집기).
