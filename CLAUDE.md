@@ -117,6 +117,7 @@
 
 ## 구조
 - 화면: React + TypeScript (`src/`). `src/api.ts`가 Rust를 부르고, 브라우저에서 볼 때는 메모리 흉내를 써요.
+- 모양(CSS): `src/tokens.css`(색·토큰) → `src/styles/index.css`가 불러오는 순서 base(공통·사이드바·잠금·단추·입력칸·머릿기호) · dialogs(창·묻는 띠·떠 있는 메뉴·엑셀 창·휴지통) · settings · contacts(사업 관리 창) · journal(메모 편집기·인쇄) · complaints · tasks · calendar · process · files · budget · bstatus · **late**(다른 파일을 같은 무게로 덮어 꼭 맨 뒤여야 하는 것만 – 한 줄 칸 규칙·떠 있는 메뉴 한 모양·창 닫기 ×·창 크기·✔8). 새 규칙은 그 화면 파일 끝에. 어느 절이 어디로 갔는지는 [tools/tidy/css-map.json](https://github.com/zeondas/gilog/blob/main/tools/tidy/css-map.json)(2026-10-26 정리 2차, 옛 `app.css`).
 - 앱 틀: Tauri 2 (`src-tauri/`). 저장·암호화는 `src-tauri/core/` 크레이트에 두고 `cargo test`로 시험해요.
 - 자료: 한 파일 `문서\giLog\gilog.db`(암호화). 지금은 `kv` 표에 JSON으로 저장해요. 새 화면은 `core`에 표를 만들고 `migrate()`에 추가해요.
 - 앱 설정(암호 없이 읽는 것)은 AppData의 `prefs.json`, 내용 설정(상태 목록, 구분 등)은 암호화 파일 안 `settings` 키예요. `src/settingsStore.ts` 참고.

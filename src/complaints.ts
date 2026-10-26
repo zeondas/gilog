@@ -147,7 +147,7 @@ export type ColNeed = { full: number; short?: number; more?: number };
 export const COL_SLACK = 28;
 /** 내용·조치내용이 이만큼(표 폭 비율) 못 받으면 하나씩 줄여요 */
 export const CONTENT_SHARE = 0.45;
-/** 칸 좌우 여백 합(app.css .cm-c padding 0 10px) */
+/** 칸 좌우 여백 합(styles/*.css .cm-c padding 0 10px) */
 const CELL_PAD = 20;
 /** 다 줄여도 이보다 적으면 다른 열의 여유를 줄여요 */
 export const CONTENT_FLOOR = 0.4;

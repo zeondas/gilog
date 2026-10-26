@@ -1,0 +1,14 @@
+/* 모양 파일을 이 순서로 불러와요 – 순서가 바뀌면 모양이 바뀌어요(계단식 우선순위). 새 규칙은 그 화면 파일 끝에. */
+@import "./base.css";
+@import "./dialogs.css";
+@import "./settings.css";
+@import "./contacts.css";
+@import "./journal.css";
+@import "./complaints.css";
+@import "./tasks.css";
+@import "./calendar.css";
+@import "./process.css";
+@import "./files.css";
+@import "./budget.css";
+@import "./bstatus.css";
+@import "./late.css";
