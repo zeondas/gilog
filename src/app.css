@@ -9734,6 +9734,13 @@ button.bd-chip:hover {
 .bd-mi:hover > .bd-sub {
   display: block;
 }
+/* 단계 하위 메뉴(✔1, 2026-10-26 신고): .bd-stlist의 flex가 접힘을 이기지 않게 – 마우스를 올렸을 때만 펼쳐요 */
+.bd-sub.bd-stlist {
+  display: none;
+}
+.bd-mi:hover > .bd-sub.bd-stlist {
+  display: flex;
+}
 .bd-mi.cur {
   background: var(--accent-tint);
 }
@@ -12395,4 +12402,25 @@ body.ew-dragging .pjm-colgrip:active::after {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.4;
+}
+
+/* 집행현황 공사명·업체 후보(✔2, 2026-10-26) – 표 칸이 넘치는 것을 잘라서 화면 기준으로 띄워요 */
+.pin-list.bd-sug {
+  position: fixed;
+  right: auto;
+  z-index: 60;
+  max-width: 560px;
+}
+.bd-sug .pin-opt,
+.bd-sug .pin-hint {
+  white-space: nowrap;
+}
+.bd-sug .pin-opt b {
+  font-weight: 600;
+  color: var(--ink);
+}
+.bd-sug .pin-sub {
+  padding-left: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
