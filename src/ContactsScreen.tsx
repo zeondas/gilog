@@ -102,7 +102,6 @@ export default function ContactsScreen() {
   const [sel, setSel] = useState<number | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
   const [memoId, setMemoId] = useState<number | null>(null);
-  const [askId, setAskId] = useState<number | null>(null);
   const [projOpen, setProjOpen] = useState(false);
   const [note, setNote] = useState("");
   // 카드는 보이는 만큼만 그려요(2026-10-21 속도 최적화 – 연락처가 많으면 스크롤이 밀린다고 함).
@@ -227,7 +226,7 @@ export default function ContactsScreen() {
           count={shown.length}
           getKey={(i) => shown[i].id}
           estimate={(i) => cardEstimate(shown[i])}
-          pinned={[editId, askId, memoId].map((id) => (id == null ? null : shown.findIndex((c) => c.id === id)))}
+          pinned={[editId, memoId].map((id) => (id == null ? null : shown.findIndex((c) => c.id === id)))}
           resetKey={gridW}
           render={(i) => {
             const c = shown[i];
@@ -243,6 +242,11 @@ export default function ContactsScreen() {
                     onSave={async (input) => {
                       if (await run(api.updateContact(c.id, input))) setEditId(null);
                     }}
+                    onRemove={async () => {
+                      setEditId(null);
+                      if (memoId === c.id) setMemoId(null);
+                      await run(api.deleteContact(c.id));
+                    }}
                   />
                 ) : (
                   <ViewCard
@@ -250,18 +254,10 @@ export default function ContactsScreen() {
                     contact={c}
                     byId={byId}
                     q={query}
-                    asking={askId === c.id}
                     memoOpen={memoId === c.id}
                     onEdit={() => {
-                      setAskId(null);
                       setMemoId(null);
                       setEditId(c.id);
-                    }}
-                    onAsk={(on) => setAskId(on ? c.id : null)}
-                    onRemove={async () => {
-                      setAskId(null);
-                      if (memoId === c.id) setMemoId(null);
-                      await run(api.deleteContact(c.id));
                     }}
                     onMemoOpen={() => {
                       setEditId(null);
@@ -722,25 +718,17 @@ type ViewProps = {
   contact: Contact;
   byId: Map<number, Project>;
   q: string;
-  asking: boolean;
   memoOpen: boolean;
   onEdit: () => void;
-  onAsk: (on: boolean) => void;
-  onRemove: () => void;
   onMemoOpen: () => void;
   onMemoClose: () => void;
   onMemoSave: (lines: MemoLine[]) => void;
 };
 
-function ViewCard({ vi, contact: c, byId, q, asking, memoOpen, onEdit, onAsk, onRemove, onMemoOpen, onMemoClose, onMemoSave }: ViewProps) {
+function ViewCard({ vi, contact: c, byId, q, memoOpen, onEdit, onMemoOpen, onMemoClose, onMemoSave }: ViewProps) {
   const [copied, setCopied] = useState<string | null>(null);
   const timer = useRef<number>();
   useEffect(() => () => window.clearTimeout(timer.current), []);
-
-  // "이 연락처를 지울까요?"가 펼쳐진 동안 그 줄 바깥(다른 카드, 빈 곳 등)을 누르면 접어요.
-  const askRef = useRef<HTMLDivElement>(null);
-  const trashRef = useRef<HTMLButtonElement>(null);
-  useOutsideClose(asking, [askRef, trashRef], () => onAsk(false));
 
   const memo = parseMemo(c.memo);
   const lines = (
@@ -765,8 +753,8 @@ function ViewCard({ vi, contact: c, byId, q, asking, memoOpen, onEdit, onAsk, on
       data-vi={vi}
       aria-label={c.name}
       onDoubleClick={(e) => {
-        // 복사되는 번호·메일 줄, 메모, 단추, 지우기 확인 줄은 빼고 카드를 두 번 누르면 고치는 카드(2026-10-18 사용자)
-        if ((e.target as Element).closest("button, input, textarea, .ccard-memo, .ask-band")) return;
+        // 복사되는 번호·메일 줄, 메모, 단추는 빼고 카드를 두 번 누르면 고치는 카드(2026-10-18 사용자)
+        if ((e.target as Element).closest("button, input, textarea, .ccard-memo")) return;
         window.getSelection()?.removeAllRanges();
         onEdit();
       }}
@@ -787,18 +775,12 @@ function ViewCard({ vi, contact: c, byId, q, asking, memoOpen, onEdit, onAsk, on
             <button type="button" className="tool" aria-label={`${c.name} 고치기`} title="이 연락처 고치기" onClick={onEdit}>
               <Pencil />
             </button>
-            <button type="button" className="tool tool-danger del-hit" aria-label={`${c.name} 지우기`} title="이 연락처 지우기" ref={trashRef} onClick={() => onAsk(!asking)}>
-              <DelMark />
-            </button>
           </span>
         </div>
         {c.org && (
           <div className="ccard-org">
             <Hl text={c.org} q={q} />
           </div>
-        )}
-        {asking && (
-          <AskBand bandRef={askRef} label="연락처 지우기 확인" text="이 연락처를 지울까요?" onNo={() => onAsk(false)} onYes={onRemove} />
         )}
       </div>
 
@@ -865,6 +847,7 @@ function EditCard({
   groups,
   onCancel,
   onSave,
+  onRemove,
 }: {
   vi?: number;
   contact: Contact;
@@ -873,7 +856,10 @@ function EditCard({
   groups: ProjectGroup[];
   onCancel: () => void;
   onSave: (input: ContactInput) => Promise<void>;
+  onRemove: () => void;
 }) {
+  /** "이 연락처를 지울까요?" 띠(2026-10-26 사용자: 지우기는 고치는 카드 왼쪽 아래로) */
+  const [asking, setAsking] = useState(false);
   const [v, setV] = useState({
     name: c.name,
     org: c.org,
@@ -910,7 +896,7 @@ function EditCard({
     onSave({ ...rest, mobile: finalizePhone(rest.mobile), tel: finalizePhone(rest.tel), projects: projectsToSave(projects, proj, pending.current) });
   }
 
-  // 바깥을 누르면 저장해요.
+  // 바깥을 누르면 저장해요(지울까요 띠가 펼쳐져 있으면 띠는 접히고 고친 것은 저장 – 업무일지와 같게).
   // 누른 것이 그 사이 사라졌어도(배지 × 등) 누를 때의 자리로 판단해요(isInside가 composedPath로 봐요).
   useOutsideClose(true, [ref], () => {
     if (ref.current) latest.current.save(true);
@@ -959,15 +945,23 @@ function EditCard({
         <span>사업</span>
         <ProjectChips projects={projects} groups={groups} stacked value={v.proj} onChange={(proj) => setV((old) => ({ ...old, proj }))} pending={pending} />
       </div>
-      <div className="edit-foot">
-        <span className="hint">Tab·Enter 다음 칸 · 마지막 칸이면 저장 · Esc 취소</span>
-        <button type="button" className="btn btn-xs" onClick={onCancel}>
-          취소
-        </button>
-        <button type="button" className="btn-primary btn-xs" onClick={() => save()}>
-          저장
-        </button>
-      </div>
+      {asking ? (
+        <AskBand className="ct-ask" label="연락처 지우기 확인" text="이 연락처를 지울까요?" onNo={() => setAsking(false)} onYes={onRemove} />
+      ) : (
+        <div className="edit-foot">
+          {/* 지우기는 왼쪽 아래, 취소·저장은 오른쪽 끝(2026-10-26 사용자 – 보기 카드에서는 빼고 고치기 단추만) */}
+          <button type="button" className="tool-box ct-trash del-btn" aria-label={`${c.name} 지우기`} title="이 연락처 지우기" onClick={() => setAsking(true)}>
+            <DelGlyph />
+          </button>
+          <span className="hint">Tab·Enter 다음 칸 · 마지막 칸이면 저장 · Esc 취소</span>
+          <button type="button" className="btn btn-xs" onClick={onCancel}>
+            취소
+          </button>
+          <button type="button" className="btn-primary btn-xs" onClick={() => save()}>
+            저장
+          </button>
+        </div>
+      )}
     </div>
   );
 }

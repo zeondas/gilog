@@ -143,6 +143,8 @@ async def s_complaints_newrow_baddate(p):
 
 
 async def s_contacts_card_ask(p):
+    # 2026-10-26: 지우기는 고치는 카드 왼쪽 아래 – 연필로 고치는 카드를 연 뒤 휴지통
+    await p.get_by_role("button", name="박정호 고치기").click()
     await p.get_by_role("button", name="박정호 지우기").click()
 
 
