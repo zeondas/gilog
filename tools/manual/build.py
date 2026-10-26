@@ -60,6 +60,9 @@ def parse(path):
         if line.startswith("### ") and sec == "상세 설명":
             d["detail"].append({"title": line[4:].strip(), "parts": []})
             continue
+        if line.startswith("## "):
+            sec = line[3:].strip()
+            continue
         if sec == "상세 설명" and d["detail"]:
             t = line.strip()
             m = re.match(r"^그림:\s*(.*)$", t)
@@ -72,9 +75,6 @@ def parse(path):
                 d["detail"][-1]["parts"].append(("dot", t[2:].strip()))
             else:
                 d["detail"][-1]["parts"].append(("p", t))
-            continue
-        if line.startswith("## "):
-            sec = line[3:].strip()
             continue
         m = re.match(r"^(정의|장면|자르기):\s*(.*)$", line)
         if m and sec is None:
@@ -390,6 +390,20 @@ def shot_html(sh, fix):
     return "".join(out)
 
 
+def ordered_detail(ch):
+    """상세 설명 절 차례: 번호 절마다 뒤따르는 번호 없는 절을 묶어 그림 번호 차례로, "설정"으로 시작하는 절은 맨 뒤."""
+    names = {m["name"]: i for i, m in enumerate(ch["marks"], 1)}
+    groups, tail = [], []
+    for sub in ch["detail"]:
+        if sub["title"].startswith("설정"):
+            tail.append(sub)
+        elif sub["title"] in names or not groups:
+            groups.append([names.get(sub["title"], 0), [sub]])
+        else:
+            groups[-1][1].append(sub)
+    return [x for _, g in sorted(groups, key=lambda g: g[0]) for x in g] + tail
+
+
 def chapter_parts(no, ch, sh, opens, fix, figs):
     """첫 쪽(제목·기획 의도·화면·기능별 설명) HTML과, 다음 쪽부터 차례로 채울 덩어리 목록."""
     sec = 0
@@ -410,16 +424,7 @@ def chapter_parts(no, ch, sh, opens, fix, figs):
     rest = []
     # 4 상세 설명 – 화면 구성요소마다 사용법. 덩어리(문단·단계·그림)마다 따로 재서 쪽을 넘겨요
     names = {m["name"]: i for i, m in enumerate(ch["marks"], 1)}
-    # 그림 번호 차례로: 번호가 붙은 절마다 뒤따르는 번호 없는 절을 묶어 옮기고, "설정"으로 시작하는 절은 맨 뒤
-    groups, tail = [], []
-    for sub in ch["detail"]:
-        if sub["title"].startswith("설정"):
-            tail.append(sub)
-        elif sub["title"] in names or not groups:
-            groups.append([names.get(sub["title"], 0), [sub]])
-        else:
-            groups[-1][1].append(sub)
-    ordered = [x for _, g in sorted(groups, key=lambda g: g[0]) for x in g] + tail
+    ordered = ordered_detail(ch)
     chips = ch.get("chips", {})
 
     def txt(v):
@@ -481,8 +486,9 @@ def logo_svg(height):
 
 
 async def main():
-    site = sys.argv[1]
-    out = sys.argv[2] if len(sys.argv) > 2 else os.path.join(DOCS, "기록-매뉴얼.html")
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    site = args[0]
+    out = args[1] if len(args) > 1 else os.path.join(DOCS, "기록-매뉴얼.html")
     chapters = []
     for key, name in ORDER:
         path = os.path.join(DOCS, key + ".md")
@@ -566,6 +572,8 @@ async def main():
             return [i, Math.round(bottom), foot ? foot.lastElementChild.textContent : ''];
           }).filter(([i, b]) => b > 1123 - 60)""")
         await br.close()
+    if "--word" in sys.argv:
+        await export_word(out, chapters, opens, figs_all)
     for i, b, t in over:
         missing.append(f"{t} – {i + 1}쪽 글이 A4 한 장을 넘어요(아래 끝 {b}px, 1063 안이어야 해요 – 설명을 줄여요)")
     if missing:
@@ -573,6 +581,81 @@ async def main():
         for m in missing:
             print("  - " + m)
         sys.exit(1)
+
+
+# ---------- 워드(.docx) ----------
+def _save_uri(uri, path):
+    with open(path, "wb") as f:
+        f.write(base64.b64decode(uri.split(",", 1)[1]))
+
+
+async def export_word(out, chapters, opens_all, figs_all):
+    """HTML과 같은 글·그림으로 워드 파일을 만들어요(tools/manual/word.cjs). 화면 그림은 번호·지시선까지 그린 그대로 찍어 넣어요."""
+    import json
+    import subprocess
+    base = os.path.splitext(out)[0]
+    imgdir = base + "_word"
+    os.makedirs(imgdir, exist_ok=True)
+    model = {"chapters": [], "date": datetime.date.today().strftime("%Y-%m-%d")}
+    async with async_playwright() as pw:
+        br = await pw.chromium.launch()
+        p = await br.new_page(viewport={"width": 900, "height": 1200}, device_scale_factor=2)
+        await p.goto("file://" + os.path.abspath(out))
+        await p.evaluate("() => document.fonts.ready")
+        for i, ch in enumerate(chapters, 1):
+            el = p.locator(f"#ch{i} .shot").first
+            bb = await el.bounding_box()
+            shot = os.path.join(imgdir, f"ch{i:02d}_shot.png")
+            await el.screenshot(path=shot)
+            logo = os.path.join(imgdir, "logo.png")
+            if i == 1:
+                await p.locator(".band svg").first.screenshot(path=logo)
+            c = {"no": i, "title": ch["title"], "def": ch["def"], "intent": ch["intent"],
+                 "shot": {"img": shot, "w": bb["width"], "h": bb["height"]},
+                 "feats": [{"no": k, "name": m["name"], "text": m["text"]} for k, m in enumerate(ch["marks"], 1)],
+                 "detail": [], "opens": [], "tips": ch["tips"], "chips": {}}
+            for n, (sel, html_img) in enumerate(ch.get("chips", {}).items()):
+                m = re.search(r'src="([^"]+)" style="height:(\d+)px;width:(\d+)px', html_img)
+                f = os.path.join(imgdir, f"ch{i:02d}_chip{n}.png")
+                _save_uri(m.group(1), f)
+                c["chips"][sel] = {"img": f, "h": int(m.group(2)), "w": int(m.group(3))}
+            names = {m["name"]: k for k, m in enumerate(ch["marks"], 1)}
+            seen = False
+            for sub in ordered_detail(ch):
+                no = names.get(sub["title"])
+                if no:
+                    seen = True
+                    kind = "title"
+                elif seen and not sub["title"].startswith("설정"):
+                    kind = "sub"
+                else:
+                    kind = "plain"
+                c["detail"].append({"kind": kind, "no": no, "text": sub["title"]})
+                step = 0
+                for k, v in sub["parts"]:
+                    if k == "step":
+                        step += 1
+                        c["detail"].append({"kind": "step", "n": step, "text": v})
+                    elif k == "fig":
+                        img = figs_all[i - 1].get((v["scene"], v["sel"]))
+                        if img:
+                            f = os.path.join(imgdir, f"ch{i:02d}_fig{len(c['detail'])}.png")
+                            _save_uri(img["img"], f)
+                            c["detail"].append({"kind": "fig", "img": f, "w": img["w"], "h": img["h"], "text": v["cap"]})
+                    else:
+                        c["detail"].append({"kind": k, "text": v})
+            for op, img in zip(ch["opens"], opens_all[i - 1]):
+                f = os.path.join(imgdir, f"ch{i:02d}_open{len(c['opens'])}.png")
+                _save_uri(img["img"], f)
+                c["opens"].append({"img": f, "w": img["w"], "h": img["h"], "title": op["title"], "text": op["text"]})
+            model["chapters"].append(c)
+        await br.close()
+    mpath = base + ".model.json"
+    with open(mpath, "w", encoding="utf-8") as f:
+        json.dump(model, f, ensure_ascii=False)
+    docx = base + ".docx"
+    subprocess.run(["node", os.path.join(os.path.dirname(os.path.abspath(__file__)), "word.cjs"), mpath, docx], check=True)
+    print(f"만듦 {docx} ({os.path.getsize(docx) // 1024}KB)")
 
 
 if __name__ == "__main__":
