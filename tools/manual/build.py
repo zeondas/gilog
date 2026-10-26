@@ -57,8 +57,21 @@ def parse(path):
         if line.startswith("# "):
             d["title"] = line[2:].strip()
             continue
-        if line.startswith("### ") and sec == "자세히":
-            d["detail"].append({"title": line[4:].strip(), "items": []})
+        if line.startswith("### ") and sec == "상세 설명":
+            d["detail"].append({"title": line[4:].strip(), "parts": []})
+            continue
+        if sec == "상세 설명" and d["detail"]:
+            t = line.strip()
+            m = re.match(r"^그림:\s*(.*)$", t)
+            if m:
+                f = [x.strip() for x in m.group(1).split("|")] + ["", "", ""]
+                d["detail"][-1]["parts"].append(("fig", {"scene": f[0], "sel": f[1], "cap": f[2]}))
+            elif re.match(r"^\d+\.\s", t):
+                d["detail"][-1]["parts"].append(("step", re.sub(r"^\d+\.\s+", "", t)))
+            elif t.startswith("- "):
+                d["detail"][-1]["parts"].append(("dot", t[2:].strip()))
+            else:
+                d["detail"][-1]["parts"].append(("p", t))
             continue
         if line.startswith("## "):
             sec = line[3:].strip()
@@ -82,9 +95,6 @@ def parse(path):
             d["opens"].append({"scene": parts[0], "sel": parts[1], "title": parts[2], "text": parts[3]})
         elif sec == "알아 두면 좋은 것":
             d["tips"].append(item)
-        elif sec == "자세히" and d["detail"]:
-            parts = [x.strip() for x in item.split("|", 1)]
-            d["detail"][-1]["items"].append({"name": parts[0], "text": parts[1] if len(parts) > 1 else ""})
         elif sec == "확인":
             d["check"].append(item)
     return d
@@ -247,7 +257,7 @@ async def shoot_chapter(br, url, ch, missing):
     return {"img": png_uri(region), "h": h, "marks": marks}
 
 
-async def shoot_open(br, url, o, missing, title):
+async def shoot_open(br, url, o, missing, title, full=False):
     ctx, p = await cap.open_scene(br, url, o["scene"])
     b = await cap.box(p, o["sel"]) if o["sel"] else None
     if not b:
@@ -261,7 +271,8 @@ async def shoot_open(br, url, o, missing, title):
     x1, y1 = min(1600, b["x"] + b["width"] + m), min(900, b["y"] + b["height"] + m)
     region = shot.crop((int(x0 * D), int(y0 * D), int(x1 * D), int(y1 * D)))
     wide = (x1 - x0) > OPEN_W * 1.4  # 넓은 창은 두 칸을 다 써요(글자가 너무 작아지지 않게)
-    sc = min(OPEN_SCALE, (IMG_W if wide else OPEN_W) / (x1 - x0), OPEN_H / (y1 - y0))
+    room = (IMG_W - 29) if full else (IMG_W if wide else OPEN_W)
+    sc = min(OPEN_SCALE, room / (x1 - x0), (560 if full else OPEN_H) / (y1 - y0))
     return {"img": png_uri(region), "w": (x1 - x0) * sc, "h": (y1 - y0) * sc, "wide": wide}
 
 
@@ -310,14 +321,21 @@ ul.dots li::before { content: ""; position: absolute; left: 0; top: 9px; width: 
 .tips li { list-style: none; color: var(--ink2); }
 kbd { font-family: inherit; font-size: 11px; font-weight: 600; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: #fff; color: var(--ink); white-space: nowrap; }
 .foot { position: absolute; left: %(pad)dpx; right: %(pad)dpx; bottom: 22px; display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 8px; }
-/* 기획 의도별 기능 */
-.dgroup { margin: 4px 0 8px %(ind)dpx; font-size: 14px; font-weight: 700; display: flex; align-items: baseline; gap: 8px; }
-.dgroup .dno { font-size: 11px; font-weight: 700; color: var(--ink2); background: var(--band); border-radius: 4px; padding: 1px 6px; flex: none; }
-.ditems { padding-left: %(ind)dpx; }
-.ditem { padding: 7px 0 7px 12px; border-left: 2px solid var(--line); margin-bottom: 6px; }
-.ditem b { display: block; font-weight: 700; margin-bottom: 1px; }
-.ditem p { color: var(--ink2); }
-.dblock { margin-bottom: 10px; }
+/* 상세 설명 */
+.dtitle { display: flex; align-items: center; gap: 9px; margin: 14px 0 6px %(ind)dpx; font-size: 14.5px; font-weight: 700; break-after: avoid; }
+.dtitle .dbar { width: 20px; height: 3px; background: var(--ink); border-radius: 2px; flex: none; }
+.dpart { padding-left: %(ind)dpx; }
+.dpart > .dp, .dpart > .dstep, .dpart > .ddot, .dpart > .dfig { margin-left: 29px; }
+.dp { color: var(--ink2); margin: 3px 0; }
+.dstep { display: flex; gap: 8px; align-items: flex-start; margin: 4px 0; }
+.dstep .dsn { flex: none; width: 18px; height: 18px; margin-top: 2px; border-radius: 4px; background: var(--band); color: var(--ink); font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; line-height: 1; }
+.dstep p, .ddot p { color: var(--ink2); }
+.ddot { position: relative; padding-left: 12px; margin: 3px 0; }
+.ddot::before { content: ""; position: absolute; left: 0; top: 9px; width: 4px; height: 4px; border-radius: 50%%; background: var(--ink2); }
+.dfig { margin: 8px 0 8px 29px; }
+.dfig img { display: block; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
+.dfig figcaption { margin-top: 5px; font-size: 12px; color: var(--muted); }
+.dend { margin-bottom: 6px; }
 /* 차례 */
 .cover { padding: 120px %(pad)dpx 0; }
 .cover .logo svg { height: 40px; width: auto; display: block; }
@@ -352,7 +370,7 @@ def shot_html(sh, fix):
     return "".join(out)
 
 
-def chapter_parts(no, ch, sh, opens, fix):
+def chapter_parts(no, ch, sh, opens, fix, figs):
     """첫 쪽(제목·기획 의도·화면·기능별 설명) HTML과, 다음 쪽부터 차례로 채울 덩어리 목록."""
     sec = 0
 
@@ -370,8 +388,32 @@ def chapter_parts(no, ch, sh, opens, fix):
         for i, m in enumerate(ch["marks"], 1))
     o.append('<div class="block" style="margin-bottom:0">' + head("기능별 설명") + f'<div class="feats">{feats}</div></div>')
     rest = []
+    # 4 상세 설명 – 화면 구성요소마다 사용법. 덩어리(문단·단계·그림)마다 따로 재서 쪽을 넘겨요
+    names = {m["name"]: i for i, m in enumerate(ch["marks"], 1)}
+    for si, sub in enumerate(ch["detail"]):
+        top = head("상세 설명") if si == 0 else ""
+        no = names.get(sub["title"])
+        ring = f'<div class="ring" style="{fix_style(fix, "r" + str(no))}">{no}</div>' if no else '<span class="dbar"></span>'
+        title = f'<h3 class="dtitle">{ring}<span>{html.escape(sub["title"])}</span></h3>'
+        step = 0
+        for pi, (kind, v) in enumerate(sub["parts"]):
+            if kind == "step":
+                step += 1
+                body = f'<div class="dstep"><span class="dsn">{step}</span><p>{inline(v)}</p></div>'
+            elif kind == "dot":
+                body = f'<div class="ddot"><p>{inline(v)}</p></div>'
+            elif kind == "fig":
+                img = figs.get((v["scene"], v["sel"]))
+                body = (f'<figure class="dfig"><img src="{img["img"]}" style="width:{img["w"]:.0f}px;height:{img["h"]:.0f}px" alt="">'
+                        f'<figcaption>{inline(v["cap"])}</figcaption></figure>') if img else ""
+            else:
+                body = f'<p class="dp">{inline(v)}</p>'
+            last = pi == len(sub["parts"]) - 1
+            rest.append(f'<div class="dpart{" dend" if last else ""}">{top if pi == 0 else ""}{title if pi == 0 else ""}{body}</div>')
+        if not sub["parts"]:
+            rest.append(f'<div class="dpart dend">{top}{title}</div>')
     if opens:
-        r = ['<div class="block">' + head("열린 모습") + '<div class="opens">']
+        r = ['<div class="block">' + head("메뉴·창 모습") + '<div class="opens">']
         for op, img in zip(ch["opens"], opens):
             span = ' style="grid-column:1/-1"' if img["wide"] else ""
             r.append(f'<figure{span}><img src="{img["img"]}" style="width:{img["w"]:.0f}px;height:{img["h"]:.0f}px" alt="">'
@@ -380,16 +422,6 @@ def chapter_parts(no, ch, sh, opens, fix):
         rest.append("".join(r))
     if ch["tips"]:
         rest.append('<div class="block"><div class="tips" style="margin-left:0"><h3>알아 두면 좋은 것</h3><ul>' + "".join(f"<li>{inline(x)}</li>" for x in ch["tips"]) + "</ul></div></div>")
-    # 자세히 – 기획 의도마다 한 묶음(묶음이 길면 기능 몇 개씩 나눠 다음 쪽으로 넘겨요)
-    for gi, g in enumerate(ch["detail"], 1):
-        top = head("기획 의도별 기능") if gi == 1 else ""
-        items = g["items"]
-        for k in range(0, len(items)):
-            first = k == 0
-            cap_html = (f'<div class="dgroup"><span class="dno">의도 {gi}</span>{inline(g["title"])}</div>' if first else "")
-            body = "".join(f'<div class="ditem"><b>{html.escape(it["name"])}</b><p>{inline(it["text"])}</p></div>' for it in items[k:k + 1])
-            rest.append(f'<div class="block dblock">{top if first else ""}{cap_html}<div class="ditems">{body}</div></div>')
-            top = ""
     return "".join(o), rest
 
 
@@ -421,10 +453,16 @@ async def main():
     async with async_playwright() as pw:
         br = await pw.chromium.launch()
         fix = await measure_fix(br)
-        shots, opens = [], []
+        shots, opens, figs_all = [], [], []
         for ch in chapters:
             shots.append(await shoot_chapter(br, url, ch, missing))
             opens.append([await shoot_open(br, url, o, missing, ch["title"]) for o in ch["opens"]])
+            fg = {}
+            for sub in ch["detail"]:
+                for kind, v in sub["parts"]:
+                    if kind == "fig" and (v["scene"], v["sel"]) not in fg:
+                        fg[(v["scene"], v["sel"])] = await shoot_open(br, url, {"scene": v["scene"], "sel": v["sel"]}, missing, ch["title"], full=True)
+            figs_all.append(fg)
             print(f'찍음 {ch["title"]} · 번호 {len(ch["marks"])} · 열린 모습 {len(ch["opens"])}')
         await br.close()
     srv.shutdown()
@@ -438,7 +476,7 @@ async def main():
     pages = [f'<section class="page"><div class="cover"><div class="logo">{logo_l}</div><h1>사용자 매뉴얼</h1>'
              f'<p class="date">{today} 화면 기준</p><nav class="toc">{toc}</nav></div>'
              '<div class="foot"><span>기록 사용자 매뉴얼</span><span>차례</span></div></section>']
-    parts = [chapter_parts(i, ch, sh, op, fix) for i, (ch, sh, op) in enumerate(zip(chapters, shots, opens), 1)]
+    parts = [chapter_parts(i, ch, sh, op, fix, fg) for i, (ch, sh, op, fg) in enumerate(zip(chapters, shots, opens, figs_all), 1)]
     # 다음 쪽 덩어리 높이를 재서 A4 쪽마다 차례로 채워요
     flat = [(ci, bi, b) for ci, (_, rest) in enumerate(parts) for bi, b in enumerate(rest)]
     probe_doc = (f'<!doctype html><html lang="ko"><head><meta charset="utf-8"><style>{css}</style></head><body>'

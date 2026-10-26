@@ -313,6 +313,21 @@ async def s_journal_memo(p):
     await p.wait_for_timeout(300)
 
 
+
+async def s_files_findmore(p):
+    await p.locator("button.fx-more").first.click()
+    await p.wait_for_timeout(300)
+
+
+async def s_files_viewmenu(p):
+    await p.locator("button.fx-vb").first.click()
+    await p.wait_for_timeout(300)
+
+
+async def s_settings_files(p):
+    await p.locator('section.mod-card:has(.mod-head:text-is("탐색기"))').first.scroll_into_view_if_needed()
+    await p.wait_for_timeout(300)
+
 SCREENS = ["탐색기", "민원대장", "민원처리", "집행현황", "예산현황", "캘린더", "할 일", "업무일지", "업무연락처", "설정"]
 SCENES = {f"screen_{i:02d}": (n, None) for i, n in enumerate(SCREENS)}
 SCENES.update({
@@ -363,6 +378,9 @@ SCENES.update({
     "budgetstatus_settings": ("예산현황", s_budgetstatus_settings),
     "calendar_event": ("캘린더", s_calendar_event),
     "journal_memo": ("업무일지", s_journal_memo),
+    "files_findmore": ("탐색기", s_files_findmore),
+    "files_viewmenu": ("탐색기", s_files_viewmenu),
+    "settings_files": ("설정", s_settings_files),
     "settings_calendar": ("설정", s_settings_calendar),
 })
 
