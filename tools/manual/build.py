@@ -48,7 +48,7 @@ OPEN_H = 340       # 열린 모습 그림 가장 큰 높이
 # ---------- md 읽기 ----------
 def parse(path):
     """docs/manual/<화면>.md → dict. 틀은 README "② 글 틀"."""
-    d = {"title": "", "def": "", "scene": "", "crop": "", "intent": [], "marks": [], "opens": [], "tips": [], "check": []}
+    d = {"title": "", "def": "", "scene": "", "crop": "", "intent": [], "marks": [], "opens": [], "tips": [], "check": [], "detail": []}
     sec = None
     for raw in open(path, encoding="utf-8"):
         line = raw.rstrip("\n")
@@ -56,6 +56,9 @@ def parse(path):
             continue
         if line.startswith("# "):
             d["title"] = line[2:].strip()
+            continue
+        if line.startswith("### ") and sec == "자세히":
+            d["detail"].append({"title": line[4:].strip(), "items": []})
             continue
         if line.startswith("## "):
             sec = line[3:].strip()
@@ -79,6 +82,9 @@ def parse(path):
             d["opens"].append({"scene": parts[0], "sel": parts[1], "title": parts[2], "text": parts[3]})
         elif sec == "알아 두면 좋은 것":
             d["tips"].append(item)
+        elif sec == "자세히" and d["detail"]:
+            parts = [x.strip() for x in item.split("|", 1)]
+            d["detail"][-1]["items"].append({"name": parts[0], "text": parts[1] if len(parts) > 1 else ""})
         elif sec == "확인":
             d["check"].append(item)
     return d
@@ -304,6 +310,14 @@ ul.dots li::before { content: ""; position: absolute; left: 0; top: 9px; width: 
 .tips li { list-style: none; color: var(--ink2); }
 kbd { font-family: inherit; font-size: 11px; font-weight: 600; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: #fff; color: var(--ink); white-space: nowrap; }
 .foot { position: absolute; left: %(pad)dpx; right: %(pad)dpx; bottom: 22px; display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 8px; }
+/* 기획 의도별 기능 */
+.dgroup { margin: 4px 0 8px %(ind)dpx; font-size: 14px; font-weight: 700; display: flex; align-items: baseline; gap: 8px; }
+.dgroup .dno { font-size: 11px; font-weight: 700; color: var(--ink2); background: var(--band); border-radius: 4px; padding: 1px 6px; flex: none; }
+.ditems { padding-left: %(ind)dpx; }
+.ditem { padding: 7px 0 7px 12px; border-left: 2px solid var(--line); margin-bottom: 6px; }
+.ditem b { display: block; font-weight: 700; margin-bottom: 1px; }
+.ditem p { color: var(--ink2); }
+.dblock { margin-bottom: 10px; }
 /* 차례 */
 .cover { padding: 120px %(pad)dpx 0; }
 .cover .logo svg { height: 40px; width: auto; display: block; }
@@ -338,7 +352,8 @@ def shot_html(sh, fix):
     return "".join(out)
 
 
-def chapter_html(no, ch, sh, opens, fix, logo):
+def chapter_parts(no, ch, sh, opens, fix):
+    """첫 쪽(제목·기획 의도·화면·기능별 설명) HTML과, 다음 쪽부터 차례로 채울 덩어리 목록."""
     sec = 0
 
     def head(title):
@@ -346,8 +361,7 @@ def chapter_html(no, ch, sh, opens, fix, logo):
         sec += 1
         return f'<div class="sec"><div class="no" style="{fix_style(fix, "s" + str(sec))}">{sec}</div><h2>{title}</h2></div>'
 
-    o = [f'<section class="page" id="ch{no}"><div class="band">{logo}<span>사용자 매뉴얼</span></div><div class="body">',
-         f'<div class="mod"><h1>{html.escape(ch["title"])}</h1><p>{inline(ch["def"])}</p></div>']
+    o = [f'<div class="mod"><h1>{html.escape(ch["title"])}</h1><p>{inline(ch["def"])}</p></div>']
     if ch["intent"]:
         o.append('<div class="block">' + head("기획 의도") + '<ul class="dots">' + "".join(f"<li>{inline(x)}</li>" for x in ch["intent"]) + "</ul></div>")
     o.append('<div class="block">' + head("화면") + shot_html(sh, fix) + "</div>")
@@ -355,22 +369,33 @@ def chapter_html(no, ch, sh, opens, fix, logo):
         f'<div class="feat"><div class="ring" style="{fix_style(fix, "r" + str(i))}">{i}</div><p><b>{html.escape(m["name"])}</b>{inline(m["text"])}</p></div>'
         for i, m in enumerate(ch["marks"], 1))
     o.append('<div class="block" style="margin-bottom:0">' + head("기능별 설명") + f'<div class="feats">{feats}</div></div>')
-    # 열린 모습·알아 두면 좋은 것은 다음 쪽에(첫 쪽이 A4 한 장에 들어가게)
-    if opens or ch["tips"]:
-        o.append(f'</div><div class="foot"><span>기록 사용자 매뉴얼</span><span>{no:02d} · {html.escape(ch["title"])}</span></div></section>')
-        o.append(f'<section class="page"><div class="band">{logo}<span>사용자 매뉴얼</span></div><div class="body">')
-        if opens:
-            o.append('<div class="block">' + head("열린 모습") + '<div class="opens">')
-            for op, img in zip(ch["opens"], opens):
-                span = ' style="grid-column:1/-1"' if img["wide"] else ""
-                o.append(f'<figure{span}><img src="{img["img"]}" style="width:{img["w"]:.0f}px;height:{img["h"]:.0f}px" alt="">'
-                         f'<figcaption><b>{html.escape(op["title"])}</b>{inline(op["text"])}</figcaption></figure>')
-            o.append("</div></div>")
-        if ch["tips"]:
-            o.append('<div class="tips" style="margin-left:0"><h3>알아 두면 좋은 것</h3><ul>' + "".join(f"<li>{inline(x)}</li>" for x in ch["tips"]) + "</ul></div>")
-    o.append("</div>")
-    o.append(f'<div class="foot"><span>기록 사용자 매뉴얼</span><span>{no:02d} · {html.escape(ch["title"])}</span></div></section>')
-    return "".join(o)
+    rest = []
+    if opens:
+        r = ['<div class="block">' + head("열린 모습") + '<div class="opens">']
+        for op, img in zip(ch["opens"], opens):
+            span = ' style="grid-column:1/-1"' if img["wide"] else ""
+            r.append(f'<figure{span}><img src="{img["img"]}" style="width:{img["w"]:.0f}px;height:{img["h"]:.0f}px" alt="">'
+                     f'<figcaption><b>{html.escape(op["title"])}</b>{inline(op["text"])}</figcaption></figure>')
+        r.append("</div></div>")
+        rest.append("".join(r))
+    if ch["tips"]:
+        rest.append('<div class="block"><div class="tips" style="margin-left:0"><h3>알아 두면 좋은 것</h3><ul>' + "".join(f"<li>{inline(x)}</li>" for x in ch["tips"]) + "</ul></div></div>")
+    # 자세히 – 기획 의도마다 한 묶음(묶음이 길면 기능 몇 개씩 나눠 다음 쪽으로 넘겨요)
+    for gi, g in enumerate(ch["detail"], 1):
+        top = head("기획 의도별 기능") if gi == 1 else ""
+        items = g["items"]
+        for k in range(0, len(items)):
+            first = k == 0
+            cap_html = (f'<div class="dgroup"><span class="dno">의도 {gi}</span>{inline(g["title"])}</div>' if first else "")
+            body = "".join(f'<div class="ditem"><b>{html.escape(it["name"])}</b><p>{inline(it["text"])}</p></div>' for it in items[k:k + 1])
+            rest.append(f'<div class="block dblock">{top if first else ""}{cap_html}<div class="ditems">{body}</div></div>')
+            top = ""
+    return "".join(o), rest
+
+
+def page_html(no, title, logo, inner):
+    return (f'<section class="page"{f" id=ch{no}" if inner.startswith("<div class=\"mod\"") else ""}><div class="band">{logo}<span>사용자 매뉴얼</span></div>'
+            f'<div class="body">{inner}</div><div class="foot"><span>기록 사용자 매뉴얼</span><span>{no:02d} · {html.escape(title)}</span></div></section>')
 
 
 def logo_svg(height):
@@ -413,8 +438,37 @@ async def main():
     pages = [f'<section class="page"><div class="cover"><div class="logo">{logo_l}</div><h1>사용자 매뉴얼</h1>'
              f'<p class="date">{today} 화면 기준</p><nav class="toc">{toc}</nav></div>'
              '<div class="foot"><span>기록 사용자 매뉴얼</span><span>차례</span></div></section>']
-    for i, (ch, sh, op) in enumerate(zip(chapters, shots, opens), 1):
-        pages.append(chapter_html(i, ch, sh, op, fix, logo_s))
+    parts = [chapter_parts(i, ch, sh, op, fix) for i, (ch, sh, op) in enumerate(zip(chapters, shots, opens), 1)]
+    # 다음 쪽 덩어리 높이를 재서 A4 쪽마다 차례로 채워요
+    flat = [(ci, bi, b) for ci, (_, rest) in enumerate(parts) for bi, b in enumerate(rest)]
+    probe_doc = (f'<!doctype html><html lang="ko"><head><meta charset="utf-8"><style>{css}</style></head><body>'
+                 + "".join(f'<section class="page"><div class="body" id="m{n}">{b}</div></section>' for n, (_, _, b) in enumerate(flat)) + "</body></html>")
+    tmp = out + ".measure.html"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(probe_doc)
+    async with async_playwright() as pw:
+        br = await pw.chromium.launch()
+        p = await br.new_page(viewport={"width": 900, "height": 1200})
+        await p.goto("file://" + os.path.abspath(tmp))
+        await p.evaluate("() => document.fonts.ready")
+        heights = await p.evaluate("(n) => [...Array(n).keys()].map(i => { const e = document.getElementById('m' + i).firstElementChild; const s = getComputedStyle(e); return e.getBoundingClientRect().height + parseFloat(s.marginTop) + parseFloat(s.marginBottom); })", len(flat))
+        await br.close()
+    os.remove(tmp)
+    ROOM = 1123 - 60 - 46 - 22   # 쪽 높이 − 아래 여백 − 머리 띠 − 위 여백
+    for ci, (ch, (first, rest)) in enumerate(zip(chapters, parts)):
+        no = ci + 1
+        pages.append(page_html(no, ch["title"], logo_s, first))
+        cur, used = [], 0
+        for (cj, bi, b), hgt in zip(flat, heights):
+            if cj != ci:
+                continue
+            if cur and used + hgt > ROOM:
+                pages.append(page_html(no, ch["title"], logo_s, "".join(cur)))
+                cur, used = [], 0
+            cur.append(b)
+            used += hgt
+        if cur:
+            pages.append(page_html(no, ch["title"], logo_s, "".join(cur)))
     doc = f'<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>기록 사용자 매뉴얼</title><style>{css}</style></head><body>{"".join(pages)}</body></html>'
     with open(out, "w", encoding="utf-8") as f:
         f.write(doc)
