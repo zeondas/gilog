@@ -1,6 +1,7 @@
 // 설정 "닫기(X) 단추"가 "프로그램 종료"일 때 X를 누르면 뜨는 창이에요(2026-10-18 앱 창 세션).
 // Rust(calendar.rs)가 "close-ask"를 보내면 열려요. 잠금 화면에서도 같아요(App 바깥에 붙어 있어요).
 // Enter = 끝내기, Esc·바깥 누르기 = 취소. 브라우저 미리 보기는 주소 끝에 ?closeask
+import { DialogX } from "./DialogX";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { listen } from "@tauri-apps/api/event";
@@ -42,6 +43,7 @@ export default function CloseAsk() {
   return createPortal(
     <div className="overlay close-ask-ov" onMouseDown={overlayDown(() => setOpen(false))}>
       <div className="dialog close-ask" role="alertdialog" aria-modal="true" aria-labelledby="close-ask-title">
+        <DialogX label="취소" onClick={() => setOpen(false)} />
         <div className="xl-ask-body">
           <h2 id="close-ask-title" className="xl-ask-title">
             기록을 끝낼까요?

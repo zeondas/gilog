@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Conflict } from "./filesApi";
 import { overlayDown } from "./useOutsideClose";
+import { DialogX } from "./DialogX";
 import {
   CaseMode,
   FsEntry,
@@ -17,11 +18,13 @@ import {
   renameOne,
 } from "./files";
 
-function Overlay({ onClose, children, width }: { onClose: () => void; children: React.ReactNode; width: number }) {
+/** 탐색기 가운데 창 틀 – 위 오른쪽 × = 취소(✔7, DialogX), 창 이름표(label)는 화면 읽기용 */
+function Overlay({ onClose, children, width, label }: { onClose: () => void; children: React.ReactNode; width: number; label: string }) {
   return (
     <div className="overlay" onMouseDown={overlayDown(onClose)}>
-      <div className="dialog" role="dialog" aria-modal="true" style={{ width }}>
+      <div className="dialog" role="dialog" aria-modal="true" aria-label={label} style={{ width }}>
         {children}
+        <DialogX label="닫기(취소)" onClick={onClose} />
       </div>
     </div>
   );
@@ -65,7 +68,7 @@ export function ConflictDialog({
     </div>
   );
   return (
-    <Overlay onClose={onCancel} width={600}>
+    <Overlay onClose={onCancel} width={600} label="같은 이름의 파일">
       <div
         onKeyDown={(e) => {
           if (e.key === "Escape") {
@@ -116,7 +119,7 @@ export function DeleteDialog({ items, permanent, onYes, onNo }: { items: FsEntry
   useEffect(() => yes.current?.focus(), []);
   const first = items[0];
   return (
-    <Overlay onClose={onNo} width={460}>
+    <Overlay onClose={onNo} width={460} label="지우기 확인">
       <div
         onKeyDown={(e) => {
           if (e.key === "Escape") {
@@ -152,7 +155,7 @@ export function TransferAsk({ items, op, dest, onYes, onNo }: { items: { name: s
   const what = items.length === 1 ? items[0].name : `${items[0].name} 외 ${items.length - 1}개`;
   const verb = op === "copy" ? "복사" : "옮기기";
   return (
-    <Overlay onClose={onNo} width={460}>
+    <Overlay onClose={onNo} width={460} label={op === "copy" ? "복사 확인" : "옮기기 확인"}>
       <div
         onKeyDown={(e) => {
           if (e.key === "Escape") {
@@ -189,7 +192,7 @@ export function AskDialog({ title, sub, yes, onYes, onNo }: { title: string; sub
     return () => window.clearTimeout(t);
   }, []);
   return (
-    <Overlay onClose={onNo} width={440}>
+    <Overlay onClose={onNo} width={440} label={title}>
       <div
         onKeyDown={(e) => {
           if (e.key === "Escape") {
@@ -297,7 +300,7 @@ export function RenameDialog({
     </>
   );
   return (
-    <Overlay onClose={onClose} width={1040}>
+    <Overlay onClose={onClose} width={1040} label="일괄 이름 바꾸기">
       <div
         className="fx-rn"
         onMouseDown={() => setMenu("")}
@@ -476,7 +479,7 @@ export function NameDialog({ title, value, onOk, onCancel }: { title: string; va
     el.setSelectionRange(0, dot > 0 ? dot : value.length);
   }, [value]);
   return (
-    <Overlay onClose={onCancel} width={440}>
+    <Overlay onClose={onCancel} width={440} label={title}>
       <div className="dialog-head">
         <span className="dialog-title">{title}</span>
       </div>

@@ -6,7 +6,8 @@
 // - 공휴일은 칸 위쪽에 빨간 글자로 보여요(앱이 인터넷에서 받아 저장해 둔 것).
 // - 왼쪽: 종류 체크(보이기·숨기기), "관리"(색 24가지·새 종류·지우기), "앞으로 7일"(옆 칸 일정 목록).
 import { CSSProperties, KeyboardEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { DelIcon } from "./Icons";
+import { DelGlyph, DelMark } from "./Icons";
+import { DialogX } from "./DialogX";
 import { overlayDown, useOutsideClose } from "./useOutsideClose";
 import { isKey, keyAction, rowKeys } from "./keys";
 import { api, CalEvent, CalKind, CalendarData, Complaint, errorText, EventInput, NotifyStatus, Repeat, Task } from "./api";
@@ -592,6 +593,7 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
               <span className="dialog-title">{longDay(dayOpen)}</span>
               {holidaysOf.get(dayOpen) && <span className="cal-hol">{holidaysOf.get(dayOpen)!.join(", ")}</span>}
             </div>
+            <DialogX autoFocus onClick={() => setDayOpen(null)} />
             <div className="dialog-body cal-daylist">
               {occs
                 .filter((o) => o.kind.system !== "holiday" && o.start <= dayOpen && o.end >= dayOpen)
@@ -623,9 +625,6 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
                 }}
               >
                 이 날 일정 추가
-              </button>
-              <button type="button" className="btn btn-ctrl btn-text" autoFocus onClick={() => setDayOpen(null)}>
-                닫기
               </button>
             </div>
           </div>
@@ -1195,7 +1194,9 @@ function EventDialog({
   return (
     <div className="overlay" onMouseDown={overlayDown(outside)}>
       <div className="dialog cal-dialog" role="dialog" aria-modal="true" aria-label="일정 상세" onKeyDown={onKeyDown}>
-        <div className="cal-dlg-title">
+        {/* × = 바깥 누르기와 같음: 고친 것이 있으면 저장하고 닫기(✔7) */}
+        <DialogX label="저장하고 닫기" title="저장하고 닫기 (버리려면 Esc)" onClick={outside} />
+        <div className="cal-dlg-title" data-dialog-title>
           <input
             ref={titleRef}
             aria-label="제목"
@@ -1326,8 +1327,8 @@ function EventDialog({
         )}
         <div className="dialog-foot cal-dlg-foot">
           {!isNew && (
-            <button type="button" className="tool-box cal-trash" aria-label="일정 삭제" title="일정 삭제" onClick={() => setAsking(true)}>
-              <DelIcon />
+            <button type="button" className="tool-box cal-trash del-btn" aria-label="일정 삭제" title="일정 삭제" onClick={() => setAsking(true)}>
+              <DelGlyph />
             </button>
           )}
                     <button type="button" className="btn btn-ctrl cal-cancel" onClick={onClose}>
@@ -1498,13 +1499,13 @@ function KindsDialog({
         ) : (
           <button
             type="button"
-            className="tool-box"
+            className="tool-box del-hit"
             aria-label={k.name + " 삭제"}
             title={mine.length <= 1 ? "종류는 하나 이상 있어야 해요" : k.name + " 삭제"}
             disabled={mine.length <= 1}
             onClick={() => setAsking(k.id)}
           >
-            <DelIcon />
+            <DelMark />
           </button>
         )}
         {asking === k.id && (
@@ -1542,6 +1543,7 @@ function KindsDialog({
         <div className="dialog-head">
           <span className="dialog-title">캘린더 종류 관리</span>
         </div>
+        <DialogX onClick={onClose} />
         <div className="dialog-body">
           <div className="mgr-label">직접 만든 종류</div>
           {mine.map((k) => row(k, count(k.id) ? `일정 ${count(k.id)}건` : "일정 없음"))}
@@ -1609,9 +1611,6 @@ function KindsDialog({
           <button type="button" className="btn btn-ctrl" onClick={onNotify}>
             알림 확인
           </button>
-          <button type="button" className="btn btn-ctrl btn-text cal-push" onClick={onClose}>
-            닫기
-          </button>
         </div>
       </div>
     </div>
@@ -1677,6 +1676,7 @@ function NotifyDialog({ onClose }: { onClose: () => void }) {
         <div className="dialog-head">
           <span className="dialog-title">알림 확인</span>
         </div>
+        <DialogX onClick={onClose} />
         <div className="dialog-body cal-notify-body">
           <p>
             앞으로 7일 동안 울릴 알림 <b>{st?.pending ?? 0}건</b>
@@ -1711,9 +1711,6 @@ function NotifyDialog({ onClose }: { onClose: () => void }) {
         <div className="dialog-foot cal-dlg-foot">
           <button type="button" className="btn btn-ctrl cal-cancel" onClick={() => test(ps)}>
             시험 알림 띄우기
-          </button>
-          <button type="button" className="btn btn-ctrl btn-text" onClick={onClose}>
-            닫기
           </button>
         </div>
       </div>

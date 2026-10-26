@@ -1,17 +1,45 @@
-/** 지우기 단추 아이콘(회색 ×) – 2026-10-17 사용자 2안, 앱 전체의 지우기 단추가 함께 써요. */
-export function DelIcon() {
+import { useId } from "react";
+
+/** 휴지통 그림(2026-10-26 공통 부품 ✔6) – 채운 뚜껑·손잡이 + 몸통 안 × 비움. viewBox로 칸 가운데에 맞춰요. */
+function TrashGlyph({ vb }: { vb: string }) {
+  const id = "tk" + useId().replace(/:/g, "");
   return (
-    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-      <path d="M6 6l12 12M18 6L6 18" />
+    <svg aria-hidden="true" width="14" height="14" viewBox={vb}>
+      <defs>
+        <mask id={id}>
+          <rect x="-2" y="-2" width="20" height="20" fill="white" />
+          <path d="M5.4 7l3.2 3.2M8.6 7l-3.2 3.2" stroke="black" strokeWidth="1.3" strokeLinecap="square" />
+        </mask>
+      </defs>
+      <path fill="currentColor" d="M5.2 1.5h3.6l.5 1H12.5v1.4h-11V2.5h3.2z" />
+      <path fill="currentColor" mask={`url(#${id})`} d="M2.6 4.6h8.8v7.2a1.6 1.6 0 0 1-1.6 1.6H4.2a1.6 1.6 0 0 1-1.6-1.6z" />
     </svg>
   );
 }
 
-/** 휴지통 아이콘 – 메모 창 "줄 지우기"(2026-10-25 사용자: ×는 창 닫기로 보여요) */
-export function TrashIcon() {
+/** 지우기 표시: 붉은 스퀴클 네모 18 + 휴지통(그림 10px, 위아래 4·좌우 5). 누르는 칸(28)은 단추가 맡고 `del-hit`를 붙여요. */
+export function DelMark() {
   return (
-    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
+    <span className="del-mark" aria-hidden="true">
+      <TrashGlyph vb="-1.4 -.9 16.8 16.8" />
+    </span>
+  );
+}
+
+/** 붉은 단추 안 휴지통(그림 12px) – 옆에 테두리 단추·칸이 있을 때 단추 자체를 붉게(`del-btn`). */
+export function DelGlyph() {
+  return (
+    <span className="del-glyph" aria-hidden="true">
+      <TrashGlyph vb="0 .5 14 14" />
+    </span>
+  );
+}
+
+/** 닫기 ×(창 닫기·빼기) – 지우기에는 쓰지 않아요. */
+export function CloseIcon() {
+  return (
+    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <path d="M6 6l12 12M18 6L6 18" />
     </svg>
   );
 }

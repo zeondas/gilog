@@ -16,7 +16,8 @@ import {
   useRef,
   useState,
 } from "react";
-import { DelIcon } from "./Icons";
+import { CloseIcon, DelMark } from "./Icons";
+import { DialogX } from "./DialogX";
 import { isInside, overlayDown, useOutsideClose } from "./useOutsideClose";
 import { VirtualList, type VirtualHandle } from "./VirtualList";
 import { onSelection } from "./noContextMenu";
@@ -1518,9 +1519,7 @@ function EditRow({
           <AskBand bandRef={askRef} className="cm-ask" label="민원 지우기 확인" text={<>{c.no}번 민원을 지울까요? 메모도 함께 지워져요.</>} onNo={() => setAsking(false)} onYes={onRemove} />
         ) : (
           <button ref={trashRef} type="button" className="tool-box cm-del" aria-label={`${c.no}번 민원 지우기`} onClick={() => setAsking(true)}>
-            <span className="cm-del-x" aria-hidden="true">
-              <DelIcon />
-            </span>
+            <DelMark />
             <span>이 민원 지우기</span>
           </button>
         )}
@@ -2029,7 +2028,7 @@ function MemoDialog({ c, onClose, onSave }: { c: Complaint; onClose: () => void;
           <span className="muted small">{who}</span>
           {/* 창 닫기 = 저장하고 닫기(2026-10-25 사용자 ⑩ – 바깥 누르기·Tab과 같아요, 버리려면 Esc) */}
           <button type="button" className="dialog-x" aria-label="저장하고 닫기" title="저장하고 닫기 (버리려면 Esc)" onClick={() => save.current?.()}>
-            <DelIcon />
+            <CloseIcon />
           </button>
         </div>
         <div className="dialog-body cm-memo-body">
@@ -2061,14 +2060,10 @@ function CatsDialog({ lists, onChange, onClose }: { lists: Lists; onChange: (l: 
         <div className="dialog-head">
           <span className="dialog-title">분류 관리</span>
         </div>
+        <DialogX onClick={onClose} />
         <div className="dialog-body">
           <ListGroup title="접수유형" items={cur.intake} stack onChange={(intake) => onChange({ ...cur, intake })} />
           <ListGroup title="민원유형" items={cur.ctype} stack onChange={(ctype) => onChange({ ...cur, ctype })} last />
-        </div>
-        <div className="dialog-foot">
-          <button type="button" className="btn btn-ctrl btn-text" onClick={onClose}>
-            닫기
-          </button>
         </div>
       </div>
     </div>

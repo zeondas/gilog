@@ -2,7 +2,7 @@
 // 누가 언제 무슨 말을 했는지 남기는 곳이라, 손을 키보드에서 떼지 않고 한 건을 끝낼 수 있게 만들었어요.
 import { KeyboardEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { DelIcon } from "./Icons";
+import { DelGlyph } from "./Icons";
 import { useOutsideClose } from "./useOutsideClose";
 import { api, changeHooks, Complaint, Contact, ContactsData, DayInfo, Entry, EntryInput, errorText, JournalData, Project, Task, TaskList, TasksData } from "./api";
 import { firstLineOf } from "./bullets";
@@ -1953,8 +1953,8 @@ function EditCard({
             <button type="button" className="btn-primary btn-xs" onClick={() => save()}>
               저장
             </button>
-            <button type="button" className="tool-box jtrash" aria-label="이 기록 지우기" title="이 기록 지우기" onClick={() => setAsking(true)}>
-              <DelIcon />
+            <button type="button" className="tool-box jtrash del-btn" aria-label="이 기록 지우기" title="이 기록 지우기" onClick={() => setAsking(true)}>
+              <DelGlyph />
             </button>
           </div>
         )}

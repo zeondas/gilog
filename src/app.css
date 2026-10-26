@@ -6177,6 +6177,7 @@ button.td-check:not(.on):hover .td-tick {
 }
 
 .jp-head {
+  min-height: 32px;
   display: flex;
   align-items: center;
   padding: 18px 20px 0;
@@ -6187,22 +6188,6 @@ button.td-check:not(.on):hover .td-tick {
   font-size: 16px;
   line-height: round(1.5em, 1px);
   font-weight: 700;
-}
-
-.jp-x {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--muted);
-}
-
-.jp-x:hover {
-  background: var(--surface-band);
 }
 
 .jp-top {
@@ -10518,10 +10503,12 @@ select.input.fx-set-date { width: 190px; }
   gap: var(--space-3);
 }
 
-.pjm-find {
-  /* 찾기 칸 = 아래 줄 축약 공사명 칸 + 사이 + 추가 단추 폭(좌우 끝을 맞춰요) */
-  width: calc(var(--pjm-short) + var(--space-2) + var(--pjm-btn));
-}
+/* 찾기 줄(3안): 제목 아래 한 줄 전체 폭, 높이 28 */
+.search.pjm-search { width: auto; height: 28px; margin: 0 20px var(--space-2); padding: 0 8px; gap: 6px; border-radius: var(--radius-sm); }
+.search.pjm-search > input { height: 26px; }
+/* 그룹 칸 + [+] 그룹 추가(28×28) – 그룹 칸 160 안에서 칸 + 6 + 단추 */
+.pjm-grp { display: flex; gap: 6px; min-width: 0; }
+.pjm-grp > .grp-in { flex: 1; min-width: 0; }
 
 .mgr.pjm {
   --pjm-short: 220px;
@@ -11036,10 +11023,8 @@ body.ew-dragging * {
 .cm-edit-foot > .cm-del { width: auto; gap: 4px; padding: 0 10px 0 0; margin-left: 0; border-radius: var(--radius-sm); font-size: 12.5px; font-weight: 600; }
 .cm-edit-foot > .cm-del:hover { padding-left: 0; }
 .cm-edit-hint { flex: 1; margin: 0 4px 0 0; text-align: right; }
-/* 지우기 단추 앞 붉은 네모 ×(2026-10-20 사용자): 채운 붉은 정사각형 + 바탕색 × – 네모 왼쪽 끝 = 연번 숫자 왼쪽 끝 */
+/* 지우기 단추 앞 붉은 네모 휴지통(`DelMark`) – 네모 왼쪽 끝 = 연번 숫자 왼쪽 끝 */
 .cm-edit-foot > .cm-del { gap: 6px; }
-.cm-del-x { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 4px; background: var(--danger); color: var(--surface); flex: none; }
-.cm-del-x > svg { width: 12px; height: 12px; stroke-width: 2.6; }
 
 /* 폴더트리 첫 줄·드라이브 단추 줄 간격 맞춤(2026-10-19 사용자 1안): 구분선 아래 8px, 상자 옆 끝에서 10px.
    단추 줄 높이(42)는 그대로 두고 단추만 위로 붙여(위 8·아래 5 + 선 1) 아래 경로 줄·목록은 움직이지 않아요. */
@@ -11142,9 +11127,14 @@ body.ew-dragging .pjm-colgrip:active::after {
   background: var(--line-soft);
 }
 
-/* [그룹 추가](2026-10-20 사용자): 찾기 칸 왼쪽, 새 그룹 이름 줄은 목록 맨 위 */
+/* [그룹 추가]: 그룹 칸 옆 [+](3안), 새 그룹 이름 줄은 목록 맨 위 */
 .pjm-grp-add {
-  margin-left: auto;
+  flex: none;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+  justify-content: center;
 }
 
 .pjm-grp-new {
@@ -12401,3 +12391,24 @@ body.ew-dragging .pjm-colgrip:active::after {
   font-size: 12px;
   line-height: 1.4;
 }
+
+/* 지우기 휴지통(2026-10-26 공통 부품 ✔6, 시안 TrashFinal) – Icons.tsx의 DelMark·DelGlyph.
+   del-hit: 누르는 칸(28)은 그대로, 안에 붉은 스퀴클 네모 18. del-btn: 옆 테두리 단추·칸과 같은 높이·모서리의 붉은 단추. */
+.del-mark { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 18px; height: 18px; border-radius: 6px; background: var(--danger); color: var(--surface); }
+.del-mark > svg, .del-glyph > svg { display: block; }
+.del-glyph { display: flex; align-items: center; justify-content: center; }
+button.del-hit, button.del-hit:hover:not(:disabled), button.del-hit.on { background: transparent; }
+button.del-hit:hover:not(:disabled) .del-mark, button.del-hit.on .del-mark, .dmenu-item:hover .del-mark { filter: brightness(0.86); }
+button.del-hit:disabled .del-mark { opacity: 0.4; }
+button.del-btn, button.del-btn:hover:not(:disabled) { width: 28px; min-width: 28px; height: 28px; padding: 0; border: 0; border-radius: var(--radius-sm); background: var(--danger); color: var(--surface); }
+button.del-btn:hover:not(:disabled) { filter: brightness(0.86); }
+.cal-dlg-foot button.cal-trash.del-btn { width: var(--size-ctrl); min-width: var(--size-ctrl); height: var(--size-ctrl); border-radius: var(--radius-md); color: var(--surface); }
+.memo-bar button.tb-del.del-btn { width: 26px; min-width: 26px; height: 26px; }
+
+/* 창 닫기 ×(2026-10-26 공통 부품 ✔7, DialogX.tsx) – 위 오른쪽 12px·제목 줄 가운데(top은 부품이 재서 넣어요), 머리 줄 오른쪽 52px 비움 */
+:has(> .dlg-x) { position: relative; }
+:has(> .dlg-x) :is(.dialog-head, .cal-dlg-title, .jp-head, .fx-cf-head, .fx-rn-head) { padding-right: 52px; }
+:has(> .dlg-x) .xl-ask-title { padding-right: 32px; }
+.dlg-x { position: absolute; top: 12px; right: 12px; z-index: 1; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); cursor: pointer; }
+.dlg-x:hover { background: var(--surface-band); color: var(--ink); }
+.dlg-x > svg { display: block; }
