@@ -5,6 +5,10 @@
 ## 버전별 — 들어간 것 · 시험 항목
 사용자 "통과"는 0.11.0~0.27.0 모두 기다려요(빌드 줄). 시험 항목은 윈도우에서만 볼 수 있는 것이에요.
 
+### 0.44.0(build-64) — 정리 9차 캘린더 화면 나누기
+- 들어간 것: split-calendar – 캘린더 `src/CalendarScreen.tsx`(1,929줄)를 `src/screens/calendar/` 4조각(Screen·Table·Dialogs·Menu)으로 옮기기만, `App.tsx` import, [docs/qa/split-calendar.md](https://github.com/zeondas/gilog/blob/main/docs/qa/split-calendar.md)·CLAUDE.md 구조
+- 시험: 캘린더 월·주 보기, 빠른 입력, 일정 상세 창, 종류 고르기·관리 창, 알림 확인 창, 구글 상태 상자가 0.43.0과 똑같은지
+
 ### 0.43.0(build-63) — 정리 8차 집행현황·예산현황 화면 나누기
 - 들어간 것: split-budget – 집행현황 `src/BudgetScreen.tsx`·`BudgetGot.tsx`·`BudgetSuggest.tsx`를 `src/screens/budget/`(Screen·Dialogs)로 옮기기만, `App.tsx` import, [docs/qa/split-budget.md](https://github.com/zeondas/gilog/blob/main/docs/qa/split-budget.md)·CLAUDE.md 구조 · 시험: 집행현황 화면이 전과 똑같이 열리고 표·메뉴·설정 상자·받은 것 창·사업명 고르기가 그대로인지
 - 들어간 것: split-bstatus – 예산현황 `src/BudgetStatusScreen.tsx`를 `src/screens/bstatus/Screen.tsx`로 옮기기만, `App.tsx` import, [docs/qa/split-bstatus.md](https://github.com/zeondas/gilog/blob/main/docs/qa/split-bstatus.md)·CLAUDE.md 구조 · 시험: 예산현황 화면이 전과 똑같이 열리고 표·메뉴·설정 상자가 그대로인지
