@@ -1504,7 +1504,7 @@ function ProjectDialog({
           onClear={() => setPq("")}
         />
         <div className="pjm-add">
-          <div className="pjm-grp">
+          <div className="pjm-addgrp">
             <GroupInput groups={groups} value={draftGroup} onChange={setDraftGroup} onEnter={add} />
             <button type="button" className="btn pjm-grp-add" aria-label="그룹 추가" title="그룹 추가" onClick={() => setNewGroup(true)} disabled={newGroup}>
               <Plus size={14} />

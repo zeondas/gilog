@@ -662,8 +662,8 @@
 }
 
 /* 그룹 칸 + [+] 그룹 추가(28×28) – 그룹 칸 160 안에서 칸 + 6 + 단추 */
-.pjm-grp { display: flex; gap: 6px; min-width: 0; }
-.pjm-grp > .grp-in { flex: 1; min-width: 0; }
+.pjm-addgrp { display: flex; gap: 6px; min-width: 0; }
+.pjm-addgrp > .grp-in { flex: 1; min-width: 0; }
 
 .mgr.pjm {
   --pjm-short: 220px;
