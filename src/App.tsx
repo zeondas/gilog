@@ -13,7 +13,7 @@ import Gate from "./Gate";
 import Logo, { AppIcon } from "./Logo";
 import { NavIcon, NavIconName } from "./Icons";
 import { VERSION } from "./version";
-import JournalScreen from "./JournalScreen";
+import JournalScreen from "./screens/journal/Screen";
 import SettingsScreen from "./screens/settings/Screen";
 import TasksScreen from "./screens/tasks/Screen";
 import { applyNotifyMode, refreshHolidaysDaily, syncReminders } from "./reminders";
