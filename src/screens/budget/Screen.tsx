@@ -6,13 +6,11 @@
 // - 열 제목: 누르면 그 열 칠하기(다시 누르면 풀기), 끝선 끌기 = 너비, 끝선 두 번 = 내용에 맞춤, 우클릭 = 처음 너비.
 //   구분·집행률·단계·메모는 고정 폭. 모든 줄이 같은 px 틀을 써요(세부사업 열을 1fr로 두면 긴 이름 줄만 넓어져 열이 밀려요).
 // - 금액 단위 원/천원(천원은 반올림한 정수만 보여요, 저장은 늘 원). 손대지 않은 금액 칸은 원래 원 값 그대로 저장해요.
-import { fitSub } from "./PopMenu";
-import { DialogX } from "./DialogX";
-import { BudgetGot } from "./BudgetGot";
-import { AskBand } from "./AskBand";
-import { orgsOf, projectHits, projectSub, Suggest, SuggestInput } from "./BudgetSuggest";
+import { fitSub } from "../../PopMenu";
+import { DialogX } from "../../DialogX";
+import { AskBand } from "../../AskBand";
 import { Fragment, KeyboardEvent as RKeyboardEvent, MouseEvent as RMouseEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { api, ContactsData, errorText, inApp } from "./api";
+import { api, ContactsData, errorText, inApp } from "../../api";
 import {
   allRows,
   balance,
@@ -33,16 +31,16 @@ import {
   sums,
   typing,
   Unit,
-} from "./budget";
-import { BudgetImport, parseBudgetBook, planImport } from "./budgetExcel";
-import { dirOf, DIR_KEY, joinPath, lastDir } from "./ExcelMenu";
-import { BudgetStatusSend, SendTarget } from "./BudgetStatusSend";
-import { Setup } from "./budgetStatus";
-import { todayStr } from "./journal";
-import { keyAction, rowKeys } from "./keys";
-import { overlayDown, useOutsideClose } from "./useOutsideClose";
-import { isEmptyMemo, MemoEditor, sanitize } from "./RichMemo";
-import { SearchBox } from "./SearchBox";
+} from "../../budget";
+import { BudgetImport, parseBudgetBook, planImport } from "../../budgetExcel";
+import { dirOf, DIR_KEY, joinPath, lastDir } from "../../ExcelMenu";
+import { BudgetStatusSend, SendTarget } from "../../BudgetStatusSend";
+import { Setup } from "../../budgetStatus";
+import { todayStr } from "../../journal";
+import { keyAction, rowKeys } from "../../keys";
+import { overlayDown, useOutsideClose } from "../../useOutsideClose";
+import { isEmptyMemo, MemoEditor, sanitize } from "../../RichMemo";
+import { SearchBox } from "../../SearchBox";
 import {
   AUTO_MS,
   Conflict,
@@ -57,7 +55,8 @@ import {
   ShareState,
   shortTime,
   takeTheirs,
-} from "./budgetShare";
+} from "../../budgetShare";
+import { BudgetGot, orgsOf, projectHits, projectSub, Suggest, SuggestInput } from "./Dialogs";
 
 type ColId = "name" | "kind" | "co" | "bud" | "cmt" | "exp" | "act" | "bal" | "rate" | "avail" | "stage" | "owner" | "memo";
 const COLS: [ColId, string, number][] = [
