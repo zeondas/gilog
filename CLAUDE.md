@@ -131,7 +131,7 @@
 - 업무연락처: `core/src/contacts.rs`(표 `contacts`, `projects`(정식 이름 `name`·줄인 이름 `alias`·색 — `wip/contacts`), `contact_projects`), 화면 `src/ContactsScreen.tsx`. 바꾸는 명령은 바뀐 뒤 전체 자료(`ContactsData`)를 돌려줘요. 업무일지는 `api.contactsData()`로 연락처를 읽어요.
 - 업무일지: `core/src/journal.rs`(표 `journal_days` 머리 줄, `journal_entries` 기록 — 대화 줄은 `lines` 칸에 JSON), 화면 `src/JournalScreen.tsx`, 규칙 함수 `src/journal.ts`. 처음에 전체를 읽고(검색이 모든 날짜를 봐요) 바꾸는 명령은 바뀐 기록 하나만 돌려줘요. 기록의 상대·연락처는 그때 글자를 복사해 둬요. 프로젝트는 등록할 때 상대 연락처의 첫 프로젝트가 붙고, 프로젝트를 지우면 기록에서 빠져요.
 - 말 줄의 "나"는 `me: true`로 저장해요(설정의 내 이름이 바뀌어도 "나"로 보여요). 상대 말 배지 색은 이름마다 정해진 `--pj-*` 색이에요.
-- 민원대장: `core/src/complaints.rs`(표 `complaints`, 연번 `no`는 등록할 때 가장 큰 연번+1, 지워도 다시 매기지 않음), 화면 `src/ComplaintsScreen.tsx`, 규칙 함수 `src/complaints.ts`(남은 날·검색·열 정의·초성 펼치기). 처음에 전체를 읽고 바꾸는 명령은 바뀐 민원 하나만 돌려줘요. 내용·조치내용은 줄바꿈으로 나눈 글자, 메모는 업무연락처와 같은 JSON 줄 모양. `set_complaint_status`는 7단계(할 일 체크 → 완료)용으로 미리 만들어 뒀어요. 열 너비는 암호화 파일의 `complaints.colWidths` 키. 상태 "완료"는 `settingsStore.ts`의 `DONE_STATUS`.
+- 민원대장: `core/src/complaints.rs`(표 `complaints`, 연번 `no`는 등록할 때 가장 큰 연번+1, 지워도 다시 매기지 않음), 화면 `src/screens/complaints/`(Screen 몸통·열 폭 · Table 열 제목·칩 줄·신규/고치는/보기 줄 · Dialogs 날짜 칸·메모·분류 관리 창 · Menu 우클릭·거르기 상자 · parts – `wip/split-complaints`, 전엔 `src/ComplaintsScreen.tsx`), 규칙 함수 `src/complaints.ts`(남은 날·검색·열 정의·초성 펼치기). 처음에 전체를 읽고 바꾸는 명령은 바뀐 민원 하나만 돌려줘요. 내용·조치내용은 줄바꿈으로 나눈 글자, 메모는 업무연락처와 같은 JSON 줄 모양. `set_complaint_status`는 7단계(할 일 체크 → 완료)용으로 미리 만들어 뒀어요. 열 너비는 암호화 파일의 `complaints.colWidths` 키. 상태 "완료"는 `settingsStore.ts`의 `DONE_STATUS`.
 - 업무일지 "챙길 일"은 마감 7일 안(지난 것 포함)이고 완료가 아닌 민원과 할 일(하위 항목 포함)을 마감순으로 보여 줘요. 민원을 누르면 민원대장의 그 줄로(App의 `openComplaint`), 할 일을 누르면 할 일 목록의 그 항목으로 가서(App의 `openTask`, 숨긴 목록이면 다시 보이게) 잠깐 칠해요.
 - 할 일 목록: `core/src/tasks.rs`(표 `task_lists` — `builtin`이 처음부터 있는 "민원" 목록, `tasks` — `parent`로 하위 항목 한 단계), 화면 `src/screens/tasks/`(Screen·Table·Dialogs·Menu·parts – `wip/split-tasks`, 전엔 `src/TasksScreen.tsx`), 규칙 함수 `src/tasks.ts`(항목 묶기·정렬·검색·마감 배지·챙길 일). 처음 열면 "민원"과 "행정업무" 목록을 만들어요. 처음에 전체를 읽고 바꾸는 명령은 바뀐 것만 돌려줘요(`set_task_done`은 함께 바뀐 위·하위 항목까지). 민원은 할 일로 저장하지 않고 화면이 민원대장을 그대로 읽어 "민원" 카드에 넣어요(`complaintItems`).
   - 민원 항목: 제목은 "접수유형(지역 위치)", 마감일(법정 답변기한)이 있는 민원만. 체크 = `set_complaint_status(답변)`(`wip/todo` — 그 전엔 완료), 답변 끝난 민원(`isAnswered`)은 체크됨, 체크 풀기 = 그 전 상태(이번에 체크한 것만 기억, 모르면 상태 목록의 답변 전 첫 값). 답변 끝난 민원은 마감이 30일 안쪽인 것만 "완료됨"에 남아요(`DONE_COMPLAINT_DAYS`). 두 번 누르면 민원대장의 그 줄로 가요.
@@ -267,14 +267,14 @@
 ### 예산현황 (13단계)
 - (비어 있음 — 2026-10-27 ✔1 트리 선 어긋남은 `wip/budget-link3` c796a80에 코딩됨)
 ### 업무일지 (5단계)
-- **`VirtualList` 끼우기(부품은 `wip/perf`)** — 2026-10-21 최적화 세션: 전체 검색 결과를 `src/VirtualList.tsx`로 보이는 만큼만 그려요(날짜 묶음 높이가 제각각이라 estimate + 재 두기). 쓰는 법은 민원대장 표(`ComplaintsScreen.tsx`)를 보면 돼요.
+- **`VirtualList` 끼우기(부품은 `wip/perf`)** — 2026-10-21 최적화 세션: 전체 검색 결과를 `src/VirtualList.tsx`로 보이는 만큼만 그려요(날짜 묶음 높이가 제각각이라 estimate + 재 두기). 쓰는 법은 민원대장 표(`src/screens/complaints/Screen.tsx`의 `VirtualList`, 줄은 `Table.tsx`의 `ViewRow`)를 보면 돼요.
 - **부하 시험(2026-10-18, [docs/loadtest.md](https://github.com/zeondas/gilog/blob/main/docs/loadtest.md))**: 전체 검색 "배수" 1년 615ms·3년 2.02초 — 기준 0.3초 넘음. 원인: 맞는 기록을 한 번에 전부 그림(3년 711일·1,630건 = DOM 4.8만 개), 글자마다 다시 찾고 그림. 1안 최근 날짜부터 30일씩 그리기 + 치는 동안 0.15초 기다렸다 찾기(권함) / 2안 core 검색(SQLite 전문 검색)·날짜 묶음으로 받아 오기(잠금 풀 때 전체 읽기도 줄지만 큼). 사용자 고르기 기다림.
 
 ### 탐색기 (11단계)
 - (2026-10-27 ✔1 일괄 이름 바꾸기 창 아래 정리·✔2 권한 없음 문장은 `wip/explorer6` 8d7250e에 코딩됨)
 - (2026-10-26 ✔1 일괄 이름 바꾸기 [확인]은 `wip/explorer5` cf158f7에 코딩됨)
 - (2026-10-26 ✔1 마우스 옆 버튼은 `wip/explorer4` 726065b에 코딩됨)
-- **`VirtualList` 끼우기(부품은 `wip/perf`)** — 2026-10-21 최적화 세션: 두 창 파일 목록을 `src/VirtualList.tsx`로 보이는 만큼만 그려요(줄 높이가 같아 estimate 고정값). 쓰는 법은 민원대장 표(`ComplaintsScreen.tsx`)를 보면 돼요.
+- **`VirtualList` 끼우기(부품은 `wip/perf`)** — 2026-10-21 최적화 세션: 두 창 파일 목록을 `src/VirtualList.tsx`로 보이는 만큼만 그려요(줄 높이가 같아 estimate 고정값). 쓰는 법은 민원대장 표(`src/screens/complaints/Screen.tsx`의 `VirtualList`, 줄은 `Table.tsx`의 `ViewRow`)를 보면 돼요.
 - **B 큰 것·보통 11개 — 사용자가 고르면**([docs/qa/explorer-compat.md](https://github.com/zeondas/gilog/blob/main/docs/qa/explorer-compat.md)): Ctrl+휠 아이콘 크기·오른쪽 끌기 메뉴·열 고르기·빵부스러기 › 하위 목록·여러 폴더 우클릭·빈 곳 메뉴 보기/정렬·드라이브 우클릭·zip 들어가기·미리 보기 창 문서·주소 자동 완성·\\서버 주소. C는 표에 있어요. 관례 충돌은 기록앱 방식 그대로(F5·F6 복사·옮기기 + 확인 창, Backspace 위 폴더, 글자 키 빠른 필터).
 - **부하 시험(2026-10-18, [docs/loadtest.md](https://github.com/zeondas/gilog/blob/main/docs/loadtest.md))**: 파일 2,000개 폴더로 화면 전환 0.75~0.92초 — 기준 0.2초 넘음(파일 0개 80ms·500개 250ms, 파일 수에 비례). 원인: 두 창 모두 파일을 전부 그림(줄·아이콘 4,000개, DOM 4만 개). 빠른 필터는 117~127ms로 통과. 1안 필요한 만큼만 그리기(줄 높이가 같아 쉬움, 권함). (2안 "확장자별 아이콘 그림 하나를 같이 쓰기"는 없어졌어요 — 아이콘·보안 세션이 아이콘을 파일마다 실제 경로로 바꿔(같은 모양은 Rust가 한 번만 그려 나눔) 확장자 묶기가 사라졌어요.) 사용자 고르기 기다림.
 
