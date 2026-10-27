@@ -15,7 +15,7 @@ import { NavIcon, NavIconName } from "./Icons";
 import { VERSION } from "./version";
 import JournalScreen from "./JournalScreen";
 import SettingsScreen from "./SettingsScreen";
-import TasksScreen from "./TasksScreen";
+import TasksScreen from "./screens/tasks/Screen";
 import { applyNotifyMode, refreshHolidaysDaily, syncReminders } from "./reminders";
 import { startGoogleSync } from "./google";
 import { minWidthOf } from "./viewport";
