@@ -7,7 +7,7 @@ import { Complaint } from "../../api";
 import { parseLines, plainOf, stringifyLines } from "../../bullets";
 import { MemoEditor, memoText, parseMemo } from "../../ContactsScreen";
 import { parseDate } from "../../journal";
-import { ListGroup } from "../../SettingsScreen";
+import { ListGroup } from "../settings/Table";
 import { DONE_STATUS } from "../../settingsStore";
 import { DateInput } from "../../DateInput";
 import { Lists, Draft, DateKey, Bad } from "./parts";
