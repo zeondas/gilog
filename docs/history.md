@@ -5,6 +5,10 @@
 ## 버전별 — 들어간 것 · 시험 항목
 사용자 "통과"는 0.11.0~0.27.0 모두 기다려요(빌드 줄). 시험 항목은 윈도우에서만 볼 수 있는 것이에요.
 
+### 0.46.0(build-66) — 정리 10차 업무연락처 화면 나누기(큰 화면 쪼개기 끝)
+- 들어간 것: split-contacts – 업무연락처 `src/ContactsScreen.tsx`를 `src/screens/contacts/` 5조각(Screen·Table·Dialogs·Menu·parts)으로 옮기기만, 업무연락처 부품을 불러 쓰는 다른 화면의 import 경로·`App.tsx`, [docs/qa/split-contacts.md](https://github.com/zeondas/gilog/blob/main/docs/qa/split-contacts.md)·CLAUDE.md 구조
+- 시험: 업무연락처 목록·카드·고치기·사업 관리 창·우클릭 메뉴, 업무일지 상대 이름 강조·사업 배지, 민원대장 메모 창, 캘린더·할 일·민원처리의 사업 이름·색이 0.45.0과 똑같은지
+
 ### 0.45.0(build-65) — 정리 9차 업무일지 화면 나누기
 - 들어간 것: split-journal – 업무일지 `src/JournalScreen.tsx`·`src/JournalPrint.tsx`를 `src/screens/journal/` 6조각(Screen·Table·Dialogs·Menu·keys·parts)으로 옮기기만, `App.tsx` import, [docs/qa/split-journal.md](https://github.com/zeondas/gilog/blob/main/docs/qa/split-journal.md)·CLAUDE.md 구조
 - 시험: 업무일지 월 달력·신규 카드·말 줄 키(Enter·Shift+Enter·Alt+Enter·Tab)·고치기·날짜 우클릭 메뉴·사업 고르기·검색·인쇄 창이 0.44.0과 똑같은지
