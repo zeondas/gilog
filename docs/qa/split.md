@@ -54,6 +54,18 @@ keys는 없어요(키 다루기가 줄·칸마다 안에 있어 따로 뗄 함�
 
 keys는 없어요(따로 뗄 키 함수가 없음). 한 조각만 쓰는 작은 그림(`Check`·`Funnel`·`Plus`)은 parts가 아니라 쓰는 조각 안에 뒀어요(2장 마지막 줄, 사용자 ③1안). Table이 Dialogs(`DateField`·`useDraft`·`focusField`)와 Menu(`HeadMenu`)를 부르고, 거꾸로 부르는 곳은 없어요.
 
+### 보기 – 민원처리 (2,442줄 → 5파일, 정리 6차 `wip/split-process`)
+
+| 파일 | 들어간 것 | 줄 |
+| --- | --- | --- |
+| [Screen.tsx](https://github.com/zeondas/gilog/blob/main/src/screens/process/Screen.tsx) | 머리 설명, `Props`, 키 이름 `FETCHED_KEY`·`LAST_RUN_KEY`·`PICK_KEY`·`COLS_KEY`, `LastRun`·`MAIL_BOX`·`NA_WORK`·`FIXED_COLS`·`readWidths`·`errText`·`stamp`, `ProcessScreen`(몸통은 빼내지 않음 – 약 1,330줄이지만 "화면 몸통 안의 큰 함수"는 쓰지 않았어요), 몸통만 쓰는 `MAIL_STEPS`·`shortNo`·`duration`·그림 7개(`DocIcon`·`RedoIcon`·`UndoIcon`·`SendIcon`·`MoreIcon`·`FolderIcon`·`TableIcon`) | 1,476 |
+| [Table.tsx](https://github.com/zeondas/gilog/blob/main/src/screens/process/Table.tsx) | `UNKNOWN`, `HeadRow`(열 제목 줄), `PlaceCell`(위치 칸), `NOTE_HINT`·`NoteCell`(고려사항 칸), `PhotoStrip`·`Thumb`, `WorkTag`, `Gauge`(진행 게이지), `ProofRow`(증거 카드 줄) | 378 |
+| [Dialogs.tsx](https://github.com/zeondas/gilog/blob/main/src/screens/process/Dialogs.tsx) | `phoneOf`, 공사 관리 창 `Draft`·`EMPTY_DRAFT`·`WorksDialog`·`agentOf`·`ProjectPick`·`AgentInputs`·`PersonIcon`, 메일 창 `MailDialog` | 467 |
+| [Menu.tsx](https://github.com/zeondas/gilog/blob/main/src/screens/process/Menu.tsx) | `Floating`(떠 있는 상자 – ⋯·우클릭 메뉴, 묻는 띠, 증거 카드, 고르기 목록, 사용자 ①1안) | 40 |
+| [parts.tsx](https://github.com/zeondas/gilog/blob/main/src/screens/process/parts.tsx) | `workColor`, 열 폭 재기 `COLUMNS`·`AUTO_COLS`·`COL_GAP`·`PLACE_MAX`·`textWidth`·`PLACE_SPACE`(Screen·Table이 함께 써서 – Screen에 두면 꼬임, 사용자 ②1안), `MailDraft`, `Prog`, `isPath`, 그림 5개(`DocPlusIcon`·`MailIcon`·`PhoneIcon`·`CheckIcon`·`WarnIcon`) | 120 |
+
+keys는 없어요(따로 뗄 키 함수가 없음). 한 조각만 쓰는 함수·그림·상수는 그 조각 안에(2장, 사용자 ③1안 – 민원대장과 같게). `// ----------` 절 머리 주석은 바로 아래 함수와 함께 옮겼어요. Screen이 나머지 넷을, Table·Dialogs가 Menu·parts를 부르고, 거꾸로 부르는 곳은 없어요.
+
 ## 2. 조각 이름 규칙
 
 - 어느 조각으로 갈지는 **지금 함수 경계**로만 정해요. 함수를 새로 쪼개거나 합치지 않아요.
