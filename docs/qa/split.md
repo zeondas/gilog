@@ -94,6 +94,42 @@ keys는 없어요(따로 뗄 키 함수가 없음). 한 조각만 쓰는 함수�
 
 같은 까닭으로 Screen 하나뿐이에요. `BudgetStatusSend.tsx`(집행현황도 씀)·규칙 `budgetStatus.ts`·`budgetStatusImport.ts`·`budget.ts`는 그대로. 바뀐 것은 import 경로(`../../`)·머리 설명·`App.tsx` import 한 줄. 전체 `styles.py`에서 `complaints_import_merge` 알림 거품(`.xl-toast`) 한 요소가 달랐고 그 장면만 다시 돌리면 0이라 흔들림으로 봤어요(예산현황과 무관한 민원대장 장면).
 
+### 보기 – 캘린더 (1,929줄 → 4파일, 정리 9차 `wip/split-calendar`)
+
+| 파일 | 들어간 것 | 줄 |
+| --- | --- | --- |
+| [Screen.tsx](https://github.com/zeondas/gilog/blob/main/src/screens/calendar/Screen.tsx) | 머리 설명, `EventFocus`(App.tsx가 씀)·`Props`, `CalendarScreen`(몸통 약 530줄 – "화면 몸통 안의 큰 함수"는 쓰지 않음), 몸통만 쓰는 `Tick` | 568 |
+| [Table.tsx](https://github.com/zeondas/gilog/blob/main/src/screens/calendar/Table.tsx) | 일정 하나 `ChipActs`·`EventChip`, 주간 보기 `HOUR`·`Slot`·`slotsOf`·`WeekView`, 마감 동그라미 그림 `Circle`·`CheckCircle`(EventChip만 씀), 주 한 줄 배치 `weekLayout` | 312 |
+| [Dialogs.tsx](https://github.com/zeondas/gilog/blob/main/src/screens/calendar/Dialogs.tsx) | `isComposing`·`plainEnter`(KindsDialog만 씀), 상세 창 값 `Draft`·`Bad`·`toInput`·`draftOf`·`firstKind`·`blankDraft`, 빠른 입력 `QuickRow`, 상세 창 `EventDialog`·`RemindField`, 종류 관리 창 `KindsDialog`, 구글 상태 상자 `GoogleBox`, 알림 확인 창 `NotifyDialog`, `Plus`(QuickRow만 씀) | 900 |
+| [Menu.tsx](https://github.com/zeondas/gilog/blob/main/src/screens/calendar/Menu.tsx) | 떠 있는 고르기 상자 `KindPicker`(종류 고르기)·`ColorButton`(색 24가지 펼침) | 172 |
+
+배정 까닭:
+- `blankDraft`는 몸통과 `QuickRow`가 함께 써요. Screen에 두면 Dialogs가 Screen을 거꾸로 부르니 `Draft`·`draftOf`와 함께 Dialogs에 두고 Screen이 불러요(`firstKind`는 `blankDraft`·`QuickRow`만 써서 같이 Dialogs).
+- `KindPicker`·`ColorButton`은 누르면 떠서 고르는 상자라 메뉴 조각으로 봤어요(민원처리 `Floating`과 같게). Dialogs(`QuickRow`·`EventDialog`·`KindsDialog`)가 Menu를 불러요.
+- `GoogleBox`는 창이 아니지만 프롬프트대로 Dialogs에 뒀어요(몸통 왼쪽 맨 아래 상자, 다른 조각은 안 씀).
+- parts·keys는 없어요 – `isComposing`·`plainEnter`·`firstKind`·`Circle`·`CheckCircle`·`Tick`·`Plus` 모두 한 조각만 써요(2장 마지막 줄). 따로 뗄 키 함수도 없어요.
+- `// ---------- 아이콘 ----------` 절 머리 주석은 첫 아이콘 `Circle`과 함께 Table로 갔어요.
+- Screen이 Table·Dialogs를, Dialogs가 Menu를 부르고, 거꾸로 부르는 곳은 없어요. 업무연락처 `Hl`(Table)은 경로만 `../../ContactsScreen`으로.
+
+확인: 줄 견주기(여러 줄 import 덩어리째 빼고) 차이는 새 머리 설명 세 줄뿐 · 캘린더 장면 10개 0점·`styles.py` 0·`behave.py` calendar_dialog·calendar_kindpicker 통과 · 전체 92장면 통과 · `npm run build` · `npm test` 223 · 매뉴얼 글 같음(True) · 긴 줄표 21줄·"기Log" 0줄.
+
+### 보기 – 업무일지 (2,051 + 533줄 → 6파일, 정리 9차 `wip/split-journal`)
+
+| 파일 | 들어간 것 | 줄 | 배정 까닭 |
+| --- | --- | --- | --- |
+| [Screen.tsx](https://github.com/zeondas/gilog/blob/main/src/screens/journal/Screen.tsx) | 머리 설명, `JournalScreen`(몸통 – 몸통 안 조각은 떼지 않음), `DueList`(챙길 일) | 421 | 화면 몸통과 몸통만 쓰는 배치 부품 |
+| [Table.tsx](https://github.com/zeondas/gilog/blob/main/src/screens/journal/Table.tsx) | `WEEK`·`ymd`·`JournalCalendar`(왼쪽 월 달력), `DayHead`(날짜 머리 줄), `stripe`·`Lines`·`PillarTel`·`ViewCard`(기록 카드), `SearchResults`(검색 결과) | 488 | 카드·목록. `WEEK`·`ymd`는 달력만 써서 그 안에 |
+| [Dialogs.tsx](https://github.com/zeondas/gilog/blob/main/src/screens/journal/Dialogs.tsx) | `isComposing`·`WhoInput`(상대 칸), `SpeakerButton`, `NewCard`(신규 카드), `linesToBody`·`EditLine`·`EditCard`(고치는 카드) + 옛 `src/JournalPrint.tsx` 전부(`PrintDialog`·`PrintPages`·`PaperHead`·`PaperCard` 등, 그 머리 설명 주석도 그대로) | 1,352 | 적는 칸·창. `isComposing`은 `WhoInput`만 써서 parts가 아니라 여기 |
+| [Menu.tsx](https://github.com/zeondas/gilog/blob/main/src/screens/journal/Menu.tsx) | `DayMenu`(날짜 우클릭), `ProjectMenu`(사업 고르기) | 196 | 메뉴 부품 – 달력(Table)·기록 카드(Table)·고치는 카드(Dialogs)가 불러요 |
+| [keys.ts](https://github.com/zeondas/gilog/blob/main/src/screens/journal/keys.ts) | `talkAction`·`insertBreak`·`lineEdge` | 38 | 말 줄 키 함수(엔터규칙 "업무일지 말 줄")가 카드 밖에 따로 있는 함수라 틀대로 keys – `NewCard`·`EditCard`가 불러요 |
+| [parts.tsx](https://github.com/zeondas/gilog/blob/main/src/screens/journal/parts.tsx) | `Ctx`(화면 값 묶음), `CardCols`·`splitCards`(카드 두 단), `badgeStyle`(말 배지 색) | 114 | 두 조각 이상이 써서 – `Ctx`는 다섯 조각, `CardCols`는 Screen·Table(검색 결과도 두 단 – Screen에 두면 Table이 Screen을 거꾸로 불러 꼬임), `badgeStyle`은 Table(`Lines`)·Dialogs(`SpeakerButton`) |
+
+- **Dialogs가 1,000줄을 넘어요(1,352)** – 인쇄(533줄)를 Dialogs에 넣어서예요. 틀 이름 밖 새 조각(`Print.tsx` 등)은 만들지 않는다는 프롬프트대로 한 파일로 두었어요(설정 Table 1,174·민원대장 Table 1,055처럼 1,000줄 넘는 조각이 이미 있음). 인쇄를 따로 떼려면 틀에 이름을 더하는 결정이 필요해요.
+- **이름 부딪침 한 곳** – 업무일지와 인쇄 둘 다 `type Ctx`가 있어요(업무일지는 5칸, 인쇄는 `myName`·`byId` 2칸). 인쇄 쪽은 그대로 두고, Dialogs가 parts의 업무일지 `Ctx`를 `Ctx as JournalCtx`로 불러 `NewCard`·`EditCard`의 `ctx: Ctx` 두 줄만 `ctx: JournalCtx`로 바꿨어요(집행현황 `RKeyboardEvent`와 같은 방식). `WEEK`도 둘 다 있지만 업무일지 쪽은 Table로 가서 부딪치지 않아요.
+- 줄 견주기: 머리 설명 5줄(새 파일)과 위 `JournalCtx` 두 줄만 달라요.
+- 부르는 방향: Screen → Table·Dialogs·parts, Table → Menu·parts, Dialogs → Menu·keys·parts, Menu → parts. 거꾸로 부르는 곳은 없어요.
+- 그대로 둔 것: 규칙 `src/journal.ts`(+ 시험), `RichMemo`·`BulletParts`·`SearchBox`·`PopMenu` 등 공통 부품, 업무연락처 `src/ContactsScreen.tsx`(`copyText`·`Hl`·`pjFull`·`pjLabel`·`projectColor`를 `../../ContactsScreen`에서 불러 쓰기만), CSS. `splitCards`는 시험 파일이 쓰지 않아 경로를 맞출 곳이 없었어요. 불러 쓰는 곳은 `App.tsx` 하나.
+
 ## 2. 조각 이름 규칙
 
 - 어느 조각으로 갈지는 **지금 함수 경계**로만 정해요. 함수를 새로 쪼개거나 합치지 않아요.
