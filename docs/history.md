@@ -5,6 +5,9 @@
 ## 버전별 — 들어간 것 · 시험 항목
 사용자 "통과"는 0.11.0~0.27.0 모두 기다려요(빌드 줄). 시험 항목은 윈도우에서만 볼 수 있는 것이에요.
 
+### 0.42.0(build-62) — 정리 7차 설정 화면 나누기
+- 들어간 것: split-settings – 설정 `src/SettingsScreen.tsx`를 `src/screens/settings/` 4조각(Screen·Table·Dialogs·parts)으로 옮기기만, `App.tsx`·민원대장 Dialogs import, [docs/qa/split.md](https://github.com/zeondas/gilog/blob/main/docs/qa/split.md)·CLAUDE.md 구조 · 시험: 설정 화면 카드·목록 고치기·스위치·비밀번호 바꾸기·PIN·구글 연동 카드·키 설정·화면 크기·민원대장 분류 관리 창이 0.41.0과 똑같은지
+
 ### 0.41.0(build-61) — 정리 6차 민원처리 화면 나누기
 - 들어간 것: split-process – 민원처리 `src/ProcessScreen.tsx`를 `src/screens/process/` 5조각(Screen·Table·Dialogs·Menu·parts)으로 옮기기만, `App.tsx` import, [docs/qa/split.md](https://github.com/zeondas/gilog/blob/main/docs/qa/split.md)·CLAUDE.md 구조 · 시험: 민원처리 목록·[민원 불러오기]·공사 관리 창·지시부 만들기·진행 막대·우클릭·⋯ 메뉴가 0.40.0과 똑같은지
 
