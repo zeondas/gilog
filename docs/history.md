@@ -5,6 +5,9 @@
 ## 버전별 — 들어간 것 · 시험 항목
 사용자 "통과"는 0.11.0~0.27.0 모두 기다려요(빌드 줄). 시험 항목은 윈도우에서만 볼 수 있는 것이에요.
 
+### 0.39.0(build-59) — 정리 4차 탐색기 화면 나누기
+- 들어간 것: split-files – 탐색기 `src/FilesScreen.tsx`·`src/FilesDialogs.tsx`를 `src/screens/files/` 6조각(Screen·Table·keys·Dialogs·Menu·parts)으로 옮기기만, `App.tsx` import, [docs/qa/split.md](https://github.com/zeondas/gilog/blob/main/docs/qa/split.md)에 탐색기 보기 · 시험: 폴더 이동·두 창·탭·찾기(자세히 포함)·우클릭 메뉴·복사/옮기기(F5·F6)·이름 바꾸기(F2·일괄)·지우기·키(Backspace 위 폴더·글자 빠른 필터·마우스 옆 버튼)가 0.38.0과 똑같은지
+
 ### 0.38.0(build-58) — 정리 3차 할 일 화면 나누기 · 설정 사업 글자
 - 들어간 것: split-tasks – 할 일 화면 `src/TasksScreen.tsx`(1,146줄)를 `src/screens/tasks/` 5조각(Screen·Table·Dialogs·Menu·parts)으로 옮기기만, `App.tsx` import, 쪼개기 틀 [docs/qa/split.md](https://github.com/zeondas/gilog/blob/main/docs/qa/split.md) · 시험: 할 일 목록 보기·새 할 일 등록(Tab·Enter)·체크 움직임·우클릭 메뉴(이름 바꾸기·옮기기·지우기)·고치는 창이 0.37.0과 똑같은지
 - 들어간 것: settings3 – 설정 모듈 카드 업무연락처 설명 "사람·프로젝트 연락처" → "사람·사업 연락처"(`src/screens.ts` 한 줄) · 시험: 설정 → 모듈 카드에 "사람·사업 연락처"
