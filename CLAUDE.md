@@ -28,7 +28,7 @@
 | 공유 시험 | main(문서만) | 집행현황 팀 공유 두(세) 계정 시험 – 결과 [docs/qa/share-test.md](https://github.com/zeondas/gilog/blob/main/docs/qa/share-test.md), 안 된 것은 그 화면 대기 목록 ✔ | `b819cb5` | 시험 중 – 1·2 됨, 3 기다림 · "받은 것" 창 결정(1안 시안·①2안) → 집행현황 대기 ✔1로 전달 | 사용자 시험 결과(3번부터) |
 | 검사 속도 | main(`wip/check2` 지워도 됨) | 공통 결정 로그 10-27 09:26 ① 그대로 `check.yml`만(build.yml 안 건드림): 문서·매뉴얼(`docs/**`·`tools/manual/**`·`**.md`)만 바뀐 push 검사 안 함 · 같은 가지 다시 올리면 앞 검사 취소(concurrency) · main과의 갈림점에서 `src-tauri/**`·`Cargo.*`가 안 바뀌면 Rust 단계 9개(설치·nasm·캐시·Perl·시험 만들기·시험·앱 틀·빠른 찾기) 건너뜀, 직접 실행은 늘 전부 · 실패 댓글 그대로 | `24a0ee2`(main 합침) | **끝(main에 합침 – 10-27 10:40 사용자 "합쳐", `[skip ci]`·버전 안 올림·빌드 없음)** · 시간: check.yml만 바뀜 **58초**(Rust 9단계 건너뜀) · `src-tauri` 주석 시험 커밋 **20분 15초**(Rust 모두 돎 – 시험 만들기 8분·시험 9분·앱 틀 1분 반) · 되돌린 뒤 **51초**(건너뜀) – 모두 통과 · 이제 main 최신에서 만든 wip 가지는 이 check.yml을 써요 | – |
 | 정리 3차(할 일) | `wip/split-tasks`(아직 안 만듦 – "코딩하자" 때 main 최신에서) | 공통 결정 로그 10-27 09:03 정리 ③ – `src/TasksScreen.tsx`(1,146줄)를 `src/screens/tasks/`로 나눠 다른 화면의 "틀"을 정해요(옮기기만, 동작·DOM·클래스·`data-*`·문구 그대로) · 끝나면 [docs/qa/split.md](https://github.com/zeondas/gilog/blob/main/docs/qa/split.md)에 틀 | `5d79728`(main) | **10-27 10:48 사용자 ① 1안(`parts.tsx`) · 나누기 표 확정 – Screen(TasksScreen 몸통)·Table(ListPanel·ItemRow)·Dialogs(AddForm·DueField·TaskEditor)·Menu(ListMenu)·parts(isComposing·Tick·Plus), keys 없음** | "코딩하자" |
-| 공통 | `wip/settings3`(아직 안 만듦 – "코딩하자" 때 main 최신에서) | 대기 목록 "공통" 첫 줄: 설정 모듈 카드 업무연락처 설명 "사람·프로젝트 연락처" → "사람·사업 연락처"(`src/screens.ts` 한 줄, 설정 화면만 씀) | – | **준비됨 – 코딩 전**(검사 속도 main 합침 확인) | 사용자 "코딩하자" |
+| 공통 | `wip/settings3`(main `149bed9` 위) | 대기 목록 "공통" 첫 줄: 설정 모듈 카드 업무연락처 설명 "사람·프로젝트 연락처" → "사람·사업 연락처"(`src/screens.ts` 한 줄, 설정 화면만 씀) | `29d1e12` | **끝(검사 도는 중)** – 10:48 사용자 "코딩하자" · 지킴이 설정 7장면 → 전체 91장면: 바뀐 곳은 그 글자 자리뿐(`screen_09` 498점·`zoom15_09` 606점, 바뀌기로 한 장면) + `journal_memo` 1점(원래 흔들림) · `behave.py` 통과 · `npm test` 223 · TS 검사 통과 · Rust 안 바꿈 | 빌드 세션 합치기 |
 **공통 결정 로그** (나중 날짜가 이겨요)
 - 2026-10-27 10:48 정리 3차(할 일) 세션(사용자 ①1안): **화면 쪼개기 틀에 여섯째 조각 `parts.tsx`** – 그 화면 조각끼리만 함께 쓰는 작은 그림·함수(할 일은 `isComposing`·`Tick`·`Plus`)를 모아요, 있을 때만 만들어요. 조각끼리 서로 부르는 꼬임(Table ↔ Dialogs)을 막고, 복사해 두 벌 만들지 않아요. 09:03 정리 ③ ②의 조각 이름에 더해요. [docs/qa/split.md](https://github.com/zeondas/gilog/blob/main/docs/qa/split.md)에 적어요.
 - 2026-10-27 09:26 우두머리 세션(사용자 ①②③ 1안 "제안대로"): **검사 속도** – ① `check.yml`: Rust(`src-tauri/**`·`Cargo.*`)를 안 바꾼 가지는 Rust 시험·cargo check를 건너뛰고(npm build·npm test만, 약 2분), 문서·매뉴얼(`docs/**`·`tools/manual/**`·`*.md`)만 바꾼 push는 검사 안 함, 같은 가지에 다시 올리면 앞 검사 취소. 빌드(`build.yml`)는 그대로 전부 ② 기능 세션은 올린 뒤 "끝(검사 도는 중)"으로 두고 멈춰요 – 통과 확인은 빌드 세션이 합칠 때(실패한 가지는 빼고 알림). 현황판 규칙 6의 "check 통과 확인 뒤 끝"은 이것으로 바뀌어요 ③ 모양 지킴이는 고치는 동안 자기 화면 장면만(`shoot.py`·`styles.py`·`behave.py` 뒤에 장면 이름), 끝낼 때 한 번 전체. ①은 "검사 속도" 세션(`wip/check2`)이 넣어요.
@@ -279,7 +279,7 @@
 - (2차) 배지·칩·묶음 단추·색 점·단추 높이·알림·빈 화면·체크는 **새로 통일하지 않음**(2026-10-26 20:52·20:53 사용자 – 자리에 맞게 정한 것, parts.md 10-3·10-4)
 
 ### 공통 (설정·설치·공통 부품 – 공통 세션, [docs/qa/common.md](https://github.com/zeondas/gilog/blob/main/docs/qa/common.md))
-- (매뉴얼 세션 전달 2026-10-26) 설정 모듈 카드의 업무연락처 설명 "사람·프로젝트 연락처" → "사람·사업 연락처"(결정 로그 10-25 19:49 "프로젝트 → 사업" 빠진 곳)
+- (2026-10-27 설정 문구 "사람·사업 연락처"는 `wip/settings3` 29d1e12에 코딩됨)
 - (2026-10-25 ✔1~6은 `wip/settings2` 05f759b·`wip/installer` 22a933b에 코딩됨) · ⑦ 두 PC 구글 섞임은 **현행 유지**(2026-10-25 20:01 사용자) – 원인(이름표 번호가 PC마다 같음)은 common.md 7절에 남김
 
 ## 사용자가 정한 규칙 (바꾸지 않아요)
