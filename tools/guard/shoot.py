@@ -158,6 +158,23 @@ async def s_contacts_pjmenu(p):
     await p.locator(".pjm-row", has_text="방호벽 정비").first.click(button="right")
 
 
+async def s_contacts_pjgroups(p):
+    # 2026-10-27: 흉내 자료에 그룹이 없어 그룹 묶음 깨짐을 놓쳤어요 – 그룹 "포장"을 만들고 방호벽 정비를 넣은 모습
+    await s_contacts_pjdialog(p)
+    await p.wait_for_timeout(300)
+    await p.get_by_role("button", name="그룹 추가").click()
+    await p.wait_for_timeout(200)
+    await p.keyboard.type("포장")
+    await p.keyboard.press("Enter")
+    await p.wait_for_timeout(400)
+    await p.locator(".pjm-row", has_text="방호벽 정비").first.click(button="right")
+    await p.wait_for_timeout(200)
+    await p.locator(".pjm-menu-sub").first.hover()
+    await p.wait_for_timeout(300)
+    await p.locator(".pjm-gopt", has_text="포장").first.click()
+    await p.wait_for_timeout(400)
+
+
 async def s_calendar_event_ask(p):
     await p.locator(".cal-ev", has_text="방호벽 협의").first.dblclick()
     await p.wait_for_timeout(300)
@@ -351,6 +368,7 @@ SCENES.update({
     "contacts_card_ask": ("업무연락처", s_contacts_card_ask),
     "contacts_pjdialog": ("업무연락처", s_contacts_pjdialog),
     "contacts_pjmenu": ("업무연락처", s_contacts_pjmenu),
+    "contacts_pjgroups": ("업무연락처", s_contacts_pjgroups),
     "calendar_event_ask": ("캘린더", s_calendar_event_ask),
     "calendar_kinds": ("캘린더", s_calendar_kinds),
     "calendar_kindpicker": ("캘린더", s_calendar_kindpicker),
