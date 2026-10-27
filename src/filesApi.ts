@@ -199,6 +199,8 @@ function fakeCall(cmd: string, a: Record<string, unknown>): unknown {
     }
     case "fs_rename_many": {
       const items = a.items as { path: string; name: string }[];
+      // preview only: like Windows, files right under C:\ need admin rights
+      if (items.some((it) => /^c:\\?$/i.test(parentOf(it.path) ?? ""))) throw "denied";
       const back = items.map((it) => {
         const to = joinPath(parentOf(it.path)!, it.name);
         fakeMove(it.path, to);

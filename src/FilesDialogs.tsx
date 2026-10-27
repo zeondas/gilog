@@ -460,17 +460,17 @@ export function RenameDialog({
             <button type="button" className="btn btn-ctrl" disabled={!canUndo} onClick={onUndo}>
               되돌리기
             </button>
+            {/* 2026-10-26 user 2안: count + message sit right above [확인] at the bottom of this column; no footer row */}
+            <div className="fx-rn-info">
+              <span>
+                {rows.filter((r) => !r.dir).length} 파일, {rows.filter((r) => r.dir).length} 폴더
+              </span>
+              {(anyBad || msg) && <span className="fx-err">{anyBad ? "빨간 줄을 고쳐야 바꿀 수 있어요" : msg}</span>}
+            </div>
+            <button type="button" className="btn-primary btn-ctrl fx-rn-ok" disabled={anyBad} onClick={ok}>
+              확인
+            </button>
           </div>
-        </div>
-        <div className="fx-rn-foot">
-          <span>
-            {rows.filter((r) => !r.dir).length} 파일, {rows.filter((r) => r.dir).length} 폴더
-          </span>
-          <span className="fx-grow" />
-          <span className="fx-err">{anyBad ? "빨간 줄을 고쳐야 바꿀 수 있어요" : msg}</span>
-          <button type="button" className="btn-primary btn-ctrl fx-rn-ok" disabled={anyBad} onClick={ok}>
-            확인
-          </button>
         </div>
       </div>
     </Overlay>
