@@ -1,9 +1,9 @@
 // 탐색기에서 가운데 뜨는 창: 같은 이름 묻기(FilesConflict 1안), 지울까요, 일괄 이름 바꾸기(FilesRename).
 // 바깥을 누르기 시작했을 때만 닫혀요(onMouseDown + target === currentTarget – 글자를 끌어 고르다 밖에서 떼도 안 닫혀요).
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Conflict } from "./filesApi";
-import { overlayDown } from "./useOutsideClose";
-import { DialogX } from "./DialogX";
+import { Conflict } from "../../filesApi";
+import { overlayDown } from "../../useOutsideClose";
+import { DialogX } from "../../DialogX";
 import {
   CaseMode,
   FsEntry,
@@ -16,7 +16,7 @@ import {
   formatSize,
   quickMatch,
   renameOne,
-} from "./files";
+} from "../../files";
 
 /** 탐색기 가운데 창 틀 – 위 오른쪽 × = 취소(✔7, DialogX), 창 이름표(label)는 화면 읽기용 */
 function Overlay({ onClose, children, width, label }: { onClose: () => void; children: React.ReactNode; width: number; label: string }) {
