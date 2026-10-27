@@ -23,7 +23,7 @@ main **[채울 곳: 해시 7자리]** + 현황판 읽기. 너는 "빌드" 세션
 3. 검사: `npm ci` → `npm run build` · `cargo test --manifest-path src-tauri/core/Cargo.toml` · 가능하면 `cargo check --manifest-path src-tauri/Cargo.toml`.
 4. 버전 올리기 **4곳**(같은 값 0.N.0): `package.json`(→ `npm install --package-lock-only`로 `package-lock.json`도) · `src-tauri/tauri.conf.json` · `src-tauri/Cargo.toml`(`Cargo.lock`은 cargo가 따라 바꿔요) · `src/version.ts`. 커밋 이름 "0.N.0: <넣은 것 짧게>"(`[skip ci]` 글자는 쓰지 않아요).
 5. 사양서(https://claude.ai/code/artifact/8a776f73-e26c-4e2c-9735-3dc7cd0885f4)에서 넣은 기능의 "(다음 빌드)" 표시를 지워요.
-6. **사용자 허가를 받고** main에 올려요(올리면 build.yml이 돌아요). 실패하면 `gh api repos/zeondas/gilog/commits/<sha>/comments`로 오류를 읽어요.
+6. **허가를 따로 묻지 않고** 스스로 판단해 main에 올려요(2026-10-27 11:32 사용자 – 빌드 프롬프트를 준 것이 허가). 멈추고 묻는 것은 이때만: check 실패 가지 · 충돌의 뜻이 갈림 · 두 grep 수가 늘어남 · npm build·npm test·core 실패 · 지킴이에 바뀌기로 하지 않은 장면 차이. 올리면 build.yml이 돌아요. 실패하면 `gh api repos/zeondas/gilog/commits/<sha>/comments`로 오류를 읽어요.
 7. 설치 파일 보내기(회사에서는 GitHub이 막혀 있어 파일이 먼저예요):
    - `gh api repos/zeondas/gilog/releases/tags/build-<번호>`로 asset id를 찾아
    - `gh api -H "Accept: application/octet-stream" repos/zeondas/gilog/releases/assets/<id> > giLog_<버전>_x64-setup.exe`(크기 확인 — `gh release download`는 막혀 있어요)
