@@ -6,7 +6,7 @@ import CalendarScreen, { EventFocus } from "./CalendarScreen";
 import ComplaintsScreen from "./screens/complaints/Screen";
 import ContactsScreen from "./ContactsScreen";
 import ProcessScreen from "./screens/process/Screen";
-import BudgetScreen from "./BudgetScreen";
+import BudgetScreen from "./screens/budget/Screen";
 import BudgetStatusScreen from "./BudgetStatusScreen";
 import FilesScreen from "./screens/files/Screen";
 import Gate from "./Gate";
