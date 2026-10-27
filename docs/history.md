@@ -5,6 +5,10 @@
 ## 버전별 — 들어간 것 · 시험 항목
 사용자 "통과"는 0.11.0~0.27.0 모두 기다려요(빌드 줄). 시험 항목은 윈도우에서만 볼 수 있는 것이에요.
 
+### 0.43.0(build-63) — 정리 8차 집행현황·예산현황 화면 나누기
+- 들어간 것: split-budget – 집행현황 `src/BudgetScreen.tsx`·`BudgetGot.tsx`·`BudgetSuggest.tsx`를 `src/screens/budget/`(Screen·Dialogs)로 옮기기만, `App.tsx` import, [docs/qa/split-budget.md](https://github.com/zeondas/gilog/blob/main/docs/qa/split-budget.md)·CLAUDE.md 구조 · 시험: 집행현황 화면이 전과 똑같이 열리고 표·메뉴·설정 상자·받은 것 창·사업명 고르기가 그대로인지
+- 들어간 것: split-bstatus – 예산현황 `src/BudgetStatusScreen.tsx`를 `src/screens/bstatus/Screen.tsx`로 옮기기만, `App.tsx` import, [docs/qa/split-bstatus.md](https://github.com/zeondas/gilog/blob/main/docs/qa/split-bstatus.md)·CLAUDE.md 구조 · 시험: 예산현황 화면이 전과 똑같이 열리고 표·메뉴·설정 상자가 그대로인지
+
 ### 0.42.0(build-62) — 정리 7차 설정 화면 나누기
 - 들어간 것: split-settings – 설정 `src/SettingsScreen.tsx`를 `src/screens/settings/` 4조각(Screen·Table·Dialogs·parts)으로 옮기기만, `App.tsx`·민원대장 Dialogs import, [docs/qa/split.md](https://github.com/zeondas/gilog/blob/main/docs/qa/split.md)·CLAUDE.md 구조 · 시험: 설정 화면 카드·목록 고치기·스위치·비밀번호 바꾸기·PIN·구글 연동 카드·키 설정·화면 크기·민원대장 분류 관리 창이 0.41.0과 똑같은지
 
