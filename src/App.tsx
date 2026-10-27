@@ -5,7 +5,7 @@ import { measureBullets } from "./bullets";
 import CalendarScreen, { EventFocus } from "./CalendarScreen";
 import ComplaintsScreen from "./screens/complaints/Screen";
 import ContactsScreen from "./ContactsScreen";
-import ProcessScreen from "./ProcessScreen";
+import ProcessScreen from "./screens/process/Screen";
 import BudgetScreen from "./BudgetScreen";
 import BudgetStatusScreen from "./BudgetStatusScreen";
 import FilesScreen from "./screens/files/Screen";
