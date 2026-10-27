@@ -5,6 +5,10 @@
 ## 버전별 — 들어간 것 · 시험 항목
 사용자 "통과"는 0.11.0~0.27.0 모두 기다려요(빌드 줄). 시험 항목은 윈도우에서만 볼 수 있는 것이에요.
 
+### 0.40.0(build-60) — 업무연락처 사업 관리 창 고침 · 정리 5차 민원대장 화면 나누기
+- 들어간 것: contacts4 – 업무연락처 사업 관리 창 깨짐 고침(추가 줄 상자 이름표 `pjm-grp` → `pjm-addgrp`), 지킴이 장면 `contacts_pjgroups` 더함 · 시험: 업무연락처 → 사업 관리 창에서 그룹 줄과 입력 줄이 깨지지 않고 보이는지, [+] 그룹 추가
+- 들어간 것: split-complaints – 민원대장 `src/ComplaintsScreen.tsx`(2,056줄)를 `src/screens/complaints/` 5조각(Screen·Table·Dialogs·Menu·parts)으로 옮기기만, `App.tsx` import, [docs/qa/split.md](https://github.com/zeondas/gilog/blob/main/docs/qa/split.md) · 시험: 민원대장 등록(Tab·Enter)·고치기·지우기·거르기·검색·열 폭·우클릭 메뉴·메모 창·엑셀이 0.39.0과 똑같은지
+
 ### 0.39.0(build-59) — 정리 4차 탐색기 화면 나누기
 - 들어간 것: split-files – 탐색기 `src/FilesScreen.tsx`·`src/FilesDialogs.tsx`를 `src/screens/files/` 6조각(Screen·Table·keys·Dialogs·Menu·parts)으로 옮기기만, `App.tsx` import, [docs/qa/split.md](https://github.com/zeondas/gilog/blob/main/docs/qa/split.md)에 탐색기 보기 · 시험: 폴더 이동·두 창·탭·찾기(자세히 포함)·우클릭 메뉴·복사/옮기기(F5·F6)·이름 바꾸기(F2·일괄)·지우기·키(Backspace 위 폴더·글자 빠른 필터·마우스 옆 버튼)가 0.38.0과 똑같은지
 
