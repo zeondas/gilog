@@ -101,7 +101,7 @@
 .bs .bd-rw > .bd-c { border-right-color: var(--line); }
 .bs .bd-rw > .bd-c:last-child, .bs .bd-h:last-child { border-right: 1px solid var(--line); } /* 메모 뒤에도 세로 선 */
 .bs .bd-c.bs-yrs { padding-left: 12px; font-weight: 400; }
-.bs .bd-rw > .bd-c:nth-child(2) { justify-content: flex-start; } /* 사업명 칸(집행현황 2열 가운데 규칙 덮음) */
+.bs .bd-rw > .bd-c:nth-child(2) { justify-content: flex-start; padding: 0 8px; } /* 사업명 칸(집행현황 2열 가운데·여백 4 규칙 덮음 – 여백 8이라야 트리 선이 화살표 가운데에 와요, 10-27 ✔1) */
 .bs .bd-rw.it > .bd-c:nth-child(2) { font-weight: 600; } /* 연도 줄 이름(집행현황의 첫 칸 굵게 규칙을 둘째 칸으로) */ /* 사업연도 칸: "2026년"·"2025~2027년" + ⚙ */
 .bs-noexp { pointer-events: none; }
 .bs .bd-rw > .bd-c { user-select: none; } /* 두 번 누르기가 글자를 긁지 않게 */
