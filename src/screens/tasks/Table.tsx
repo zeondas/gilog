@@ -4,7 +4,7 @@ import { DelGlyph } from "../../Icons";
 import { useOutsideClose } from "../../useOutsideClose";
 import { TaskEdit, TaskList } from "../../api";
 import { BulletView } from "../../BulletParts";
-import { Hl } from "../../ContactsScreen";
+import { Hl } from "../../screens/contacts/parts";
 import { dueBadge, Item } from "../../tasks";
 import { AskBand } from "../../AskBand";
 import { ListMenu } from "./Menu";

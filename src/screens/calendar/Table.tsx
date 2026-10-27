@@ -1,7 +1,7 @@
 // 캘린더 – 달력 그리기: 일정 하나(EventChip), 주간 보기(WeekView·slotsOf), 주 한 줄 배치(weekLayout), 마감 동그라미 그림. 화면 몸통은 Screen.tsx.
 import { CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { addDays, colorBg, colorFg, layoutWeek, Occ, Placed, shortDay, weekday } from "../../calendar";
-import { Hl } from "../../ContactsScreen";
+import { Hl } from "../../screens/contacts/parts";
 
 // ---------- 달력의 일정 하나 ----------
 

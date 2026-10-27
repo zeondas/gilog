@@ -1,7 +1,7 @@
 // 업무일지 카드·목록 – 왼쪽 월 달력(JournalCalendar)·날짜 머리 줄(DayHead)·기록 카드(ViewCard·Lines·PillarTel·stripe)·검색 결과(SearchResults). 화면 몸통은 Screen.tsx.
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { DayInfo, Entry } from "../../api";
-import { copyText, Hl, pjFull, pjLabel, projectColor } from "../../ContactsScreen";
+import { copyText, Hl, pjFull, pjLabel, projectColor } from "../../screens/contacts/parts";
 import { dayTitle, badgeName, isMemo, matchEntry, normTime, splitWho } from "../../journal";
 import { rowKeys } from "../../keys";
 import { MemoView } from "../../RichMemo";

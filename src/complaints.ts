@@ -1,7 +1,7 @@
 // 민원대장 화면이 쓰는 규칙들이에요. 화면 그리기와 떼어 두어 업무일지 "챙길 일"에서도 같이 써요.
 import type { Complaint } from "./api";
 import { plainOf } from "./bullets";
-import { parseMemo } from "./ContactsScreen";
+import { parseMemo } from "./screens/contacts/parts";
 import { initials, isChosung, koIndex, splitJamo } from "./journal";
 import { isAnswered } from "./settingsStore";
 

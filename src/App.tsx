@@ -4,7 +4,7 @@ import { api, applyAccent, DEFAULT_PREFS, errorText, inApp, Prefs, Reminder, Sta
 import { measureBullets } from "./bullets";
 import CalendarScreen, { EventFocus } from "./screens/calendar/Screen";
 import ComplaintsScreen from "./screens/complaints/Screen";
-import ContactsScreen from "./ContactsScreen";
+import ContactsScreen from "./screens/contacts/Screen";
 import ProcessScreen from "./screens/process/Screen";
 import BudgetScreen from "./screens/budget/Screen";
 import BudgetStatusScreen from "./screens/bstatus/Screen";

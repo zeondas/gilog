@@ -1,6 +1,6 @@
 // 민원처리 – 조각끼리 함께 쓰는 값·그림(열 정의·글자 폭 재기·공사 색·진행 모양·작은 아이콘).
 import { ContactsData, Work } from "../../api";
-import { projectColor } from "../../ContactsScreen";
+import { projectColor } from "../../screens/contacts/parts";
 
 /** 공사 색 = 업무연락처 프로젝트 색 */
 export function workColor(w: Work | undefined, cd: ContactsData | null): number {

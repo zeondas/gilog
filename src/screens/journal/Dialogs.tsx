@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { DelGlyph } from "../../Icons";
 import { useOutsideClose, overlayDown } from "../../useOutsideClose";
 import { Contact, DayInfo, Entry, EntryInput, Project } from "../../api";
-import { pjFull, pjLabel, projectColor } from "../../ContactsScreen";
+import { pjFull, pjLabel, projectColor } from "../../screens/contacts/parts";
 import { PhoneInput } from "../../PhoneInput";
 import { finalizePhone } from "../../phone";
 import {

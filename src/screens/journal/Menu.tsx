@@ -4,7 +4,7 @@ import { KeyboardEvent, useEffect, useLayoutEffect, useRef, useState } from "rea
 import { createPortal } from "react-dom";
 import { useOutsideClose } from "../../useOutsideClose";
 import { Project } from "../../api";
-import { pjFull, projectColor } from "../../ContactsScreen";
+import { pjFull, projectColor } from "../../screens/contacts/parts";
 import { koIndex } from "../../journal";
 import { AskBand } from "../../AskBand";
 import { Ctx } from "./parts";
