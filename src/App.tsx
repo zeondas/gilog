@@ -8,7 +8,7 @@ import ContactsScreen from "./ContactsScreen";
 import ProcessScreen from "./ProcessScreen";
 import BudgetScreen from "./BudgetScreen";
 import BudgetStatusScreen from "./BudgetStatusScreen";
-import FilesScreen from "./FilesScreen";
+import FilesScreen from "./screens/files/Screen";
 import Gate from "./Gate";
 import Logo, { AppIcon } from "./Logo";
 import { NavIcon, NavIconName } from "./Icons";
