@@ -7,7 +7,7 @@ import ComplaintsScreen from "./screens/complaints/Screen";
 import ContactsScreen from "./ContactsScreen";
 import ProcessScreen from "./screens/process/Screen";
 import BudgetScreen from "./screens/budget/Screen";
-import BudgetStatusScreen from "./BudgetStatusScreen";
+import BudgetStatusScreen from "./screens/bstatus/Screen";
 import FilesScreen from "./screens/files/Screen";
 import Gate from "./Gate";
 import Logo, { AppIcon } from "./Logo";
