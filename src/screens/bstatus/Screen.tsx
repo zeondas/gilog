@@ -1,21 +1,22 @@
+// 예산현황 화면이에요 – 옛 src/BudgetStatusScreen.tsx를 그대로 옮겼어요(바깥 함수가 화면 하나뿐이라 조각 없이 한 파일).
 // 예산현황(13단계) 화면 – 집행현황과 같은 표 부품(bd-*)으로, 세부사업 › 연도 › 재원 세 겹.
 // 시안: 캔버스 BudgetStatus(요약)·BudgetStatusDetail(자세히), 2026-10-19 사용자 결정(설정 단추는 작은 네모 하나, 숫자는 모두 오른쪽, 추경 열은 빼지 않음, 엑셀 열 비율 참고).
 // - 세부사업은 집행현황에서 자동으로 와요(이월 세부사업은 이어 붙이는 쪽). 사업명 옆 ⚙ 단추 → 단년도/다년도(기간)·재원·이월 사업.
 // - 재원 줄 두 번 누르기 = 고치는 줄(직접 적는 칸만 열려요), 바깥 누르기 = 저장, Esc = 취소. 규칙은 budgetStatus.ts.
-import { DialogX } from "./DialogX";
+import { DialogX } from "../../DialogX";
 import React, { KeyboardEvent as RKeyboardEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Fragment } from "react";
-import { api, errorText, inApp } from "./api";
-import { BudgetProject, fmt, okWon, parseWon, typing, Unit } from "./budget";
-import { BStatusLine, compute, defaultSetup, Line, lineOf, linkedOf, Manual, parseBStatusSheet, projectNames, Setup } from "./budgetStatus";
-import { BudgetStatusSend, SendTarget } from "./BudgetStatusSend";
-import { parseV3, planV3, V3Plan } from "./budgetStatusImport";
-import { dirOf, DIR_KEY, joinPath, lastDir } from "./ExcelMenu";
-import { isEmptyMemo, MemoEditor, sanitize } from "./RichMemo";
-import { memoToText } from "./budget";
-import { todayStr } from "./journal";
-import { keyAction } from "./keys";
-import { overlayDown, useOutsideClose } from "./useOutsideClose";
-import { SearchBox } from "./SearchBox";
+import { api, errorText, inApp } from "../../api";
+import { BudgetProject, fmt, okWon, parseWon, typing, Unit } from "../../budget";
+import { BStatusLine, compute, defaultSetup, Line, lineOf, linkedOf, Manual, parseBStatusSheet, projectNames, Setup } from "../../budgetStatus";
+import { BudgetStatusSend, SendTarget } from "../../BudgetStatusSend";
+import { parseV3, planV3, V3Plan } from "../../budgetStatusImport";
+import { dirOf, DIR_KEY, joinPath, lastDir } from "../../ExcelMenu";
+import { isEmptyMemo, MemoEditor, sanitize } from "../../RichMemo";
+import { memoToText } from "../../budget";
+import { todayStr } from "../../journal";
+import { keyAction } from "../../keys";
+import { overlayDown, useOutsideClose } from "../../useOutsideClose";
+import { SearchBox } from "../../SearchBox";
 
 const ICON = (d: string, s = 14, w = 2) => (
   <svg aria-hidden="true" width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={w} strokeLinecap="round" strokeLinejoin="miter">
