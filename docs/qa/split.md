@@ -66,6 +66,17 @@ keys는 없어요(따로 뗄 키 함수가 없음). 한 조각만 쓰는 작은 
 
 keys는 없어요(따로 뗄 키 함수가 없음). 한 조각만 쓰는 함수·그림·상수는 그 조각 안에(2장, 사용자 ③1안 – 민원대장과 같게). `// ----------` 절 머리 주석은 바로 아래 함수와 함께 옮겼어요. Screen이 나머지 넷을, Table·Dialogs가 Menu·parts를 부르고, 거꾸로 부르는 곳은 없어요.
 
+### 보기 – 설정 (1,860줄 → 4파일, 정리 7차 `wip/split-settings`)
+
+| 파일 | 들어간 것 | 줄 |
+| --- | --- | --- |
+| [Screen.tsx](https://github.com/zeondas/gilog/blob/main/src/screens/settings/Screen.tsx) | 머리 설명, `SCREEN_SIZES`·`Props`·`SET_SCREENS`, `SettingsScreen`(몸통), `engineVersion`, 설정 찾기 `squash`·`markIn`·`keysOf`·`applyFind`, 몸통만 쓰는 `FindIcon` | 556 |
+| [Table.tsx](https://github.com/zeondas/gilog/blob/main/src/screens/settings/Table.tsx) | 카드·줄 부품 – `ModulesCard`·`ModuleCard`, 키 카드 `KEY_HINT`·`RALT_HINT`·`APP_HINT`·`KeysCard`, 구글 `G_TOGGLES`·`GoogleRows`, 탐색기 `DriveRow`·`FastRow`·`FilesRows`, 목록 묶음 `eulReul`·`ListGroup`·`KindsGroup`·`Plus`, `PinRow`, 저장 위치 `pickFolder`·`FolderRow`, `BackupRow`, 민원처리 `PROCESS_DIRS`·`ProcessRows`, 주소 `hm`·`AddressRows` | 1,174 |
+| [Dialogs.tsx](https://github.com/zeondas/gilog/blob/main/src/screens/settings/Dialogs.tsx) | 비밀번호 바꾸기 적는 칸 `PasswordChange` | 83 |
+| [parts.tsx](https://github.com/zeondas/gilog/blob/main/src/screens/settings/parts.tsx) | `Row`(설정 줄 틀)·`Toggle`(스위치)·`X`·`PIN_CHANGED`(Screen·Table·Dialogs가 함께 써서) | 65 |
+
+표가 없는 화면이라 틀 이름 안에서 나눴어요(사용자 2안 – 적는 칸만 Dialogs, 나머지 카드·줄은 Table, 새 조각 이름은 만들지 않음). 메뉴·따로 뗄 키 함수가 없어 Menu·keys는 없어요. 설정 찾기는 키가 아니라 몸통이 부르는 함수라 Screen에 뒀어요. 파일 가운데 있던 `./google` import 덩어리는 쓰는 Table 맨 위로 옮겼어요. `ListGroup`은 민원대장 `src/screens/complaints/Dialogs.tsx`(분류 관리 창)가 불러 써서 그 파일의 import 경로만 고쳤어요. Screen이 나머지 셋을, Table·Dialogs가 parts를 부르고, 거꾸로 부르는 곳은 없어요.
+
 ## 2. 조각 이름 규칙
 
 - 어느 조각으로 갈지는 **지금 함수 경계**로만 정해요. 함수를 새로 쪼개거나 합치지 않아요.
