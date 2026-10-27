@@ -1,7 +1,7 @@
 # 큰 화면 쪼개기 – 틀 (정리 3차, 할 일이 첫 화면)
 
 2026-10-27 정리 3차(할 일) 세션이 정했어요. 근거: [CLAUDE.md](https://github.com/zeondas/gilog/blob/main/CLAUDE.md) 공통 결정 로그 2026-10-27 09:03 "정리 ③"·09:26 "검사 속도"·10:48 "parts.tsx".
-다음 화면 세션(탐색기 → 민원대장 → 민원처리 → 설정 → 나머지)은 **이 문서만 보고** 따라오면 돼요.
+다음 화면 세션(탐색기 → 민원대장 → 민원처리 → 설정 → 집행현황·예산현황 → 캘린더·업무일지 → 업무연락처)은 **이 문서만 보고** 따라오면 돼요.
 
 ## 1. 폴더 모양
 
@@ -76,6 +76,23 @@ keys는 없어요(따로 뗄 키 함수가 없음). 한 조각만 쓰는 함수�
 | [parts.tsx](https://github.com/zeondas/gilog/blob/main/src/screens/settings/parts.tsx) | `Row`(설정 줄 틀)·`Toggle`(스위치)·`X`·`PIN_CHANGED`(Screen·Table·Dialogs가 함께 써서) | 65 |
 
 표가 없는 화면이라 틀 이름 안에서 나눴어요(사용자 2안 – 적는 칸만 Dialogs, 나머지 카드·줄은 Table, 새 조각 이름은 만들지 않음). 메뉴·따로 뗄 키 함수가 없어 Menu·keys는 없어요. 설정 찾기는 키가 아니라 몸통이 부르는 함수라 Screen에 뒀어요. 파일 가운데 있던 `./google` import 덩어리는 쓰는 Table 맨 위로 옮겼어요. `ListGroup`은 민원대장 `src/screens/complaints/Dialogs.tsx`(분류 관리 창)가 불러 써서 그 파일의 import 경로만 고쳤어요. Screen이 나머지 셋을, Table·Dialogs가 parts를 부르고, 거꾸로 부르는 곳은 없어요.
+
+### 보기 – 집행현황 (1,994 + 138 + 225줄 → 2파일, 정리 8차 `wip/split-budget`)
+
+| 파일 | 들어간 것 | 줄 |
+| --- | --- | --- |
+| [Screen.tsx](https://github.com/zeondas/gilog/blob/main/src/screens/budget/Screen.tsx) | 옛 `src/BudgetScreen.tsx` 전부 – 머리 설명, 바깥 상수·타입 `COLS`·`COLS_SOLO`·`FIXED`·`START_W`·키 이름·`Sel`·`selKey`·`Cells`·`NUM_COLS`·`Money`·`Form`·`Pop`·`ICON`·`money`·`moneyOf`·`KIND_CLASS`·`STAGE_CLASS`, `BudgetScreen`(몸통 – `menuBody`·`confirmBody`·`popBody`·`nameRow`·`gunForm` 등 안쪽 조각은 떼지 않음) | 1,993 |
+| [Dialogs.tsx](https://github.com/zeondas/gilog/blob/main/src/screens/budget/Dialogs.tsx) | 옛 `src/BudgetGot.tsx`(받은 것 창 `gotValue`·`BudgetGot`) + 옛 `src/BudgetSuggest.tsx`(사업명 고르기 칸 `Suggest`·`plainOrg`·`orgsOf`·`projectHits`·`projectSub`·`SuggestInput`) – 두 파일을 이어 붙이고 import만 합침 | 365 |
+
+**파일 단위로 옮기기만**(결정 로그 2026-10-27 19:2x) – 바깥 함수가 화면 하나뿐이라 몸통 안 조각은 떼지 않고, Table·Menu·keys·parts도 없어요(두 조각 이상이 쓰는 것이 없음). 몸통 줄이기는 정리 ⑥(겹친 표 코드를 공통 부품으로)에서. 두 파일을 합치니 `KeyboardEvent`가 둘(브라우저·React)이라 React 쪽만 `KeyboardEvent as RKeyboardEvent`로 불러 `isComposing`의 타입 이름 한 곳만 바꿨어요 – 줄 견주기 차이는 머리 설명과 이 줄뿐. 그대로 둔 것: `src/BudgetStatusSend.tsx`(예산현황도 씀), `src/BudgetShareCard.tsx`(설정이 씀), 규칙 `budget.ts`·`budgetExcel.ts`·`budgetShare.ts`·`budgetStatus.ts`. 불러 쓰는 곳은 `App.tsx` 하나.
+
+### 보기 – 예산현황 (1,051줄 → 1파일, 정리 8차 `wip/split-bstatus`)
+
+| 파일 | 들어간 것 | 줄 |
+| --- | --- | --- |
+| [Screen.tsx](https://github.com/zeondas/gilog/blob/main/src/screens/bstatus/Screen.tsx) | 머리 설명, 옛 `src/BudgetStatusScreen.tsx` 전부 – `ICON`·`CD`·`CR`·`GEAR`·`UNIT_KEY`·`VIEW_KEY`·`YEAR_KEY`·`ORDER_KEY`, `Col`·`FIXED`·`COLS_KEY`·`SUM_COLS`·`DET_COLS`·`EDIT_FIELDS`, `Pop`·`Ask`·`Form`, `BudgetStatusScreen`(몸통 안 조각 `menuBody`·`numCells`·`seg`·`mi` 등은 떼지 않음) | 1,052 |
+
+같은 까닭으로 Screen 하나뿐이에요. `BudgetStatusSend.tsx`(집행현황도 씀)·규칙 `budgetStatus.ts`·`budgetStatusImport.ts`·`budget.ts`는 그대로. 바뀐 것은 import 경로(`../../`)·머리 설명·`App.tsx` import 한 줄. 전체 `styles.py`에서 `complaints_import_merge` 알림 거품(`.xl-toast`) 한 요소가 달랐고 그 장면만 다시 돌리면 0이라 흔들림으로 봤어요(예산현황과 무관한 민원대장 장면).
 
 ## 2. 조각 이름 규칙
 
