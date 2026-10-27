@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useOutsideClose } from "../../useOutsideClose";
 import { Complaint } from "../../api";
 import { FilterKey } from "../../complaints";
-import { copyText } from "../../ContactsScreen";
+import { copyText } from "../../screens/contacts/parts";
 import { koIndex } from "../../journal";
 import { useJamoGuard } from "../../koInput";
 import { SearchBox } from "../../SearchBox";

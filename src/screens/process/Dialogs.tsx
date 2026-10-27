@@ -1,7 +1,7 @@
 // 민원처리 – 창: 공사 관리 창(WorksDialog·ProjectPick·AgentInputs)과 메일 보내기 창(MailDialog).
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, Contact, ContactsData, errorText, Work, WorkInput } from "../../api";
-import { projectColor } from "../../ContactsScreen";
+import { projectColor } from "../../screens/contacts/parts";
 import { DelMark } from "../../Icons";
 import { DialogX } from "../../DialogX";
 import { overlayDown, useOutsideClose } from "../../useOutsideClose";

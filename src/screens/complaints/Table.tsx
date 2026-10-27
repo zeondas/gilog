@@ -31,7 +31,7 @@ import {
 } from "../../complaints";
 import { parseLines } from "../../bullets";
 import { BulletEditor, BulletView } from "../../BulletParts";
-import { copyText, Hl, parseMemo } from "../../ContactsScreen";
+import { copyText, Hl, parseMemo } from "../../screens/contacts/parts";
 import { parseDate, todayStr } from "../../journal";
 import { ChoiceInput, PlaceInput } from "../../PlaceInputs";
 import { isAnswered, isClosed, statusColor } from "../../settingsStore";
