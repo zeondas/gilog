@@ -42,6 +42,18 @@ keys는 없어요(키 다루기가 줄·칸마다 안에 있어 따로 뗄 함�
 | [Menu.tsx](https://github.com/zeondas/gilog/blob/main/src/screens/files/Menu.tsx) | `PickMenu`, `TabMenu` | 66 |
 | [parts.tsx](https://github.com/zeondas/gilog/blob/main/src/screens/files/parts.tsx) | 타입 `PopItem`·`Pop`·`FindRun`·`RTab`·`RPane`·`RState`·`Listing`·`Sel`·`Row`, `EMPTY_SEL`, `DATE_TIME_GAP` | 33 |
 
+### 보기 – 민원대장 (2,056줄 → 5파일, 정리 5차 `wip/split-complaints`)
+
+| 파일 | 들어간 것 | 줄 |
+| --- | --- | --- |
+| [Screen.tsx](https://github.com/zeondas/gilog/blob/main/src/screens/complaints/Screen.tsx) | 머리 설명, `COLS_KEY`·`STATUS_FILTER_KEY`·`DONE_FOLD_KEY`, `ComplaintsScreen`(몸통은 빼내지 않음 – 448줄이라 "화면 몸통 안의 큰 함수"는 쓰지 않았어요), `rowEstimate`·`inputOf`, 열 폭 재기 `PHONE_SAMPLE`·`HEAD_FONT`·`STATUS_BADGE`·`MEMO_BTN`·`FOLD_BTN`·`DUE_GAP`·`useColNeeds`, `same` | 622 |
+| [Table.tsx](https://github.com/zeondas/gilog/blob/main/src/screens/complaints/Table.tsx) | `headFilter`·`HeadRow`(열 제목 줄)·`Funnel`, `FilterChips`(상태 칩 줄 – 메뉴가 아니라 줄 부품, 사용자 ①1안), `emptyDraft`·`Cells`(칸 묶음)·`NewRow`·`Plus`·`EditRow`, `Bullets`·`ViewRow`·`MemoButton`·`CopyCell`, 보기 줄 안 고르기 상자 `StatusPick`·`DuePick`·`TakenPick`(사용자 ②1안) | 1,055 |
+| [Dialogs.tsx](https://github.com/zeondas/gilog/blob/main/src/screens/complaints/Dialogs.tsx) | `normDates`, `DateField`, `focusField`, `useDraft`, `MemoDialog`, `CatsDialog` | 199 |
+| [Menu.tsx](https://github.com/zeondas/gilog/blob/main/src/screens/complaints/Menu.tsx) | `HeadMenu`, `RowMenu`, `FilterMenu`·`Check` | 201 |
+| [parts.tsx](https://github.com/zeondas/gilog/blob/main/src/screens/complaints/parts.tsx) | `FILTER_LABEL`, `Lists`, `Draft`·`DateKey`·`Bad`, `PlaceStyle`·`placeText` | 23 |
+
+keys는 없어요(따로 뗄 키 함수가 없음). 한 조각만 쓰는 작은 그림(`Check`·`Funnel`·`Plus`)은 parts가 아니라 쓰는 조각 안에 뒀어요(2장 마지막 줄, 사용자 ③1안). Table이 Dialogs(`DateField`·`useDraft`·`focusField`)와 Menu(`HeadMenu`)를 부르고, 거꾸로 부르는 곳은 없어요.
+
 ## 2. 조각 이름 규칙
 
 - 어느 조각으로 갈지는 **지금 함수 경계**로만 정해요. 함수를 새로 쪼개거나 합치지 않아요.
@@ -73,6 +85,7 @@ keys는 없어요(키 다루기가 줄·칸마다 안에 있어 따로 뗄 함�
    diff /tmp/a.txt /tmp/b.txt
    ```
    (`...이름(` 처럼 점 세 개 뒤에 쓰인 함수는 import가 빠지기 쉬워요 – `npm run build`가 잡아요.)
+   여러 줄 import(`import {` … `} from`)의 안쪽 줄과 `export default`는 이 명령으로는 빠지지 않아 차이로 보여요 – 민원대장 때는 import 덩어리를 통째로 빼고 견줘 머리 설명 줄만 남는 것을 확인했어요.
 5. 커밋은 셋: ① 파일 나누기(원래 파일 지움) ② `App.tsx` import ③ 문서(현황판·이 문서에 그 화면 보기 표 더하기).
 
 ## 4. 합격 확인 명령
@@ -94,7 +107,7 @@ python3 tools/guard/behave.py /tmp/g_cur <그 화면 시험 이름들>
 # 끝낼 때 한 번 – 전체 91장면 (흔들리는 두 장면만 허용)
 python3 tools/guard/shoot.py /tmp/g_base /tmp/s_base
 python3 tools/guard/shoot.py /tmp/g_cur  /tmp/s_cur
-python3 tools/guard/compare.py /tmp/s_base /tmp/s_cur /tmp/s_diff --allow complaints_newrow_baddate journal_memo
+python3 tools/guard/compare.py /tmp/s_base /tmp/s_cur /tmp/s_diff --allow complaints_newrow_baddate journal_memo files_find_baddate
 python3 tools/guard/styles.py /tmp/g_base /tmp/g_cur      # 0
 python3 tools/guard/behave.py /tmp/g_cur                  # 전부 통과
 
