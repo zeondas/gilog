@@ -3,7 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { api, applyAccent, DEFAULT_PREFS, errorText, inApp, Prefs, Reminder, Status } from "./api";
 import { measureBullets } from "./bullets";
 import CalendarScreen, { EventFocus } from "./CalendarScreen";
-import ComplaintsScreen from "./ComplaintsScreen";
+import ComplaintsScreen from "./screens/complaints/Screen";
 import ContactsScreen from "./ContactsScreen";
 import ProcessScreen from "./ProcessScreen";
 import BudgetScreen from "./BudgetScreen";
