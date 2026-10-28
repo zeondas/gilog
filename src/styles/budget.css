@@ -763,9 +763,6 @@ button.bd-chip:hover {
   color: var(--ink);
 }
 
-/* 집행현황 – 머리 줄 단추 모양(탐색기 배치복구 모양) */
-.bd-tool { gap: 6px; flex: none; white-space: nowrap; }
-.bd-tool svg { flex: none; color: var(--muted); }
 /* 마감일·조치완료일 칸(2026-10-19 사용자): 폭 고정 130, 날짜는 왼쪽·남은 날/걸린 날은 칸 오른쪽 끝에 맞춰 줄마다 세로로 가지런히 */
 /* ---------- 집행현황 팀 공유 (2026-10-20 사용자 – 시안 BudgetShare.dc.html) ----------
    머리 줄: 해 옆 [새로고침](탐색기와 같은 단추) + "올림 · 받음" 시각 – 오른쪽 칸(상단 정리 .tb5)은 그대로.

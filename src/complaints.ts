@@ -189,7 +189,9 @@ export function layoutCols(needs: Partial<Record<ColKey, ColNeed>>, avail: numbe
     }
   }
   const rest = avail > 0 ? avail - fixed.reduce((a, k) => a + w[k], 0) : 2 * FLEX_MIN;
-  for (const k of FLEXED) w[k] = Math.max(CONTENT_MIN, Math.floor(rest / FLEXED.length));
+  // 반씩(남는 1px은 조치내용이) – 처음 값의 합이 표 폭과 꼭 같게
+  w.body = Math.max(CONTENT_MIN, Math.floor(rest / 2));
+  w.action = Math.max(CONTENT_MIN, rest - w.body);
   // 끈 열은 폭만 보고 정해요: 다 들어가면 전체 글자, 모자라면 줄인 모양(2026-10-28 사용자 1안 – 넓혀도 "메신…"으로 남던 것).
   for (const k of fixed) {
     const n = need(k);

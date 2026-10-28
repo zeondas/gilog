@@ -805,9 +805,6 @@
   color: var(--muted);
 }
 
-/* 민원대장 배치최적화 단추 – 집행현황 .bd-tool과 같은 모양 */
-.cm-tool { gap: 6px; flex: none; white-space: nowrap; }
-.cm-tool svg { flex: none; color: var(--muted); }
 
 /* 민원대장 줄 위쪽 맞춤(2026-10-19 사용자 "굿") + 한 줄짜리 줄은 가운데(2026-10-20 사용자 – 첫 줄이 위로 2.5px 떠 보였어요):
    모든 칸의 첫 줄 가운데를 줄 위 20px(= 한 줄짜리 줄 높이 40의 가운데)에 맞춰요. 한 줄 칸 위아래 11px, 여러 줄 칸 10px,
