@@ -1,9 +1,10 @@
 // 집행현황(12단계) 규칙 함수. 계산은 저장하지 않고 여기서 해요(엑셀은 같은 규칙을 수식으로 – core budget_xlsx.rs).
-// 정한 것(2026-10-18 사용자, 계산 규칙 21:35 확정 – 돈만으로 계산):
-//   잔액 = 원인행위 − 기준, 집행률 = Σ기준 ÷ 예산(단계 무관) – 기준은 집행액(처음 값) 또는 시공량(사용량), 화면 위 단추로 골라요(2026-10-19 사용자)
-//   가용액 = 예산 − Σ(완료·타절이면 max(원인행위, 집행액), 아니면 원인행위) – 0 아래(초과)면 붉게
-//   공사 줄 막대 = 기준 ÷ 원인행위(회색), 공사 줄 가용액은 빈칸
-//   FINAL(완료·타절)은 가용액과 줄 순서에만 써요
+// 계산 규칙(2026-10-28 집행현황 계산 세션, 사용자 11:47·12:05 – 돈만으로 계산, 단계로 저절로):
+//   쓴 돈(spent) = 완료·타절이면 집행액(확정 지출), 진행 중(준비·추진·중지)이면 시공량(사용량 – 실제 공사한 만큼, 0이면 0 그대로)
+//   공사 줄 잔액 = 원인행위 − 쓴 돈, 공사 줄 막대 = 쓴 돈 ÷ 원인행위(회색), 공사 줄 가용액은 빈칸
+//   합계 줄 잔액 = 공사 줄 잔액 합, 합계 줄 집행률 = Σ집행액 ÷ 예산(늘 집행액, 단계 무관)
+//   가용액 = 예산 − Σ(완료·타절이면 집행액, 아니면 원인행위) – 0 아래(초과)면 붉게
+//   (전엔 화면 위 [집행액 | 시공량] 단추로 기준을 골랐고, 가용액은 완료면 max(원인행위, 집행액)였어요)
 //   금액은 원 단위 정수(십원 단위부터). 화면 단위 원/천원 – 천원은 반올림한 정수만 보여요.
 import { BKind, linesToText, BLine } from "./bullets";
 import { sanitize } from "./RichMemo";
@@ -21,30 +22,28 @@ export type BudgetRowInput = { name: string; kind: string; co: string; cmt: numb
 export type BudgetLevel = "project" | "item" | "row";
 
 export const FINAL = (st: string) => st === "완료" || st === "타절";
-/** 잔액·집행률 기준(2026-10-19 사용자 – 담당자마다 견해가 달라 화면 위 단추로 골라요, 단계와 무관): 집행액 또는 시공량(사용량) */
-export type Basis = "exp" | "act";
-/** 쓴 돈 = 고른 기준(처음 값 집행액). 가용액(tied)은 기준과 상관없어요. */
-export const spent = (r: BudgetRow, b: Basis = "exp") => (b === "act" ? r.act : r.exp);
-export const balance = (r: BudgetRow, b: Basis = "exp") => r.cmt - spent(r, b);
-export const tied = (r: BudgetRow) => (FINAL(r.stage) ? Math.max(r.cmt, r.exp) : r.cmt);
-/** 공사 줄 막대 = 기준(집행액·시공량) ÷ 원인행위. 원인행위가 0이면 없음. */
-export const rowRate = (r: BudgetRow, b: Basis = "exp") => (r.cmt ? (spent(r, b) / r.cmt) * 100 : null);
+/** 쓴 돈: 끝난 공사는 집행액, 진행 중은 시공량(사용량) */
+export const spent = (r: BudgetRow) => (FINAL(r.stage) ? r.exp : r.act);
+export const balance = (r: BudgetRow) => r.cmt - spent(r);
+/** 가용액에서 빠지는 돈: 끝난 공사는 집행액(확정), 진행 중은 원인행위(앞으로 나갈 돈) */
+export const tied = (r: BudgetRow) => (FINAL(r.stage) ? r.exp : r.cmt);
+/** 공사 줄 막대 = 쓴 돈 ÷ 원인행위. 원인행위가 0이면 없음. */
+export const rowRate = (r: BudgetRow) => (r.cmt ? (spent(r) / r.cmt) * 100 : null);
 
 export type Sums = { cmt: number; exp: number; act: number; bal: number; rate: number | null; avail: number | null; low: boolean; done: number; n: number };
 
-export function sums(budget: number | null, rows: BudgetRow[], b: Basis = "exp"): Sums {
-  let cmt = 0, exp = 0, act = 0, bal = 0, sp = 0, t = 0, done = 0;
+export function sums(budget: number | null, rows: BudgetRow[]): Sums {
+  let cmt = 0, exp = 0, act = 0, bal = 0, t = 0, done = 0;
   for (const r of rows) {
     cmt += r.cmt;
     exp += r.exp;
     act += r.act;
-    bal += balance(r, b);
-    sp += spent(r, b);
+    bal += balance(r);
     t += tied(r);
     if (FINAL(r.stage)) done++;
   }
   const avail = budget == null ? null : budget - t;
-  return { cmt, exp, act, bal, rate: budget ? (sp / budget) * 100 : null, avail, low: avail != null && avail < 0, done, n: rows.length };
+  return { cmt, exp, act, bal, rate: budget ? (exp / budget) * 100 : null, avail, low: avail != null && avail < 0, done, n: rows.length };
 }
 
 export const allRows = (p: BudgetProject) => p.items.flatMap((i) => i.rows);
