@@ -21,13 +21,13 @@ import {
   ddayText,
   FilterKey,
   filterValues,
-  gridTemplate,
+  COL_SLACK,
+  FLEXED,
   layoutCols,
   matches,
   NO_FILTERS,
   p90,
   passes,
-  readRatios,
   readStatusFilter,
   shortIntake,
 } from "../../complaints";
@@ -38,6 +38,8 @@ import { lookupMany } from "../../addressWeb";
 import { areaFor } from "../../address";
 import { DEFAULT_SETTINGS, DONE_STATUS, isClosed, loadSettings, saveSettings, Settings, STATUS_RENAME } from "../../settingsStore";
 import { SearchBox } from "../../SearchBox";
+import { useColHead } from "../../ColHead";
+import type { ColDef } from "../../cols";
 import { HeadRow, FilterChips, NewRow, EditRow, ViewRow } from "./Table";
 import { MemoDialog, CatsDialog } from "./Dialogs";
 import type { ListMerge } from "../settings/Table";
@@ -45,10 +47,10 @@ import { RowMenu, FilterMenu } from "./Menu";
 import { Lists, PlaceStyle, placeText } from "./parts";
 
 /**
- * 끌어서 정한 열 폭을 저장하는 곳(암호화 파일 안) – 열마다 표 폭 비율(2026-10-21 사용자: 창 폭 비율로).
- * 예전 px 폭(`complaints.colWidths`)은 읽지 않아요 – 그 폭이 내용·조치내용을 좁게 만든 원인이라 새 자동 폭에서 시작해요.
+ * 끌어서 정한 열 폭(끈 열만 px) – 헤더 열 조정 통일(2026-10-28)의 공통 부품 ColHead가 읽고 써요.
+ * 옛 비율(`complaints.colRatios`)·옛 px(`complaints.colWidths`)은 읽지 않아요.
  */
-const COLS_KEY = "complaints.colRatios";
+const COLS_KEY = "complaints.cols";
 /** 상태 필터만 마지막 것을 기억해요(2026-10-17 사용자 2안 + 상태 예외). 다른 열 필터는 앱을 끄면 풀려요. */
 const STATUS_FILTER_KEY = "complaints.statusFilter";
 /** 조치완료일 열 접기(2026-10-19 사용자) – 접으면 걸린 날 "Nd"만 보여요. */
@@ -59,9 +61,8 @@ const DONE_FOLD_KEY = "complaints.doneFolded";
 export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { urgentDays: number; focusId?: number | null; onFocused?: () => void }) {
   const [list, setList] = useState<Complaint[] | null>(null);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
-  const [ratios, setRatios] = useState<Partial<Record<ColKey, number>>>({});
   const [doneFolded, setDoneFolded] = useState(true); // 처음엔 접혀 있어요(2026-10-19 사용자)
-  // 표가 쓸 수 있는 폭. 저장된 열 너비가 이보다 넓으면 비율대로 줄여 보여요(가로 스크롤 없음).
+  // 표가 쓸 수 있는 폭(위쪽 줄 폭 − 표 테두리) – 내용·조치내용 처음 값을 여기에 맞춰요. 넓힌 열이 넘치면 본문이 가로로 밀려요.
   const tableRef = useRef<HTMLDivElement>(null);
   const [avail, setAvail] = useState(0);
   const [q, setQ] = useState("");
@@ -98,7 +99,6 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
       })
       .then(setList, (e) => setNote(errorText(e)));
     loadSettings().then(setSettings, () => {});
-    api.get(COLS_KEY).then((raw) => setRatios(readRatios(raw)), () => {});
     api.get(DONE_FOLD_KEY).then((raw) => setDoneFolded(raw !== "false"), () => {});
     api.get(STATUS_FILTER_KEY).then((raw) => setFilters((f) => ({ ...f, status: readStatusFilter(raw) })), () => {});
     // 구글 할 일에서 민원을 체크하면 상태가 바뀌어요 → 다시 읽어요.
@@ -183,17 +183,8 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
     }
   }
 
-  function saveRatios(r: Partial<Record<ColKey, number>>) {
-    setRatios(r);
-    run(api.set(COLS_KEY, JSON.stringify(r)));
-  }
-
   const all = list ?? [];
 
-  /** 배치최적화 = 끌어서 정한 폭을 지우고 자동 폭으로(자동 폭이 곧 글 폭 + 같은 여유예요). */
-  function fitColumns() {
-    saveRatios({});
-  }
   const query = q.trim().toLowerCase();
   const found = all.filter((c) => matches(c, query));
   const shown = found.filter((c) => passes(c, filters));
@@ -245,8 +236,29 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
   }, [list, settings]);
 
   const needs = useColNeeds(all, statuses, doneFolded, today, settings.placeStyle);
-  const layout = layoutCols(needs, avail, ratios);
-  const shownWidths = layout.ws;
+  // 열 폭(헤더 열 조정 통일 ✔1~3): 처음 값은 layoutCols(글 폭·창 폭), 끈 열은 px 그대로. 상태·메모는 고정, 접힌 조치완료일도 고정.
+  const init = layoutCols(needs, avail).init;
+  const colDefs: ColDef[] = COLUMNS.map((c) => ({
+    id: c.key,
+    label: c.label,
+    init: init[c.key],
+    fixed: c.key === "status" || c.key === "memo" || (c.key === "done" && doneFolded),
+    text: c.key === "place" || FLEXED.includes(c.key),
+  }));
+  const cols = useColHead({
+    store: COLS_KEY,
+    cols: colDefs,
+    // 내용에 맞춤 = 모든 민원의 그 열 글 폭 + 같은 여유(줄인 모양이 아니라 전체 글자). 여러 줄인 내용·조치내용은 처음 폭으로.
+    measure: (id) => {
+      const k = id as ColKey;
+      if (FLEXED.includes(k)) return null;
+      const n = needs[k];
+      return n ? Math.ceil(n.full + COL_SLACK) : null;
+    },
+  });
+  const layout = layoutCols(needs, avail, cols.saved);
+  const shownWidths = COLUMNS.map((c) => cols.width(c.key));
+  const total = shownWidths.reduce((a, w) => a + w, 0);
   const foldDone = (v: boolean) => {
     setDoneFolded(v);
     run(api.set(DONE_FOLD_KEY, v ? "true" : "false"));
@@ -254,7 +266,7 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
   // 위쪽 줄 높이(열 제목 줄을 그만큼 내려 붙여요)
   const topRef = useRef<HTMLDivElement>(null);
   const [topH, setTopH] = useState(0);
-  const tableStyle = { "--cm-cols": gridTemplate(shownWidths, layout.flexMin) } as CSSProperties;
+  const tableStyle = { "--cm-cols": shownWidths.map((w) => w + "px").join(" "), minWidth: total + 2 } as CSSProperties;
   (tableStyle as Record<string, string>)["--cm-top-h"] = `${topH}px`;
   const memoOf = all.find((c) => c.id === memoId) ?? null;
 
@@ -267,11 +279,11 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
     return () => ro.disconnect();
   }, [list === null]);
 
-  // 표 안쪽 폭을 재요(창 크기를 바꾸면 다시).
+  // 표가 쓸 수 있는 폭을 재요(창 크기를 바꾸면 다시) – 표는 넓힌 열만큼 커지니 위쪽 줄 폭에서 표 테두리(2)를 빼요.
   useEffect(() => {
-    const el = tableRef.current;
+    const el = topRef.current;
     if (!el) return;
-    const measure = () => setAvail(el.clientWidth);
+    const measure = () => setAvail(Math.max(0, el.offsetWidth - 2));
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
@@ -300,12 +312,6 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
           onClear={(k) => setFilter(k, null)}
           onClearAll={clearFilters}
         />
-        <button type="button" className="btn btn-ctrl cm-tool tb-fit" title="끌어서 정한 열 폭을 지우고 글 폭에 맞춰요(열마다 같은 여유, 남는 폭은 내용·조치내용에)" onClick={fitColumns}>
-          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 5v14M21 5v14M3 12h6M21 12h-6M6 9l3 3-3 3M18 9l-3 3 3 3" />
-          </svg>
-          배치최적화
-        </button>
         <button type="button" className="btn btn-ctrl btn-text tb-pop" onClick={() => setCatsOpen(true)}>
           분류 관리
         </button>
@@ -349,11 +355,7 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
 
       <div className={"cm" + (doneFolded ? " cm-fold-done" : "")} role="table" aria-label="민원 목록" style={tableStyle} ref={tableRef}>
         <HeadRow
-          widths={shownWidths}
-          avail={avail}
-          onResize={(k, px) => setRatios((r) => ({ ...r, [k]: px / avail }))}
-          onResized={(k, px) => saveRatios({ ...ratios, [k]: px / avail })}
-          onResetWidths={() => saveRatios({})}
+          cols={cols}
           doneFolded={doneFolded}
           onFoldDone={foldDone}
           filters={filters}

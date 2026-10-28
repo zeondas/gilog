@@ -232,8 +232,15 @@ export function useColHead(o: { store: string; part?: string; cols: ColDef[]; me
   };
   const fitOne = (id: string) => {
     const c = def(id);
+    if (!c || c.fixed) return;
     const m = measureRef.current?.(id);
-    if (!c || c.fixed || m == null || !(m > 0)) return;
+    if (m == null || !(m > 0)) {
+      // 잴 수 없는 열(여러 줄 긴 글 열 등)은 처음 폭(창에 맞춘 폭)으로 돌아가요
+      const { [id]: _drop, ...rest } = savedRef.current;
+      void _drop;
+      save(rest);
+      return;
+    }
     save({ ...savedRef.current, [id]: fitPx(c, m) });
   };
   const fitAll = () => save(fitAllPx(colsRef.current, savedRef.current, (id) => measureRef.current?.(id)));

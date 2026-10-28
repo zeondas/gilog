@@ -153,35 +153,33 @@ const CELL_PAD = 20;
 export const CONTENT_FLOOR = 0.4;
 /** 줄이는 순서(2026-10-21 사용자): 마감일 날짜 → 접수일 26-10-16 → 접수유형 두 글자 → 위치 읍면. 넓히면 거꾸로 풀려요. */
 export const SHORT_ORDER: ColKey[] = ["due", "received", "intake", "place"];
-const FLEXED: ColKey[] = ["body", "action"];
 /** 내용·조치내용 가장 좁은 폭 */
 export const CONTENT_MIN = 80;
 
 export type ColLayout = {
-  /** COLUMNS 순서, 내용·조치내용은 null(남는 폭 반씩) */
-  ws: (number | null)[];
+  /** 열마다 처음 폭(COLUMNS 순서 키) – 내용·조치내용은 창(표) 폭에 맞춘 값 */
+  init: Record<ColKey, number>;
   /** 줄인 모양으로 보이는 열 */
   short: Set<ColKey>;
-  /** 내용·조치내용 칸 하나의 가장 좁은 폭 */
-  flexMin: number;
 };
 
+/** 긴 글 열(내용·조치내용) – 처음 값만 창 폭에 맞춰요(헤더 열 조정 통일 ✔3①) */
+export const FLEXED: ColKey[] = ["body", "action"];
+
 /**
- * 민원대장 열 폭을 정해요(2026-10-21 사용자 ①~⑨).
- * - 내용·조치내용을 뺀 열 = 들어갈 것의 폭 + 같은 여유 28. 끌어서 정한 열(ratio = 표 폭 비율)은 그 폭.
+ * 민원대장 열 처음 폭을 정해요(2026-10-21 사용자 ①~⑨, 헤더 열 조정 통일 10-28 ✔3①로 "처음 값 계산"만).
+ * - 내용·조치내용을 뺀 열 = 들어갈 것의 폭 + 같은 여유 28.
  * - 내용·조치내용이 표 폭의 45%를 못 받으면 SHORT_ORDER대로 하나씩 줄인 모양으로 바꿔요.
  * - 다 풀린 넓은 창이면 남는 폭(40% 넘는 만큼)을 민원인에 더 줘요(more까지).
  * - 다 줄여도 40%가 안 되면 다른 열의 여유를 22(칸 여백 + 2)까지 줄이고, 그래도 모자라면 내용·조치내용이 80까지 줄어요.
- * - 끈 열은 그 폭이 들어갈 것보다 좁으면 줄인 모양이에요.
+ * - 내용·조치내용 처음 값 = 남는 폭 반씩. 다른 열을 끌어도 처음 값은 그대로예요(총폭이 늘고 가로 스크롤).
+ * - user(끈 열 px)는 줄인 모양만 정해요: 그 폭이 들어갈 것 + 12보다 좁으면 줄인 모양(2026-10-28 사용자 1안).
  */
-export function layoutCols(needs: Partial<Record<ColKey, ColNeed>>, avail: number, ratios: Partial<Record<ColKey, number>> = {}): ColLayout {
+export function layoutCols(needs: Partial<Record<ColKey, ColNeed>>, avail: number, user: Partial<Record<ColKey, number>> = {}): ColLayout {
   const keys = COLUMNS.map((c) => c.key);
   const fixed = keys.filter((k) => !FLEXED.includes(k));
   const need = (k: ColKey): ColNeed => needs[k] ?? { full: 40 };
-  const user = (k: ColKey) => (ratios[k] && avail > 0 ? Math.max(COL_MIN, Math.round(ratios[k]! * avail)) : null);
   const widthAt = (k: ColKey, short: Set<ColKey>) => {
-    const u = user(k);
-    if (u !== null) return u;
     const n = need(k);
     return Math.ceil((short.has(k) && n.short != null ? n.short : n.full) + COL_SLACK);
   };
@@ -197,62 +195,37 @@ export function layoutCols(needs: Partial<Record<ColKey, ColNeed>>, avail: numbe
     if (level > SHORT_ORDER.length) level = SHORT_ORDER.length;
     short = new Set(SHORT_ORDER.slice(0, level));
   }
-  const w: Partial<Record<ColKey, number>> = {};
+  const w = {} as Record<ColKey, number>;
   for (const k of fixed) w[k] = widthAt(k, short);
 
   if (avail > 0) {
     let content = avail - sumOf(short);
     // 다 풀린 넓은 창: 민원인에 조금 더(최대화에서 "김영수 010-4321-8765"가 생략 없이).
     const p = need("person");
-    if (level === 0 && user("person") === null && p.more && p.more > p.full) {
+    if (level === 0 && p.more && p.more > p.full) {
       const extra = Math.max(0, Math.min(p.more - p.full, content - CONTENT_FLOOR * avail));
-      w.person! += Math.floor(extra);
+      w.person += Math.floor(extra);
       content -= Math.floor(extra);
     }
-    // 다 줄여도 모자라요: 끌지 않은 열의 여유를 8까지 같이 줄여요.
+    // 다 줄여도 모자라요: 여유를 같이 줄여요.
     const deficit = CONTENT_FLOOR * avail - content;
     if (deficit > 0) {
-      const auto = fixed.filter((k) => user(k) === null);
       // 칸 여백(좌우 10)보다 좁히면 열 제목·글자가 잘려요 – 여유는 CELL_PAD + 2까지만(2026-10-21 화면 배율).
-      const each = Math.min(COL_SLACK - CELL_PAD - 2, Math.ceil(deficit / Math.max(1, auto.length)));
-      for (const k of auto) w[k] = w[k]! - each;
+      const each = Math.min(COL_SLACK - CELL_PAD - 2, Math.ceil(deficit / Math.max(1, fixed.length)));
+      for (const k of fixed) w[k] = w[k] - each;
     }
   }
+  const rest = avail > 0 ? avail - fixed.reduce((a, k) => a + w[k], 0) : 2 * FLEX_MIN;
+  for (const k of FLEXED) w[k] = Math.max(CONTENT_MIN, Math.floor(rest / FLEXED.length));
   // 끈 열은 폭만 보고 정해요: 다 들어가면 전체 글자, 모자라면 줄인 모양(2026-10-28 사용자 1안 – 넓혀도 "메신…"으로 남던 것).
   for (const k of fixed) {
     const n = need(k);
-    if (user(k) === null || n.short == null) continue;
-    if (w[k]! < n.full + 12) short.add(k);
+    const u = user[k];
+    if (u == null || n.short == null) continue;
+    if (u < n.full + 12) short.add(k);
     else short.delete(k);
   }
-  const content = avail > 0 ? (avail - fixed.reduce((a, k) => a + w[k]!, 0)) / FLEXED.length : FLEX_MIN;
-  return {
-    ws: keys.map((k) => (FLEXED.includes(k) ? null : w[k]!)),
-    short,
-    flexMin: Math.max(CONTENT_MIN, Math.min(FLEX_MIN, Math.floor(content))),
-  };
-}
-
-/** 저장해 둔 끈 폭(열마다 표 폭 비율). 모양이 맞지 않으면 없음(자동)이에요. */
-export function readRatios(raw: string | null): Partial<Record<ColKey, number>> {
-  try {
-    const v = JSON.parse(raw ?? "");
-    if (!v || typeof v !== "object" || Array.isArray(v)) return {};
-    const out: Partial<Record<ColKey, number>> = {};
-    for (const c of COLUMNS) {
-      const x = v[c.key];
-      if (typeof x === "number" && x > 0 && x < 0.6 && c.w !== null) out[c.key] = x;
-    }
-    return out;
-  } catch {
-    return {};
-  }
-}
-
-/** 열 하나를 끌 때 가장 넓게(내용·조치내용이 80씩은 남게) */
-export function maxDragWidth(ws: (number | null)[], i: number, avail: number): number {
-  const others = ws.reduce<number>((a, w, j) => a + (j === i ? 0 : w === null ? CONTENT_MIN : w), 0);
-  return Math.max(COL_MIN, Math.floor(avail - others));
+  return { init: w, short };
 }
 
 /** 90%가 들어가는 폭(드문 긴 글 때문에 열이 넓어지지 않게) */

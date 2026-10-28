@@ -9,13 +9,12 @@ import {
   useState,
 } from "react";
 import { DelMark } from "../../Icons";
-import { startColDrag } from "../../ColGrip";
+import type { ColHead } from "../../ColHead";
 import { isInside, useOutsideClose } from "../../useOutsideClose";
 import { onSelection } from "../../noContextMenu";
 import { isKey, rowKeys } from "../../keys";
 import { Complaint, ComplaintInput } from "../../api";
 import {
-  COL_MIN,
   COLUMNS,
   ColKey,
   ColFilters,
@@ -26,7 +25,6 @@ import {
   FILTER_KEYS,
   FilterKey,
   isUrgent,
-  maxDragWidth,
   shortDate,
   shortIntake,
 } from "../../complaints";
@@ -39,7 +37,6 @@ import { isAnswered, isClosed, statusColor } from "../../settingsStore";
 import { AskBand } from "../../AskBand";
 import { DateInput } from "../../DateInput";
 import { DateField, focusField, useDraft } from "./Dialogs";
-import { HeadMenu } from "./Menu";
 import { FILTER_LABEL, Lists, Draft, DateKey, PlaceStyle, placeText, Bad } from "./parts";
 
 /** 열 제목의 거르기 – 지역 거르기는 위치 열 제목에서(지역 열이 위치 칸에 합쳐졌어요) */
@@ -48,11 +45,7 @@ const headFilter = (k: ColKey): FilterKey | null => (k === "place" ? "area" : (F
 // ---------- 열 제목과 너비 끌기 ----------
 
 export function HeadRow({
-  widths,
-  avail,
-  onResize,
-  onResized,
-  onResetWidths,
+  cols,
   filters,
   open,
   onToggle,
@@ -60,11 +53,8 @@ export function HeadRow({
   doneFolded,
   onFoldDone,
 }: {
-  widths: (number | null)[];
-  avail: number;
-  onResize: (k: ColKey, px: number) => void;
-  onResized: (k: ColKey, px: number) => void;
-  onResetWidths: () => void;
+  /** 열 폭 공통 부품(헤더 열 조정 통일) – 손잡이·우클릭 메뉴·저장 */
+  cols: ColHead;
   filters: ColFilters;
   open: FilterKey | null;
   onToggle: (k: FilterKey) => void;
@@ -72,38 +62,11 @@ export function HeadRow({
   doneFolded: boolean;
   onFoldDone: (v: boolean) => void;
 }) {
-  const rowRef = useRef<HTMLDivElement>(null);
-  // 열 제목 줄 우클릭 메뉴: 열 너비 초기화 (2026-10-17 사용자 2안)
-  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
-
-  function start(e: ReactMouseEvent, i: number) {
-    e.preventDefault();
-    const row = rowRef.current;
-    if (!row) return;
-    const k = COLUMNS[i].key;
-    const base = widths[i] ?? (row.children[i] as HTMLElement).getBoundingClientRect().width;
-    // 표 폭을 넘게 넓히지 않아요(내용·조치내용이 80씩은 남게, 가로 스크롤이 생기지 않게).
-    const max = avail > 0 ? maxDragWidth(widths, i, avail) : Infinity;
-    startColDrag(e, {
-      base,
-      min: COL_MIN,
-      max,
-      bodyClass: "col-dragging",
-      on: "document",
-      onMove: (px) => onResize(k, px),
-      onEnd: (px) => px !== null && onResized(k, px),
-    });
-  }
-
   return (
     <div
       role="row"
-      className="cm-row cm-head"
-      ref={rowRef}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        setMenu({ x: e.clientX, y: e.clientY });
-      }}
+      className="cm-row cm-head colh-row"
+      onContextMenu={cols.onContextMenu}
     >
       {COLUMNS.map((col, i) => {
         const fk = headFilter(col.key);
@@ -142,21 +105,11 @@ export function HeadRow({
               col.label
             )}
             {open === fk && fk && dropdown}
-            {i < COLUMNS.length - 1 && col.w !== null && <span className="cm-grip" aria-hidden="true" title="끌어서 열 너비 바꾸기" onMouseDown={(e) => start(e, i)} />}
+            {cols.grip(col.key, { last: i === COLUMNS.length - 1 })}
           </div>
         );
       })}
-      {menu && (
-        <HeadMenu
-          x={menu.x}
-          y={menu.y}
-          onClose={() => setMenu(null)}
-          onReset={() => {
-            setMenu(null);
-            onResetWidths();
-          }}
-        />
-      )}
+      {cols.menu()}
     </div>
   );
 }
