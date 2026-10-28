@@ -401,14 +401,6 @@
 .fx-hdr .fx-col {
   border-left-color: var(--line-soft);
 }
-.fx-col-grip {
-  position: absolute;
-  left: -4px;
-  top: 0;
-  bottom: 0;
-  width: 7px;
-  cursor: col-resize;
-}
 .fx-list {
   flex: 1;
   min-height: 0;
@@ -1276,9 +1268,6 @@ select.input.fx-set-date { width: 190px; }
 .fx-hdr .fx-col { border-right-color: var(--line-soft); }
 .fx-frow > .fx-ncell { align-self: stretch; border-right: 1px solid var(--line-row); }
 .fx-hdr > .fx-hname { align-self: stretch; border-right: 1px solid var(--line-soft); }
-.fx-col-grip { left: auto; right: -4px; z-index: 2; }
 /* ✔5 열 제목 끌기 – 놓을 자리 세로 줄 */
 .fx-hdr > .fx-col[data-drag="1"] { background: var(--surface-band); color: var(--ink); }
 .fx-col-drop { position: absolute; top: 3px; bottom: 3px; width: 2px; border-radius: 1px; background: var(--accent); pointer-events: none; z-index: 3; }
-/* 마지막 열 손잡이는 열 안쪽에(빈 곳으로 삐져나가 가로 막대가 생기지 않게) */
-.fx-hdr > :last-child > .fx-col-grip { right: 0; }

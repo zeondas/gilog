@@ -94,3 +94,44 @@
 /* 설정 [구글 로그인] 마우스를 올렸을 때(보통 모양은 settings.css 끝, 28 단추 모서리 6은 base.css 끝 – 정리 ⑥) */
 .btn.btn-primary.g-login:hover:not(:disabled) { background: var(--accent); filter: brightness(1.08); }
 
+
+/* ---------- 표 머리 줄 열 폭 손잡이 – 공통 부품 ColHead(헤더 열 조정 통일 2026-10-28, 민원대장 모양 기준) ----------
+   머리 칸은 position: relative, 손잡이는 경계 양쪽 5px(마지막 열은 안쪽 끝 10px). 머리 줄(.colh-row)에 올리면 회색 줄, 손잡이에 올리거나 끄는 동안 보라 2px. */
+.colh-grip {
+  position: absolute;
+  top: 0;
+  right: -5px;
+  z-index: 2;
+  width: 10px;
+  height: 100%;
+  cursor: col-resize;
+}
+.colh-grip.last {
+  right: 0;
+}
+.colh-grip::after {
+  content: "";
+  position: absolute;
+  top: 25%;
+  left: 4px;
+  width: 2px;
+  height: 50%;
+  border-radius: 1px;
+  background: transparent;
+}
+.colh-grip.last::after {
+  left: auto;
+  right: 0;
+}
+.colh-row:hover .colh-grip::after {
+  background: var(--line);
+}
+.colh-grip:hover::after,
+.colh-grip.drag::after {
+  background: var(--accent);
+}
+body.col-dragging,
+body.col-dragging * {
+  cursor: col-resize !important;
+  user-select: none;
+}

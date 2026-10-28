@@ -12,7 +12,7 @@ import { finalizePhone } from "../../phone";
 import { api, Contact, ContactInput, ContactsData, Project, ProjectGroup } from "../../api";
 import { AskBand } from "../../AskBand";
 import { SearchBox } from "../../SearchBox";
-import { startColDrag } from "../../ColGrip";
+import { startColDrag, useColHead } from "../../ColHead";
 import { PjMenu, CtxMenu } from "./Menu";
 import { MemoLine, COLOR_NAMES, projectColor, pjLabel, pjFull, pjStyle, koSort, pjSections, useFolded, FoldArrow } from "./parts";
 
@@ -659,13 +659,14 @@ export function MemoEditor({
 // ---------- 사업 관리 창 (2026-10-20 사용자: "프로젝트 관리" → "사업 관리") ----------
 
 /** 창 크기(2026-10-28 사용자 ③2안·폭 3안): 정해진 폭 680으로 열고, 가장자리를 끌면 끈 쪽만 움직여요.
- *  늘고 준 폭은 사업명 열이 받고(긴 이름은 …), 마지막 창 폭·축약 열 폭은 kv `contacts.pjmSize`에 기억해요. */
+ *  늘고 준 폭은 사업명 열이 받고(긴 이름은 …), 마지막 창 폭은 kv `contacts.pjmSize`(w)에 기억해요.
+ *  열(헤더 열 조정 통일 ✔4 – 창 안 표 ⑥2안): 사업명은 늘 창 폭을 따라가고 손잡이 없음, 축약 공사명은 자기 오른쪽 경계로(공통 부품, kv `contacts.pjm.cols`). */
 const PJM_N = 56; // 연락처 열
 const PJM_MIN_NAME = 160;
-const PJM_MIN_SHORT = 96;
 const PJM_W0 = 680;
 const PJM_MIN_W = 560;
 const PJM_KEY = "contacts.pjmSize";
+const PJM_COLS_KEY = "contacts.pjm.cols";
 /** 뜨는 창 바깥 여백(.overlay padding) */
 const PJM_PAD = 16;
 /** 사업명·축약 열 밖의 폭: 창 테두리 2 + 몸통 좌우 40 + 줄 좌우(그룹 안 20+4) + 색 22 + 칸 사이 10×3 + 연락처 + 스크롤 막대 12 */
@@ -678,33 +679,12 @@ function fitShort(projects: Project[]): number {
   const ctx = document.createElement("canvas").getContext("2d");
   if (!ctx) return 160;
   ctx.font = `600 13px ${getComputedStyle(document.body).fontFamily}`;
-  return Math.max(PJM_MIN_SHORT, Math.ceil(Math.max(0, ...projects.map((p) => p.alias).filter(Boolean).map((x) => ctx.measureText(x).width))) + 8);
+  return Math.max(96, Math.ceil(Math.max(0, ...projects.map((p) => p.alias).filter(Boolean).map((x) => ctx.measureText(x).width))) + 8);
 }
 
 /** 창 왼쪽·오른쪽 가장자리 손잡이 – 끈 쪽 가장자리만 마우스를 따라오고 반대쪽은 그대로예요. */
 function EdgeGrip({ side, onDown }: { side: "l" | "r"; onDown: (e: React.MouseEvent) => void }) {
   return <div className={"pjm-grip pjm-grip-" + side} aria-hidden="true" onMouseDown={onDown} title="끌어서 창 폭 바꾸기" />;
-}
-
-/** 열 제목 경계 손잡이: 축약 공사명 열 폭을 바꿔요(사업명 열이 나머지를 받아요). 두 번 누르면 가장 긴 축약명에 맞춰요. */
-function ColGrip({ onDown, onFit, label }: { onDown: (e: React.MouseEvent) => void; onFit: () => void; label: string }) {
-  return (
-    <span
-      className="pjm-colgrip"
-      role="separator"
-      aria-orientation="vertical"
-      aria-label={label + " 열 폭"}
-      title="끌어서 열 폭 바꾸기 · 두 번 누르면 가장 긴 축약명에 맞춤"
-      onMouseDown={(e) => {
-        e.stopPropagation();
-        onDown(e);
-      }}
-      onDoubleClick={(e) => {
-        e.stopPropagation();
-        onFit();
-      }}
-    />
-  );
 }
 
 export function ProjectDialog({
@@ -729,7 +709,7 @@ export function ProjectDialog({
   const [renaming, setRenaming] = useState<number | null>(null);
   const [askGroup, setAskGroup] = useState<number | null>(null);
   // 창 폭·축약 열 폭(2026-10-28 사용자): 처음 680, 끈 크기는 기억해요. x = 끌어서 정한 창 왼쪽 자리(null이면 가운데).
-  const [size, setSize] = useState(() => ({ w: clampW(PJM_W0), short: fitShort(data.projects) }));
+  const [size, setSize] = useState(() => ({ w: clampW(PJM_W0) }));
   const [x, setX] = useState<number | null>(null);
   const sizeRef = useRef(size);
   sizeRef.current = size;
@@ -741,7 +721,8 @@ export function ProjectDialog({
         if (!live || !v) return;
         try {
           const o = JSON.parse(v);
-          if (typeof o.w === "number" && typeof o.short === "number") setSize({ w: clampW(o.w), short: Math.max(PJM_MIN_SHORT, Math.round(o.short)) });
+          // 창 폭만 – 옛 축약 열 폭(short)은 헤더 열 조정 통일로 contacts.pjm.cols에(옮기지 않고 버려요)
+          if (typeof o.w === "number") setSize({ w: clampW(o.w) });
         } catch {
           /* 읽을 수 없으면 처음 크기 */
         }
@@ -837,8 +818,14 @@ export function ProjectDialog({
   const groupName = (id: number | null) => groups.find((g) => g.id === id)?.name ?? "";
   const fixed = pjmFixed(!flat);
   const pjmW = size.w;
-  const maxShort = Math.max(PJM_MIN_SHORT, pjmW - fixed - PJM_MIN_NAME);
-  const shortW = Math.min(size.short, maxShort);
+  // 축약 열 넓히기는 사업명이 가장 좁게(160)에 닿을 때까지 – 더 넓히려면 창 가장자리를 끌어요(창 안 표 ⑥2안)
+  const maxShort = Math.max(40, pjmW - fixed - PJM_MIN_NAME);
+  const colh = useColHead({
+    store: PJM_COLS_KEY,
+    cols: [{ id: "short", label: "축약 공사명", init: Math.min(fitShort(data.projects), maxShort), max: maxShort }],
+    measure: () => fitShort(data.projects),
+  });
+  const shortW = colh.width("short");
   /** 끌어서 옮긴 창은 그 왼쪽 자리를 지켜요(화면 밖으로는 안 나가게) */
   const vw = window.innerWidth;
   const left = x === null ? 0 : Math.max(PJM_PAD, Math.min(x, vw - PJM_PAD - pjmW)) - (vw - pjmW) / 2;
@@ -860,22 +847,6 @@ export function ProjectDialog({
       onEnd: (w) => w !== null && saveSize(),
     });
   };
-  /** 사업명|축약 경계는 왼쪽으로 끌면 축약이 넓어지고(-1), 축약|연락처 경계는 오른쪽으로 끌면 넓어져요(1). */
-  const shortDown = (scale: number) => (e: React.MouseEvent) =>
-    startColDrag(e, {
-      base: shortW,
-      scale,
-      min: PJM_MIN_SHORT,
-      max: maxShort,
-      bodyClass: "ew-dragging",
-      onMove: (short) => setSize((s) => ({ ...s, short })),
-      onEnd: (w) => w !== null && saveSize(),
-    });
-  const fitS = () => {
-    setSize((s) => ({ ...s, short: Math.min(fitShort(data.projects), maxShort) }));
-    setTimeout(saveSize);
-  };
-
   return (
     <div
       className="overlay"
@@ -940,21 +911,21 @@ export function ProjectDialog({
             <Plus size={14} /> 추가
           </button>
         </div>
-        <div className="pjm-row pjm-th" role="row">
+        <div className="pjm-row pjm-th colh-row" role="row" onContextMenu={colh.onContextMenu}>
           <span>색</span>
           <span className="pjm-thc">
             <button type="button" className="pjm-sort" aria-pressed={sort === "name"} onClick={() => setSort("name")}>
               사업명{sort === "name" ? " ↓" : ""}
             </button>
-            <ColGrip label="사업명" onDown={shortDown(-1)} onFit={fitS} />
           </span>
           <span className="pjm-thc">
             <span>축약 공사명</span>
-            <ColGrip label="축약 공사명" onDown={shortDown(1)} onFit={fitS} />
+            {colh.grip("short")}
           </span>
           <button type="button" className="pjm-sort pjm-n" aria-pressed={sort === "count"} onClick={() => setSort("count")}>
             {sort === "count" ? "↓ " : ""}연락처
           </button>
+          {colh.menu()}
         </div>
         <div className="dialog-body pjm-body" ref={bodyRef}>
           {newGroup && (

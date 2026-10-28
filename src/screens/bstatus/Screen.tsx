@@ -4,7 +4,7 @@
 // - 세부사업은 집행현황에서 자동으로 와요(이월 세부사업은 이어 붙이는 쪽). 사업명 옆 ⚙ 단추 → 단년도/다년도(기간)·재원·이월 사업.
 // - 재원 줄 두 번 누르기 = 고치는 줄(직접 적는 칸만 열려요), 바깥 누르기 = 저장, Esc = 취소. 규칙은 budgetStatus.ts.
 import { DialogX } from "../../DialogX";
-import React, { KeyboardEvent as RKeyboardEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Fragment } from "react";
+import { KeyboardEvent as RKeyboardEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Fragment } from "react";
 import { api, errorText, inApp } from "../../api";
 import { BudgetProject, fmt, okWon, parseWon, typing, Unit } from "../../budget";
 import { BStatusLine, compute, defaultSetup, Line, lineOf, linkedOf, Manual, parseBStatusSheet, projectNames, Setup } from "../../budgetStatus";
@@ -17,7 +17,8 @@ import { todayStr } from "../../journal";
 import { keyAction } from "../../keys";
 import { overlayDown, useOutsideClose } from "../../useOutsideClose";
 import { SearchBox } from "../../SearchBox";
-import { contentWidth, startColDrag } from "../../ColGrip";
+import { contentWidth, useColHead } from "../../ColHead";
+import type { ColDef } from "../../cols";
 
 const ICON = (d: string, s = 14, w = 2) => (
   <svg aria-hidden="true" width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={w} strokeLinecap="round" strokeLinejoin="miter">
@@ -30,6 +31,7 @@ const UNIT_KEY = "bstatus.unit", VIEW_KEY = "bstatus.view", YEAR_KEY = "bstatus.
 type Col = { id: string; label: string; sub?: string; w: number; num?: boolean };
 // sub = 묶음 아래 열 이름(머리 두 줄). 고정 폭(끌 수 없음): 구분은 남는 폭, 집행률·메모
 const FIXED = new Set(["rate", "memo"]);
+/** 끈 열만 px, 요약·자세히 따로 `{summary: {...}, detail: {...}}`(헤더 열 조정 통일 2026-10-28) – 옛 모양 `{w: …}`은 읽지 않아요 */
 const COLS_KEY = "bstatus.cols";
 /** 자세히 머리 줄 두 줄: 위 줄은 묶음 이름(여러 열에 걸침), 아래 줄은 열 이름. sub가 없는 열은 두 줄을 한 칸으로. */
 /** 엑셀 "집행·이월 현황" 열 비율 참고: 숫자 열은 같은 폭, 구분 열은 1.3배쯤 + 설정 단추 자리 */
@@ -95,10 +97,6 @@ export default function BudgetStatusScreen() {
   const formRow = useRef<HTMLDivElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
   const [popPos, setPopPos] = useState<{ left: number; top: number } | null>(null);
-  // 열 폭(집행현황과 같은 배치최적화·끌기·두 번 누르기·우클릭 처음대로) – 요약·자세히 따로, kv bstatus.cols
-  const [W, setW] = useState<Record<string, Record<string, number>>>({});
-  const [boxW, setBoxW] = useState(0);
-  const [sbw, setSbw] = useState(0);
   const [toast, setToast] = useState("");
   const [ask, setAsk] = useState<Ask | null>(null);
   const [askV3, setAskV3] = useState<V3Plan | null>(null);
@@ -156,32 +154,12 @@ export default function BudgetStatusScreen() {
     api.get(VIEW_KEY).then((v) => setDetail(v === "detail"), () => {});
     api.get(ORDER_KEY).then((v) => { if (v) setOrder(JSON.parse(v) as string[]); }, () => {});
     api.get(YEAR_KEY).then((v) => { if (v && /^\d{4}$/.test(v)) setYear(Number(v)); }, () => {});
-    api.get(COLS_KEY).then((v) => {
-      if (!v) return;
-      const o = JSON.parse(v) as { w?: Record<string, Record<string, number>> };
-      if (o.w) setW(o.w);
-    }, () => {});
   }, [load]);
   useEffect(() => {
     if (!toast) return;
     const t = window.setTimeout(() => setToast(""), 2200);
     return () => window.clearTimeout(t);
   }, [toast]);
-  // 표 폭(남는 폭이 있으면 왼쪽으로 모을 때 씀)
-  useLayoutEffect(() => {
-    const el = scroller.current;
-    if (!el) return;
-    const measure = () => {
-      setSbw(el.offsetWidth - el.clientWidth);
-      if (rootRef.current) setBoxW(rootRef.current.clientWidth);
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    if (rootRef.current) ro.observe(rootRef.current);
-    return () => ro.disconnect();
-  }, []);
-
   const names = useMemo(() => {
     // 집행현황에서 "예산현황으로 보내기"를 한 사업만(2026-10-20 사용자 2안). 어느 사업에 이어진 이월 세부사업은 그 사업 안으로
     const linked = new Set(Object.values(setups).map((s) => s.carry).filter(Boolean));
@@ -272,67 +250,20 @@ export default function BudgetStatusScreen() {
 
   const view = detail ? "detail" : "summary";
   const base = detail ? DET_COLS : SUM_COLS;
-  const wv = W[view] ?? {};
-  const widthOf = (c: Col) => (FIXED.has(c.id) ? c.w : wv[c.id] ?? c.w);
-  // 구분 열도 다른 열과 같은 규칙(2026-10-19 사용자 – 집행현황의 "남는 폭 채우기"는 여기선 안 써요)
-  const cols = base.map((c) => ({ ...c, w: widthOf(c) }));
-  const tmpl = cols.map((c) => c.w + "px").join(" ");
-  const colSum = cols.reduce((a, c) => a + c.w, 0);
-  // 남는 폭이 있으면 왼쪽으로 모아요(집행현황 배치최적화 뒤와 같게): 머리 줄 끝 = 메모 끝
-  const packed = boxW > 0 && colSum + 2 + sbw <= boxW;
-  const saveCols = (w: Record<string, number>) => {
-    const nw = { ...W, [view]: w };
-    setW(nw);
-    api.set(COLS_KEY, JSON.stringify({ w: nw })).catch(() => {});
-  };
-  const startDrag = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    const w0 = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect().width;
-    let w: Record<string, number> = { ...wv };
-    startColDrag(e, {
-      base: w0,
-      min: id === "name" ? 160 : 36,
-      grip: e.currentTarget as HTMLElement,
-      onMove: (px) => {
-        w = { ...w, [id]: px };
-        setW((o) => ({ ...o, [view]: w }));
-      },
-      onEnd: () => saveCols(w),
-    });
-  };
-  /** 그 열에 보이는 내용(열 제목 포함) 가운데 가장 긴 폭 */
-  const fitOf = (ci: number, head: HTMLElement) => {
+  // 열 폭(헤더 열 조정 통일 2026-10-28 ✔1~3): 끈 열만 바뀌고 넘치면 표 안 가로 스크롤, 요약·자세히 따로. 집행률·메모는 고정.
+  /** 그 열에 보이는 내용(열 제목 포함) 가운데 가장 긴 폭 – 글자 열(사업명·사업기간)은 오른쪽 여유 16(2026-10-19 사용자) */
+  const fitOf = (id: string): number | null => {
+    const ci = base.findIndex((c) => c.id === id);
+    const head = document.querySelector<HTMLElement>(`.bs .bd-hd > .bd-h[data-ci="${ci}"]`);
+    if (ci < 0 || !head) return null;
     const cells = [head, ...document.querySelectorAll<HTMLElement>(`.bs .bd-body .bd-rw > .bd-c:nth-child(${ci + 1})`)];
-    const text = cols[ci]?.id === "name" || cols[ci]?.id === "yrs";
-    return Math.max(cols[ci]?.id === "name" ? 160 : 36, Math.max(...cells.map((c) => contentWidth(c))) + (text ? 16 : 1)); // 글자 열은 오른쪽 여유 16(2026-10-19 사용자)
+    return Math.max(...cells.map((c) => contentWidth(c))) + (id === "name" || id === "yrs" ? 16 : 1);
   };
-  /** 배치최적화: 고정 폭 열 빼고 모든 열을 보이는 내용 폭에 맞춰요 */
-  const fitAll = () => {
-    const w = { ...wv };
-    cols.forEach((c, i) => {
-      if (FIXED.has(c.id)) return;
-      const head = document.querySelector<HTMLElement>(`.bs .bd-hd > .bd-h[data-ci="${i}"]`);
-      if (head) w[c.id] = fitOf(i, head);
-    });
-    saveCols(w);
-    setToast("열 간격을 내용에 맞췄어요 · 열 제목 우클릭으로 처음대로");
-  };
-  const autoFit = (e: React.MouseEvent, ci: number, id: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const fit = fitOf(ci, (e.currentTarget as HTMLElement).parentElement as HTMLElement);
-    saveCols({ ...wv, [id]: fit });
-  };
-  const resetCols = (e: React.MouseEvent) => {
-    e.preventDefault();
-    saveCols({});
-    setToast("열 너비를 처음으로 돌렸어요");
-  };
-  const grip = (c: Col) => {
-    if (FIXED.has(c.id)) return null;
-    const ci = cols.findIndex((x) => x.id === c.id);
-    return <span className="bd-grip" title="끌어서 너비 · 두 번 누르면 내용에 맞춤" onMouseDown={(e) => startDrag(e, c.id)} onDoubleClick={(e) => autoFit(e, ci, c.id)} />;
-  };
+  const colDefs: ColDef[] = base.map((c) => ({ id: c.id, label: c.sub || c.label, init: c.w, fixed: FIXED.has(c.id), text: c.id === "name" }));
+  const colh = useColHead({ store: COLS_KEY, part: view, cols: colDefs, measure: fitOf });
+  const cols = base.map((c) => ({ ...c, w: colh.width(c.id) }));
+  const tmpl = cols.map((c) => c.w + "px").join(" ");
+  const grip = (c: Col) => colh.grip(c.id, { last: c.id === base[base.length - 1].id });
 
   const cell = (v: ReactNode, cls = "", title?: string) => (
     <div className={"bd-c" + cls} role="cell" title={title}>
@@ -838,8 +769,8 @@ export default function BudgetStatusScreen() {
   );
 
   return (
-    <div ref={rootRef} className={"bd bs" + (packed ? " bd-packed" : "")}>
-      <div className="bd-top tb5" style={packed ? { width: colSum + 1 } : undefined}>
+    <div ref={rootRef} className="bd bs">
+      <div className="bd-top tb5">
         <h1 className="title">예산현황</h1>
         <span className="bd-year">
           <button type="button" aria-label="이전 해" onClick={() => changeYear(year - 1)}>
@@ -853,12 +784,6 @@ export default function BudgetStatusScreen() {
         <span className="bd-sp" />
         {seg("요약", "자세히", detail ? 1 : 0, (i) => { setDetail(i === 1); api.set(VIEW_KEY, i === 1 ? "detail" : "summary").catch(() => {}); }, "보기", " tb-seg-l")}
         {seg("원", "천원", unit === 1 ? 0 : 1, (i) => { setUnit(i ? 1000 : 1); api.set(UNIT_KEY, i ? "1000" : "1").catch(() => {}); }, "금액 단위", " tb-seg-s")}
-        <button type="button" className="btn btn-ctrl bd-tool tb-fit" title="열 간격을 보이는 내용 폭에 맞춰요 · 열 제목 우클릭으로 처음대로" onClick={fitAll}>
-          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 5v14M21 5v14M3 12h6M21 12h-6M6 9l3 3-3 3M18 9l-3 3 3 3" />
-          </svg>
-          배치최적화
-        </button>
         <span className="tb-hole-pop" aria-hidden="true" />
         <SearchBox
           className="bd-search"
@@ -884,9 +809,9 @@ export default function BudgetStatusScreen() {
           엑셀{ICON(CD, 16, 2.4)}
         </button>
       </div>
-      <div className="bd-tbl" style={{ ["--bd-cols" as string]: tmpl, ...(packed ? { width: colSum + 2 + sbw } : {}) }}>
+      <div className="bd-tbl" style={{ ["--bd-cols" as string]: tmpl }}>
         <div ref={scroller} className="bd-scroll">
-          <div className={"bd-hd" + (detail ? " bs-hd2" : "")} role="row" onContextMenu={resetCols}>
+          <div className={"bd-hd" + (detail ? " bs-hd2" : "")} role="row" onContextMenu={colh.onContextMenu}>
             {cols.map((c, i) => {
               const cls = "bd-h" + (c.num ? " bs-hn" : "");
               if (!detail) return <div key={c.id} className={cls} role="columnheader" data-ci={i}>{c.label}{grip(c)}</div>;
@@ -908,6 +833,7 @@ export default function BudgetStatusScreen() {
                 </Fragment>
               );
             })}
+            {colh.menu()}
           </div>
           <div className="bd-body" role="rowgroup">
             {rows}

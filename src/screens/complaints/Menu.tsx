@@ -1,4 +1,4 @@
-// 민원대장 – 열 제목·보기 줄 우클릭 메뉴(HeadMenu·RowMenu)와 열 거르기 상자(FilterMenu).
+// 민원대장 – 보기 줄 우클릭 메뉴(RowMenu, 열 제목 메뉴는 공통 부품 ColHead)와 열 거르기 상자(FilterMenu).
 import { PopMenu } from "../../PopMenu";
 import { useEffect, useRef, useState } from "react";
 import { useOutsideClose } from "../../useOutsideClose";
@@ -9,21 +9,6 @@ import { koIndex } from "../../journal";
 import { useJamoGuard } from "../../koInput";
 import { SearchBox } from "../../SearchBox";
 import { FILTER_LABEL } from "./parts";
-
-/** 열 제목 줄 우클릭 메뉴 */
-export function HeadMenu({ x, y, onClose, onReset }: { x: number; y: number; onClose: () => void; onReset: () => void }) {
-  const box = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    box.current?.querySelector<HTMLElement>(".dmenu-item")?.focus();
-  }, []);
-  return (
-    <PopMenu boxRef={box} x={x} y={y} onClose={onClose} label="열 제목 메뉴">
-      <button type="button" role="menuitem" className="dmenu-item" onClick={onReset}>
-        열 너비 초기화
-      </button>
-    </PopMenu>
-  );
-}
 
 /** 보기 줄 우클릭 메뉴(2026-10-21 사용자, 시안 ComplaintMenu.dc.html) – 공통 "떠 있는 메뉴" 모양.
  *  지우기는 메뉴가 그 자리에서 붉은 띠로 바뀌어요(업무일지 날짜 메뉴·민원처리와 같은 방식). */

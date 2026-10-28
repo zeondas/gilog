@@ -4,7 +4,7 @@
 // 오른쪽 "재원 나누기"(해마다 적는 것, 재원이 둘 이상일 때만): 해 토글 →
 //   ① 재원별 예산 표(재원마다 예산 직접 – rows["해:재원"].cur, 비율, 집행액(자동), 합계가 집행현황 예산과 맞는지)
 //   ② 공사별 재원 표(공사 · 계약금액 · 재원마다 금액 칸 · 남은 금액 – split["해:공사 번호"] = { 재원: 금액 }, 집행액은 그 비율대로.
-//      빈 칸 두 번 누르기 = 남은 금액 채우기, 안 적은 공사는 첫 재원, 머리 글 왼쪽·숫자 오른쪽, 열 경계 끌기(kv bstatus.sendCols)).
+//      빈 칸 두 번 누르기 = 남은 금액 채우기, 안 적은 공사는 첫 재원, 머리 글 왼쪽·숫자 오른쪽, 열 경계 끌기(공통 부품 ColHead – kv bstatus.send.cols, 재원 열은 재원마다 따로)).
 //   맞지 않아도 저장돼요(예산현황 표에 붉게 남아요). 머리 줄에 "맞지 않는 곳 N". 아래에 원인·지출재원 확인 방법 안내(2026-10-20 사용자).
 // 창 폭은 재원 수만큼 넓어져요(재원 2 → 1040, 하나 더마다 +124, 화면 폭 −80까지). 보낸 사업만 예산현황에 보여요 – "예산현황에서 빼기"로 되돌려요.
 import { DialogX } from "./DialogX";
@@ -13,7 +13,8 @@ import { api } from "./api";
 import { BudgetProject, KINDS, typing } from "./budget";
 import { defaultSetup, isCarryName, Manual, rowShares, Setup, SOURCES, splitOf } from "./budgetStatus";
 import { overlayDown } from "./useOutsideClose";
-import { startColDrag } from "./ColGrip";
+import { contentWidth, useColHead } from "./ColHead";
+import type { ColDef } from "./cols";
 
 const X = "M6 6l12 12M18 6L6 18";
 const ICON = (d: string, s = 14, w = 2) => (
@@ -21,7 +22,8 @@ const ICON = (d: string, s = 14, w = 2) => (
     <path d={d} />
   </svg>
 );
-const COLS_KEY = "bstatus.sendCols";
+/** 끈 열만 px(헤더 열 조정 통일 2026-10-28) – 열 이름 cmt·rest·"src:재원". 옛 `bstatus.sendCols`(재원 열 한 값)는 읽지 않아요. */
+const COLS_KEY = "bstatus.send.cols";
 /** 고정 칩(국비·도비·시비) – "기타"는 이름을 직접 적는 재원이라 칩 목록에 없어요(2026-10-20 사용자: "기타"라고 적어도 칩이 생겨야 해요) */
 const FIXED = SOURCES.filter((x) => x !== "기타") as readonly string[];
 const won = (v: number) => v.toLocaleString("ko-KR");
@@ -59,8 +61,18 @@ export type SendTarget = {
   carries: { name: string; years: number[] }[];
 };
 
-type Cols = { cmt: number; src: number; rest: number };
-const COLS0: Cols = { cmt: 112, src: 124, rest: 96 };
+/** 처음 열 폭 – 첫 열(항목·공사)은 창 폭을 따라가요(창 안 표 ⑥2안, 손잡이 없음) */
+const COLS0 = { cmt: 112, src: 124, rest: 96 };
+/** 숫자 칸 글자 폭(입력 칸은 값 글자로) – 내용에 맞춤용 */
+function cellWidth(el: HTMLElement): number {
+  const inp = el.querySelector("input");
+  if (!inp) return contentWidth(el);
+  const c = document.createElement("canvas").getContext("2d");
+  if (!c) return 0;
+  const cs = getComputedStyle(inp);
+  c.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  return Math.ceil(c.measureText(inp.value || inp.placeholder || "").width) + parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + 4;
+}
 
 export function BudgetStatusSend({
   target,
@@ -114,30 +126,25 @@ export function BudgetStatusSend({
   const mainBudget = eff?.budget ?? 0;
   const mainExp = rows.reduce((a, r) => a + r.exp, 0);
 
-  // ---------- 열 폭(공사별 재원 표) ----------
-  const [cols, setCols] = useState<Cols>(COLS0);
-  useEffect(() => {
-    api
-      .get(COLS_KEY)
-      .then((v) => {
-        if (v) setCols({ ...COLS0, ...(JSON.parse(v) as Partial<Cols>) });
-      })
-      .catch(() => {});
-  }, []);
-  const startDrag = (e: RMouseEvent, k: keyof Cols) => {
-    e.stopPropagation();
-    let w = cols;
-    startColDrag(e, {
-      base: cols[k],
-      min: 72,
-      grip: e.currentTarget as HTMLElement,
-      onMove: (px) => {
-        w = { ...w, [k]: px };
-        setCols(w);
-      },
-      onEnd: () => void api.set(COLS_KEY, JSON.stringify(w)).catch(() => {}),
-    });
-  };
+  // ---------- 열 폭(두 표 같은 틀) – 헤더 열 조정 통일 ✔1~4 ----------
+  // 첫 열은 창 폭을 따라가요(손잡이 없음). 합계(계약금액)·재원마다·차이(남은 금액)는 자기 오른쪽 경계로, 넘치면 표 안 가로 스크롤(창은 안 커져요).
+  const colIds = ["cmt", ...s.sources.map((x) => "src:" + x), "rest"];
+  const colDefs: ColDef[] = colIds.map((id) => ({ id, label: id.startsWith("src:") ? id.slice(4) : id === "cmt" ? "합계" : "차이", init: id === "cmt" ? COLS0.cmt : id === "rest" ? COLS0.rest : COLS0.src }));
+  const colh = useColHead({
+    store: COLS_KEY,
+    cols: colDefs,
+    // 두 표의 그 열(머리 글자 + 칸) 가운데 가장 넓은 것 + 칸 사이 여유 4
+    measure: (id) => {
+      const i = colIds.indexOf(id) + 1;
+      const els = [...(dlgRef.current?.querySelectorAll<HTMLElement>(".bss2-tb > .bss2-tr:not(.bss2-addrow)") ?? [])].map((r) => r.children[i] as HTMLElement | undefined).filter((e): e is HTMLElement => !!e && r0(e));
+      return els.length ? Math.max(...els.map(cellWidth)) + 4 : null;
+    },
+  });
+  /** 열이 다 있는 줄의 칸만("공사가 없어요" 같은 한 칸 줄은 빼요) */
+  const r0 = (e: HTMLElement) => e.parentElement?.children.length === colIds.length + 1;
+  const colW = colIds.map((id) => colh.width(id));
+  const tableMin = 20 + 140 + colW.reduce((a, w) => a + w, 0) + 8 * colIds.length;
+  const thGrip = (id: string) => colh.grip(id);
   // 공사명 같은 앞부분(✔1 ①): 둘 이상이고 모두 같은 말로 시작하면 표 머리에 한 번만 적고 줄에선 떼요 –
   // 같게 시작하는 데까지를 띄어쓰기 자리에서 끊고, 4글자 이상·뗀 뒤 모든 줄에 글자가 남을 때만
   const lead = (() => {
@@ -148,7 +155,7 @@ export function BudgetStatusSend({
     p = cut > 0 ? p.slice(0, cut + 1) : "";
     return p.trim().length >= 4 && rows.every((r) => r.name.slice(p.length).trim() !== "") ? p : "";
   })();
-  const grid = `minmax(140px, 1fr) ${cols.cmt}px repeat(${s.sources.length}, ${cols.src}px) ${cols.rest}px`;
+  const grid = `minmax(140px, 1fr) ${colW.map((w) => w + "px").join(" ")}`;
   
   // ---------- 값 ----------
   const curOf = (src: string) => s.rows[`${year}:${src}`]?.cur ?? 0;
@@ -294,11 +301,12 @@ export function BudgetStatusSend({
   const wide = multi && !attaching;
   const maxW = (typeof window !== "undefined" ? window.innerWidth : 1600) - 80;
   const baseW = Math.min(1040 + 124 * Math.max(0, s.sources.length - 2), maxW);
-  const minW = Math.min(maxW, 300 + 40 + 20 + 22 + 140 + cols.cmt + s.sources.length * cols.src + cols.rest + 8 * (s.sources.length + 2));
+  // 가장 좁은 창은 처음 열 폭 기준 – 열을 넓혀도 창은 안 커지고 표가 가로로 밀려요(헤더 열 조정 통일)
+  const minW = Math.min(maxW, 300 + 40 + 20 + 22 + 140 + COLS0.cmt + s.sources.length * COLS0.src + COLS0.rest + 8 * (s.sources.length + 2));
   const [fitW, setFitW] = useState<number | null>(null);
   const [dragSize, setDragSize] = useState<{ w: number; h: number | null } | null>(null);
   const dlgRef = useRef<HTMLDivElement>(null);
-  const fitKey = wide ? `${year}|${lead}|${s.sources.join(",")}|${rows.map((r) => r.name + r.kind).join("|")}|${cols.cmt},${cols.src},${cols.rest}` : "";
+  const fitKey = wide ? `${year}|${lead}|${s.sources.join(",")}|${rows.map((r) => r.name + r.kind).join("|")}` : "";
   useLayoutEffect(() => setFitW(null), [fitKey]);
   useLayoutEffect(() => {
     if (!wide || fitW !== null || !dlgRef.current) return;
@@ -455,23 +463,24 @@ export function BudgetStatusSend({
         </span>
       </div>
 
+      {colh.menu()}
       {/* 재원별 예산 – 공사별 재원 표와 같은 열 틀(재원이 열): 항목 · 합계 · 재원… · 차이 */}
-      <div className="bss2-tb" role="table" aria-label="재원별 예산">
-        <div className="bss2-tr h" style={{ gridTemplateColumns: grid }}>
+      <div className="bss2-tb" role="table" aria-label="재원별 예산" style={{ ["--bss2-min" as string]: tableMin + "px" }}>
+        <div className="bss2-tr h colh-row" style={{ gridTemplateColumns: grid }} onContextMenu={colh.onContextMenu}>
           <span>재원별 예산</span>
           <span className="bss2-th">
             합계
-            <span className="bd-grip" title="끌어서 너비" onMouseDown={(e) => startDrag(e, "cmt")} />
+            {thGrip("cmt")}
           </span>
           {s.sources.map((x) => (
             <span key={x} className="bss2-th">
               {x}
-              <span className="bd-grip" title="끌어서 너비" onMouseDown={(e) => startDrag(e, "src")} />
+              {thGrip("src:" + x)}
             </span>
           ))}
           <span className="bss2-th">
             차이
-            <span className="bd-grip" title="끌어서 너비" onMouseDown={(e) => startDrag(e, "rest")} />
+            {thGrip("rest")}
           </span>
         </div>
         <div className="bss2-tr" style={{ gridTemplateColumns: grid }}>
@@ -502,25 +511,25 @@ export function BudgetStatusSend({
         </div>
       </div>
 
-      <div className="bss2-tb" role="table" aria-label="공사별 재원">
-        <div className="bss2-tr h" style={{ gridTemplateColumns: grid }}>
+      <div className="bss2-tb" role="table" aria-label="공사별 재원" style={{ ["--bss2-min" as string]: tableMin + "px" }}>
+        <div className="bss2-tr h colh-row" style={{ gridTemplateColumns: grid }} onContextMenu={colh.onContextMenu}>
           <span className="bss2-lead" title={lead ? lead.trim() : undefined}>
             공사(용역·물품)
             {lead && <b>{lead.trim()} …</b>}
           </span>
           <span className="bss2-th">
             계약금액
-            <span className="bd-grip" title="끌어서 너비" onMouseDown={(e) => startDrag(e, "cmt")} />
+            {thGrip("cmt")}
           </span>
           {s.sources.map((x) => (
             <span key={x} className="bss2-th">
               {x}
-              <span className="bd-grip" title="끌어서 너비" onMouseDown={(e) => startDrag(e, "src")} />
+              {thGrip("src:" + x)}
             </span>
           ))}
           <span className="bss2-th">
             남은 금액
-            <span className="bd-grip" title="끌어서 너비" onMouseDown={(e) => startDrag(e, "rest")} />
+            {thGrip("rest")}
           </span>
         </div>
         {!rows.length ? (

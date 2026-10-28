@@ -119,11 +119,19 @@ describe("layoutCols – 끈 열의 줄인 모양(2026-10-28 사용자 1안)", (
     expect(layoutCols(needs, avail).short.has("intake")).toBe(true);
   });
   test("끌어서 넓히면(전체 + 12 이상) 전체 글자", () => {
-    const r = layoutCols(needs, avail, { intake: 200 / avail });
+    const r = layoutCols(needs, avail, { intake: 200 });
     expect(r.short.has("intake")).toBe(false);
   });
   test("끌었어도 모자라면 줄인 모양", () => {
-    const r = layoutCols(needs, avail, { intake: 100 / avail });
+    const r = layoutCols(needs, avail, { intake: 100 });
     expect(r.short.has("intake")).toBe(true);
+  });
+  test("내용·조치내용 처음 값은 남는 폭 반씩이고, 다른 열을 끌어도 그대로(헤더 열 조정 통일 ✔3①)", () => {
+    const a = layoutCols(needs, avail);
+    const b = layoutCols(needs, avail, { intake: 400 });
+    const sum = COLUMNS.reduce((t, c) => t + a.init[c.key], 0);
+    expect(Math.abs(sum - avail)).toBeLessThanOrEqual(1);
+    expect(b.init.body).toBe(a.init.body);
+    expect(b.init.intake).toBe(a.init.intake);
   });
 });

@@ -43,7 +43,8 @@ import { keyAction, rowKeys } from "../../keys";
 import { overlayDown, useOutsideClose } from "../../useOutsideClose";
 import { isEmptyMemo, MemoEditor, sanitize } from "../../RichMemo";
 import { SearchBox } from "../../SearchBox";
-import { contentWidth, startColDrag } from "../../ColGrip";
+import { contentWidth, useColHead } from "../../ColHead";
+import type { ColDef } from "../../cols";
 import {
   AUTO_MS,
   Conflict,
@@ -80,7 +81,7 @@ const COLS: [ColId, string, number][] = [
 ];
 const COLS_SOLO = COLS.filter(([c]) => c !== "owner");
 const FIXED = new Set<ColId>(["kind", "rate", "stage", "owner", "memo"]);
-const START_W = Object.fromEntries(COLS.map(([c, , w]) => [c, w])) as Record<ColId, number>;
+/** 끈 열만 px(헤더 열 조정 통일 2026-10-28) – 같은 이름의 옛 모양 `{w, nameFixed}`는 읽지 않아요(cols.ts readColPx) */
 const COLS_KEY = "budget.cols";
 const UNIT_KEY = "budget.unit";
 const VIEW_KEY = "budget.view";
@@ -149,8 +150,6 @@ export default function BudgetScreen() {
   const [toast, setToast] = useState("");
   const [flash, setFlash] = useState<number | null>(null);
   const [colHl, setColHl] = useState<number | null>(null);
-  const [W, setW] = useState<Record<ColId, number>>(START_W);
-  const [nameFixed, setNameFixed] = useState(false);
   // 예산현황으로 보내기(2026-10-20 사용자): 세부사업 우클릭 → 예산현황과 같은 창. 보낸 사업 이름은 표 bstatus(sent)에서 읽어요
   const [bsSetups, setBsSetups] = useState<Record<string, Setup>>({});
   const [bsSend, setBsSend] = useState<string | null>(null);
@@ -173,7 +172,6 @@ export default function BudgetScreen() {
     setBsSetups((o) => ({ ...o, [name]: s }));
     api.bstatusSet(name, JSON.stringify(s)).catch(() => {});
   };
-  const [avail, setAvail] = useState(1200);
   // ---------- 팀 공유 ----------
   const [share, setShare] = useState<ShareState | null>(null);
   useEffect(() => onShare(setShare), []);
@@ -187,9 +185,6 @@ export default function BudgetScreen() {
   const formRow = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  /** 화면(표가 놓일 자리) 폭과 세로 스크롤 막대 폭 – 배치최적화 뒤 왼쪽으로 모을지 정해요 */
-  const [boxW, setBoxW] = useState(0);
-  const [sbw, setSbw] = useState(0);
   const qInput = useRef<HTMLInputElement>(null);
   const memoHtml = useRef("");
   const formRef = useRef(form);
@@ -226,24 +221,7 @@ export default function BudgetScreen() {
   useEffect(() => {
     api.get(UNIT_KEY).then((v) => setUnitState(v === "1000" ? 1000 : 1), () => {});
     api.get(VIEW_KEY).then((v) => setViewState(v === "act" ? "act" : "exp"), () => {});
-    api.get(COLS_KEY).then(
-      (v) => {
-        if (!v) return;
-        try {
-          const o = JSON.parse(v) as { w?: Partial<Record<ColId, number>>; nameFixed?: boolean };
-          setW({ ...START_W, ...(o.w ?? {}) });
-          setNameFixed(!!o.nameFixed);
-        } catch {
-          /* 처음 너비 */
-        }
-      },
-      () => {},
-    );
   }, []);
-  const saveCols = (w: Record<ColId, number>, fixed: boolean) => {
-    const keep = Object.fromEntries(COLS.filter(([c]) => !FIXED.has(c)).map(([c]) => [c, w[c]]));
-    api.set(COLS_KEY, JSON.stringify({ w: keep, nameFixed: fixed })).catch(() => {});
-  };
 
   useEffect(() => {
     if (!toast) return;
@@ -255,22 +233,6 @@ export default function BudgetScreen() {
     const t = window.setTimeout(() => setFlash(null), 1300);
     return () => window.clearTimeout(t);
   }, [flash]);
-
-  // 표 폭(세부사업 열이 남는 폭을 채울 때 씀)
-  useLayoutEffect(() => {
-    const el = scroller.current;
-    if (!el) return;
-    const measure = () => {
-      setAvail(el.clientWidth);
-      setSbw(el.offsetWidth - el.clientWidth);
-      if (rootRef.current) setBoxW(rootRef.current.clientWidth);
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    if (rootRef.current) ro.observe(rootRef.current);
-    return () => ro.disconnect();
-  }, [data === null]);
 
   const list = data ?? [];
   const findP = (id: number) => list.find((p) => p.id === id);
@@ -510,76 +472,22 @@ export default function BudgetScreen() {
   };
 
   // ---------- 열 ----------
-  // 세부사업 열도 다른 열처럼 정해진 폭 – "남는 폭 채우기"는 없앴어요(2026-10-20 사용자, 예산현황과 같게). 보이는 열(VC)은 공유를 끄면 "담당" 열이 빠져요
-  // 자리가 모자라면(팀 공유의 "담당" 열·세로 스크롤 막대) 세부사업 열만 그만큼 줄여 그려요 – 가장 좁게 160, 저장한 폭은 그대로(2026-10-21 사용자)
-  const over = boxW > 0 ? VC.reduce((a, [c]) => a + W[c], 0) + 2 + sbw - boxW : 0;
+  // 헤더 열 조정 통일(2026-10-28 ✔1~3): 열마다 정해진 폭, 끈 열만 바뀌고 넘치면 표 안 가로 스크롤(남는 폭 열·왼쪽 모으기·세부사업만 줄이기 없음).
+  // 보이는 열(VC)은 공유를 끄면 "담당" 열이 빠져요. 보기에서 숨는 열(집행률 보기 = 시공량, 시공량 보기 = 집행액)은 폭 0 – 표가 그만큼 좁아져요(✔3②).
   const hide = HIDE_OF[view];
-  const Wv0 = over > 0 ? { ...W, name: Math.max(160, W.name - over) } : W;
-  // 보기에서 숨는 열(집행률 보기 = 시공량, 시공량 보기 = 집행액)은 폭 0 – 그 폭은 세부사업 열이 가져가요(2026-10-28 사용자)
-  const Wv = { ...Wv0, name: Wv0.name + Wv0[hide], [hide]: 0 } as Record<ColId, number>;
   const hideIx = VC.findIndex(([c]) => c === hide);
-  const cols = VC.map(([c]) => Wv[c] + "px").join(" ");
-  // 남는 폭이 있으면 늘 왼쪽으로 모아요: 머리 줄 끝(엑셀) = 메모 끝, 세로 스크롤은 메모 끝 바로 옆(2026-10-19 사용자)
-  const colSum = VC.reduce((a, [c]) => a + Wv[c], 0);
-  const packed = boxW > 0 && colSum + 2 + sbw <= boxW;
-
-  const startDrag = (e: RMouseEvent, col: ColId) => {
-    e.stopPropagation();
-    const w0 = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect().width;
-    let w = { ...W, name: col === "name" ? Math.round(w0) : W.name };
-    const fixed = nameFixed || col === "name";
-    startColDrag(e, {
-      base: w0,
-      min: col === "name" ? 160 : 36,
-      grip: e.currentTarget as HTMLElement,
-      onMove: (px) => {
-        w = { ...w, [col]: px };
-        setW(w);
-        if (fixed) setNameFixed(true);
-      },
-      onEnd: () => saveCols(w, fixed),
-    });
-  };
-
   /** 그 열에 보이는 내용(열 제목 포함) 가운데 가장 긴 폭 */
-  const fitOf = (col: ColId, head: HTMLElement) => {
+  const fitOf = (col: string): number | null => {
     const ci = VC.findIndex(([c]) => c === col);
-    const cells = [head, ...document.querySelectorAll<HTMLElement>(`.bd-body .bd-rw > .bd-c:nth-child(${ci + 1})`)];
-    return Math.max(col === "name" ? 160 : 36, Math.max(...cells.map((c) => contentWidth(c))) + 1);
+    if (ci < 0 || col === hide) return null;
+    const head = document.querySelectorAll<HTMLElement>(".bd-hd > .bd-h")[ci];
+    const cells = [...(head ? [head] : []), ...document.querySelectorAll<HTMLElement>(`.bd-body .bd-rw > .bd-c:nth-child(${ci + 1})`)];
+    return cells.length ? Math.max(...cells.map((c) => contentWidth(c))) + 1 : null;
   };
-  /** 배치최적화(2026-10-19 사용자): 고정 폭 열(구분·집행률·단계·메모) 빼고 모든 열을 보이는 내용 폭에 맞춰요 – 끝선 두 번 누르기를 한 번에 */
-  const fitAll = async () => {
-    if (!(await commit())) return;
-    const heads = [...document.querySelectorAll<HTMLElement>(".bd-hd > *")];
-    const w = { ...W };
-    VC.forEach(([c], i) => {
-      if (!FIXED.has(c) && c !== hide && heads[i]) w[c] = fitOf(c, heads[i]);
-    });
-    setW(w);
-    setNameFixed(true);
-    saveCols(w, true);
-    setToast("열 간격을 내용에 맞췄어요 · 열 제목 우클릭으로 처음대로");
-  };
-
-  /** 끝선 두 번 누르기: 그 열에 보이는 내용 가운데 가장 긴 폭(엑셀처럼). */
-  const autoFit = (e: RMouseEvent, col: ColId) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const fit = fitOf(col, (e.currentTarget as HTMLElement).parentElement as HTMLElement);
-    const w = { ...W, [col]: fit };
-    const fixed = nameFixed || col === "name";
-    setW(w);
-    setNameFixed(fixed);
-    saveCols(w, fixed);
-  };
-
-  const resetCols = (e: RMouseEvent) => {
-    e.preventDefault();
-    setW(START_W);
-    setNameFixed(false);
-    saveCols(START_W, false);
-    setToast("열 너비를 처음으로 돌렸어요");
-  };
+  const colDefs: ColDef[] = VC.map(([c, label, w]) => ({ id: c, label, init: w, fixed: FIXED.has(c), text: c === "name" }));
+  const colh = useColHead({ store: COLS_KEY, cols: colDefs, measure: fitOf });
+  const Wv = Object.fromEntries(VC.map(([c]) => [c, c === hide ? 0 : colh.width(c)])) as Record<ColId, number>;
+  const cols = VC.map(([c]) => Wv[c] + "px").join(" ");
 
   // ---------- 엑셀 ----------
   const exportExcel = async () => {
@@ -1666,16 +1574,16 @@ export default function BudgetScreen() {
           role="columnheader"
           title="누르면 이 열을 칠해요"
           onClick={(e) => {
-            if ((e.target as Element).closest(".bd-grip")) return;
+            if ((e.target as Element).closest(".colh-grip")) return;
             setColHl(colHl === i ? null : i);
           }}
         >
           {c === "rate" ? RATE_LABEL[view] : label}
-          {!FIXED.has(c) && c !== hide && <span className="bd-grip" title="끌어서 너비 · 두 번 누르면 내용에 맞춤" onMouseDown={(e) => startDrag(e, c)} onDoubleClick={(e) => autoFit(e, c)} />}
+          {c !== hide && colh.grip(c, { last: i === VC.length - 1 })}
         </div>
       )),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [colHl, W, nameFixed, avail, VC, view, hide],
+    [colHl, colh.saved, VC, view, hide],
   );
 
   if (!data) {
@@ -1699,8 +1607,8 @@ export default function BudgetScreen() {
   );
 
   return (
-    <div ref={rootRef} className={"bd" + (packed ? " bd-packed" : "")} style={{ ["--bd-cols" as string]: cols }}>
-      <div className="bd-top tb5" style={packed ? { width: colSum + 1 } : undefined}>
+    <div ref={rootRef} className="bd" style={{ ["--bd-cols" as string]: cols }}>
+      <div className="bd-top tb5">
         <h1 className="title">집행현황</h1>
         <span className="bd-year">
           <button type="button" aria-label="이전 해" onClick={() => void changeYear(year - 1)}>
@@ -1757,12 +1665,6 @@ export default function BudgetScreen() {
             </button>
           ))}
         </span>
-        <button type="button" className="btn btn-ctrl bd-tool tb-fit" title="열 간격을 보이는 내용 폭에 맞춰요 · 열 제목 우클릭으로 처음대로" onClick={() => void fitAll()}>
-          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 5v14M21 5v14M3 12h6M21 12h-6M6 9l3 3-3 3M18 9l-3 3 3 3" />
-          </svg>
-          배치최적화
-        </button>
         <button
           type="button"
           className="btn btn-ctrl btn-text tb-pop"
@@ -1796,7 +1698,7 @@ export default function BudgetScreen() {
       </div>
 
       {shareOn && (bandShown || cfs.length > 0) && last && (
-        <div className={"bs-band" + (last.error ? " bad" : cfs.length ? " cf" : "")} role="status" style={packed ? { width: colSum + 2 + sbw } : undefined}>
+        <div className={"bs-band" + (last.error ? " bad" : cfs.length ? " cf" : "")} role="status">
           {last.error ? (
             <span>
               <b>새로고침하지 못했어요</b> · {last.error}
@@ -1833,13 +1735,14 @@ export default function BudgetScreen() {
           )}
         </div>
       )}
-      <div className="bd-tbl" style={packed ? { width: colSum + 2 + sbw } : undefined}>
+      <div className="bd-tbl">
         <style>{shareStyle}</style>
         <style>{colStyle}</style>
         <style>{csStyle}</style>
         <div className="bd-scroll" ref={scroller}>
-          <div className="bd-hd" role="row" onContextMenu={resetCols}>
+          <div className="bd-hd colh-row" role="row" onContextMenu={colh.onContextMenu}>
             {head}
+            {colh.menu()}
           </div>
           <div
             className="bd-body"

@@ -14,7 +14,9 @@
 import { createPortal } from "react-dom";
 import { CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, Case, Complaint, ContactsData, errorText, inApp, Order, OrderResult, previewInbox, RunStatus, Work, WorkInput } from "../../api";
-import { COL_MIN, daysBetween, fitWidths, gridTemplate } from "../../complaints";
+import { daysBetween } from "../../complaints";
+import { useColHead, widestOf } from "../../ColHead";
+import type { ColDef } from "../../cols";
 import { plainOf } from "../../bullets";
 import { DelMark } from "../../Icons";
 import { koIndex, todayStr } from "../../journal";
@@ -27,7 +29,7 @@ import { SearchBox } from "../../SearchBox";
 import { HeadRow, PlaceCell, NoteCell, PhotoStrip, WorkTag, Gauge, ProofRow } from "./Table";
 import { WorksDialog, MailDialog } from "./Dialogs";
 import { Floating } from "./Menu";
-import { workColor, COLUMNS, AUTO_COLS, COL_GAP, PLACE_MAX, textWidth, MailDraft, DocPlusIcon, MailIcon, PhoneIcon, CheckIcon, Prog, isPath, WarnIcon } from "./parts";
+import { workColor, COLUMNS, AUTO_COLS, COL_GAP, PLACE_MAX, SUM_MIN, textWidth, MailDraft, DocPlusIcon, MailIcon, PhoneIcon, CheckIcon, Prog, isPath, WarnIcon } from "./parts";
 
 type Props = { urgentDays: number; onOpenComplaint: (id: number) => void };
 
@@ -42,29 +44,13 @@ const PICK_KEY = "process.photoPick";
 /** per: 건당 걸린 시간(초, 2026-10-21 신속 자동화 – 전후 비교용) */
 type LastRun = { at: string; added: number; skipped: number | null; secs: number; log: string; per?: number };
 
-// 2026-10-21 열 폭을 글자에 맞추는 방식(자동)으로 새 키 – 예전에 끈 폭은 버려요. 값이 없으면 자동이에요.
-const COLS_KEY = "process.colWidths5";
+// 끈 열만 px(헤더 열 조정 통일 2026-10-28) – 옛 `process.colWidths5`(아홉 칸 배열)는 읽지 않아요.
+const COLS_KEY = "process.cols";
 
 const MAIL_BOX = "https://mail.korea.kr";
 
 /** 판단 공사 "해당 없음"(2026-10-21 사용자) – core NA_WORK와 같은 값 */
 const NA_WORK = 0;
-
-/** 창이 좁을 때(큰 화면 크기) 줄이지 않는 열 */
-const FIXED_COLS = COLUMNS.map((c) => !!c.fixed);
-
-/** 끌어서 바꿔 저장한 폭. 없거나 맞지 않으면 null(자동 – 글자에 맞춰요). */
-function readWidths(raw: string | null): (number | null)[] | null {
-  try {
-    const v = JSON.parse(raw ?? "");
-    if (Array.isArray(v) && v.length === COLUMNS.length && v.every((x, i) => (COLUMNS[i].w === null ? x === null : i === 0 || (typeof x === "number" && x >= COL_MIN))))
-      // 체크 칸(첫 칸)은 끌 수 없는 고정 칸이라 검사에서 빼고 늘 처음 폭(36)으로 – 2026-10-28 사용자 ①1안
-      return v.map((x, i) => (i === 0 ? COLUMNS[0].w : x));
-  } catch {
-    /* 자동으로 */
-  }
-  return null;
-}
 
 const errText = (e: unknown) => processError(e) ?? (typeof e === "string" && e.length > 12 ? e : errorText(e));
 
@@ -85,7 +71,6 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   const [fetched, setFetched] = useState("");
   const [lastRun, setLastRun] = useState<LastRun | null>(null);
   const [picks, setPicks] = useState<Record<string, string>>({});
-  const [widths, setWidths] = useState<(number | null)[] | null>(null);
   // 자동 맞춤으로 잰 폭(열 번호 → 폭)
   const [auto, setAuto] = useState<Record<number, number>>({});
   // 목록 안쪽 폭과 세로 스크롤 막대 폭(열 제목 줄 오른쪽을 그만큼 비워 세로선을 맞춰요)
@@ -126,8 +111,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
 
   useEffect(() => {
     (async () => {
-      const [pd, cl, cdata, st, f, cw, lr, pk] = await Promise.all([api.processData(), api.complaints(), api.contactsData(), loadSettings(), api.get(FETCHED_KEY), api.get(COLS_KEY), api.get(LAST_RUN_KEY), api.get(PICK_KEY)]);
-      setWidths(readWidths(cw));
+      const [pd, cl, cdata, st, f, lr, pk] = await Promise.all([api.processData(), api.complaints(), api.contactsData(), loadSettings(), api.get(FETCHED_KEY), api.get(LAST_RUN_KEY), api.get(PICK_KEY)]);
       try {
         if (pk) setPicks(JSON.parse(pk) as Record<string, string>);
       } catch {
@@ -192,12 +176,6 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
       return null;
     }
   };
-
-  /** ws가 null이면 자동으로 돌아가요(우클릭 "열 너비 초기화"). */
-  function saveWidths(ws: (number | null)[] | null) {
-    setWidths(ws);
-    api.set(COLS_KEY, ws ? JSON.stringify(ws) : "").catch((e) => setNote(errorText(e)));
-  }
 
   /** 이어 둔 민원대장 줄(지워졌으면 없음) */
   const linked = (c: Case) => (c.complaint != null ? complaints.find((x) => x.id === c.complaint) : undefined);
@@ -688,10 +666,13 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   // 목록 안쪽 폭과 스크롤 막대 폭을 재요(창 크기·줄 수가 바뀌면 다시).
   useEffect(() => {
     const el = bodyRef.current;
-    if (!el) return;
+    const box = el?.parentElement;
+    if (!el || !box) return;
+    // 표가 쓸 수 있는 폭 = 가로 스크롤 상자 폭 − 세로 스크롤 막대(목록은 넓힌 열만큼 커지니 상자에서 재요)
     const measure = () => {
-      setAvail(el.clientWidth);
-      setGutter(el.offsetWidth - el.clientWidth);
+      const g = el.offsetWidth - el.clientWidth;
+      setGutter(g);
+      setAvail(Math.max(0, box.clientWidth - g));
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -733,6 +714,34 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     };
   }, [rows, complaints, works]);
 
+  // 열 폭(헤더 열 조정 통일 ✔1~3): 처음 값 = 글자에 맞춘 폭(AUTO_COLS)·정해진 폭, 민원 요약은 남는 폭(창에 맞춘 처음 값 – 다른 열을 끌어도 그대로).
+  const inits = COLUMNS.map((c, i) => auto[i] ?? c.w);
+  const sumInit = Math.max(SUM_MIN, Math.floor(avail - inits.reduce<number>((a, w) => a + (w ?? 0), 0)));
+  const colDefs: ColDef[] = COLUMNS.map((c, i) => ({ id: c.id, label: c.label, init: inits[i] ?? sumInit, fixed: c.fixed, text: c.text }));
+  /** 내용에 맞춤: 번호·접수·기한·위치는 글자 폭 + 같은 여유(위치도 260 제한 없이), 나머지는 칸을 복사해 잰 폭 */
+  const measureCol = (id: string): number | null => {
+    const i = COLUMNS.findIndex((c) => c.id === id);
+    const body = bodyRef.current;
+    const head = body?.parentElement?.querySelector(".pr-headrow");
+    if (i < 0 || !body || !head) return null;
+    const lines = [...body.querySelectorAll<HTMLElement>(":scope > .pr-row")].map((r) => r.children[i] as HTMLElement | undefined).filter((c): c is HTMLElement => !!c && !c.classList.contains("pr-place-edit"));
+    if (AUTO_COLS.includes(i)) {
+      let m = 0;
+      const t = [...(head.children[i]?.childNodes ?? [])].find((n) => n.nodeType === 3);
+      if (t) {
+        const r = document.createRange();
+        r.selectNodeContents(t);
+        m = r.getBoundingClientRect().width;
+      }
+      for (const c of lines) m = Math.max(m, textWidth(c));
+      return m > 0 ? Math.ceil(m) + COL_GAP : null;
+    }
+    return widestOf([head.children[i] as HTMLElement, ...lines]);
+  };
+  const cols = useColHead({ store: COLS_KEY, cols: colDefs, measure: measureCol });
+  const shownWidths = COLUMNS.map((c) => cols.width(c.id));
+  const colSum = shownWidths.reduce((a, w) => a + w, 0);
+
   if (!works) {
     return (
       <>
@@ -755,9 +764,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   const allState: "none" | "some" | "all" = !chosen.length ? "none" : sameWork.every((c) => chosen.includes(c.no)) ? "all" : "some";
   const toggleAll = () => setChosen(allState === "all" ? [] : [...new Set([...chosen, ...sameWork.map((c) => c.no)])]);
   const total = cases.filter((c) => !isDone(c)).length;
-  const baseWidths = widths ?? COLUMNS.map((c, i) => auto[i] ?? c.w);
-  const shownWidths = fitWidths(baseWidths, avail, FIXED_COLS);
-  const tableStyle = { "--pr-cols": gridTemplate(shownWidths), "--pr-gutter": `${gutter}px` } as CSSProperties;
+  const tableStyle = { "--pr-cols": shownWidths.map((w) => w + "px").join(" "), "--pr-gutter": `${gutter}px`, "--pr-w": `${colSum + gutter}px` } as CSSProperties;
 
   /** 진행 막대 한 칸(2026-10-20 1안): 채움·단계(색 진하기)·글자·아이콘 – 민원대장 답변·완료가 지시부보다 앞서요. */
   const progOf = (c: Case): Prog => {
@@ -865,7 +872,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
             </span>
           )}
         </div>
-        <PlaceCell c={c} disabled={isD || !!b} onSave={(a, pl, r) => saveAddress(c, a, pl, r)} />
+        <PlaceCell c={c} colW={cols.width("place")} disabled={isD || !!b} onSave={(a, pl, r) => saveAddress(c, a, pl, r)} />
         <div
           className="pr-sum"
           onMouseEnter={(e) => {
@@ -995,7 +1002,8 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
       )}
 
       <div className="pr-table" role="table" aria-label="민원처리 목록" style={tableStyle}>
-        <HeadRow all={allState} onAll={toggleAll} widths={shownWidths} avail={avail} onResize={setWidths} onResized={saveWidths} onReset={() => saveWidths(null)} />
+        <div className="pr-hs">
+        <HeadRow all={allState} onAll={toggleAll} cols={cols} />
         <div className="pr-body" ref={bodyRef}>
           {open.length === 0 && (
             <p className="pr-empty">{cases.length === 0 ? "[민원 불러오기]를 누르면 Claude가 신문고에서 기록에 없는 민원을 가져와요." : q ? "찾는 민원이 없어요." : "처리할 민원이 없어요."}</p>
@@ -1010,6 +1018,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
             </div>
           )}
           {showDone && done.map(renderRow)}
+        </div>
         </div>
       </div>
 
