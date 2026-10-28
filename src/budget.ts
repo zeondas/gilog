@@ -7,7 +7,7 @@
 //   (전엔 화면 위 [집행액 | 시공량] 단추로 기준을 골랐고, 가용액은 완료면 max(원인행위, 집행액)였어요)
 //   금액은 원 단위 정수(십원 단위부터). 화면 단위 원/천원 – 천원은 반올림한 정수만 보여요.
 import { BKind, linesToText, BLine } from "./bullets";
-import { sanitize } from "./RichMemo";
+import { looksLikeMemoHtml, sanitize } from "./RichMemo";
 
 export const KINDS = ["공사", "관급", "용역", "일반"] as const;
 export const STAGES = ["준비", "추진", "완료", "중지", "타절"] as const;
@@ -110,6 +110,8 @@ const escHtml = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<":
 
 /** 글자 → 메모 HTML(엑셀 가져오기). □ ○ - 로 시작하는 줄은 머릿기호 목록. */
 export function textToMemo(text: string): string {
+  // 예전에 메모를 태그째 내보낸 엑셀("<ul><li>…</li></ul>")은 글자가 아니라 메모로 읽어요(2026-10-28 사용자)
+  if (looksLikeMemoHtml(text)) return sanitize(text);
   const lines = text.replace(/\r\n?/g, "\n").split("\n");
   const html: string[] = [];
   let ul: string[] = [];
