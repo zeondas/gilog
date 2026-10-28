@@ -1471,7 +1471,7 @@ export const api = {
   /** 바뀐 해와 넣은 공사 수 */
   /** 같은 이름은 덮어쓰고 새 것만 더해요. [그 해 전체, 공사 덮어쓰기 수, 공사 새로 더하기 수] */
   importBudget: (year: number, projects: ImportProject[]) => call<[BudgetProject[], number, number]>("import_budget", { year, projects }),
-  budgetExcelWrite: (path: string, data: { year: number; unit: number; basis?: string; date: string; projects: BudgetProject[] }) => call<null>("budget_excel_write", { path, data }),
+  budgetExcelWrite: (path: string, data: { year: number; unit: number; date: string; projects: BudgetProject[] }) => call<null>("budget_excel_write", { path, data }),
   budgetExcelRead: (path: string) => call<GridSheet[]>("budget_excel_read", { path }),
   // 집행현황 팀 공유(2026-10-20): 자료가 있는 해, 세부사업 담당, 받은 줄 넣기(uid), 처음 묶일 때 비우기
   budgetYears: () => call<number[]>("budget_years"),

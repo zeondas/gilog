@@ -2,9 +2,10 @@
 //!
 //! - 내보내기: 시트 한 장. 1행 제목, 2행 기준일·단위, 3행 열 제목, 4행부터 세부사업 → 부기사업 → 공사.
 //!   세부사업·부기사업 줄의 합계는 SUBTOTAL·SUMPRODUCT 수식(엑셀에서 고쳐도 다시 계산돼요), 공사 줄 잔액·집행률도 수식.
-//!   계산 규칙: 잔액 = 원인행위 − 기준(H = E − F 또는 G), 집행률 = 기준 ÷ 원인행위(공사 줄 I = F/E 또는 G/E),
-//!   합계 줄 집행률 = Σ기준 ÷ 예산(F/D 또는 G/D), 가용액 = 예산 − Σ(완료·타절이면 max(원인행위, 집행액), 아니면 원인행위).
-//!   기준은 화면에서 고른 집행액(F, 처음 값)·시공량(G) — 2026-10-19 사용자, 2행에 "기준 …"을 적어요.
+//!   계산 규칙(2026-10-28 집행현황 계산 세션, 사용자 – 화면 src/budget.ts와 같음): 쓴 돈 = 완료·타절이면 집행액(F), 진행 중이면 시공량(G).
+//!   공사 줄 잔액 H = E − 쓴 돈, 공사 줄 집행률 I = 쓴 돈 ÷ E, 합계 줄 잔액 = 공사 줄 잔액 합(SUBTOTAL),
+//!   합계 줄 집행률 = Σ집행액 ÷ 예산(F/D, 늘 집행액), 가용액 = 예산 − Σ(완료·타절이면 집행액, 아니면 원인행위).
+//!   (전엔 화면에서 고른 기준 하나로 표 전체를 계산했고, 가용액은 완료면 max(원인행위, 집행액)였어요.)
 //!   엑셀 행 묶기 2단계(세부사업만 / 부기사업까지 / 전부). 고른 단위(원·천원)로 써요 — 천원은 값을 1000으로 나눠 쓰고
 //!   "#,##0" 서식이라 반올림한 정수로 보여요(계산은 나눈 값 그대로).
 //! - 숨긴 M열 "줄"에 세부사업·부기사업·공사를 적어 둬요(다시 가져올 때 겹을 알아보려고 — 값만으로는 세부사업과 부기사업 합계 줄을 가릴 수 없어요).
@@ -26,7 +27,7 @@ pub struct BudgetExport {
     pub year: i64,
     /// 1(원) 또는 1000(천원)
     pub unit: i64,
-    /// 잔액·집행률 기준 "exp"(집행액, 처음 값) 또는 "act"(시공량(사용량)) — 2026-10-19 사용자, 화면에서 고른 것
+    /// 예전 화면이 보내던 잔액·집행률 기준("exp"·"act") — 2026-10-28부터 단계로 저절로 정해 쓰지 않아요(받아도 무시)
     pub basis: String,
     /// 기준일 2026-10-18
     pub date: String,
@@ -142,10 +143,7 @@ pub fn write_budget_xlsx(path: &Path, data: &BudgetExport) -> Result<()> {
     ws.set_row_height(0, 50).map_err(xerr)?;
     let sub = Format::new().set_font_name(FONT).set_font_charset(129).set_font_size(10).set_font_color(Color::RGB(0x595959));
     let unit_name = if unit == 1.0 { "원" } else { "천원" };
-    let act = data.basis == "act";
-    // 잔액·집행률이 볼 열: F(집행액) 또는 G(시공량)
-    let sc = if act { "G" } else { "F" };
-    ws.write_string_with_format(1, 0, format!("기준일 {} · 단위 {unit_name} · 기준 {}", data.date, if act { "시공량" } else { "집행액" }), &sub).map_err(xerr)?;
+    ws.write_string_with_format(1, 0, format!("기준일 {} · 단위 {unit_name}", data.date), &sub).map_err(xerr)?;
     ws.set_row_height(1, 24).map_err(xerr)?;
     let head = Format::new()
         .set_font_name(FONT)
@@ -188,13 +186,14 @@ pub fn write_budget_xlsx(path: &Path, data: &BudgetExport) -> Result<()> {
                 ws.write_formula_with_format(row, ci, Formula::new(format!("=SUBTOTAL(9,{})", rg(c))), &f.num).map_err(xerr)?;
             }
             let (k, e, ff) = (rg("K"), rg("E"), rg("F"));
-            // 집행률 = Σ집행액 ÷ 예산(단계 무관) — 같은 줄 F가 집행액 합계(SUBTOTAL)라 그대로 나눠요(부기사업 합계를 두 번 세지 않게)
-            ws.write_formula_with_format(row, 8, Formula::new(format!("=IF(N(D{r})=0,\"\",{sc}{r}/D{r})")), &f.pct).map_err(xerr)?;
+            // 가용액 = 예산 − Σ(완료·타절 × 집행액) − Σ(진행 중 × 원인행위)
+            // 집행률 = Σ집행액 ÷ 예산(늘 집행액, 단계 무관) — 같은 줄 F가 집행액 합계(SUBTOTAL)라 그대로 나눠요(부기사업 합계를 두 번 세지 않게)
+            ws.write_formula_with_format(row, 8, Formula::new(format!("=IF(N(D{r})=0,\"\",F{r}/D{r})")), &f.pct).map_err(xerr)?;
             ws.write_formula_with_format(
                 row,
                 9,
                 Formula::new(format!(
-                    "=IF(D{r}=\"\",\"\",D{r}-SUMPRODUCT({}*(({e}>={ff})*{e}+({e}<{ff})*{ff}))-SUMPRODUCT({}*{e}))",
+                    "=IF(D{r}=\"\",\"\",D{r}-SUMPRODUCT({}*{ff})-SUMPRODUCT({}*{e}))",
                     fin(&k),
                     nfin(&k)
                 )),
@@ -247,12 +246,14 @@ pub fn write_budget_xlsx(path: &Path, data: &BudgetExport) -> Result<()> {
                 ws.write_number_with_format(row, 4, money(g.cmt), &f.num).map_err(xerr)?;
                 ws.write_number_with_format(row, 5, money(g.exp), &f.num).map_err(xerr)?;
                 ws.write_number_with_format(row, 6, money(g.act), &f.num).map_err(xerr)?;
-                ws.write_formula_with_format(row, 7, Formula::new(format!("=E{r}-{sc}{r}")), &f.num)
+                // 쓴 돈 = 완료·타절이면 집행액(F), 진행 중이면 시공량(G) — 단계 칸(K)을 보고 엑셀에서 단계를 고쳐도 다시 계산돼요
+                let used = format!("IF(OR(K{r}=\"완료\",K{r}=\"타절\"),F{r},G{r})");
+                ws.write_formula_with_format(row, 7, Formula::new(format!("=E{r}-{used}")), &f.num)
                     .map_err(xerr)?;
                 ws.write_formula_with_format(
                     row,
                     8,
-                    Formula::new(format!("=IF(N(E{r})=0,\"\",{sc}{r}/E{r})")),
+                    Formula::new(format!("=IF(N(E{r})=0,\"\",{used}/E{r})")),
                     &f.pct,
                 )
                 .map_err(xerr)?;
@@ -361,7 +362,7 @@ mod tests {
         assert_eq!(sheets[0].name, "2026 집행현황");
         let rows = &sheets[0].rows;
         assert_eq!(rows[2][0], "세부사업");
-        assert_eq!(rows[1][0], "기준일 2026-10-18 · 단위 천원 · 기준 집행액");
+        assert_eq!(rows[1][0], "기준일 2026-10-18 · 단위 천원");
         assert_eq!(rows[3][0], "도로포장 유지관리");
         assert_eq!(rows[3][3], "1724000");
         assert_eq!(rows[4][0], "시도");
@@ -372,15 +373,15 @@ mod tests {
         assert_eq!((rows[3][12].as_str(), rows[4][12].as_str(), rows[5][12].as_str()), ("세부사업", "부기사업", "공사"));
     }
 
-    /// 계산 규칙(2026-10-18 21:35): 잔액·집행률은 원인행위·집행액만 — 시공량(G)은 어느 수식에도 안 들어가요(합계 줄 SUBTOTAL만).
-    #[test]
-    fn formulas_use_money_only() {
+    /// 계산 규칙(2026-10-28 집행현황 계산 세션, 사용자): 쓴 돈 = 완료·타절이면 집행액(F), 진행 중이면 시공량(G).
+    /// 공사 줄 잔액·집행률은 단계 칸(K)을 보고 고르고, 합계 줄 집행률은 늘 F/D, 가용액은 완료 F·진행 중 E.
+    fn rule_sheet(basis: &str) -> (tempfile::TempDir, std::path::PathBuf) {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("규칙.xlsx");
         let data = BudgetExport {
             year: 2026,
             unit: 1,
-            basis: String::new(),
+            basis: basis.into(),
             date: "2026-10-18".into(),
             projects: vec![BudgetProject {
                 id: 1,
@@ -404,34 +405,63 @@ mod tests {
             }],
         };
         write_budget_xlsx(&path, &data).unwrap();
-        let mut wb = open_workbook_auto(&path).unwrap();
+        (dir, path)
+    }
+
+    fn formulas(path: &Path) -> Vec<Vec<String>> {
+        let mut wb = open_workbook_auto(path).unwrap();
         let f = wb.worksheet_formula("2026 집행현황").unwrap();
-        let at = |r: u32, c: u32| f.get_value((r, c)).cloned().unwrap_or_default().trim_start_matches('=').to_string();
-        // 6행 = 공사(연간단가) — 0부터 세면 5
-        assert_eq!(at(5, 7), "E6-F6");
-        assert_eq!(at(5, 8), "IF(N(E6)=0,\"\",F6/E6)");
-        // 합계 줄 집행률 = 같은 줄 집행액 합계 ÷ 예산
-        assert_eq!(at(3, 8), "IF(N(D4)=0,\"\",F4/D4)");
-        assert_eq!(at(4, 8), "IF(N(D5)=0,\"\",F5/D5)");
-        // 집행액 기준이면 시공량(G)은 잔액·집행률·가용액 수식에 없어요
-        for r in 3..=6u32 {
-            for c in [7u32, 8, 9] {
-                assert!(!at(r, c).contains('G'), "{r},{c}: {}", at(r, c));
+        (0..8u32).map(|r| (0..12u32).map(|c| f.get_value((r, c)).cloned().unwrap_or_default().trim_start_matches('=').to_string()).collect()).collect()
+    }
+
+    /// 공사 줄 잔액·집행률 = 단계로 고른 쓴 돈(완료·타절 F, 진행 중 G)
+    #[test]
+    fn row_formulas_pick_by_stage() {
+        let (_d, path) = rule_sheet("");
+        let at = formulas(&path);
+        // 6행 = 진행 중 공사(연간단가), 7행 = 완료 공사 — 0부터 세면 5·6
+        let used6 = "IF(OR(K6=\"완료\",K6=\"타절\"),F6,G6)";
+        assert_eq!(at[5][7], format!("E6-{used6}"));
+        assert_eq!(at[5][8], format!("IF(N(E6)=0,\"\",{used6}/E6)"));
+        assert_eq!(at[6][7], "E7-IF(OR(K7=\"완료\",K7=\"타절\"),F7,G7)");
+        // 합계 줄 잔액은 공사 줄 잔액 합
+        assert_eq!(at[4][7], "SUBTOTAL(9,H6:H7)");
+    }
+
+    /// 합계 줄 집행률 = Σ집행액 ÷ 예산 — 시공량(G)은 합계 줄 집행률·가용액에 안 들어가요
+    #[test]
+    fn summary_rate_uses_exp_only() {
+        let (_d, path) = rule_sheet("");
+        let at = formulas(&path);
+        assert_eq!(at[3][8], "IF(N(D4)=0,\"\",F4/D4)");
+        assert_eq!(at[4][8], "IF(N(D5)=0,\"\",F5/D5)");
+        for r in [3usize, 4] {
+            for c in [8usize, 9] {
+                assert!(!at[r][c].contains('G'), "{r},{c}: {}", at[r][c]);
             }
         }
-        // 시공량 기준(2026-10-19 사용자): 잔액·집행률이 G를 봐요, 가용액은 그대로
-        let path2 = dir.path().join("시공량.xlsx");
-        let data2 = BudgetExport { basis: "act".into(), ..data };
-        write_budget_xlsx(&path2, &data2).unwrap();
-        let mut wb2 = open_workbook_auto(&path2).unwrap();
-        let f2 = wb2.worksheet_formula("2026 집행현황").unwrap();
-        let at2 = |r: u32, c: u32| f2.get_value((r, c)).cloned().unwrap_or_default().trim_start_matches('=').to_string();
-        assert_eq!(at2(5, 7), "E6-G6");
-        assert_eq!(at2(5, 8), "IF(N(E6)=0,\"\",G6/E6)");
-        assert_eq!(at2(3, 8), "IF(N(D4)=0,\"\",G4/D4)");
-        assert_eq!(at2(3, 9), at(3, 9));
-        let grid = read_grid(&path2).unwrap();
-        assert!(grid[0].rows[1][0].ends_with("기준 시공량"));
+    }
+
+    /// 가용액 = 예산 − Σ(완료·타절 × 집행액) − Σ(진행 중 × 원인행위) — 전의 max(원인행위, 집행액)는 없어요
+    #[test]
+    fn available_uses_exp_when_done() {
+        let (_d, path) = rule_sheet("");
+        let at = formulas(&path);
+        assert_eq!(
+            at[4][9],
+            "IF(D5=\"\",\"\",D5-SUMPRODUCT(((K6:K7=\"완료\")+(K6:K7=\"타절\"))*F6:F7)-SUMPRODUCT(((K6:K7=\"준비\")+(K6:K7=\"추진\")+(K6:K7=\"중지\"))*E6:E7))"
+        );
+        assert!(!at[4][9].contains(">="), "{}", at[4][9]);
+    }
+
+    /// 예전 화면이 보내던 기준(basis "act")은 무시해요 — 수식·2행 글자가 같아요
+    #[test]
+    fn old_basis_is_ignored() {
+        let (_d1, p1) = rule_sheet("");
+        let (_d2, p2) = rule_sheet("act");
+        assert_eq!(formulas(&p1), formulas(&p2));
+        let grid = read_grid(&p2).unwrap();
+        assert_eq!(grid[0].rows[1][0], "기준일 2026-10-18 · 단위 원");
     }
 
     /// 보기 파일: GILOG_BUDGET_JSON(화면이 보내는 내보내기 자료 JSON)을 GILOG_XLSX_OUT 폴더에 써요.
