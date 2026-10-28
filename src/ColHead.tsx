@@ -109,6 +109,8 @@ export function ColGrip({
         if (e.button !== 0) return;
         startColDrag(e, { base: width, min, bodyClass: "col-dragging", grip: e.currentTarget, on: "document", onMove, onEnd });
       }}
+      // 머리 칸이 누르기로 다른 일(탐색기 열 순서 끌기)을 하면 손잡이에서 시작한 누르기는 거기로 안 가게
+      onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
       onDoubleClick={(e) => {
         e.stopPropagation();

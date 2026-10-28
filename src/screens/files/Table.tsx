@@ -1,4 +1,6 @@
 // 탐색기 – 창 하나 그리기(탭 줄 → 드라이브 줄 → 경로 줄 → 목록 → 상태 줄)와 목록 줄 부품·미리보기 칸. 화면 몸통(Screen)이 지금 값을 묶어 넘겨요.
+import type { MutableRefObject } from "react";
+import type { ColHead } from "../../ColHead";
 import { Fragment, useEffect, useState } from "react";
 import { inApp } from "../../api";
 import { FileIcon } from "../../FileIcon";
@@ -25,7 +27,6 @@ import {
   isSpecial,
   isLnk,
   shownName,
-  COL_MIN,
   ColKey,
   moveCol,
 } from "../../files";
@@ -91,6 +92,10 @@ export type PaneCtx = {
   suggest: (pane: number, v: string) => void;
   targetOf: (pane: number) => number;
   toggleCol: (k: "size" | "modified" | "type") => Promise<void>;
+  /** 열 폭 공통 부품(헤더 열 조정 통일) – 모든 창 공통 */
+  colh: ColHead;
+  /** 창마다 "그 열 글자 폭" 재는 함수(두 번 누르기·내용에 맞춤) */
+  colFit: MutableRefObject<Record<number, (k: string) => number | null>>;
   types: Record<string, string>;
   up: (pane: number) => void;
   updPane: (pane: number, f: (p: RPane) => RPane) => void;
@@ -101,10 +106,10 @@ export type PaneCtx = {
 
 export function renderPane(pane: number, c: PaneCtx) {
   const {
-    activeTab, cfg, closeTab, commitInline, copyPath, crumbList, cut, dateMin, dragScroll, dragSrc, driveMenu, dropTo, editPath, extHover,
+    activeTab, cfg, closeTab, commitInline, copyPath, crumbList, cut, dragScroll, dragSrc, driveMenu, dropTo, editPath, extHover,
     filterRefs, filters, flash, fmt, focusPane, go, home, inline, keepPick, lists, menu, nativeDrag, newTab, newTabBg, noCtxUntil,
     openEntry, paneCount, rerunFind, rowsOf, selected, sels, setBand, setEditPath, setFilters, setFindOpen, setForm, setInline, setMenu,
-    setPop, setSel, setSt, setSugg, shellMenu, st, stepHistory, sugg, suggest, targetOf, toggleCol, types, up, updPane, visibleDrives, note
+    setPop, setSel, setSt, setSugg, shellMenu, st, stepHistory, sugg, suggest, targetOf, toggleCol, types, up, updPane, visibleDrives, colh, colFit, note
   } = c;
   const p = st.panes[pane];
   const t = activeTab(p);
@@ -200,51 +205,26 @@ export function renderPane(pane: number, c: PaneCtx) {
   // 열(2026-10-28 탐색기 ✔5·✔9 – 윈도우·FC처럼): 이름은 맨 앞 정해진 폭, 뒤 열은 모든 창 공통 순서(제목을 끌어 바꿔요).
   // 크기·수정한 날·파일 형식은 설정에서 켜고 꺼요(2026-10-18 사용자). 찾기 결과는 폴더 열도.
   const shown = st.colOrder.filter((k) => (k === "folder" ? !!t.find : cfg.cols[k]));
-  const minOf = (k: "name" | ColKey) => (k === "modified" ? Math.max(COL_MIN, dateMin) : COL_MIN);
-  const widthOf = (k: "name" | ColKey) => Math.max(minOf(k), st.cols[k] ?? COL_MIN);
+  const widthOf = (k: "name" | ColKey) => colh.width(k);
   const colsW = [widthOf("name"), ...shown.map(widthOf)];
   /** 줄·머리 줄 폭 = 왼쪽 안쪽 10 + 아이콘 32 + 열 합 – 그 뒤는 빈 곳(줄 선·고른 색 없음). 창보다 넓으면 그 창만 가로로 밀려요. */
   const rowW = 10 + 32 + colsW.reduce((a, b) => a + b, 0);
   const colStyle = { gridTemplateColumns: ["32px", ...colsW.map((w) => `${w}px`)].join(" "), width: rowW };
   const detailMode = p.view === "detail" || !!t.find;
-  /** 경계 손잡이: 열 오른쪽 끝 – 끌면 그 왼쪽 열만 바뀌고, 두 번 누르면 글자에 맞춰요 */
-  const resizer = (k: "name" | ColKey) => (
-    <span
-      className="fx-col-grip"
-      onPointerDown={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const x0 = e.clientX;
-        const w0 = widthOf(k);
-        const min = minOf(k);
-        const el = e.currentTarget;
-        el.setPointerCapture(e.pointerId);
-        const move = (ev: PointerEvent) => setSt((S) => (S ? { ...S, cols: { ...S.cols, [k]: Math.max(min, Math.round(w0 + ev.clientX - x0)) } } : S));
-        const upf = () => {
-          el.removeEventListener("pointermove", move);
-          el.removeEventListener("pointerup", upf);
-        };
-        el.addEventListener("pointermove", move);
-        el.addEventListener("pointerup", upf);
-      }}
-      onClick={(e) => e.stopPropagation()}
-      onDoubleClick={(e) => {
-        e.stopPropagation();
-        // 글꼴로 재서 가장 긴 값에 맞춰요.
-        const c = document.createElement("canvas").getContext("2d");
-        if (!c) return;
-        c.font = `${getComputedStyle(document.body).fontSize} Pretendard, sans-serif`;
-        if (k === "name") {
-          const w = Math.ceil(Math.max(COL_MIN, ...rows.map((r) => c.measureText(shownName(r)).width + (r.locked ? 18 : 0)))) + 16;
-          setSt((S) => (S ? { ...S, cols: { ...S.cols, name: w } } : S));
-          return;
-        }
-        const vals = rows.map((r) => (k === "size" ? (r.dir ? "" : formatSize(r.size)) : k === "modified" ? formatDate(r.modified, fmt) : k === "type" ? typeName(r, types) : r.folder ?? ""));
-        const w = Math.ceil(Math.max(COL_MIN, ...vals.map((v) => c.measureText(v).width))) + 20 + (k === "modified" && fmt.includes(" ") ? DATE_TIME_GAP : 0);
-        setSt((S) => (S ? { ...S, cols: { ...S.cols, [k]: Math.max(minOf(k), w) } } : S));
-      }}
-    />
-  );
+  // 이 창 줄의 그 열 글자 폭(글꼴로 재서 가장 긴 값) – 두 번 누르기·내용에 맞춤이 모든 창 가운데 가장 넓은 값을 써요.
+  colFit.current[pane] = (k: string) => {
+    if (!detailMode || !rows.length) return null;
+    const c = document.createElement("canvas").getContext("2d");
+    if (!c) return null;
+    c.font = `${getComputedStyle(document.body).fontSize} Pretendard, sans-serif`;
+    if (k === "name") return Math.ceil(Math.max(0, ...rows.map((r) => c.measureText(shownName(r)).width + (r.locked ? 18 : 0)))) + 16;
+    if (k === "folder" && !t.find) return null;
+    const vals = rows.map((r) => (k === "size" ? (r.dir ? "" : formatSize(r.size)) : k === "modified" ? formatDate(r.modified, fmt) : k === "type" ? typeName(r, types) : r.folder ?? ""));
+    return Math.ceil(Math.max(0, ...vals.map((v) => c.measureText(v).width))) + 20 + (k === "modified" && fmt.includes(" ") ? DATE_TIME_GAP : 0);
+  };
+  /** 경계 손잡이(공통 부품): 열 오른쪽 끝 – 끌면 그 왼쪽 열만 바뀌고, 두 번 누르면 글자에 맞춰요 */
+  const lastCol: "name" | ColKey = shown.length ? shown[shown.length - 1] : "name";
+  const resizer = (k: "name" | ColKey) => colh.grip(k, { last: k === lastCol });
   /** 열 제목 끌어 순서 바꾸기(✔5): 6px 넘게 끌 때만 옮기기 – 놓을 자리에 세로 줄 */
   const colDragStart = (e: React.PointerEvent<HTMLButtonElement>, k: ColKey) => {
     if (e.button !== 0) return;
@@ -408,21 +388,24 @@ export function renderPane(pane: number, c: PaneCtx) {
   };
   const hdr = (
     <div
-      className="fx-hdr"
+      className="fx-hdr colh-row"
       style={colStyle}
       onContextMenu={(e) => {
-        // 열 머리 우클릭: 보일 열 고르기(호환 B)
+        // 열 머리 우클릭(헤더 열 조정 통일): 내용에 맞춤·처음 폭으로(폭만 – 순서·보이는 열은 그대로) + 보일 열 고르기(호환 B)
         e.preventDefault();
         setPop({
           x: e.clientX,
           y: e.clientY,
           items: [
+            { id: "fit", label: "내용에 맞춤(모든 열)" },
+            { id: "reset", label: "처음 폭으로" },
+            "-",
             { id: "name", label: "이름", checked: true, disabled: true },
             { id: "size", label: "크기", checked: cfg.cols.size },
-            { id: "modified", label: "수정한 날짜", checked: cfg.cols.modified },
+            { id: "modified", label: "수정한 날", checked: cfg.cols.modified },
             { id: "type", label: "파일 형식", checked: cfg.cols.type },
           ],
-          onPick: (id) => void toggleCol(id as "size" | "modified" | "type"),
+          onPick: (id) => (id === "fit" ? colh.fitAll() : id === "reset" ? colh.reset() : void toggleCol(id as "size" | "modified" | "type")),
         });
       }}
     >

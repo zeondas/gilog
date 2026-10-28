@@ -3,6 +3,8 @@
 // - 창마다 탭 줄 → 드라이브 줄(드라이브 · 빠른 필터 · 보기 ▾) → 경로 줄(경로 · 폴더 경로 복사 · 윈도우 탐색기로 열기 · ★) → 목록 → 상태 줄.
 // - 우클릭(파일·폴더·빈 곳)은 윈도우 우클릭 메뉴 그대로(2안), 탭 우클릭만 기록 메뉴.
 // - 상태(탭·열 폭·정렬·보기·트리·즐겨찾기·찾기 조건·일괄 이름 바꾸기 설정)는 암호화 파일 kv "files.state".
+import { useColHead } from "../../ColHead";
+import type { ColDef } from "../../cols";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, inApp } from "../../api";
 import { FileIcon } from "../../FileIcon";
@@ -50,6 +52,7 @@ import {
   inZip,
   isZipFile,
   zipOrIn,
+  DEFAULT_COLS,
 } from "../../files";
 import { Conflict, FastStatus, MenuExtra, MenuResult, Step, TreeDir, fsApi, fsErrorText, onFsChanged, onFsProgress } from "../../filesApi";
 import { parseDate } from "../../journal";
@@ -1634,6 +1637,25 @@ export default function FilesScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 열 폭(헤더 열 조정 통일 2026-10-28): 모든 창 공통, 끈 열만 kv `files.cols`. 수정한 날 열은 날짜 형식 글자 폭 아래로 안 줄어요.
+  // 두 번 누르기·"내용에 맞춤"은 창마다 그 창 줄을 재는 함수(colFit)를 두고 가장 넓은 값을 써요.
+  const colFit = useRef<Record<number, (k: string) => number | null>>({});
+  const colDefs: ColDef[] = [
+    { id: "name", label: "이름", init: DEFAULT_COLS.name, text: true },
+    { id: "size", label: "크기", init: DEFAULT_COLS.size },
+    { id: "modified", label: "수정한 날", init: DEFAULT_COLS.modified, min: Math.max(40, dateColMin(cfg.dateFmt)) },
+    { id: "folder", label: "폴더", init: DEFAULT_COLS.folder },
+    { id: "type", label: "파일 형식", init: DEFAULT_COLS.type },
+  ];
+  const colh = useColHead({
+    store: "files.cols",
+    cols: colDefs,
+    measure: (k) => {
+      const ws = Object.values(colFit.current).map((f) => f(k)).filter((w): w is number => w != null && w > 0);
+      return ws.length ? Math.max(...ws) : null;
+    },
+  });
+
   if (!st) return <div className="fx-root" />;
 
   const fmt = cfg.dateFmt;
@@ -1646,7 +1668,7 @@ export default function FilesScreen() {
     activeTab, cfg, closeTab, commitInline, copyPath, crumbList, cut, dateMin, dragScroll, dragSrc, driveMenu, dropTo, editPath, extHover,
     filterRefs, filters, flash, fmt, focusPane, go, home, inline, keepPick, lists, menu, nativeDrag, newTab, newTabBg, noCtxUntil,
     openEntry, paneCount, rerunFind, rowsOf, selected, sels, setBand, setEditPath, setFilters, setFindOpen, setForm, setInline, setMenu,
-    setPop, setSel, setSt, setSugg, shellMenu, st, stepHistory, sugg, suggest, targetOf, toggleCol, types, up, updPane, visibleDrives,
+    setPop, setSel, setSt, setSugg, shellMenu, st, stepHistory, sugg, suggest, targetOf, toggleCol, types, up, updPane, visibleDrives, colh, colFit,
     note: { pane: notePane != null && notePane < paneCount ? notePane : st.active, busy, toast, cancel: () => void fsApi.cancel() },
   };
 

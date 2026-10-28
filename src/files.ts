@@ -463,8 +463,6 @@ export type FilesState = {
   preview?: boolean;
   active: number;
   panes: FsPane[];
-  /** 열 폭 – 이름도 정해진 폭(2026-10-28 탐색기 ✔9, 윈도우·FC처럼) */
-  cols: { name: number; size: number; modified: number; folder: number; type: number };
   /** 이름 뒤 열 순서 – 모든 창 공통(✔5, 제목을 끌어 바꿔요) */
   colOrder: ColKey[];
   tree: { on: boolean; width: number; open: string[] };
@@ -485,7 +483,6 @@ export function defaultState(home: string): FilesState {
     split: 0.5,
     active: 0,
     panes: [pane(), pane(), pane(), pane()],
-    cols: { ...DEFAULT_COLS },
     colOrder: [...COL_ORDER],
     tree: { on: true, width: TREE_W.start, open: [] },
     favorites: [],
@@ -494,22 +491,12 @@ export function defaultState(home: string): FilesState {
   };
 }
 
-/** 처음 열 폭(✔9): 1600×900 두칸·날짜 Windows 모양(171)에서 가로 막대가 안 생기게 잰 값 – 10 + 32 + 168 + 72 + 171 + 84 = 537 ≤ 목록 538 */
+/** 처음 열 폭(✔9): 1600×900 두칸·날짜 Windows 모양(171)에서 가로 막대가 안 생기게 잰 값 – 10 + 32 + 168 + 72 + 171 + 84 = 537 ≤ 목록 538.
+ *  끈 폭은 헤더 열 조정 통일(2026-10-28)의 공통 부품이 kv `files.cols`에 끈 열만 저장해요(모든 창 공통) – 옛 `files.state`의 cols는 읽지 않아요. */
 export const DEFAULT_COLS = { name: 168, size: 72, modified: 112, folder: 140, type: 84 };
-/** 저장된 열 폭 – ✔9 전 저장값(이름 폭 없음)의 크기·파일 형식이 옛 처음 값(80·104) 그대로면 새 처음 값으로 */
-export function readCols(c: Partial<FilesState["cols"]> | undefined): FilesState["cols"] {
-  const out = { ...DEFAULT_COLS, ...c };
-  if (c && c.name == null) {
-    if (c.size === 80) out.size = DEFAULT_COLS.size;
-    if (c.type === 104) out.type = DEFAULT_COLS.type;
-  }
-  return out;
-}
 /** 이름 뒤에 올 수 있는 열(찾기 결과는 폴더도) */
 export type ColKey = "folder" | "size" | "modified" | "type";
 export const COL_ORDER: readonly ColKey[] = ["folder", "size", "modified", "type"];
-/** 열 폭 가장 좁게(✔9 – 날짜 열은 형식 글자 폭 아래로도 안 줄어요) */
-export const COL_MIN = 40;
 /** 저장된 열 순서 정리: 모르는 것·겹친 것은 빼고 빠진 열은 처음 순서 자리대로 끝에 */
 export function tidyColOrder(o: unknown): ColKey[] {
   const out: ColKey[] = [];
@@ -550,10 +537,11 @@ export function readState(raw: string | null, home: string): FilesState {
   const d = defaultState(home);
   if (!raw) return d;
   try {
-    const s = JSON.parse(raw) as Partial<FilesState> & { four?: boolean };
+    const s = JSON.parse(raw) as Partial<FilesState> & { four?: boolean; cols?: unknown };
     // 옛 값(four: true/false)은 칸 모양으로 옮겨요
     const layout: Layout = s.layout && ["lr", "tb", "3l", "3r", "four"].includes(s.layout) ? s.layout : s.four ? "four" : "lr";
     delete s.four;
+    delete s.cols; // 옛 열 폭(헤더 열 조정 통일로 files.cols에 – 옮기지 않고 버려요)
     const panes = (s.panes ?? []).slice(0, 4).map((p, i) => ({ ...d.panes[i], ...p, tabs: p.tabs?.length ? p.tabs : d.panes[i].tabs }));
     while (panes.length < 4) panes.push(d.panes[panes.length]);
     for (const p of panes) {
@@ -565,7 +553,6 @@ export function readState(raw: string | null, home: string): FilesState {
       ...s,
       layout,
       panes,
-      cols: readCols(s.cols),
       colOrder: tidyColOrder(s.colOrder),
       tree: { ...d.tree, ...s.tree, width: Math.min(TREE_W.max, Math.max(TREE_W.min, s.tree?.width ?? TREE_W.start)) },
       rename: { ...DEFAULT_RENAME, ...s.rename },
