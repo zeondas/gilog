@@ -16,7 +16,8 @@ export const VIEWPORT_SCROLL = true;
  * 0이면 최소 폭 없음(창 최소 크기 1024에서도 줄임이 생기지 않는 화면, 집행현황·예산현황은 표 안에서 따로 스크롤).
  */
 export const MIN_W: Record<ScreenId, number> = {
-  explorer: 1364,
+  // 탐색기는 창마다 목록이 가로로 밀려요(2026-10-28 탐색기 ✔1) – 본문 스크롤은 받침: 폴더트리 232 + 창 둘 300씩 + 사이 12×2
+  explorer: 856,
   complaints: 1364,
   process: 1364,
   budget: 0,

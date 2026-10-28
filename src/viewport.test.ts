@@ -4,7 +4,7 @@ import { MIN_W, minWidthOf, VIEWPORT_SCROLL } from "./viewport";
 
 test("화면마다 최소 폭(본문 안 폭, 기준 1364)", () => {
   expect(VIEWPORT_SCROLL).toBe(true);
-  expect(MIN_W).toEqual({ explorer: 1364, complaints: 1364, process: 1364, budget: 0, bstatus: 0, calendar: 1204, todo: 0, journal: 0, contacts: 1124, settings: 0 });
+  expect(MIN_W).toEqual({ explorer: 856, complaints: 1364, process: 1364, budget: 0, bstatus: 0, calendar: 1204, todo: 0, journal: 0, contacts: 1124, settings: 0 });
   expect(minWidthOf("calendar")).toBe(1204);
   expect(minWidthOf(null)).toBe(0);
 });

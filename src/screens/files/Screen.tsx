@@ -54,7 +54,7 @@ import { DateInput } from "../../DateInput";
 import { useOutsideClose } from "../../useOutsideClose";
 import { DEFAULT_FILES_SETTINGS, FilesSettings, loadSettings, saveSettings } from "../../settingsStore";
 import { SearchBox } from "../../SearchBox";
-import { PickMenu, TabMenu } from "./Menu";
+import { KeyHelp, PickMenu, TabMenu } from "./Menu";
 import { PaneCtx, Preview, renderPane } from "./Table";
 import { handleKey } from "./keys";
 import { AskDialog, ConflictDialog, Decision, DeleteDialog, NameDialog, RenameDialog, TransferAsk } from "./Dialogs";
@@ -157,6 +157,12 @@ export default function FilesScreen() {
   const [nameAsk, setNameAsk] = useState<{ title: string; value: string; ok: (v: string) => void } | null>(null);
   const [toast, setToast] = useState("");
   const [busy, setBusy] = useState<{ done: number; total: number; name: string } | null>(null);
+  /** 진행·알림을 띄울 창(받는 창, 없으면 지금 창) – 창 상태 줄 오른쪽(2026-10-28 탐색기 ✔2 ②1안) */
+  const [notePane, setNotePane] = useState<number | null>(null);
+  /** 단축키 상자(머리 줄 ⓘ – 마우스를 올리면 hover, 누르거나 F1이면 pin) */
+  const [help, setHelp] = useState<null | "hover" | "pin">(null);
+  const helpBtn = useRef<HTMLButtonElement>(null);
+  const helpTimer = useRef(0);
   const [tree, setTree] = useState<Map<string, TreeDir[]>>(new Map());
   const quickRef = useRef<HTMLInputElement>(null);
   const findNameRef = useRef<HTMLInputElement>(null);
@@ -182,7 +188,10 @@ export default function FilesScreen() {
 
   const flash = useCallback((t: string) => {
     setToast(t);
-    window.setTimeout(() => setToast((x) => (x === t ? "" : x)), 3000);
+    window.setTimeout(() => {
+      setToast((x) => (x === t ? "" : x));
+      setNotePane(null);
+    }, 3000);
   }, []);
 
   // 상태 저장(조금 모아서)
@@ -558,6 +567,14 @@ export default function FilesScreen() {
       const list = await fsApi.conflicts(sources, dest);
       const dec = await askConflicts(list, op);
       if (!dec) return false;
+      // 진행·알림은 받는 창 상태 줄에(놓은 폴더를 연 창이 없으면 대상 창)
+      const shows = st.panes.findIndex((pp) => {
+        const tt = activeTab(pp);
+        return !tt.find && tt.path.toLowerCase() === dest.toLowerCase();
+      });
+      const tg = targetOf(pane);
+      const tgt = activeTab(st.panes[tg]);
+      setNotePane(!tgt.find && tgt.path.toLowerCase() === dest.toLowerCase() ? tg : shows >= 0 && shows < paneCount ? shows : tg);
       setBusy({ done: 0, total: sources.length, name: "" });
       const sum = await fsApi.transfer(op, sources, dest, dec);
       setBusy(null);
@@ -1056,7 +1073,8 @@ export default function FilesScreen() {
       activeTab, ask, askDelete, askTransfer, askYes, busy, clipPaste, clipPut, closeTab, conflict, copyPath, curPath, del, filterRefs,
       filters, findNameRef, findOpen, flash, focusPane, form, home, menu, nameAsk, newFolder, newTab, newTabBg, openEntry, paneCount, pop,
       quickFind, refresh, refreshAll, renameRows, rowsOf, selected, sels, setEditPath, setFilters, setFindOpen, setForm, setMenu, setPop,
-      setSel, setSt, shellMenu, st, startRename, stepHistory, undoRedo, up, updPane, xfer
+      setSel, setSt, shellMenu, st, startRename, stepHistory, undoRedo, up, updPane, xfer,
+      toggleHelp: () => setHelp((h) => (h === "pin" ? null : "pin")),
     });
   useEffect(() => {
     const f = (e: KeyboardEvent) => keyRef.current(e);
@@ -1317,13 +1335,23 @@ export default function FilesScreen() {
   // 트리 폭 끌기
   const dragW = useRef<{ x: number; w: number } | null>(null);
   const panesRef = useRef<HTMLDivElement>(null);
+  // 경로 줄이 창보다 길면 끝(지금 폴더)이 보이게 앞쪽을 가려요(2026-10-28 탐색기 ✔1)
+  const crumbsToEnd = () => document.querySelectorAll<HTMLElement>(".fx-crumbs").forEach((el) => (el.scrollLeft = el.scrollWidth));
+  useEffect(crumbsToEnd);
+  useEffect(() => {
+    const el = panesRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(crumbsToEnd);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [!!st]);
   /** 머리 줄 단추(2026-10-19 사용자 1안): 기준 크기(1600×900)에 맞춘 90px 고정 – 넓어져도 늘리지 않고 남는 폭은 오른쪽 빈 곳.
       90px 단추가 다 안 들어가면 글자를 빼고 34×34 정사각형(고정)으로, 앞에서부터 차례로. 마우스를 올리면 이름이 떠요. */
   const toolsRef = useRef<HTMLDivElement>(null);
   const TOOL_W = 90;
   const TOOL_SQ = 34;
-  /** 글자를 둔 채 줄일 수 있는 가장 좁은 폭 */
-  const TOOL_MIN = 80;
+  /** 글자를 둔 채 줄일 수 있는 가장 좁은 폭 – 아이콘 + 글자 4자 = 67px(2026-10-28 잼). ⓘ가 더해져 1600에서 77px이라 80 → 76(탐색기 ✔2) */
+  const TOOL_MIN = 76;
   const [toolFit, setToolFit] = useState({ w: 90, compact: false, last: 0 });
   useEffect(() => {
     const el = toolsRef.current;
@@ -1331,7 +1359,7 @@ export default function FilesScreen() {
     const fit = () => {
       const kids = [...el.children] as HTMLElement[];
       const btns = kids.filter((k) => k.classList.contains("fx-tool"));
-      const other = kids.filter((k) => !k.classList.contains("fx-tool")).reduce((n, k) => n + k.offsetWidth + 4, 0); // 구분선 1 + 좌우 2
+      const other = kids.filter((k) => !k.classList.contains("fx-tool")).reduce((n, k) => n + k.offsetWidth + (k.classList.contains("fx-vsep") ? 4 : 0), 0); // 구분선 1 + 좌우 2, ⓘ는 34 그대로
       const free = el.clientWidth - other - 8 * (kids.length - 1) - 1; // 마지막 단추 오른쪽 1px 착시 보정
       // 90px가 다 안 들어가면 글자를 둔 채 고르게 줄여요(2026-10-25 사용자 1안 – 세칸보기 단추가 늘어 1600에서 81px). 남는 폭은 마지막 단추가 맡아 오른쪽 끝을 창 끝에 맞춰요.
       const n = btns.length;
@@ -1596,7 +1624,8 @@ export default function FilesScreen() {
     activeTab, cfg, closeTab, commitInline, copyPath, crumbList, cut, dateMin, dragScroll, dragSrc, driveMenu, dropTo, editPath, extHover,
     filterRefs, filters, flash, fmt, focusPane, go, home, inline, keepPick, lists, menu, nativeDrag, newTab, newTabBg, noCtxUntil,
     openEntry, paneCount, rerunFind, rowsOf, selected, sels, setBand, setEditPath, setFilters, setFindOpen, setForm, setInline, setMenu,
-    setPop, setSel, setSt, setSugg, shellMenu, st, stepHistory, sugg, suggest, targetOf, toggleCol, types, up, updPane, visibleDrives
+    setPop, setSel, setSt, setSugg, shellMenu, st, stepHistory, sugg, suggest, targetOf, toggleCol, types, up, updPane, visibleDrives,
+    note: { pane: notePane != null && notePane < paneCount ? notePane : st.active, busy, toast, cancel: () => void fsApi.cancel() },
   };
 
   return (
@@ -1792,7 +1821,36 @@ export default function FilesScreen() {
             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h10M4 12h7M4 17h5" /><path d="M14 20v-3l6-6 3 3-6 6z" /></svg>
             <span className="fx-tl">이름변경</span>
           </button>
+          <span className="fx-vsep" />
+          <button
+            ref={helpBtn}
+            type="button"
+            className="btn btn-ctrl fx-info"
+            aria-label="단축키"
+            aria-pressed={help === "pin"}
+            data-help="단축키"
+            onMouseEnter={() => {
+              window.clearTimeout(helpTimer.current);
+              if (!help) setHelp("hover");
+            }}
+            onMouseLeave={() => {
+              if (help === "hover") helpTimer.current = window.setTimeout(() => setHelp((h) => (h === "hover" ? null : h)), 150);
+            }}
+            onClick={() => setHelp((h) => (h === "pin" ? null : "pin"))}
+          >
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 11v6" /><path d="M12 7.5h.01" /></svg>
+          </button>
         </div>
+        {help && (
+          <KeyHelp
+            anchor={helpBtn}
+            onClose={() => setHelp(null)}
+            onEnter={() => window.clearTimeout(helpTimer.current)}
+            onLeave={() => {
+              if (help === "hover") helpTimer.current = window.setTimeout(() => setHelp((h) => (h === "hover" ? null : h)), 150);
+            }}
+          />
+        )}
       </div>
 
       <div className="fx-body">
@@ -1970,29 +2028,6 @@ export default function FilesScreen() {
             />
           )}
         </div>
-      </div>
-
-      <div className="fx-keys">
-        <span className="fx-fk"><b>F2</b> 이름 바꾸기</span>
-        <span className="fx-fk"><b>F3</b> 열기</span>
-        <span className="fx-fk"><b>F5</b> 복사 → 대상</span>
-        <span className="fx-fk"><b>F6</b> 옮기기 → 대상</span>
-        <span className="fx-fk"><b>F7</b> 새 폴더</span>
-        <span className="fx-fk"><b>F8</b> 지우기</span>
-        <span className="fx-fk"><b>Ctrl+C·X·V</b> 복사·잘라내기·붙이기</span>
-        <span className="fx-fk"><b>Space</b> 고르기</span>
-        <span className="fx-fk"><b>Tab</b> {paneCount > 2 ? "다음 창" : "반대 창"}</span>
-        {paneCount > 2 && <span className="fx-fk"><b>Ctrl+1~{paneCount}</b> 창 고르기</span>}
-        <span className="fx-fk"><b>Ctrl+E</b> 윈도우 탐색기로</span>
-        {busy && (
-          <span className="fx-busy">
-            {busy.total ? `${busy.done}/${busy.total}` : ""} {busy.name}
-            <button type="button" className="fx-fk" onClick={() => void fsApi.cancel()}>
-              멈추기
-            </button>
-          </span>
-        )}
-        {toast && <span className="fx-toast">{toast}</span>}
       </div>
 
       {pop && <PickMenu pop={pop} onClose={() => setPop(null)} />}
