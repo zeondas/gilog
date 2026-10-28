@@ -476,6 +476,8 @@
 }
 
 .pr-whead {
+  /* 목록 스크롤 막대 자리(12px)만큼 더 비워 제목과 글을 맞춰요 – 2026-10-28 ②2안 */
+  padding-right: 32px;
   padding-bottom: 8px;
   font-size: 12px;
   font-weight: 600;
@@ -485,6 +487,7 @@
 .pr-wlist {
   max-height: 470px;
   overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .pr-wrow {
@@ -643,7 +646,8 @@
 }
 
 .pr-wgrid > .pr-del,
-.pr-wgrid > .pr-add {
+.pr-wgrid > .pr-add,
+.pr-wgrid > .pr-save {
   justify-self: end;
 }
 

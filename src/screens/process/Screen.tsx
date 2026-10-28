@@ -57,7 +57,9 @@ const FIXED_COLS = COLUMNS.map((c) => !!c.fixed);
 function readWidths(raw: string | null): (number | null)[] | null {
   try {
     const v = JSON.parse(raw ?? "");
-    if (Array.isArray(v) && v.length === COLUMNS.length && v.every((x, i) => (COLUMNS[i].w === null ? x === null : typeof x === "number" && x >= COL_MIN))) return v;
+    if (Array.isArray(v) && v.length === COLUMNS.length && v.every((x, i) => (COLUMNS[i].w === null ? x === null : i === 0 || (typeof x === "number" && x >= COL_MIN))))
+      // 체크 칸(첫 칸)은 끌 수 없는 고정 칸이라 검사에서 빼고 늘 처음 폭(36)으로 – 2026-10-28 사용자 ①1안
+      return v.map((x, i) => (i === 0 ? COLUMNS[0].w : x));
   } catch {
     /* 자동으로 */
   }
