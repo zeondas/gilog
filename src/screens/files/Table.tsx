@@ -28,7 +28,8 @@ import {
 } from "../../files";
 import { TreeDir, fsApi, fsErrorText } from "../../filesApi";
 import { FilesSettings } from "../../settingsStore";
-import { DATE_TIME_GAP, EMPTY_SEL, Listing, Pop, RPane, RState, RTab, Row, Sel } from "./parts";
+import { VirtualList } from "../../VirtualList";
+import { DATE_TIME_GAP, EMPTY_SEL, Listing, NAME_MIN, Pop, ROW_H, RPane, RState, RTab, Row, Sel, revealRow, rowsRefs, vlists } from "./parts";
 
 export type PaneCtx = {
   activeTab: (p: RPane) => RTab;
@@ -88,6 +89,8 @@ export type PaneCtx = {
   up: (pane: number) => void;
   updPane: (pane: number, f: (p: RPane) => RPane) => void;
   visibleDrives: FsDrive[];
+  /** 진행·알림을 띄울 창(받는 창) – 상태 줄 오른쪽(2026-10-28 탐색기 ✔2 ②1안) */
+  note: { pane: number; busy: { done: number; total: number; name: string } | null; toast: string; cancel: () => void };
 };
 
 export function renderPane(pane: number, c: PaneCtx) {
@@ -95,7 +98,7 @@ export function renderPane(pane: number, c: PaneCtx) {
     activeTab, cfg, closeTab, commitInline, copyPath, crumbList, cut, dateMin, dragScroll, dragSrc, driveMenu, dropTo, editPath, extHover,
     filterRefs, filters, flash, fmt, focusPane, go, home, inline, keepPick, lists, menu, nativeDrag, newTab, newTabBg, noCtxUntil,
     openEntry, paneCount, rerunFind, rowsOf, selected, sels, setBand, setEditPath, setFilters, setFindOpen, setForm, setInline, setMenu,
-    setPop, setSel, setSt, setSugg, shellMenu, st, stepHistory, sugg, suggest, targetOf, toggleCol, types, up, updPane, visibleDrives
+    setPop, setSel, setSt, setSugg, shellMenu, st, stepHistory, sugg, suggest, targetOf, toggleCol, types, up, updPane, visibleDrives, note
   } = c;
   const p = st.panes[pane];
   const t = activeTab(p);
@@ -175,7 +178,7 @@ export function renderPane(pane: number, c: PaneCtx) {
               if (!nx) return;
               setSel(pane, { paths: new Set([nx.path]), cursor: nx.path, anchor: nx.path });
               setInline({ pane, path: nx.path, value: shownName(nx), dir: nx.dir });
-              document.getElementById(`fx-row-${pane}-${i + (e.shiftKey ? -1 : 1)}`)?.scrollIntoView({ block: "nearest" });
+              revealRow(pane, i + (e.shiftKey ? -1 : 1));
             });
           }
         }}
@@ -190,7 +193,12 @@ export function renderPane(pane: number, c: PaneCtx) {
     );
   // 보일 열: 이름은 늘, 크기·수정한 날·파일 형식은 설정에서 켜고 꺼요(2026-10-18 사용자). 찾기 결과는 폴더 열이 이름 다음에.
   const shown = (["size", "modified", "type"] as const).filter((k) => cfg.cols[k]);
-  const colStyle = { gridTemplateColumns: ["32px", "minmax(0,1fr)", ...(t.find ? [`${st.cols.folder}px`] : []), ...shown.map((k) => `${k === "modified" ? Math.max(st.cols[k], dateMin) : st.cols[k]}px`)].join(" ") };
+  const fixedW = [...(t.find ? [st.cols.folder] : []), ...shown.map((k) => (k === "modified" ? Math.max(st.cols[k], dateMin) : st.cols[k]))];
+  // 이름 열은 NAME_MIN 아래로 줄지 않고, 창이 그보다 좁으면 그 창 목록만 가로로 밀려요(2026-10-28 탐색기 ✔1 – FC처럼).
+  const colStyle = { gridTemplateColumns: ["32px", `minmax(${NAME_MIN}px,1fr)`, ...fixedW.map((w) => `${w}px`)].join(" ") };
+  /** 머리 줄·줄의 가장 좁은 폭 = 좌우 안쪽 10 + 아이콘 32 + 이름 최소 + 나머지 열 */
+  const rowsMinW = 20 + 32 + NAME_MIN + fixedW.reduce((a, b) => a + b, 0);
+  const detailMode = p.view === "detail" || !!t.find;
   const resizer = (k: "size" | "modified" | "folder" | "type") => (
     <span
       className="fx-col-grip"
@@ -220,6 +228,189 @@ export function renderPane(pane: number, c: PaneCtx) {
         setSt((S) => (S ? { ...S, cols: { ...S.cols, [k]: Math.min(400, w) } } : S));
       }}
     />
+  );
+  const rowEl = (r: Row, i: number) => {
+    const isSel = s.paths.has(r.path) || (!s.paths.size && s.cursor === r.path);
+    const common = {
+      id: `fx-row-${pane}-${i}`,
+      "data-sel": isSel ? "1" : "0",
+      "data-cur": s.cursor === r.path && on ? "1" : "0",
+      "data-hid": r.hidden || cut.has(r.path) ? "1" : "0",
+      "data-dir": r.dir ? r.path : undefined,
+      "data-extdrop": r.dir && extHover?.dir === r.path ? "1" : "0",
+      // 앱에서는 윈도우 끌기를 써요(윈도우 탐색기·바탕 화면에 놓을 수 있게) – 화면 안 끌기는 미리 보기에서만
+      draggable: !inline && !inApp,
+      onMouseDown: (e: React.MouseEvent) => {
+        if (e.button === 1) return e.preventDefault(); // 가운데 단추 자동 스크롤 막기
+        if (e.button === 2 && !inline) {
+          // 오른쪽 단추로 끌기 준비(호환 B) – 고르지 않은 줄이면 그 줄만 골라요(윈도우와 같게)
+          const items = s.paths.has(r.path) ? rows.filter((x) => s.paths.has(x.path)) : [r];
+          if (!s.paths.has(r.path)) setSel(pane, { paths: new Set([r.path]), cursor: r.path, anchor: r.path });
+          nativeDrag.current = { x: e.clientX, y: e.clientY, paths: items.map((x) => x.path), right: true };
+          return;
+        }
+        if (e.button !== 0) return;
+        if (inApp && !inline && !e.shiftKey && !e.ctrlKey) {
+          const items = s.paths.has(r.path) ? rows.filter((x) => s.paths.has(x.path)) : [r];
+          nativeDrag.current = { x: e.clientX, y: e.clientY, paths: items.map((x) => x.path) };
+        }
+        pick(r, e);
+      },
+      onMouseUp: (e: React.MouseEvent) => {
+        const k = keepPick.current;
+        keepPick.current = null;
+        if (e.button === 0 && k && k.pane === pane && k.path === r.path) setSel(pane, { paths: new Set([r.path]), cursor: r.path, anchor: r.path });
+      },
+      // 가운데 단추로 폴더를 누르면 뒤에 새 탭(호환 B)
+      onAuxClick: (e: React.MouseEvent) => {
+        if (e.button !== 1) return;
+        e.preventDefault();
+        if (r.dir) newTabBg(pane, r.path);
+        else if (isLnk(r)) void fsApi.lnkTarget(r.path).then(async (tg) => tg && (await fsApi.isDir(tg)) && newTabBg(pane, tg)).catch(() => {});
+      },
+      onDoubleClick: () => openEntry(pane, r),
+      onContextMenu: (e: React.MouseEvent) => rowCtx(r, e),
+      onDragStart: (e: React.DragEvent) => {
+        const items = s.paths.has(r.path) ? rows.filter((x) => s.paths.has(x.path)) : [r];
+        dragSrc.current = { pane, rows: items };
+        e.dataTransfer.effectAllowed = "copyMove";
+        e.dataTransfer.setData("text/plain", items.map((x) => x.path).join("\n"));
+      },
+      onDragOver: (e: React.DragEvent) => {
+        if (r.dir && dragSrc.current && !dragSrc.current.rows.includes(r)) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      },
+      onDrop: (e: React.DragEvent) => {
+        if (!r.dir) return;
+        e.stopPropagation();
+        dropTo(pane, e, r.path);
+      },
+    };
+    if ((p.view === "icons" || p.view === "thumb") && !t.find) {
+      const thumb = p.view === "thumb" && IMAGE_EXT.has(extOf(r.name));
+      const big = p.view === "thumb" ? 64 : 44;
+      return (
+        <div key={r.path} className="fx-gcell" {...common} title={r.name}>
+          <span className="fx-gicon" style={{ width: p.view === "thumb" ? 88 : 48, height: p.view === "thumb" ? 66 : 48 }}>
+            {thumb ? <Thumb path={r.path} /> : <FileIcon name={r.name} path={r.path} dir={r.dir} size={big} rev={r.modified} />}
+            {r.locked && <LockBadge small />}
+          </span>
+          <span className="fx-gname" style={{ fontWeight: r.dir ? 600 : 400 }}>
+            {inline && inline.path === r.path ? nameCell(r) : shownName(r)}
+          </span>
+        </div>
+      );
+    }
+    if (p.view === "brief" && !t.find) {
+      return (
+        <div key={r.path} className="fx-brow" {...common} title={r.name}>
+          <FileIcon name={r.name} path={r.path} dir={r.dir} size={16} rev={r.modified} />
+          <span className="fx-bn" style={{ fontWeight: r.dir ? 600 : 400 }}>
+            {inline && inline.path === r.path ? nameCell(r) : shownName(r)}
+          </span>
+        </div>
+      );
+    }
+    return (
+      <div key={r.path} className="fx-frow" style={colStyle} {...common} data-vi={i}>
+        <span className="fx-icell">
+          <FileIcon name={r.name} path={r.path} dir={r.dir} size={16} rev={r.modified} />
+        </span>
+        <span className="fx-ncell" style={{ fontWeight: r.dir ? 600 : 400 }}>
+          {nameCell(r)}
+          {r.locked && <LockBadge />}
+        </span>
+        {t.find && (
+          <span className="fx-col fx-dim" title={parentOf(r.path) ?? ""}>
+            <span className="fx-ellip">{r.folder}</span>
+          </span>
+        )}
+        {cfg.cols.size && <span className="fx-col fx-num">{r.note ?? (r.dir ? "" : formatSize(r.size))}</span>}
+        {cfg.cols.modified && <span className="fx-col fx-dim fx-tab-num fx-nowrap">{dateParts(formatDate(r.modified, fmt))}</span>}
+        {cfg.cols.type && (
+          <span className="fx-col fx-dim" title={r.kind ?? typeName(r, types)}>
+            <span className="fx-ellip">{r.kind ?? typeName(r, types)}</span>
+          </span>
+        )}
+      </div>
+    );
+  };
+  const hdr = (
+    <div
+      className="fx-hdr"
+      style={colStyle}
+      onContextMenu={(e) => {
+        // 열 머리 우클릭: 보일 열 고르기(호환 B)
+        e.preventDefault();
+        setPop({
+          x: e.clientX,
+          y: e.clientY,
+          items: [
+            { id: "name", label: "이름", checked: true, disabled: true },
+            { id: "size", label: "크기", checked: cfg.cols.size },
+            { id: "modified", label: "수정한 날짜", checked: cfg.cols.modified },
+            { id: "type", label: "파일 형식", checked: cfg.cols.type },
+          ],
+          onPick: (id) => void toggleCol(id as "size" | "modified" | "type"),
+        });
+      }}
+    >
+      <span />
+      <button type="button" className="fx-hcell" onClick={() => sortBy("name")}>
+        이름{arrow("name")}
+      </button>
+      {t.find && (
+        <button type="button" className="fx-hcell fx-col" onClick={() => sortBy("folder")}>
+          폴더{arrow("folder")}
+          {resizer("folder")}
+        </button>
+      )}
+      {cfg.cols.size && (
+        <button type="button" className="fx-hcell fx-col" onClick={() => sortBy("size")}>
+          크기{arrow("size")}
+          {resizer("size")}
+        </button>
+      )}
+      {cfg.cols.modified && (
+        <button type="button" className="fx-hcell fx-col" onClick={() => sortBy("modified")}>
+          수정한 날{arrow("modified")}
+          {resizer("modified")}
+        </button>
+      )}
+      {cfg.cols.type && (
+        <button type="button" className="fx-hcell fx-col" onClick={() => sortBy("type")}>
+          파일 형식{arrow("type")}
+          {resizer("type")}
+        </button>
+      )}
+    </div>
+  );
+  const upRow = !t.find && parentOf(t.path) && (p.view === "detail" || p.view === "brief") && (
+    <div className={p.view === "brief" ? "fx-brow" : "fx-frow"} style={p.view === "detail" ? colStyle : undefined} onDoubleClick={() => up(pane)} title="두 번 누르면 위 폴더 (Backspace)">
+      {/* FC처럼 보통 폴더 아이콘 + ".." (칩·화살표 없이, 아래 폴더와 같은 크기) */}
+      {p.view === "brief" ? (
+        <>
+          <FileIcon name=".." path="" dir size={16} />
+          <span className="fx-bn fx-dim fx-strong">..</span>
+        </>
+      ) : (
+        <>
+          <span className="fx-icell">
+            <FileIcon name=".." path="" dir size={16} />
+          </span>
+          <span className="fx-ncell fx-dim fx-strong">..</span>
+        </>
+      )}
+      {p.view === "detail" && (
+        <>
+          {shown.map((k) => (
+            <span key={k} className="fx-col" />
+          ))}
+        </>
+      )}
+    </div>
   );
   const viewName = VIEWS.find((v) => v.id === p.view)?.name ?? "자세히";
   const fav = !t.find && st.favorites.includes(t.path);
@@ -352,11 +543,11 @@ export function renderPane(pane: number, c: PaneCtx) {
           }}
         />
         <div className="fx-rel">
-          <button type="button" className="fx-vb fx-menu-btn" onClick={() => setMenu(menu?.kind === "view" && menu.pane === pane ? null : { kind: "view", pane })}>
+          <button type="button" className="fx-vb fx-menu-btn" title={`보기: ${viewName}`} onClick={() => setMenu(menu?.kind === "view" && menu.pane === pane ? null : { kind: "view", pane })}>
             <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
               <path d="M4 6h16M4 12h16M4 18h16" />
             </svg>
-            {viewName} ▾
+            <span className="fx-vbt">{viewName} ▾</span>
           </button>
           {menu?.kind === "view" && menu.pane === pane && (
             <div className="fx-menu fx-menu-r" role="menu">
@@ -556,56 +747,6 @@ export function renderPane(pane: number, c: PaneCtx) {
           </button>
         </div>
       )}
-      {(p.view === "detail" || t.find) && (
-        <div
-          className="fx-hdr"
-          style={colStyle}
-          onContextMenu={(e) => {
-            // 열 머리 우클릭: 보일 열 고르기(호환 B)
-            e.preventDefault();
-            setPop({
-              x: e.clientX,
-              y: e.clientY,
-              items: [
-                { id: "name", label: "이름", checked: true, disabled: true },
-                { id: "size", label: "크기", checked: cfg.cols.size },
-                { id: "modified", label: "수정한 날짜", checked: cfg.cols.modified },
-                { id: "type", label: "파일 형식", checked: cfg.cols.type },
-              ],
-              onPick: (id) => void toggleCol(id as "size" | "modified" | "type"),
-            });
-          }}
-        >
-          <span />
-          <button type="button" className="fx-hcell" onClick={() => sortBy("name")}>
-            이름{arrow("name")}
-          </button>
-          {t.find && (
-            <button type="button" className="fx-hcell fx-col" onClick={() => sortBy("folder")}>
-              폴더{arrow("folder")}
-              {resizer("folder")}
-            </button>
-          )}
-          {cfg.cols.size && (
-            <button type="button" className="fx-hcell fx-col" onClick={() => sortBy("size")}>
-              크기{arrow("size")}
-              {resizer("size")}
-            </button>
-          )}
-          {cfg.cols.modified && (
-            <button type="button" className="fx-hcell fx-col" onClick={() => sortBy("modified")}>
-              수정한 날{arrow("modified")}
-              {resizer("modified")}
-            </button>
-          )}
-          {cfg.cols.type && (
-            <button type="button" className="fx-hcell fx-col" onClick={() => sortBy("type")}>
-              파일 형식{arrow("type")}
-              {resizer("type")}
-            </button>
-          )}
-        </div>
-      )}
       <div
         data-pane={pane}
         className={p.view === "brief" && !t.find ? "fx-list fx-brief" : p.view === "icons" || p.view === "thumb" ? (t.find ? "fx-list" : "fx-list fx-grid") : "fx-list"}
@@ -627,159 +768,45 @@ export function renderPane(pane: number, c: PaneCtx) {
           void shellMenu(pane, e, []);
         }}
       >
-        {!t.find && parentOf(t.path) && (p.view === "detail" || p.view === "brief") && (
-          <div className={p.view === "brief" ? "fx-brow" : "fx-frow"} style={p.view === "detail" ? colStyle : undefined} onDoubleClick={() => up(pane)} title="두 번 누르면 위 폴더 (Backspace)">
-            {/* FC처럼 보통 폴더 아이콘 + ".." (칩·화살표 없이, 아래 폴더와 같은 크기) */}
-            {p.view === "brief" ? (
-              <>
-                <FileIcon name=".." path="" dir size={16} />
-                <span className="fx-bn fx-dim fx-strong">..</span>
-              </>
-            ) : (
-              <>
-                <span className="fx-icell">
-                  <FileIcon name=".." path="" dir size={16} />
-                </span>
-                <span className="fx-ncell fx-dim fx-strong">..</span>
-              </>
-            )}
-            {p.view === "detail" && (
-              <>
-                {shown.map((k) => (
-                  <span key={k} className="fx-col" />
-                ))}
-              </>
-            )}
+        {detailMode ? (
+          <div className="fx-rows" ref={rowsRefs[pane]} style={{ minWidth: rowsMinW }}>
+            {hdr}
+            {upRow}
+            {listing.error && !t.find && <div className="fx-empty fx-err">{listing.error}</div>}
+            {!listing.error && !t.find && !listing.loading && !rows.length && <div className="fx-empty">{filters[pane] ? "빠른 필터에 맞는 것이 없어요" : "비어 있어요"}</div>}
+            {t.find && !t.find.running && !rows.length && <div className="fx-empty">찾은 것이 없어요</div>}
+            <VirtualList
+              ref={(h) => {
+                vlists[pane] = h;
+              }}
+              count={rows.length}
+              getKey={(i) => rows[i].path}
+              render={(i) => rowEl(rows[i], i)}
+              estimate={() => ROW_H}
+              parentRef={rowsRefs[pane]}
+              pinned={[rows.findIndex((r) => r.path === s.cursor), inline && inline.pane === pane ? rows.findIndex((r) => r.path === inline.path) : null]}
+              resetKey={fmt}
+            />
           </div>
-        )}
-        {!t.find && parentOf(t.path) && (p.view === "icons" || p.view === "thumb") && (
-          <div className="fx-gcell" onDoubleClick={() => up(pane)}>
-            {/* FC처럼 보통 폴더 아이콘 + ".." (칩·화살표 없이) */}
-            <span className="fx-gicon" style={{ width: p.view === "thumb" ? 88 : 48, height: p.view === "thumb" ? 66 : 48 }}>
-              <FileIcon name=".." path="" dir size={p.view === "thumb" ? 64 : 44} />
-            </span>
-            <span className="fx-dim fx-strong">..</span>
-          </div>
-        )}
-        {/* ".." 줄 다음에 보여요(빈 폴더에서 ".."이 글 아래로 내려가지 않게) */}
-        {listing.error && !t.find && <div className="fx-empty fx-err">{listing.error}</div>}
-        {!listing.error && !t.find && !listing.loading && !rows.length && <div className="fx-empty">{filters[pane] ? "빠른 필터에 맞는 것이 없어요" : "비어 있어요"}</div>}
-        {t.find && !t.find.running && !rows.length && <div className="fx-empty">찾은 것이 없어요</div>}
-        {rows.map((r, i) => {
-          const isSel = s.paths.has(r.path) || (!s.paths.size && s.cursor === r.path);
-          const common = {
-            id: `fx-row-${pane}-${i}`,
-            "data-sel": isSel ? "1" : "0",
-            "data-cur": s.cursor === r.path && on ? "1" : "0",
-            "data-hid": r.hidden || cut.has(r.path) ? "1" : "0",
-            "data-dir": r.dir ? r.path : undefined,
-            "data-extdrop": r.dir && extHover?.dir === r.path ? "1" : "0",
-            // 앱에서는 윈도우 끌기를 써요(윈도우 탐색기·바탕 화면에 놓을 수 있게) – 화면 안 끌기는 미리 보기에서만
-            draggable: !inline && !inApp,
-            onMouseDown: (e: React.MouseEvent) => {
-              if (e.button === 1) return e.preventDefault(); // 가운데 단추 자동 스크롤 막기
-              if (e.button === 2 && !inline) {
-                // 오른쪽 단추로 끌기 준비(호환 B) – 고르지 않은 줄이면 그 줄만 골라요(윈도우와 같게)
-                const items = s.paths.has(r.path) ? rows.filter((x) => s.paths.has(x.path)) : [r];
-                if (!s.paths.has(r.path)) setSel(pane, { paths: new Set([r.path]), cursor: r.path, anchor: r.path });
-                nativeDrag.current = { x: e.clientX, y: e.clientY, paths: items.map((x) => x.path), right: true };
-                return;
-              }
-              if (e.button !== 0) return;
-              if (inApp && !inline && !e.shiftKey && !e.ctrlKey) {
-                const items = s.paths.has(r.path) ? rows.filter((x) => s.paths.has(x.path)) : [r];
-                nativeDrag.current = { x: e.clientX, y: e.clientY, paths: items.map((x) => x.path) };
-              }
-              pick(r, e);
-            },
-            onMouseUp: (e: React.MouseEvent) => {
-              const k = keepPick.current;
-              keepPick.current = null;
-              if (e.button === 0 && k && k.pane === pane && k.path === r.path) setSel(pane, { paths: new Set([r.path]), cursor: r.path, anchor: r.path });
-            },
-            // 가운데 단추로 폴더를 누르면 뒤에 새 탭(호환 B)
-            onAuxClick: (e: React.MouseEvent) => {
-              if (e.button !== 1) return;
-              e.preventDefault();
-              if (r.dir) newTabBg(pane, r.path);
-              else if (isLnk(r)) void fsApi.lnkTarget(r.path).then(async (tg) => tg && (await fsApi.isDir(tg)) && newTabBg(pane, tg)).catch(() => {});
-            },
-            onDoubleClick: () => openEntry(pane, r),
-            onContextMenu: (e: React.MouseEvent) => rowCtx(r, e),
-            onDragStart: (e: React.DragEvent) => {
-              const items = s.paths.has(r.path) ? rows.filter((x) => s.paths.has(x.path)) : [r];
-              dragSrc.current = { pane, rows: items };
-              e.dataTransfer.effectAllowed = "copyMove";
-              e.dataTransfer.setData("text/plain", items.map((x) => x.path).join("\n"));
-            },
-            onDragOver: (e: React.DragEvent) => {
-              if (r.dir && dragSrc.current && !dragSrc.current.rows.includes(r)) {
-                e.preventDefault();
-                e.stopPropagation();
-              }
-            },
-            onDrop: (e: React.DragEvent) => {
-              if (!r.dir) return;
-              e.stopPropagation();
-              dropTo(pane, e, r.path);
-            },
-          };
-          if ((p.view === "icons" || p.view === "thumb") && !t.find) {
-            const thumb = p.view === "thumb" && IMAGE_EXT.has(extOf(r.name));
-            const big = p.view === "thumb" ? 64 : 44;
-            return (
-              <div key={r.path} className="fx-gcell" {...common} title={r.name}>
+        ) : (
+          <>
+            {upRow}
+            {!t.find && parentOf(t.path) && (p.view === "icons" || p.view === "thumb") && (
+              <div className="fx-gcell" onDoubleClick={() => up(pane)}>
+                {/* FC처럼 보통 폴더 아이콘 + ".." (칩·화살표 없이) */}
                 <span className="fx-gicon" style={{ width: p.view === "thumb" ? 88 : 48, height: p.view === "thumb" ? 66 : 48 }}>
-                  {thumb ? <Thumb path={r.path} /> : <FileIcon name={r.name} path={r.path} dir={r.dir} size={big} rev={r.modified} />}
-                  {r.locked && <LockBadge small />}
+                  <FileIcon name=".." path="" dir size={p.view === "thumb" ? 64 : 44} />
                 </span>
-                <span className="fx-gname" style={{ fontWeight: r.dir ? 600 : 400 }}>
-                  {inline && inline.path === r.path ? nameCell(r) : shownName(r)}
-                </span>
+                <span className="fx-dim fx-strong">..</span>
               </div>
-            );
-          }
-          if (p.view === "brief" && !t.find) {
-            return (
-              <div key={r.path} className="fx-brow" {...common} title={r.name}>
-                <FileIcon name={r.name} path={r.path} dir={r.dir} size={16} rev={r.modified} />
-                <span className="fx-bn" style={{ fontWeight: r.dir ? 600 : 400 }}>
-                  {inline && inline.path === r.path ? nameCell(r) : shownName(r)}
-                </span>
-              </div>
-            );
-          }
-          const groupHead = "";
-          return (
-            <Fragment key={r.path}>
-            {groupHead && <div className="fx-ghead">{groupHead}</div>}
-            <div className="fx-frow" style={colStyle} {...common}>
-              <span className="fx-icell">
-                <FileIcon name={r.name} path={r.path} dir={r.dir} size={16} rev={r.modified} />
-              </span>
-              <span className="fx-ncell" style={{ fontWeight: r.dir ? 600 : 400 }}>
-                {nameCell(r)}
-                {r.locked && <LockBadge />}
-              </span>
-              {t.find && (
-                <span className="fx-col fx-dim" title={parentOf(r.path) ?? ""}>
-                  <span className="fx-ellip">{r.folder}</span>
-                </span>
-              )}
-              {cfg.cols.size && <span className="fx-col fx-num">{r.note ?? (r.dir ? "" : formatSize(r.size))}</span>}
-              {cfg.cols.modified && <span className="fx-col fx-dim fx-tab-num fx-nowrap">{dateParts(formatDate(r.modified, fmt))}</span>}
-              {cfg.cols.type && (
-                <span className="fx-col fx-dim" title={r.kind ?? typeName(r, types)}>
-                  <span className="fx-ellip">{r.kind ?? typeName(r, types)}</span>
-                </span>
-              )}
-            </div>
-            </Fragment>
-          );
-        })}
+            )}
+            {/* ".." 줄 다음에 보여요(빈 폴더에서 ".."이 글 아래로 내려가지 않게) */}
+            {rows.map(rowEl)}
+          </>
+        )}
       </div>
       <div className="fx-status">
-        <span>
+        <span className="fx-st-l">
           {t.find
             ? "Enter 열기 · Ctrl+Enter 그 폴더를 새 탭으로"
             : listing.loading
@@ -792,6 +819,22 @@ export function renderPane(pane: number, c: PaneCtx) {
             고른 것 {sel.length}개 · {formatSize(sel.reduce((a, b) => a + (b.dir ? 0 : b.size), 0))}
           </span>
         )}
+        {note.pane === pane && note.busy && (
+          <span className="fx-busy">
+            <span>
+              {note.busy.total ? `${note.busy.done}/${note.busy.total}` : ""} {note.busy.name}
+            </span>
+            {note.busy.total > 0 && (
+              <span className="fx-bar" aria-hidden="true">
+                <i style={{ width: `${Math.min(100, (note.busy.done / note.busy.total) * 100)}%` }} />
+              </span>
+            )}
+            <button type="button" className="btn btn-xs" onClick={note.cancel}>
+              멈추기
+            </button>
+          </span>
+        )}
+        {note.pane === pane && note.toast && <span className="fx-toast" title={note.toast}>{note.toast}</span>}
       </div>
     </section>
   );

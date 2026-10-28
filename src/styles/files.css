@@ -209,7 +209,7 @@
 }
 .fx-filter {
   flex: 1;
-  min-width: 60px;
+  min-width: 80px;
   height: var(--fx-ctl);
 }
 .fx-vb {
@@ -570,13 +570,6 @@
   color: var(--muted);
   font-size: 11.5px;
   white-space: nowrap;
-}
-.fx-keys {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1h);
-  height: 32px;
-  flex: none;
 }
 .fx-busy {
   margin-left: auto;
@@ -1100,9 +1093,6 @@ select.input.fx-set-date { width: 190px; }
 .fx-tree { padding: 1px; }
 .fx-pane[data-on="1"],
 .fx-pane[data-target="1"] { border-width: 2px; padding: 0; margin: 0; box-shadow: none; }
-/* 아래 키 안내 줄(2026-10-19 사용자: 바깥 여백·간격 통일) – 줄 높이 = 칸 높이 28(위아래 남는 틈 없앰),
-   칸 사이 8px(머리 줄 단추 사이와 같음). 상자 ↔ 키 칸 16px(머리 줄 ↔ 상자와 같음), 키 칸 ↔ 창 아래 24px(창 위 ↔ 머리 줄과 같음) */
-.fx-keys { height: 28px; gap: 8px; }
 /* 이름변경 단추 오른쪽 끝 1px 안으로(2026-10-19 사용자: 아래 창보다 튀어나와 보이는 착시 보정) */
 .fx-tools .fx-tool:last-child { margin-right: 1px; }
 /* 미리보기 칸(2026-10-19): 폴더트리와 같은 상자, 탐색기 창들 오른쪽 */
@@ -1235,3 +1225,36 @@ select.input.fx-set-date { width: 190px; }
   width: 100%;
   justify-content: center;
 }
+
+/* ---------- 2026-10-28 탐색기 수정(✔1~4, wip/explorer7) ---------- */
+/* ✔1 창마다 목록 가로 스크롤(FC처럼): 머리 줄을 목록 안 맨 위에 붙여(sticky) 가로로 같이 밀리고, 막대는 상태 줄 바로 위.
+   이름 열이 NAME_MIN(parts.tsx) 아래로 안 줄어 .fx-rows가 창보다 넓어지면 그 창만 밀려요. */
+.fx-list { overflow-x: auto; position: relative; scroll-padding-top: 28px; }
+.fx-rows { min-width: 0; }
+.fx-rows > .fx-hdr { position: sticky; top: 0; z-index: 1; overflow: visible; scrollbar-gutter: auto; }
+/* 창이 좁으면 위쪽 줄은 빠른 필터만 줄고(최소 80) "자세히 ▾"는 ☰만 – 경로는 끝이 보이게(앞쪽이 가려짐, Screen.tsx) */
+.fx-pane { container-type: inline-size; }
+@container (max-width: 460px) {
+  .fx-vb { width: var(--fx-ctl); padding: 0; justify-content: center; }
+  .fx-vbt { display: none; }
+}
+/* ✔3 자세히 보기 이름은 한 줄, 넘치면 끝을 "…"(전체 이름은 마우스를 올리면 떠요) */
+.fx-nm { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-line-clamp: unset; }
+.fx-frow { height: 28px; }
+/* ✔2 아래 단축키 줄을 없애고 머리 줄 맨 오른쪽 ⓘ(34 네모) – 단축키 상자는 떠 있는 메뉴 모양 */
+.fx-tools .fx-info { flex: none; width: var(--fx-ctl); min-width: var(--fx-ctl); padding: 0; justify-content: center; }
+.fx-info[aria-pressed="true"] { background: var(--surface-band); }
+.fx-keyhelp { max-width: none; }
+.fx-kh { display: grid; grid-template-columns: auto auto; column-gap: 16px; row-gap: 0; padding: 4px 6px 6px; font-size: 12.5px; color: var(--ink-2); white-space: nowrap; }
+.fx-kh-title { grid-column: 1 / -1; height: 28px; display: flex; align-items: center; font-weight: 700; color: var(--ink); }
+.fx-kh-row { display: contents; }
+.fx-kh-row > * { height: 24px; display: flex; align-items: center; }
+.fx-kh-row b { color: var(--accent); font-weight: 700; }
+/* ✔2 ②1안 진행·알림은 받는 창 상태 줄 오른쪽 – 왼쪽 글은 부딪치면 "…" */
+.fx-status { overflow: hidden; }
+.fx-st-l { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.fx-status .fx-busy { margin-left: 0; flex: none; font-size: inherit; color: var(--ink-2); gap: 8px; }
+.fx-status .fx-toast { margin-left: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: inherit; color: var(--ink-2); flex: 0 1 auto; }
+.fx-bar { width: 72px; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; flex: none; }
+.fx-bar > i { display: block; height: 100%; background: var(--accent); }
+.fx-status .fx-busy .btn-xs { height: 20px; padding: 0 8px; font-size: 11.5px; }

@@ -1,7 +1,7 @@
 // 탐색기 – 화면 키(창 밖 글자 칸이 아닐 때). 화면 몸통(Screen)이 키를 누를 때마다 지금 값을 묶어 넘겨요.
 import { FindForm, FsEntry, VIEWS, nextPane, parentOf, HOME, PC, isSpecial } from "../../files";
 import { Conflict, fsApi, fsErrorText } from "../../filesApi";
-import { EMPTY_SEL, Pop, RPane, RState, RTab, Row, Sel } from "./parts";
+import { EMPTY_SEL, Pop, RPane, RState, RTab, ROW_H, Row, Sel, revealRow } from "./parts";
 
 /** 글자 칸이나 뜬 창 안에서 누른 키는 탐색기 키가 아니에요. */
 function typing(t: EventTarget | null) {
@@ -62,6 +62,8 @@ type KeyCtx = {
   up: (pane: number) => void;
   updPane: (pane: number, f: (p: RPane) => RPane) => void;
   xfer: { pane: number; op: "copy" | "move"; items: Row[]; dest: string; } | null;
+  /** F1 = 단축키 상자(머리 줄 ⓘ와 같음 – 2026-10-28 탐색기 ✔2) */
+  toggleHelp: () => void;
 };
 
 export function handleKey(e: KeyboardEvent, c: KeyCtx) {
@@ -78,6 +80,11 @@ export function handleKey(e: KeyboardEvent, c: KeyCtx) {
     if (!findOpen) setForm({ ...form, name: form.name || quickFind, where: form.where || curPath });
     setFindOpen(true);
     setTimeout(() => findNameRef.current?.select(), 0);
+    return;
+  }
+  if (e.key === "F1" && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+    e.preventDefault();
+    c.toggleHelp();
     return;
   }
   if (e.ctrlKey && !e.shiftKey && !e.altKey && e.code === "KeyR") {
@@ -104,7 +111,7 @@ export function handleKey(e: KeyboardEvent, c: KeyCtx) {
       const [lo, hi] = a <= n ? [a, n] : [n, a];
       setSel(pane, { paths: new Set(rows.slice(Math.max(0, lo), hi + 1).map((x) => x.path)), cursor: r.path, anchor: s.anchor ?? s.cursor ?? r.path });
     } else setSel(pane, { paths: new Set(), cursor: r.path, anchor: r.path });
-    document.getElementById(`fx-row-${pane}-${n}`)?.scrollIntoView({ block: "nearest" });
+    revealRow(pane, n);
   };
   const k = e.key;
   const ctrl = e.ctrlKey || e.metaKey;
@@ -219,7 +226,7 @@ export function handleKey(e: KeyboardEvent, c: KeyCtx) {
     else ps.add(r.path);
     const nxt = rows[Math.min(rows.length - 1, at + 1)];
     setSel(pane, { paths: ps, cursor: nxt.path, anchor: nxt.path });
-    document.getElementById(`fx-row-${pane}-${Math.min(rows.length - 1, at + 1)}`)?.scrollIntoView({ block: "nearest" });
+    revealRow(pane, Math.min(rows.length - 1, at + 1));
     return;
   }
   // Ctrl+화살표·Home·End·PageUp·PageDown: 고른 것은 그대로 두고 커서만(호환 B)
@@ -229,15 +236,17 @@ export function handleKey(e: KeyboardEvent, c: KeyCtx) {
     const n = Math.max(0, Math.min(rows.length - 1, i));
     const ps = new Set(s.paths.size ? s.paths : s.cursor ? [s.cursor] : []);
     setSel(pane, { paths: ps, cursor: rows[n].path, anchor: s.anchor });
-    document.getElementById(`fx-row-${pane}-${n}`)?.scrollIntoView({ block: "nearest" });
+    revealRow(pane, n);
   };
   // 한 화면에 보이는 줄 수만큼(호환 B – 예전엔 15줄 고정)
   const page = () => {
     const list = document.querySelector<HTMLElement>(`[data-pane="${pane}"] .fx-list`);
-    const row = document.getElementById(`fx-row-${pane}-0`);
-    if (!list || !row || !row.offsetHeight) return 15;
-    const perRow = list.classList.contains("fx-grid") ? Math.max(1, Math.floor(list.clientWidth / (row.offsetWidth || 1))) : 1;
-    return Math.max(1, (Math.floor(list.clientHeight / row.offsetHeight) - 1) * perRow);
+    // 보이는 만큼만 그려서 0번 줄이 없을 수 있어요 – 그려진 아무 줄로 재요
+    const row = list?.querySelector<HTMLElement>(`[id^="fx-row-${pane}-"]`);
+    if (!list) return 15;
+    const h = row?.offsetHeight || ROW_H;
+    const perRow = list.classList.contains("fx-grid") && row ? Math.max(1, Math.floor(list.clientWidth / (row.offsetWidth || 1))) : 1;
+    return Math.max(1, (Math.floor(list.clientHeight / h) - 1) * perRow);
   };
   if (k === "ArrowDown") return handled(), step(idx + 1);
   if (k === "ArrowUp") return handled(), step(idx < 0 ? 0 : idx - 1);
