@@ -1,6 +1,6 @@
 // 탐색기 규칙 시험 – 지금 동작을 고정해요(정리 2차 2026-10-26): 이름 정렬(윈도우처럼 숫자 순·. 이 _ 앞)·빠른 필터·일괄 이름 바꾸기·경로.
 import { describe, expect, test } from "vitest";
-import { badName, bothName, compareName, crumbsOf, DEFAULT_RENAME, formatSize, isComplaintName, parentOf, quickMatch, renameOne, sortEntries } from "./files";
+import { badName, bothName, compareName, crumbsOf, DATE_FORMATS, dateFormatOf, DEFAULT_RENAME, formatDate, formatSize, freeSlot, moveCol, pinFirst, tidyColOrder, togglePin, isComplaintName, parentOf, quickMatch, renameOne, sortEntries } from "./files";
 
 describe("compareName – 윈도우처럼", () => {
   const sorted = (a: string[]) => [...a].sort(compareName);
@@ -92,4 +92,69 @@ test("경로", () => {
       "10.0MB",
     ]
   `);
+});
+
+// 2026-10-28 탐색기 ✔10 – 날짜 형식은 FC와 같은 8가지(오후 2:19:34 / 오전 9:05:07 두 때)
+describe("formatDate – FC 형식", () => {
+  const pm = new Date(2026, 9, 1, 14, 19, 34).getTime();
+  const am = new Date(2026, 9, 1, 9, 5, 7).getTime();
+  test("8가지 모두", () =>
+    expect(DATE_FORMATS.map((f) => [formatDate(pm, f), formatDate(am, f)])).toEqual([
+      ["2026-10-01 오후 2:19:34", "2026-10-01 오전 9:05:07"],
+      ["2026.10.01 14:19", "2026.10.01 09:05"],
+      ["2026.10.01 14:19:34", "2026.10.01 09:05:07"],
+      ["01.10.26 14:19", "01.10.26 09:05"],
+      ["01.10.26 14:19:34", "01.10.26 09:05:07"],
+      ["10.01.2026 14:19:34", "10.01.2026 09:05:07"],
+      ["10.01.26 02:19 오후", "10.01.26 09:05 오전"],
+      ["10/01/2026 02:19 오후", "10/01/2026 09:05 오전"],
+    ]));
+  test("12시·0시", () => {
+    expect(formatDate(new Date(2026, 0, 2, 12, 0, 0).getTime(), "Windows")).toBe("2026-01-02 오후 12:00:00");
+    expect(formatDate(new Date(2026, 0, 2, 0, 30, 0).getTime(), "mm.dd.yy hh:nn AM/PM")).toBe("01.02.26 12:30 오전");
+  });
+  test("옛 저장값 옮기기", () => {
+    expect(dateFormatOf("yyyy-mm-dd hh:nn")).toBe("yyyy.mm.dd hh:nn");
+    expect(dateFormatOf("yyyy-mm-dd hh:nn:ss")).toBe("yyyy.mm.dd hh:nn:ss");
+    expect(dateFormatOf("yy-mm-dd hh:nn")).toBe("Windows");
+    expect(dateFormatOf("yymmdd")).toBe("Windows");
+    expect(dateFormatOf(1)).toBe("yyyy.mm.dd hh:nn");
+    expect(dateFormatOf(undefined)).toBe("Windows");
+    expect(dateFormatOf("dd.mm.yy hh:nn")).toBe("dd.mm.yy hh:nn");
+  });
+});
+
+// ✔3 – 고정 탭은 앞, 먼저 고정한 것이 앞
+describe("고정 탭 순서", () => {
+  const T = (path: string, pinned = false) => ({ path, pinned });
+  test("고정하면 고정 묶음 끝으로, 풀면 보통 탭 맨 앞으로", () => {
+    const tabs = [T("a", true), T("b"), T("c"), T("d")];
+    const r = togglePin(tabs, 2, 2);
+    expect(r.tabs.map((t) => t.path + (t.pinned ? "*" : ""))).toEqual(["a*", "c*", "b", "d"]);
+    expect(r.active).toBe(1);
+    const u = togglePin(r.tabs, 0, 3);
+    expect(u.tabs.map((t) => t.path + (t.pinned ? "*" : ""))).toEqual(["c*", "a", "b", "d"]);
+    expect(u.tabs[u.active].path).toBe("d");
+  });
+  test("저장된 예전 순서 정리 – 묶음 안 순서는 그대로", () => {
+    const r = pinFirst([T("a"), T("b", true), T("c"), T("d", true)], 2);
+    expect(r.tabs.map((t) => t.path)).toEqual(["b", "d", "a", "c"]);
+    expect(r.tabs[r.active].path).toBe("c");
+  });
+  test("새 탭은 고정 탭 앞에 끼어들지 않아요", () => {
+    expect(freeSlot([T("a", true), T("b", true), T("c")], 1)).toBe(2);
+    expect(freeSlot([T("a", true), T("c")], 2)).toBe(2);
+  });
+});
+
+// ✔5 – 열 순서
+describe("열 순서", () => {
+  test("옮기기", () => {
+    expect(moveCol(["folder", "size", "modified", "type"], "type", "size")).toEqual(["folder", "type", "size", "modified"]);
+    expect(moveCol(["folder", "size", "modified", "type"], "size", null)).toEqual(["folder", "modified", "type", "size"]);
+  });
+  test("저장값 정리", () => {
+    expect(tidyColOrder(undefined)).toEqual(["folder", "size", "modified", "type"]);
+    expect(tidyColOrder(["type", "x", "type", "size"])).toEqual(["type", "size", "folder", "modified"]);
+  });
 });

@@ -1,6 +1,6 @@
 // 탐색기(11단계) 화면. 시안 캔버스 Files·FilesTree·FilesConflict·FilesMenu 판, 사양서 "탐색기 (11단계)" 절이 기준이에요.
 // - 왼쪽 폴더 트리(2안: 안내선 + 드라이브 띠 + 지금 경로) + 2창(기본)/4창(2×2).
-// - 창마다 탭 줄 → 드라이브 줄(드라이브 · 빠른 필터 · 보기 ▾) → 경로 줄(경로 · 경로 복사 · 윈도우 탐색기로 열기 · ★) → 목록 → 상태 줄.
+// - 창마다 탭 줄 → 드라이브 줄(드라이브 · 빠른 필터 · 보기 ▾) → 경로 줄(경로 · 폴더 경로 복사 · 윈도우 탐색기로 열기 · ★) → 목록 → 상태 줄.
 // - 우클릭(파일·폴더·빈 곳)은 윈도우 우클릭 메뉴 그대로(2안), 탭 우클릭만 기록 메뉴.
 // - 상태(탭·열 폭·정렬·보기·트리·즐겨찾기·찾기 조건·일괄 이름 바꾸기 설정)는 암호화 파일 kv "files.state".
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -16,10 +16,13 @@ import {
   Layout,
   cellOf,
   clearTabs,
+  freeSlot,
+  togglePin,
   paneCountOf,
   RenameOpts,
   SortKey,
   TREE_W,
+  PANE_MIN,
   VIEWS,
   ViewMode,
   baseName,
@@ -54,6 +57,7 @@ import { DateInput } from "../../DateInput";
 import { useOutsideClose } from "../../useOutsideClose";
 import { DEFAULT_FILES_SETTINGS, FilesSettings, loadSettings, saveSettings } from "../../settingsStore";
 import { SearchBox } from "../../SearchBox";
+import { DialogX } from "../../DialogX";
 import { KeyHelp, PickMenu, TabMenu } from "./Menu";
 import { PaneCtx, Preview, renderPane } from "./Table";
 import { handleKey } from "./keys";
@@ -351,8 +355,9 @@ export default function FilesScreen() {
           return { ...p, tabs };
         }
         const tabs = [...p.tabs];
-        tabs.splice(p.active + 1, 0, { path, pinned: false, id: tabSeq++ });
-        return { ...p, tabs, active: p.active + 1 };
+        const at = freeSlot(tabs, p.active + 1);
+        tabs.splice(at, 0, { path, pinned: false, id: tabSeq++ });
+        return { ...p, tabs, active: at };
       });
       if (select) window.setTimeout(() => setSels((ss) => ss.map((s, i) => (i === pane ? { paths: new Set([select]), cursor: select, anchor: select } : s))), 120);
     },
@@ -873,11 +878,12 @@ export default function FilesScreen() {
 
   const copyPath = (pane: number) => {
     if (!st) return;
-    const s = selected(pane);
+    // 폴더 경로만(2026-10-28 탐색기 ✔6 – 파일 경로를 붙여 넣으면 파일이 열려 불편): 찾기·펼쳐보기 탭은 고른 것의 폴더(겹치지 않게)
     const t = activeTab(st.panes[pane]);
-    const text = s.length ? s.map((e) => e.path).join("\r\n") : t.find ? "" : t.path;
+    const dirs = t.find ? [...new Set(selected(pane).map((e) => parentOf(e.path)).filter(Boolean))] : [t.path];
+    const text = dirs.join("\r\n");
     if (!text) return;
-    void navigator.clipboard.writeText(text).then(() => flash("경로를 복사했어요"), () => flash("복사하지 못했어요"));
+    void navigator.clipboard.writeText(text).then(() => flash("폴더 경로를 복사했어요"), () => flash("복사하지 못했어요"));
   };
 
   // 보안 해제: 회사 보안 프로그램(소프트캠프) 메뉴는 윈도우 탐색기에서만 나와요. 윈도우 탐색기를 고른 파일을 골라 둔 채
@@ -1335,6 +1341,21 @@ export default function FilesScreen() {
   // 트리 폭 끌기
   const dragW = useRef<{ x: number; w: number } | null>(null);
   const panesRef = useRef<HTMLDivElement>(null);
+  // 트리 폭 한계(2026-10-28 탐색기 ✔7): 가장 좁게 150, 가장 넓게는 오른쪽 창들이 300씩 남을 때까지(창 크기에 따라)
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [bodyW, setBodyW] = useState(0);
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setBodyW(el.clientWidth));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [!!st]);
+  const treeMax = (layout: Layout) => {
+    if (!bodyW) return TREE_W.max;
+    const cols = layout === "tb" ? 1 : 2;
+    return Math.max(TREE_W.min, bodyW - 12 - cols * PANE_MIN - (cols - 1) * 12);
+  };
   // 경로 줄이 창보다 길면 끝(지금 폴더)이 보이게 앞쪽을 가려요(2026-10-28 탐색기 ✔1)
   const crumbsToEnd = () => document.querySelectorAll<HTMLElement>(".fx-crumbs").forEach((el) => (el.scrollLeft = el.scrollWidth));
   useEffect(crumbsToEnd);
@@ -1618,6 +1639,7 @@ export default function FilesScreen() {
   const fmt = cfg.dateFmt;
   // 날짜 형식이 길어지면(초까지 등) 수정한 날 열이 그 글자보다 좁아지지 않게 해요.
   const dateMin = dateColMin(fmt);
+  const treeW = Math.max(TREE_W.min, Math.min(treeMax(st.layout), st.tree.width));
 
   // ---------- 그리기 ----------
   const paneCtx: PaneCtx = {
@@ -1631,12 +1653,12 @@ export default function FilesScreen() {
   return (
     <div className="fx-root">
       <div className="fx-top">
-        <div className="fx-findbox fx-rel" style={{ width: st.tree.width }}>
+        <div className={treeW < 200 ? "fx-findbox fx-rel fx-narrow" : "fx-findbox fx-rel"} style={{ width: treeW }}>
           <SearchBox
             className="fx-search"
             inputRef={quickRef}
             aria-label="파일 찾기"
-            placeholder={fastReady ? "모든 드라이브에서 찾기" : "파일 찾기"}
+            placeholder={treeW < 200 ? "찾기" : fastReady ? "모든 드라이브에서 찾기" : "파일 찾기"}
             value={quickFind}
             onChange={(e) => setQuickFind(e.target.value)}
             onClear={() => setQuickFind("")}
@@ -1655,18 +1677,23 @@ export default function FilesScreen() {
                 <button
                   type="button"
                   className="fx-more fx-menu-btn"
+                  title={treeW < 200 ? "자세히 찾기" : undefined}
                   onClick={() => {
                     if (!findOpen) setForm({ ...form, name: form.name || quickFind, where: form.where || curPath });
                     setFindOpen(!findOpen);
                   }}
                 >
-                  자세히 ▾
+                  {treeW < 200 ? "▾" : "자세히 ▾"}
                 </button>
               </>
             }
           />
           {findOpen && (
             <div className="fx-menu fx-findpanel" onKeyDown={(e) => e.key === "Escape" && setFindOpen(false)}>
+              <div className="fx-fhead" data-dialog-title>
+                자세히 찾기
+              </div>
+              <DialogX onClick={() => setFindOpen(false)} />
               <div className="fx-fgrid">
                 <span className="fx-dim">이름</span>
                 <input ref={findNameRef} className="input" value={form.name} placeholder="*.jpg;*.png 또는 이름 일부" onChange={(e) => setForm({ ...form, name: e.target.value })} />
@@ -1853,11 +1880,26 @@ export default function FilesScreen() {
         )}
       </div>
 
-      <div className="fx-body">
+      <div className="fx-body" ref={bodyRef}>
         {st.tree.on && (
           <>
-            <aside className="fx-tree" aria-label="폴더 트리" style={{ width: st.tree.width }}>
-              <div className="fx-tree-head">폴더트리</div>
+            <aside className="fx-tree" aria-label="폴더 트리" style={{ width: treeW }}>
+              <div className="fx-tree-head">
+                폴더트리
+                {/* 모두 접기(2026-10-28 탐색기 ✔8 – 펼치기 단추는 없어요) */}
+                <button
+                  type="button"
+                  className="fx-fold"
+                  aria-label="모두 접기"
+                  title="모두 접기"
+                  onClick={() => setSt((S) => (S ? { ...S, tree: { ...S.tree, open: [] } } : S))}
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M4.5 8.5 8 5l3.5 3.5" />
+                    <path d="M4.5 12.5 8 9l3.5 3.5" />
+                  </svg>
+                </button>
+              </div>
               <div className="fx-tree-list">
                 {treeRows.map((r, ri) => {
                   const on = curPath.toLowerCase() === r.path.toLowerCase();
@@ -1956,12 +1998,12 @@ export default function FilesScreen() {
               title="끌어서 폭 바꾸기 · 두 번 누르면 처음 폭"
               onPointerDown={(e) => {
                 e.currentTarget.setPointerCapture(e.pointerId);
-                dragW.current = { x: e.clientX, w: st.tree.width };
+                dragW.current = { x: e.clientX, w: treeW };
               }}
               onPointerMove={(e) => {
                 const d = dragW.current;
                 if (!d) return;
-                const w = Math.max(TREE_W.min, Math.min(TREE_W.max, Math.round(d.w + e.clientX - d.x)));
+                const w = Math.max(TREE_W.min, Math.min(treeMax(st.layout), Math.round(d.w + e.clientX - d.x)));
                 setSt((S) => (S ? { ...S, tree: { ...S.tree, width: w } } : S));
               }}
               onPointerUp={() => (dragW.current = null)}
@@ -2047,8 +2089,12 @@ export default function FilesScreen() {
             const ti = menu.tab!;
             const tab = st.panes[pane].tabs[ti];
             setMenu(null);
-            if (a === "pin") updPane(pane, (p) => ({ ...p, tabs: p.tabs.map((t, i) => (i === ti ? { ...t, pinned: !t.pinned } : t)) }));
-            if (a === "dup") updPane(pane, (p) => ({ ...p, tabs: [...p.tabs.slice(0, ti + 1), { ...tab, pinned: false, id: tabSeq++ }, ...p.tabs.slice(ti + 1)], active: ti + 1 }));
+            if (a === "pin") updPane(pane, (p) => ({ ...p, ...togglePin(p.tabs, ti, p.active) }));
+            if (a === "dup")
+              updPane(pane, (p) => {
+                const at = freeSlot(p.tabs, ti + 1);
+                return { ...p, tabs: [...p.tabs.slice(0, at), { ...tab, pinned: false, id: tabSeq++ }, ...p.tabs.slice(at)], active: at };
+              });
             if (a === "other") {
               const o = targetOf(pane);
               updPane(o, (p) => ({ ...p, tabs: [...p.tabs, { ...tab, pinned: false, id: tabSeq++ }], active: p.tabs.length }));
@@ -2136,7 +2182,9 @@ function dateColMin(fmt: string): number {
   const c = document.createElement("canvas").getContext("2d");
   if (!c) return 0;
   c.font = `${fs} Pretendard, sans-serif`;
-  const w = Math.ceil(c.measureText(formatDate(new Date(2026, 11, 28, 23, 58, 58).getTime(), fmt)).width) + 20 + (fmt.includes(" ") ? DATE_TIME_GAP : 0);
+  // 12시간 모양은 12시가 가장 넓어요 – 둘 다 재서 큰 값
+  const wide = Math.max(...[23, 12].map((h) => c.measureText(formatDate(new Date(2026, 11, 28, h, 58, 58).getTime(), fmt)).width));
+  const w = Math.ceil(wide) + 20 + (fmt.includes(" ") ? DATE_TIME_GAP : 0);
   dateMinCache.set(key, w);
   return w;
 }
