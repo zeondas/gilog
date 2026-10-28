@@ -18,6 +18,7 @@ import {
   BudgetProject,
   BudgetRow,
   FINAL,
+  RATE_LABEL,
   fmt,
   KINDS,
   matchRow,
@@ -28,6 +29,8 @@ import {
   sortRows,
   STAGES,
   sums,
+  View,
+  VIEW_LABEL,
   typing,
   Unit,
 } from "../../budget";
@@ -80,6 +83,9 @@ const FIXED = new Set<ColId>(["kind", "rate", "stage", "owner", "memo"]);
 const START_W = Object.fromEntries(COLS.map(([c, , w]) => [c, w])) as Record<ColId, number>;
 const COLS_KEY = "budget.cols";
 const UNIT_KEY = "budget.unit";
+const VIEW_KEY = "budget.view";
+/** 보기마다 숨는 열(2026-10-28 15:55 사용자): 집행률 보기는 시공량, 시공량 보기는 집행액 */
+const HIDE_OF: Record<View, ColId> = { exp: "act", act: "exp" };
 
 /** 고른 줄: p12(세부사업)·i3(부기사업)·g7(공사) */
 type Sel = string | null;
@@ -133,6 +139,7 @@ export default function BudgetScreen() {
   const [data, setData] = useState<BudgetProject[] | null>(null);
   const [note, setNote] = useState("");
   const [unit, setUnitState] = useState<Unit>(1);
+  const [view, setViewState] = useState<View>("exp");
   const [q, setQ] = useState("");
   const [sel, setSel] = useState<Sel>(null);
   const [cs, setCs] = useState<Cells>(NO_CELLS);
@@ -218,6 +225,7 @@ export default function BudgetScreen() {
   }, [year, load]);
   useEffect(() => {
     api.get(UNIT_KEY).then((v) => setUnitState(v === "1000" ? 1000 : 1), () => {});
+    api.get(VIEW_KEY).then((v) => setViewState(v === "act" ? "act" : "exp"), () => {});
     api.get(COLS_KEY).then(
       (v) => {
         if (!v) return;
@@ -486,6 +494,13 @@ export default function BudgetScreen() {
     api.set(UNIT_KEY, String(u)).catch(() => {});
   };
 
+  const setView = async (v: View) => {
+    if (!(await commit())) return;
+    setViewState(v);
+    setCs(NO_CELLS);
+    api.set(VIEW_KEY, v).catch(() => {});
+  };
+
   const changeYear = async (y: number) => {
     if (!(await commit())) return;
     setSel(null);
@@ -498,7 +513,11 @@ export default function BudgetScreen() {
   // 세부사업 열도 다른 열처럼 정해진 폭 – "남는 폭 채우기"는 없앴어요(2026-10-20 사용자, 예산현황과 같게). 보이는 열(VC)은 공유를 끄면 "담당" 열이 빠져요
   // 자리가 모자라면(팀 공유의 "담당" 열·세로 스크롤 막대) 세부사업 열만 그만큼 줄여 그려요 – 가장 좁게 160, 저장한 폭은 그대로(2026-10-21 사용자)
   const over = boxW > 0 ? VC.reduce((a, [c]) => a + W[c], 0) + 2 + sbw - boxW : 0;
-  const Wv = over > 0 ? { ...W, name: Math.max(160, W.name - over) } : W;
+  const hide = HIDE_OF[view];
+  const Wv0 = over > 0 ? { ...W, name: Math.max(160, W.name - over) } : W;
+  // 보기에서 숨는 열(집행률 보기 = 시공량, 시공량 보기 = 집행액)은 폭 0 – 그 폭은 세부사업 열이 가져가요(2026-10-28 사용자)
+  const Wv = { ...Wv0, name: Wv0.name + Wv0[hide], [hide]: 0 } as Record<ColId, number>;
+  const hideIx = VC.findIndex(([c]) => c === hide);
   const cols = VC.map(([c]) => Wv[c] + "px").join(" ");
   // 남는 폭이 있으면 늘 왼쪽으로 모아요: 머리 줄 끝(엑셀) = 메모 끝, 세로 스크롤은 메모 끝 바로 옆(2026-10-19 사용자)
   const colSum = VC.reduce((a, [c]) => a + Wv[c], 0);
@@ -534,7 +553,7 @@ export default function BudgetScreen() {
     const heads = [...document.querySelectorAll<HTMLElement>(".bd-hd > *")];
     const w = { ...W };
     VC.forEach(([c], i) => {
-      if (!FIXED.has(c) && heads[i]) w[c] = fitOf(c, heads[i]);
+      if (!FIXED.has(c) && c !== hide && heads[i]) w[c] = fitOf(c, heads[i]);
     });
     setW(w);
     setNameFixed(true);
@@ -580,7 +599,7 @@ export default function BudgetScreen() {
         memo: memoToText(p.memo),
         items: p.items.map((i) => ({ ...i, memo: memoToText(i.memo), rows: i.rows.map((r) => ({ ...r, memo: memoToText(r.memo) })) })),
       }));
-      await api.budgetExcelWrite(path, { year, unit, date: todayStr(), projects });
+      await api.budgetExcelWrite(path, { year, unit, view, date: todayStr(), projects });
       const d = dirOf(path);
       if (d) api.set(DIR_KEY, d).catch(() => {});
       setToast(`${year}년 집행현황을 저장했어요 · ${path}`);
@@ -656,12 +675,12 @@ export default function BudgetScreen() {
           " n",
         );
   const rowRateCell = (r: BudgetRow) => {
-    const sp = rowRate(r);
+    const sp = rowRate(r, view);
     return sp == null
       ? cell("", " n")
       : cell(
           <>
-            <span className="bd-bar rowbar" title={(FINAL(r.stage) ? "집행액" : "시공량") + " ÷ 원인행위"}>
+            <span className="bd-bar rowbar" title={(view === "act" ? "시공량" : "집행액") + " ÷ 원인행위"}>
               <span style={{ width: Math.min(100, Math.max(0, sp)) + "%" }} />
             </span>
             <span className="bd-pct rowp">{Math.round(sp)}%</span>
@@ -694,7 +713,7 @@ export default function BudgetScreen() {
   };
   /** 합계 칸들(구분·업체 빈칸부터 메모까지) */
   const sumCells = (budget: number | null, rows: BudgetRow[], sm: boolean, memo: ReactNode, budgetCell?: ReactNode, owner?: ReactNode) => {
-    const s = sums(budget, rows);
+    const s = sums(budget, rows, view);
     return (
       <>
         {cell("")}
@@ -798,7 +817,7 @@ export default function BudgetScreen() {
       const x = findRow(id);
       if (!x) return null;
       const r = x.r;
-      const v: Partial<Record<ColId, number>> = { cmt: r.cmt, exp: r.exp, act: r.act, bal: balance(r) };
+      const v: Partial<Record<ColId, number>> = { cmt: r.cmt, exp: r.exp, act: r.act, bal: balance(r, view) };
       return v[col] ?? null;
     }
     let budget: number | null;
@@ -814,7 +833,7 @@ export default function BudgetScreen() {
       budget = budgetOf("item", x.it);
       rows = rowsOf(x.it);
     }
-    const t = sums(budget, rows);
+    const t = sums(budget, rows, view);
     const v: Partial<Record<ColId, number | null>> = { bud: budget, cmt: t.cmt, exp: t.exp, act: t.act, bal: t.bal, avail: t.avail };
     return v[col] ?? null;
   };
@@ -850,7 +869,7 @@ export default function BudgetScreen() {
       const [r0, r1] = [Math.min(a, b), Math.max(a, b)];
       const [c0, c1] = [Math.min(+aci, ci), Math.max(+aci, ci)];
       const keys = new Set(mod ? cs.keys : [cs.anchor]); // 기준 칸이 먼저(차액 = 먼저 − 나중)
-      for (let i = r0; i <= r1; i++) for (const n of NUM_IX) if (n >= c0 && n <= c1) keys.add(order[i] + ":" + n);
+      for (let i = r0; i <= r1; i++) for (const n of NUM_IX) if (n >= c0 && n <= c1 && n !== hideIx) keys.add(order[i] + ":" + n);
       setCs({ keys: [...keys], anchor: cs.anchor });
     } else if (mod) {
       setCs({ keys: cs.keys.includes(key) ? cs.keys.filter((x) => x !== key) : [...cs.keys, key], anchor: key });
@@ -1083,7 +1102,7 @@ export default function BudgetScreen() {
         {cell(moneyInput("cmt", "원인행위", f.cmt))}
         {cell(moneyInput("exp", "집행액", f.exp))}
         {cell(moneyInput("act", "시공량(사용량)", f.act))}
-        {draftRow && cell(fmt(balance(draftRow), unit), " n" + (balance(draftRow) < 0 ? " red" : ""))}
+        {draftRow && cell(fmt(balance(draftRow, view), unit), " n" + (balance(draftRow, view) < 0 ? " red" : ""))}
         {draftRow && rowRateCell(draftRow)}
         {cell("")}
         {cell(stageChip(f.stage, (r, from) => setPop({ t: "stage", x: r.left, y: r.bottom + 4, id: "form", from }), "form-stage"))}
@@ -1253,7 +1272,7 @@ export default function BudgetScreen() {
             {cell(fmt(r.cmt, unit), " n")}
             {cell(fmt(r.exp, unit), " n")}
             {cell(fmt(r.act, unit), " n")}
-            {cell(fmt(balance(r), unit), " n" + (balance(r) < 0 ? " red" : ""))}
+            {cell(fmt(balance(r, view), unit), " n" + (balance(r, view) < 0 ? " red" : ""))}
             {rowRateCell(r)}
             {cell("")}
             {cell(
@@ -1634,7 +1653,9 @@ export default function BudgetScreen() {
   // 열 머리를 눌러 고른 열은 옅게 칠해요(2026-10-28 집행현황 계산 세션: 기준 단추가 없어져 "기준 세 열" 칠하기는 뺐어요)
   const colStyle = (() => {
     const hl = "linear-gradient(var(--bd-col-hl),var(--bd-col-hl))";
-    return colHl == null || colHl < 0 ? "" : `.bd-body .bd-rw>.bd-c:nth-child(${colHl + 1}){background-image:${hl}}`;
+    // 보기에서 숨는 열(폭 0)은 칸 안 글자·테두리도 그리지 않아요
+    const hid = hideIx >= 0 ? `.bd-hd>.bd-h:nth-child(${hideIx + 1}),.bd-rw>.bd-c:nth-child(${hideIx + 1}){visibility:hidden;overflow:hidden;padding:0!important;border:0!important;min-width:0}` : "";
+    return hid + (colHl == null || colHl < 0 || colHl === hideIx ? "" : `.bd-body .bd-rw>.bd-c:nth-child(${colHl + 1}){background-image:${hl}}`);
   })();
   const head = useMemo(
     () =>
@@ -1649,12 +1670,12 @@ export default function BudgetScreen() {
             setColHl(colHl === i ? null : i);
           }}
         >
-          {label}
-          {!FIXED.has(c) && <span className="bd-grip" title="끌어서 너비 · 두 번 누르면 내용에 맞춤" onMouseDown={(e) => startDrag(e, c)} onDoubleClick={(e) => autoFit(e, c)} />}
+          {c === "rate" ? RATE_LABEL[view] : label}
+          {!FIXED.has(c) && c !== hide && <span className="bd-grip" title="끌어서 너비 · 두 번 누르면 내용에 맞춤" onMouseDown={(e) => startDrag(e, c)} onDoubleClick={(e) => autoFit(e, c)} />}
         </div>
       )),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [colHl, W, nameFixed, avail, VC],
+    [colHl, W, nameFixed, avail, VC, view, hide],
   );
 
   if (!data) {
@@ -1722,6 +1743,13 @@ export default function BudgetScreen() {
           </>
         )}
         <span className="bd-sp" />
+        <span className="bd-unit tb-seg-l" role="group" aria-label="보기 – 집행률 · 시공량" title="집행률 보기는 시공량 열을, 시공량 보기는 집행액 열을 숨겨요">
+          {(["exp", "act"] as View[]).map((v) => (
+            <button key={v} type="button" className={view === v ? "on" : ""} aria-pressed={view === v} onClick={() => void setView(v)}>
+              {VIEW_LABEL[v]}
+            </button>
+          ))}
+        </span>
         <span className="bd-unit tb-seg-s" role="group" aria-label="금액 단위">
           {([1, 1000] as Unit[]).map((u) => (
             <button key={u} type="button" className={unit === u ? "on" : ""} aria-pressed={unit === u} onClick={() => void setUnit(u)}>
