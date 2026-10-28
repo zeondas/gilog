@@ -136,6 +136,14 @@ async def s_complaints_edit_ask(p):
     await p.get_by_role("button", name="2번 민원 지우기").first.click()
 
 
+async def s_complaints_cats_merge(p):
+    """분류 관리 창에서 쓰는 민원이 있는 접수유형(전화)의 × – 두 줄 "합칠까요?" 띠(2026-10-28 ✔1)"""
+    await p.get_by_role("button", name="분류 관리").first.click()
+    await p.wait_for_timeout(300)
+    await p.get_by_role("button", name="전화 삭제").first.click()
+    await p.wait_for_timeout(250)
+
+
 async def s_complaints_newrow_baddate(p):
     i = p.locator("input[name=received]").first
     await i.fill("abc")
@@ -363,6 +371,7 @@ SCENES.update({
     "complaints_rowmenu": ("민원대장", s_complaints_rowmenu),
     "complaints_rowmenu_ask": ("민원대장", s_complaints_rowmenu_ask),
     "complaints_dbl": ("민원대장", s_complaints_dbl),
+    "complaints_cats_merge": ("민원대장", s_complaints_cats_merge),
     "complaints_edit_ask": ("민원대장", s_complaints_edit_ask),
     "complaints_newrow_baddate": ("민원대장", s_complaints_newrow_baddate),
     "contacts_card_ask": ("업무연락처", s_contacts_card_ask),

@@ -70,6 +70,33 @@ async def c_settings_band(p):
     assert not await shown(p, ".list-ask"), "바깥 눌러도 띠가 남음"
 
 
+async def c_complaints_merge(p):
+    """분류 관리: 쓰는 민원이 있는 접수유형을 지우면 고르기 전엔 단추가 막히고, 고른 값으로 N건 바꾸고 지워요(2026-10-28 ✔1)."""
+    await shoot.nav(p, "민원대장")
+    await shoot.s_complaints_cats_merge(p)
+    assert await shown(p, ".ask-band.ask-two"), "두 줄 띠 안 열림"
+    f = await p.evaluate("() => document.activeElement && document.activeElement.textContent")
+    assert f == "취소", f"커서가 취소에 없음({f})"
+    yes = p.get_by_role("button", name="합치고 지우기")
+    assert await yes.is_disabled(), "고르기 전인데 단추가 눌림"
+    await p.locator("input[name=merge-to]").click()
+    await p.wait_for_timeout(150)
+    await p.keyboard.press("Escape")
+    await p.wait_for_timeout(150)
+    assert await shown(p, ".ask-band.ask-two"), "목록 Esc에 띠까지 접힘"
+    await p.locator("input[name=merge-to]").click()
+    await p.locator(".pin-opt", has_text="방문").first.click()
+    await p.wait_for_timeout(150)
+    assert not await yes.is_disabled(), "고른 뒤에도 단추가 막힘"
+    await yes.click()
+    await p.wait_for_timeout(400)
+    assert not await shown(p, ".ask-band"), "합친 뒤 띠가 남음"
+    chips = await p.locator(".mgr-group").first.locator(".chip").all_inner_texts()
+    assert "전화" not in [c.strip() for c in chips], f"목록에 전화가 남음 {chips}"
+    left = await p.evaluate("() => [...document.querySelectorAll('.cm-view')].map(r => r.querySelectorAll('[role=cell]')[1].getAttribute('title') || r.querySelectorAll('[role=cell]')[1].textContent)")
+    assert "전화" not in left and left.count("방문") == 2, f"민원 값이 안 바뀜 {left}"
+
+
 async def c_pjmenu_esc(p):
     await shoot.nav(p, "업무연락처")
     await shoot.s_contacts_pjmenu(p)
@@ -399,6 +426,7 @@ CASES = {
     "complaints_rowmenu": menu_case("민원대장", shoot.s_complaints_rowmenu, ".cm-rowmenu"),
     "complaints_rowmenu_ask": menu_case("민원대장", shoot.s_complaints_rowmenu_ask, ".cm-rowmenu"),
     "complaints_dbl": c_complaints_dbl,
+    "complaints_merge": c_complaints_merge,
     "no_browser_menu": c_no_browser_menu,
     "budget_menu": menu_case("집행현황", shoot.s_budget_menu, ".bd-pop"),
     "budgetstatus_menu": menu_case("예산현황", shoot.s_budgetstatus_menu, ".bd-pop", esc=False),

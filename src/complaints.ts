@@ -218,10 +218,12 @@ export function layoutCols(needs: Partial<Record<ColKey, ColNeed>>, avail: numbe
       for (const k of auto) w[k] = w[k]! - each;
     }
   }
-  // 끈 열은 그 폭에 다 안 들어가면 줄인 모양이에요.
+  // 끈 열은 폭만 보고 정해요: 다 들어가면 전체 글자, 모자라면 줄인 모양(2026-10-28 사용자 1안 – 넓혀도 "메신…"으로 남던 것).
   for (const k of fixed) {
     const n = need(k);
-    if (user(k) !== null && n.short != null && w[k]! < n.full + 12) short.add(k);
+    if (user(k) === null || n.short == null) continue;
+    if (w[k]! < n.full + 12) short.add(k);
+    else short.delete(k);
   }
   const content = avail > 0 ? (avail - fixed.reduce((a, k) => a + w[k]!, 0)) / FLEXED.length : FLEX_MIN;
   return {

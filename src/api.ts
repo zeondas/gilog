@@ -756,6 +756,16 @@ function fakeComplaints(cmd: string, a: Record<string, unknown>): unknown {
       c.memo = a.memo as string;
       return structuredClone(c);
     }
+    case "replace_complaint_field": {
+      // core replace_complaint_field와 같게: 접수유형·민원유형만, 빈 값 거절, 바꾼 뒤 연번 다시 매기고 전체를 돌려줘요.
+      const f = a.field as "intake" | "ctype";
+      const from = (a.from as string).trim();
+      const to = (a.to as string).trim();
+      if ((f !== "intake" && f !== "ctype") || !from || !to) throw "invalid";
+      for (const c of fake.complaints) if (c[f] === from) c[f] = to;
+      renumber();
+      return structuredClone([...fake.complaints].sort((x, y) => y.no - x.no || y.id - x.id));
+    }
     case "delete_complaint":
       fake.complaints = fake.complaints.filter((x) => x.id !== a.id);
       renumber();
@@ -1451,6 +1461,8 @@ export const api = {
     call<Complaint>("set_complaint_status", done === undefined ? { id, status } : { id, status, done }),
   setComplaintMemo: (id: number, memo: string) => call<Complaint>("set_complaint_memo", { id, memo }),
   deleteComplaint: (id: number) => call<null>("delete_complaint", { id }),
+  /** 분류 합치기(✔1): 접수유형·민원유형이 from인 민원을 to로 – 바뀐 뒤 전체 민원(연번이 다시 매겨져요) */
+  replaceComplaintField: (field: "intake" | "ctype", from: string, to: string) => call<Complaint[]>("replace_complaint_field", { field, from, to }),
   processData: () => call<ProcessData>("process_data"),
 
   // 집행현황(12단계) – 바꾸는 명령은 그 해 전체를 돌려줘요.

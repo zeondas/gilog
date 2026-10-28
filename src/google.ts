@@ -937,7 +937,7 @@ export function scheduleGoogleSync(): void {
 }
 
 /** 구글로 나가는 것을 바꾸는 명령들이에요(보기·색 칸 숨기기 등은 빼요). */
-const CHANGES = /^(add_event|update_event|delete_event|set_cal_kind_color|delete_cal_kind|add_complaint|update_complaint|set_complaint_status|delete_complaint|import_complaints|add_task|update_task|set_task_done|delete_task|delete_task_list|rename_task_list)$/;
+const CHANGES = /^(add_event|update_event|delete_event|set_cal_kind_color|delete_cal_kind|add_complaint|update_complaint|set_complaint_status|delete_complaint|import_complaints|replace_complaint_field|add_task|update_task|set_task_done|delete_task|delete_task_list|rename_task_list)$/;
 
 function onDataChange(cmd: string) {
   if (CHANGES.test(cmd)) scheduleGoogleSync();

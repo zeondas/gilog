@@ -498,6 +498,12 @@ fn set_complaint_memo(state: State<AppState>, id: i64, memo: String) -> Result<C
     with_store(&state, |s| s.set_complaint_memo(id, &memo))
 }
 
+/// 분류 합치기: 접수유형·민원유형이 from인 민원을 to로 한 번에 바꾸고 전체 민원을 돌려줘요(2026-10-28 ✔1).
+#[tauri::command]
+fn replace_complaint_field(state: State<AppState>, field: String, from: String, to: String) -> Result<Vec<Complaint>, String> {
+    with_store(&state, |s| s.replace_complaint_field(&field, &from, &to))
+}
+
 #[tauri::command]
 fn delete_complaint(state: State<AppState>, id: i64) -> Result<(), String> {
     with_store(&state, |s| s.delete_complaint(id))
@@ -718,6 +724,7 @@ pub fn run() {
             complaints,
             add_complaint,
             update_complaint,
+            replace_complaint_field,
             set_complaint_status,
             road_to_jibun,
             address_web::juso_http,

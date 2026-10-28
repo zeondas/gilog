@@ -19,9 +19,13 @@ type Props = {
   /** 자리만 다른 화면 이름표 */
   className?: string;
   bandRef?: Ref<HTMLDivElement>;
+  /** 물음 글 아래 줄 왼쪽에 넣을 것(민원대장 분류 합치기의 "합칠 값" 고르기 – 2026-10-28 ✔1). 있으면 띠가 두 줄이에요. */
+  extra?: ReactNode;
+  /** 지우기 단추를 아직 못 누름(흐리게) */
+  yesDisabled?: boolean;
 };
 
-export function AskBand({ text, label, onYes, onNo, yes = "지우기", className, bandRef }: Props) {
+export function AskBand({ text, label, onYes, onNo, yes = "지우기", className, bandRef, extra, yesDisabled }: Props) {
   // autoFocus 대신 그린 뒤에 커서를 줘요 – 자리를 잰 뒤 보이는 떠 있는 상자(민원처리 공사 관리 ×)는 처음 그릴 때 숨겨져 있어 autoFocus가 빗나갔어요.
   const noRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -34,7 +38,7 @@ export function AskBand({ text, label, onYes, onNo, yes = "지우기", className
   return (
     <div
       ref={bandRef}
-      className={"ask-band" + (className ? " " + className : "")}
+      className={"ask-band" + (extra ? " ask-two" : "") + (className ? " " + className : "")}
       role="alertdialog"
       aria-label={label}
       onKeyDown={(e) => {
@@ -45,10 +49,11 @@ export function AskBand({ text, label, onYes, onNo, yes = "지우기", className
       }}
     >
       <span>{text}</span>
+      {extra}
       <button ref={noRef} type="button" className="btn btn-xs" onClick={onNo}>
         취소
       </button>
-      <button type="button" className="btn btn-xs btn-danger" onClick={onYes}>
+      <button type="button" className="btn btn-xs btn-danger" disabled={yesDisabled} onClick={onYes}>
         {yes}
       </button>
     </div>
