@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { CSSProperties, MouseEvent as ReactMouseEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Case, ContactsData, Work } from "../../api";
 import { COL_MIN, maxWidthOf } from "../../complaints";
+import { startColDrag } from "../../ColGrip";
 import { BLine, linesToText, parseLines, stringifyLines } from "../../bullets";
 import { BulletEditor, Mark } from "../../BulletParts";
 import { useOutsideClose } from "../../useOutsideClose";
@@ -39,24 +40,22 @@ export function HeadRow({
     const row = rowRef.current;
     if (!row) return;
     const base = widths.map((w, j) => w ?? (row.children[j] as HTMLElement).getBoundingClientRect().width);
-    const startX = e.clientX;
     const max = avail > 0 ? maxWidthOf(widths, i, avail, base) : Infinity;
     let last = widths;
-    const move = (ev: MouseEvent) => {
-      const next = widths.slice();
-      next[i] = Math.min(max, Math.max(COL_MIN, Math.round(base[i] + ev.clientX - startX)));
-      last = next;
-      onResize(next);
-    };
-    const up = () => {
-      document.removeEventListener("mousemove", move);
-      document.removeEventListener("mouseup", up);
-      document.body.classList.remove("col-dragging");
-      if (last !== widths) onResized(last);
-    };
-    document.body.classList.add("col-dragging");
-    document.addEventListener("mousemove", move);
-    document.addEventListener("mouseup", up);
+    startColDrag(e, {
+      base: base[i],
+      min: COL_MIN,
+      max,
+      bodyClass: "col-dragging",
+      on: "document",
+      onMove: (px) => {
+        const next = widths.slice();
+        next[i] = px;
+        last = next;
+        onResize(next);
+      },
+      onEnd: () => last !== widths && onResized(last),
+    });
   }
 
   return (
