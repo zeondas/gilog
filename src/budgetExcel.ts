@@ -48,7 +48,7 @@ function fromApp(s: GridSheet, hi: number): BudgetImport | null {
   const col = (h: string) => head.indexOf(h);
   // 열 이름을 바꿔도(2026-10-18 지출액→집행액, 실집행액→시공량(사용량)) 예전 파일을 읽어요
   const col2 = (h: string, old: string) => (col(h) >= 0 ? col(h) : col(old));
-  const c = { name: col("세부사업"), kind: col("구분"), co: col("업체(하도)"), bud: col("예산"), cmt: col("원인행위"), exp: col2("집행액", "지출액"), act: col2("시공량(사용량)", "실집행액"), stage: col("단계"), memo: col("메모"), lv: col("줄") };
+  const c = { name: col("세부사업"), kind: col("구분"), co: col("업체(하도)"), bud: col("예산"), cmt: col2("원인행위", "계약금액"), exp: col2("집행액", "지출액"), act: col2("시공량(사용량)", "실집행액"), stage: col("단계"), memo: col("메모"), lv: col("줄") };
   if (c.name < 0 || c.cmt < 0) return null;
   const unit: 1 | 1000 = s.rows.slice(0, hi).some((r) => r.some((x) => /단위\s*천원/.test(x ?? ""))) ? 1000 : 1;
   const out: ImportProject[] = [];
@@ -171,7 +171,7 @@ export function parseBudgetBook(sheets: GridSheet[], year: number): BudgetImport
   for (const s of order) {
     for (let i = 0; i < Math.min(12, s.rows.length); i++) {
       const h = s.rows[i].map(norm);
-      if (h.includes("세부사업") && h.includes("원인행위")) {
+      if (h.includes("세부사업") && (h.includes("원인행위") || h.includes("계약금액"))) {
         const r = fromApp(s, i);
         if (r) return r;
       }

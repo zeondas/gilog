@@ -3,7 +3,8 @@
 // 합계 줄 비율 = Σ쓴 돈 ÷ 예산 · 가용액 = 예산 − Σ(완료·타절이면 집행액, 아니면 원인행위) – 보기와 상관없음
 // 숫자는 사용자가 준 2026 집행현황 실무 엑셀에서 가져왔어요(엑셀 손수식과 같은 값이 나와야 해요).
 import { describe, expect, test } from "vitest";
-import { balance, BudgetRow, rowRate, spent, sums, tied } from "./budget";
+import { balance, BudgetRow, CMT_LABEL, rowRate, spent, sums, tied } from "./budget";
+import { parseBudgetBook } from "./budgetExcel";
 
 let id = 0;
 const R = (stage: string, cmt: number, exp: number, act = exp): BudgetRow => ({ id: ++id, uid: "r" + id, name: "공사" + id, kind: "공사", co: "", cmt, exp, act, stage, memo: "" });
@@ -119,4 +120,34 @@ describe("합계 줄", () => {
     expect(sums(0, [R("추진", 1, 1)]).rate).toBeNull();
     expect(sums(null, [R("추진", 1, 1)], "act").rate).toBeNull();
   });
+});
+
+// 시공량 보기 열 이름(2026-10-28 21:58 사용자): 원인행위 열을 "계약금액"으로 보여요 – 그 이름으로 내보낸 엑셀도 다시 가져와요
+
+describe("원인행위 · 계약금액 열 이름", () => {
+  test("집행률 보기는 원인행위, 시공량 보기는 계약금액", () => {
+    expect(CMT_LABEL.exp).toBe("원인행위");
+    expect(CMT_LABEL.act).toBe("계약금액");
+  });
+  const book = (cmtHead: string) => [
+    {
+      name: "2026",
+      rows: [
+        ["2026 집행현황"],
+        ["기준일 2026-10-28 · 단위 원 · 보기 시공량"],
+        ["세부사업", "구분", "업체(하도)", "예산", cmtHead, "집행액", "시공량(사용량)", "잔액", "사용률", "가용액", "단계", "메모", "줄"],
+        ["도로포장", "", "", "100000", "", "", "", "", "", "", "", "", "세부사업"],
+        ["단가계약", "공사", "대원", "", "80000", "30000", "50000", "", "", "", "추진", "", "공사"],
+      ],
+    },
+  ];
+  for (const h of ["원인행위", "계약금액"]) {
+    test(`"${h}" 머리 엑셀을 가져와요`, () => {
+      const r = parseBudgetBook(book(h), 2026);
+      expect(r).not.toBeNull();
+      const row = r!.projects[0].items[0].rows[0];
+      expect(row.cmt).toBe(80000);
+      expect(row.act).toBe(50000);
+    });
+  }
 });

@@ -18,6 +18,7 @@ import {
   BudgetProject,
   BudgetRow,
   FINAL,
+  CMT_LABEL,
   RATE_LABEL,
   fmt,
   KINDS,
@@ -588,7 +589,7 @@ export default function BudgetScreen() {
       ? cell("", " n")
       : cell(
           <>
-            <span className="bd-bar rowbar" title={(view === "act" ? "시공량" : "집행액") + " ÷ 원인행위"}>
+            <span className="bd-bar rowbar" title={(view === "act" ? "시공량" : "집행액") + " ÷ " + CMT_LABEL[view]}>
               <span style={{ width: Math.min(100, Math.max(0, sp)) + "%" }} />
             </span>
             <span className="bd-pct rowp">{Math.round(sp)}%</span>
@@ -1007,7 +1008,7 @@ export default function BudgetScreen() {
           />,
         )}
         {cell("")}
-        {cell(moneyInput("cmt", "원인행위", f.cmt))}
+        {cell(moneyInput("cmt", CMT_LABEL[view], f.cmt))}
         {cell(moneyInput("exp", "집행액", f.exp))}
         {cell(moneyInput("act", "시공량(사용량)", f.act))}
         {draftRow && cell(fmt(balance(draftRow, view), unit), " n" + (balance(draftRow, view) < 0 ? " red" : ""))}
@@ -1578,7 +1579,7 @@ export default function BudgetScreen() {
             setColHl(colHl === i ? null : i);
           }}
         >
-          {c === "rate" ? RATE_LABEL[view] : label}
+          {c === "rate" ? RATE_LABEL[view] : c === "cmt" ? CMT_LABEL[view] : label}
           {c !== hide && colh.grip(c, { last: i === VC.length - 1 })}
         </div>
       )),
