@@ -947,3 +947,6 @@ body.col-dragging * {
 .cm-done-add:hover > span { background: var(--surface-band); }
 .cm-done-c .cm-tpick { align-items: flex-start; justify-content: center; }
 
+
+/* 접수유형 한 줄(2026-10-28 ✔1): 굵은 글자 끝 획이 1px 넘쳐 잘리지 않게 자르는 상자만 1px 넓혀요(글자 자리는 그대로) */
+.cm-strong .cm-ell-v { padding-right: 1px; margin-right: -1px; }

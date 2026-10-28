@@ -653,8 +653,9 @@ export function ViewRow({
       <div role="cell" className="cm-c cm-no">
         {t(String(c.no))}
       </div>
-      <div role="cell" className="cm-c cm-strong" title={intake !== c.intake ? c.intake : undefined}>
-        {t(intake)}
+      {/* 접수유형도 한 줄 – 넘치면 "…", 마우스를 올리면 전체(2026-10-28 사용자 1안, 민원유형 칸과 같게) */}
+      <div role="cell" className="cm-c cm-strong cm-ell" title={c.intake || undefined}>
+        <span className="cm-ell-v">{t(intake)}</span>
       </div>
       <div role="cell" className="cm-c cm-num" title={received !== c.received ? c.received : undefined}>
         {t(received)}
