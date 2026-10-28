@@ -25,11 +25,17 @@ import {
   isSpecial,
   isLnk,
   shownName,
+  COL_MIN,
+  ColKey,
+  moveCol,
 } from "../../files";
 import { TreeDir, fsApi, fsErrorText } from "../../filesApi";
 import { FilesSettings } from "../../settingsStore";
 import { VirtualList } from "../../VirtualList";
-import { DATE_TIME_GAP, EMPTY_SEL, Listing, NAME_MIN, Pop, ROW_H, RPane, RState, RTab, Row, Sel, revealRow, rowsRefs, vlists } from "./parts";
+import { DATE_TIME_GAP, EMPTY_SEL, Listing, Pop, ROW_H, RPane, RState, RTab, Row, Sel, revealRow, rowsRefs, vlists } from "./parts";
+
+/** 열 제목을 끌어 옮긴 때 – 바로 뒤 눌림(정렬)을 막아요 */
+let colDragDone = 0;
 
 export type PaneCtx = {
   activeTab: (p: RPane) => RTab;
@@ -191,25 +197,29 @@ export function renderPane(pane: number, c: PaneCtx) {
         {shownName(r)}
       </span>
     );
-  // 보일 열: 이름은 늘, 크기·수정한 날·파일 형식은 설정에서 켜고 꺼요(2026-10-18 사용자). 찾기 결과는 폴더 열이 이름 다음에.
-  const shown = (["size", "modified", "type"] as const).filter((k) => cfg.cols[k]);
-  const fixedW = [...(t.find ? [st.cols.folder] : []), ...shown.map((k) => (k === "modified" ? Math.max(st.cols[k], dateMin) : st.cols[k]))];
-  // 이름 열은 NAME_MIN 아래로 줄지 않고, 창이 그보다 좁으면 그 창 목록만 가로로 밀려요(2026-10-28 탐색기 ✔1 – FC처럼).
-  const colStyle = { gridTemplateColumns: ["32px", `minmax(${NAME_MIN}px,1fr)`, ...fixedW.map((w) => `${w}px`)].join(" ") };
-  /** 머리 줄·줄의 가장 좁은 폭 = 좌우 안쪽 10 + 아이콘 32 + 이름 최소 + 나머지 열 */
-  const rowsMinW = 20 + 32 + NAME_MIN + fixedW.reduce((a, b) => a + b, 0);
+  // 열(2026-10-28 탐색기 ✔5·✔9 – 윈도우·FC처럼): 이름은 맨 앞 정해진 폭, 뒤 열은 모든 창 공통 순서(제목을 끌어 바꿔요).
+  // 크기·수정한 날·파일 형식은 설정에서 켜고 꺼요(2026-10-18 사용자). 찾기 결과는 폴더 열도.
+  const shown = st.colOrder.filter((k) => (k === "folder" ? !!t.find : cfg.cols[k]));
+  const minOf = (k: "name" | ColKey) => (k === "modified" ? Math.max(COL_MIN, dateMin) : COL_MIN);
+  const widthOf = (k: "name" | ColKey) => Math.max(minOf(k), st.cols[k] ?? COL_MIN);
+  const colsW = [widthOf("name"), ...shown.map(widthOf)];
+  /** 줄·머리 줄 폭 = 왼쪽 안쪽 10 + 아이콘 32 + 열 합 – 그 뒤는 빈 곳(줄 선·고른 색 없음). 창보다 넓으면 그 창만 가로로 밀려요. */
+  const rowW = 10 + 32 + colsW.reduce((a, b) => a + b, 0);
+  const colStyle = { gridTemplateColumns: ["32px", ...colsW.map((w) => `${w}px`)].join(" "), width: rowW };
   const detailMode = p.view === "detail" || !!t.find;
-  const resizer = (k: "size" | "modified" | "folder" | "type") => (
+  /** 경계 손잡이: 열 오른쪽 끝 – 끌면 그 왼쪽 열만 바뀌고, 두 번 누르면 글자에 맞춰요 */
+  const resizer = (k: "name" | ColKey) => (
     <span
       className="fx-col-grip"
       onPointerDown={(e) => {
         e.preventDefault();
         e.stopPropagation();
         const x0 = e.clientX;
-        const w0 = st.cols[k];
+        const w0 = widthOf(k);
+        const min = minOf(k);
         const el = e.currentTarget;
         el.setPointerCapture(e.pointerId);
-        const move = (ev: PointerEvent) => setSt((S) => (S ? { ...S, cols: { ...S.cols, [k]: Math.max(56, Math.min(400, w0 - (ev.clientX - x0))) } } : S));
+        const move = (ev: PointerEvent) => setSt((S) => (S ? { ...S, cols: { ...S.cols, [k]: Math.max(min, Math.round(w0 + ev.clientX - x0)) } } : S));
         const upf = () => {
           el.removeEventListener("pointermove", move);
           el.removeEventListener("pointerup", upf);
@@ -217,18 +227,74 @@ export function renderPane(pane: number, c: PaneCtx) {
         el.addEventListener("pointermove", move);
         el.addEventListener("pointerup", upf);
       }}
+      onClick={(e) => e.stopPropagation()}
       onDoubleClick={(e) => {
         e.stopPropagation();
         // 글꼴로 재서 가장 긴 값에 맞춰요.
         const c = document.createElement("canvas").getContext("2d");
         if (!c) return;
         c.font = `${getComputedStyle(document.body).fontSize} Pretendard, sans-serif`;
+        if (k === "name") {
+          const w = Math.ceil(Math.max(COL_MIN, ...rows.map((r) => c.measureText(shownName(r)).width + (r.locked ? 18 : 0)))) + 16;
+          setSt((S) => (S ? { ...S, cols: { ...S.cols, name: w } } : S));
+          return;
+        }
         const vals = rows.map((r) => (k === "size" ? (r.dir ? "" : formatSize(r.size)) : k === "modified" ? formatDate(r.modified, fmt) : k === "type" ? typeName(r, types) : r.folder ?? ""));
-        const w = Math.ceil(Math.max(40, ...vals.map((v) => c.measureText(v).width))) + 20 + (k === "modified" && fmt.includes(" ") ? DATE_TIME_GAP : 0);
-        setSt((S) => (S ? { ...S, cols: { ...S.cols, [k]: Math.min(400, w) } } : S));
+        const w = Math.ceil(Math.max(COL_MIN, ...vals.map((v) => c.measureText(v).width))) + 20 + (k === "modified" && fmt.includes(" ") ? DATE_TIME_GAP : 0);
+        setSt((S) => (S ? { ...S, cols: { ...S.cols, [k]: Math.max(minOf(k), w) } } : S));
       }}
     />
   );
+  /** 열 제목 끌어 순서 바꾸기(✔5): 6px 넘게 끌 때만 옮기기 – 놓을 자리에 세로 줄 */
+  const colDragStart = (e: React.PointerEvent<HTMLButtonElement>, k: ColKey) => {
+    if (e.button !== 0) return;
+    const btn = e.currentTarget;
+    const head = btn.parentElement;
+    if (!head) return;
+    const x0 = e.clientX;
+    let on = false;
+    let to: ColKey | null = null;
+    let mark: HTMLDivElement | null = null;
+    const cells = () => [...head.querySelectorAll<HTMLElement>("[data-col]")];
+    const move = (ev: PointerEvent) => {
+      if (!on && Math.abs(ev.clientX - x0) <= 6) return;
+      if (!on) {
+        on = true;
+        btn.setPointerCapture(ev.pointerId);
+        btn.dataset.drag = "1";
+        mark = document.createElement("div");
+        mark.className = "fx-col-drop";
+        head.appendChild(mark);
+      }
+      const hr = head.getBoundingClientRect();
+      const list = cells();
+      const hit = list.find((c) => {
+        const r = c.getBoundingClientRect();
+        return ev.clientX < r.left + r.width / 2;
+      });
+      to = (hit?.dataset.col as ColKey | undefined) ?? null;
+      const last = list[list.length - 1]?.getBoundingClientRect();
+      const x = hit ? hit.getBoundingClientRect().left : last ? last.right : hr.right;
+      if (mark) mark.style.left = `${Math.round(x - hr.left - 1)}px`;
+    };
+    const upf = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", upf);
+      if (!on) return;
+      mark?.remove();
+      delete btn.dataset.drag;
+      colDragDone = Date.now();
+      setSt((S) => (S ? { ...S, colOrder: moveCol(S.colOrder, k, to) } : S));
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", upf);
+  };
+  /** 빈 곳: 목록 바탕·줄 묶음 바탕(마지막 열 뒤)·그리지 않은 줄 자리 */
+  const isBlank = (e: React.MouseEvent) => {
+    const el = e.target as HTMLElement;
+    return el === e.currentTarget || el === rowsRefs[pane].current || el.hasAttribute("data-vs");
+  };
+  const COL_LABEL: Record<ColKey, string> = { folder: "폴더", size: "크기", modified: "수정한 날", type: "파일 형식" };
   const rowEl = (r: Row, i: number) => {
     const isSel = s.paths.has(r.path) || (!s.paths.size && s.cursor === r.path);
     const common = {
@@ -322,17 +388,20 @@ export function renderPane(pane: number, c: PaneCtx) {
           {nameCell(r)}
           {r.locked && <LockBadge />}
         </span>
-        {t.find && (
-          <span className="fx-col fx-dim" title={parentOf(r.path) ?? ""}>
-            <span className="fx-ellip">{r.folder}</span>
-          </span>
-        )}
-        {cfg.cols.size && <span className="fx-col fx-num">{r.note ?? (r.dir ? "" : formatSize(r.size))}</span>}
-        {cfg.cols.modified && <span className="fx-col fx-dim fx-tab-num fx-nowrap">{dateParts(formatDate(r.modified, fmt))}</span>}
-        {cfg.cols.type && (
-          <span className="fx-col fx-dim" title={r.kind ?? typeName(r, types)}>
-            <span className="fx-ellip">{r.kind ?? typeName(r, types)}</span>
-          </span>
+        {shown.map((k) =>
+          k === "folder" ? (
+            <span key={k} className="fx-col fx-dim" title={parentOf(r.path) ?? ""}>
+              <span className="fx-ellip">{r.folder}</span>
+            </span>
+          ) : k === "size" ? (
+            <span key={k} className="fx-col fx-num">{r.note ?? (r.dir ? "" : formatSize(r.size))}</span>
+          ) : k === "modified" ? (
+            <span key={k} className="fx-col fx-dim fx-tab-num fx-nowrap">{dateParts(formatDate(r.modified, fmt))}</span>
+          ) : (
+            <span key={k} className="fx-col fx-dim" title={r.kind ?? typeName(r, types)}>
+              <span className="fx-ellip">{r.kind ?? typeName(r, types)}</span>
+            </span>
+          ),
         )}
       </div>
     );
@@ -358,33 +427,28 @@ export function renderPane(pane: number, c: PaneCtx) {
       }}
     >
       <span />
-      <button type="button" className="fx-hcell" onClick={() => sortBy("name")}>
+      <button type="button" className="fx-hcell fx-hname" onClick={() => sortBy("name")}>
         이름{arrow("name")}
+        {resizer("name")}
       </button>
-      {t.find && (
-        <button type="button" className="fx-hcell fx-col" onClick={() => sortBy("folder")}>
-          폴더{arrow("folder")}
-          {resizer("folder")}
+      {shown.map((k) => (
+        <button
+          key={k}
+          type="button"
+          className="fx-hcell fx-col"
+          data-col={k}
+          title="누르면 정렬 · 끌면 순서 바꾸기"
+          onPointerDown={(e) => colDragStart(e, k)}
+          onClick={() => {
+            if (Date.now() - colDragDone < 300) return;
+            sortBy(k);
+          }}
+        >
+          {COL_LABEL[k]}
+          {arrow(k)}
+          {resizer(k)}
         </button>
-      )}
-      {cfg.cols.size && (
-        <button type="button" className="fx-hcell fx-col" onClick={() => sortBy("size")}>
-          크기{arrow("size")}
-          {resizer("size")}
-        </button>
-      )}
-      {cfg.cols.modified && (
-        <button type="button" className="fx-hcell fx-col" onClick={() => sortBy("modified")}>
-          수정한 날{arrow("modified")}
-          {resizer("modified")}
-        </button>
-      )}
-      {cfg.cols.type && (
-        <button type="button" className="fx-hcell fx-col" onClick={() => sortBy("type")}>
-          파일 형식{arrow("type")}
-          {resizer("type")}
-        </button>
-      )}
+      ))}
     </div>
   );
   const upRow = !t.find && parentOf(t.path) && (p.view === "detail" || p.view === "brief") && (
@@ -682,7 +746,7 @@ export function renderPane(pane: number, c: PaneCtx) {
             )}
           </div>
         )}
-        <button type="button" className="fx-ib" aria-label="경로 복사" title="경로 복사 (Ctrl+Shift+C)" onClick={() => copyPath(pane)}>
+        <button type="button" className="fx-ib" aria-label="폴더 경로 복사" title="폴더 경로 복사 (Ctrl+Shift+C)" onClick={() => copyPath(pane)}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <rect x="9" y="9" width="11" height="11" rx="2" />
             <path d="M5 15V5a2 2 0 0 1 2-2h10" />
@@ -751,17 +815,17 @@ export function renderPane(pane: number, c: PaneCtx) {
         data-pane={pane}
         className={p.view === "brief" && !t.find ? "fx-list fx-brief" : p.view === "icons" || p.view === "thumb" ? (t.find ? "fx-list" : "fx-list fx-grid") : "fx-list"}
         onDoubleClick={(e) => {
-          if (e.target === e.currentTarget) up(pane);
+          if (isBlank(e)) up(pane);
         }}
         onMouseDown={(e) => {
-          if (e.target !== e.currentTarget || e.button !== 0) return;
+          if (!isBlank(e) || e.button !== 0) return;
           // 빈 곳에서 끌면 고무줄로 여러 개 고르기(호환 A6) – Ctrl을 누르고 시작하면 고른 것에 더해요
           const base = e.ctrlKey ? new Set(sels[pane].paths) : new Set<string>();
           if (!e.ctrlKey) setSel(pane, EMPTY_SEL);
           setBand({ pane, x0: e.clientX, y0: e.clientY, x1: e.clientX, y1: e.clientY, base });
         }}
         onContextMenu={(e) => {
-          if (e.target !== e.currentTarget) return;
+          if (!isBlank(e)) return;
           e.preventDefault();
           if (Date.now() < noCtxUntil.current) return;
           setSel(pane, EMPTY_SEL);
@@ -769,7 +833,7 @@ export function renderPane(pane: number, c: PaneCtx) {
         }}
       >
         {detailMode ? (
-          <div className="fx-rows" ref={rowsRefs[pane]} style={{ minWidth: rowsMinW }}>
+          <div className="fx-rows" ref={rowsRefs[pane]} style={{ minWidth: rowW }}>
             {hdr}
             {upRow}
             {listing.error && !t.find && <div className="fx-empty fx-err">{listing.error}</div>}

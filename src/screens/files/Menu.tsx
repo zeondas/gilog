@@ -1,5 +1,5 @@
 // 탐색기 – 작은 고르기 메뉴(보기·정렬 등)와 탭 우클릭 메뉴.
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { PopMenu, useMenuPlace } from "../../PopMenu";
 import { Pop, RTab } from "./parts";
@@ -88,6 +88,18 @@ export function KeyHelp({ anchor, onClose, onEnter, onLeave }: { anchor: RefObje
   const box = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(0);
   useLayoutEffect(() => setW(box.current?.offsetWidth ?? 0), []);
+  // 창 크기·화면 크기가 바뀌면 ⓘ 자리를 다시 재요(2026-10-28 탐색기 ✔2 – 처음 연 자리에 남던 것)
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const re = () => setTick((t) => t + 1);
+    window.addEventListener("resize", re);
+    const ro = anchor.current ? new ResizeObserver(re) : null;
+    if (ro && anchor.current) ro.observe(anchor.current);
+    return () => {
+      window.removeEventListener("resize", re);
+      ro?.disconnect();
+    };
+  }, [anchor]);
   return (
     <PopMenu x={r ? r.right - w : 0} y={r ? r.bottom + 6 : 0} onClose={onClose} label="단축키" className="dmenu fx-keyhelp" inside={[anchor]} boxRef={box}>
       <div className="fx-kh" onMouseEnter={onEnter} onMouseLeave={onLeave}>

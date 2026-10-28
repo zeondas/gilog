@@ -34,9 +34,6 @@ export const EMPTY_SEL: Sel = { paths: new Set(), cursor: null, anchor: null };
 /** 날짜와 시각 사이를 띄어쓰기보다 넓게(2026-10-18 사용자: 붙어 보여 읽기 힘듦) */
 export const DATE_TIME_GAP = 3;
 
-/** 자세히 보기 이름 열의 가장 좁은 폭 – 창이 더 좁으면 그 창 목록만 가로로 밀려요(2026-10-28 탐색기 ✔1).
-    1600×900·화면 크기 13·폴더트리 켬·두칸에서 가로 막대가 생기지 않는 값으로 잼. */
-export const NAME_MIN = 170;
 /** 자세히 보기 한 줄 높이(이름 한 줄 "…" – 탐색기 ✔3) */
 export const ROW_H = 28;
 /** 창마다 줄 부모(.fx-rows) – VirtualList가 재고 찾는 자리(창은 넷까지) */

@@ -1228,7 +1228,7 @@ select.input.fx-set-date { width: 190px; }
 
 /* ---------- 2026-10-28 탐색기 수정(✔1~4, wip/explorer7) ---------- */
 /* ✔1 창마다 목록 가로 스크롤(FC처럼): 머리 줄을 목록 안 맨 위에 붙여(sticky) 가로로 같이 밀리고, 막대는 상태 줄 바로 위.
-   이름 열이 NAME_MIN(parts.tsx) 아래로 안 줄어 .fx-rows가 창보다 넓어지면 그 창만 밀려요. */
+   열 합(Table.tsx rowW)이 창보다 넓으면 .fx-rows가 넓어져 그 창만 밀려요(✔9 – 이름 최소 170은 없어짐). */
 .fx-list { overflow-x: auto; position: relative; scroll-padding-top: 28px; }
 .fx-rows { min-width: 0; }
 .fx-rows > .fx-hdr { position: sticky; top: 0; z-index: 1; overflow: visible; scrollbar-gutter: auto; }
@@ -1258,3 +1258,27 @@ select.input.fx-set-date { width: 190px; }
 .fx-bar { width: 72px; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; flex: none; }
 .fx-bar > i { display: block; height: 100%; background: var(--accent); }
 .fx-status .fx-busy .btn-xs { height: 20px; padding: 0 8px; font-size: 11.5px; }
+
+/* 자세히 찾기 제목 줄 + 공통 ×(2026-10-28 탐색기 ✔1) */
+.fx-findpanel { position: absolute; }
+.fx-findpanel > .fx-fhead { height: 28px; line-height: 28px; margin: -4px 0 0; padding-right: 36px; font-size: 14px; font-weight: 700; color: var(--ink); }
+/* 안 고른 탭도 네모로(2026-10-28 탐색기 ✔4 – 고른 탭·다른 창 고른 탭 모양은 그대로) */
+.fx-tab:not([data-on="1"]) { border-color: var(--line); background: var(--surface); }
+.fx-tab:not([data-on="1"]):hover { background: var(--surface-band); }
+/* 폴더트리 머리 "모두 접기"(✔8 – 테두리 없음 28, 올리면 연한 바탕) */
+.fx-tree-head > .fx-fold { margin-left: auto; margin-right: -6px; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); cursor: pointer; }
+.fx-tree-head > .fx-fold:hover { background: var(--surface-band); color: var(--ink); }
+/* 열 머리 윈도우·FC 방식(2026-10-28 탐색기 ✔9): 경계 선은 열 오른쪽, 손잡이도 오른쪽 끝(끌면 그 왼쪽 열만 바뀜).
+   줄·머리 줄은 열 합만큼(Table.tsx rowW) – 오른쪽 안쪽 여백 없이 줄 밑선이 마지막 열 오른쪽 선에서 딱 끝나요. 그 뒤는 빈 곳. */
+.fx-hdr, .fx-frow { padding-right: 0; }
+.fx-rows > .fx-hdr, .fx-rows > .fx-frow { box-sizing: border-box; }
+.fx-col { border-left: 0; border-right: 1px solid var(--line-row); }
+.fx-hdr .fx-col { border-right-color: var(--line-soft); }
+.fx-frow > .fx-ncell { align-self: stretch; border-right: 1px solid var(--line-row); }
+.fx-hdr > .fx-hname { align-self: stretch; border-right: 1px solid var(--line-soft); }
+.fx-col-grip { left: auto; right: -4px; z-index: 2; }
+/* ✔5 열 제목 끌기 – 놓을 자리 세로 줄 */
+.fx-hdr > .fx-col[data-drag="1"] { background: var(--surface-band); color: var(--ink); }
+.fx-col-drop { position: absolute; top: 3px; bottom: 3px; width: 2px; border-radius: 1px; background: var(--accent); pointer-events: none; z-index: 3; }
+/* 마지막 열 손잡이는 열 안쪽에(빈 곳으로 삐져나가 가로 막대가 생기지 않게) */
+.fx-hdr > :last-child > .fx-col-grip { right: 0; }
