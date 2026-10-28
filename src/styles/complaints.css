@@ -752,7 +752,6 @@ body.col-dragging * {
 .cm-view.done > .cm-c :not(.cm-status):not(.cm-status *) {
   color: var(--bd-faint);
 }
-.cm-view.done .bl-mark,
 .cm-view.done .cm-bullets [class*="mark"] {
   opacity: 0.55;
 }

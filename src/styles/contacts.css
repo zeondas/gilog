@@ -632,14 +632,6 @@
   color: var(--muted);
 }
 
-.ct-pj-zero .ct-pj:not([aria-pressed="true"]) {
-  color: var(--muted);
-}
-
-.ct-pj-zero .ct-pj:not([aria-pressed="true"]) .ct-pj-dot {
-  opacity: 0.5;
-}
-
 .ct-side-none {
   margin: var(--space-2) 8px;
   font-size: 12px;
@@ -1083,3 +1075,14 @@ body.ew-dragging .pjm-colgrip:active::after {
 .edit-foot .ct-trash { flex: none; margin-left: 0; }
 .ccard-edit .ask-band.ct-ask { margin-top: var(--space-1); }
 
+
+/* ---------- late.css에서 옮김(정리 ⑥ 2026-10-28) ---------- */
+/* 사업 배지 칸(28 상자 안 22)도 아래 1px로 안 높이를 홀수로 */
+.pchips-in {
+  padding-bottom: 1px;
+  line-height: 22px;
+}
+/* 사업 관리 창 줄의 색 동그라미는 둘레 없이(마우스를 올렸을 때는 late.css) */
+.dialog .pjm-row .cal-cbtn {
+  box-shadow: none;
+}

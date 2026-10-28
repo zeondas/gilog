@@ -1,12 +1,10 @@
 /* ===== dialogs.css – 창·묻는 띠·떠 있는 메뉴·엑셀 창·지우기 휴지통·창 닫기 × (원래 app.css 순서 그대로, 정리 2차 2026-10-26) ===== */
 
 /* 지우기 단추: 회색 ×, 빨강은 마우스를 올렸을 때와 "지울까요?" 띠에만 (2026-10-17 아이콘 정리 2안) */
-.tool-danger,
 .tool-box {
   color: var(--muted);
 }
 
-.tool-danger:hover,
 .tool-box:hover:not(:disabled) {
   background: var(--danger-wash);
   color: var(--danger);
@@ -635,3 +633,15 @@ button.del-btn:hover:not(:disabled) { filter: brightness(0.86); }
 .cal-dlg-foot button.cal-trash.del-btn { width: var(--size-ctrl); min-width: var(--size-ctrl); height: var(--size-ctrl); border-radius: var(--radius-md); color: var(--surface); }
 .memo-bar button.tb-del.del-btn { width: 26px; min-width: 26px; height: 26px; }
 
+
+/* ---------- late.css에서 옮김(정리 ⑥ 2026-10-28 – 옮겨도 계산된 모양이 같은 것만) ---------- */
+/* 뜨는 창은 바탕이 한 단계 밝아서 줄 구분선을 창 바탕에 맞춰요 */
+.dialog {
+  --line-row: var(--line-raised);
+}
+/* 창 닫기 ×(2026-10-26 공통 부품 ✔7, DialogX.tsx) – 위 오른쪽 12px·제목 줄 가운데(top은 부품이 재서 넣어요), 머리 줄 오른쪽 52px 비움 – 마우스를 올렸을 때는 late.css */
+:has(> .dlg-x) { position: relative; }
+:has(> .dlg-x) :is(.dialog-head, .cal-dlg-title, .jp-head, .fx-cf-head, .fx-rn-head) { padding-right: 52px; }
+:has(> .dlg-x) .xl-ask-title { padding-right: 32px; }
+.dlg-x { position: absolute; top: 12px; right: 12px; z-index: 1; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); cursor: pointer; }
+.dlg-x > svg { display: block; }
