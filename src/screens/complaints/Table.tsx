@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import { DelMark } from "../../Icons";
+import { startColDrag } from "../../ColGrip";
 import { isInside, useOutsideClose } from "../../useOutsideClose";
 import { onSelection } from "../../noContextMenu";
 import { isKey, rowKeys } from "../../keys";
@@ -81,23 +82,17 @@ export function HeadRow({
     if (!row) return;
     const k = COLUMNS[i].key;
     const base = widths[i] ?? (row.children[i] as HTMLElement).getBoundingClientRect().width;
-    const startX = e.clientX;
     // 표 폭을 넘게 넓히지 않아요(내용·조치내용이 80씩은 남게, 가로 스크롤이 생기지 않게).
     const max = avail > 0 ? maxDragWidth(widths, i, avail) : Infinity;
-    let last: number | null = null;
-    const move = (ev: MouseEvent) => {
-      last = Math.min(max, Math.max(COL_MIN, Math.round(base + ev.clientX - startX)));
-      onResize(k, last);
-    };
-    const up = () => {
-      document.removeEventListener("mousemove", move);
-      document.removeEventListener("mouseup", up);
-      document.body.classList.remove("col-dragging");
-      if (last !== null) onResized(k, last);
-    };
-    document.body.classList.add("col-dragging");
-    document.addEventListener("mousemove", move);
-    document.addEventListener("mouseup", up);
+    startColDrag(e, {
+      base,
+      min: COL_MIN,
+      max,
+      bodyClass: "col-dragging",
+      on: "document",
+      onMove: (px) => onResize(k, px),
+      onEnd: (px) => px !== null && onResized(k, px),
+    });
   }
 
   return (

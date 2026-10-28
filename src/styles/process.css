@@ -852,27 +852,6 @@
   max-width: 240px;
 }
 
-.pr-icon:not(:disabled) {
-  cursor: pointer;
-}
-
-.pr-icon.pr-doc:not(:disabled):hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.pr-icon.pr-doc.on:not(:disabled):hover {
-  border-color: var(--accent);
-  color: var(--on-accent);
-  filter: brightness(1.08);
-}
-
-.pr-icon.pr-doc.done:not(:disabled):hover {
-  border-color: var(--st-done-bg);
-  color: var(--st-done-fg);
-  filter: brightness(0.97);
-}
-
 /* 위 띠: 고른 지시부의 상태 · [지시부 열기] [다시 만들기] [선택 해제] [보내기 ▾] */
 
 .pr-pickbar .pr-push ~ .btn,

@@ -41,6 +41,7 @@ import { keyAction, rowKeys } from "../../keys";
 import { overlayDown, useOutsideClose } from "../../useOutsideClose";
 import { isEmptyMemo, MemoEditor, sanitize } from "../../RichMemo";
 import { SearchBox } from "../../SearchBox";
+import { contentWidth, startColDrag } from "../../ColGrip";
 import {
   AUTO_MS,
   Conflict,
@@ -514,44 +515,28 @@ export default function BudgetScreen() {
   const packed = boxW > 0 && colSum + 2 + sbw <= boxW;
 
   const startDrag = (e: RMouseEvent, col: ColId) => {
-    e.preventDefault();
     e.stopPropagation();
-    const x0 = e.clientX;
     const w0 = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect().width;
     let w = { ...W, name: col === "name" ? Math.round(w0) : W.name };
     const fixed = nameFixed || col === "name";
-    const grip = e.currentTarget as HTMLElement;
-    grip.classList.add("drag");
-    const mv = (ev: MouseEvent) => {
-      w = { ...w, [col]: Math.max(col === "name" ? 160 : 36, Math.round(w0 + ev.clientX - x0)) };
-      setW(w);
-      if (fixed) setNameFixed(true);
-    };
-    const up = () => {
-      grip.classList.remove("drag");
-      removeEventListener("mousemove", mv);
-      removeEventListener("mouseup", up);
-      saveCols(w, fixed);
-    };
-    addEventListener("mousemove", mv);
-    addEventListener("mouseup", up);
+    startColDrag(e, {
+      base: w0,
+      min: col === "name" ? 160 : 36,
+      grip: e.currentTarget as HTMLElement,
+      onMove: (px) => {
+        w = { ...w, [col]: px };
+        setW(w);
+        if (fixed) setNameFixed(true);
+      },
+      onEnd: () => saveCols(w, fixed),
+    });
   };
 
-  /** 칸을 복사해 폭 제한 없이 놓고 잰 내용 폭 */
-  const need = (el: HTMLElement) => {
-    const c = el.cloneNode(true) as HTMLElement;
-    c.style.cssText += ";position:absolute;left:0;top:0;visibility:hidden;width:max-content;min-width:0;max-width:none";
-    c.querySelectorAll(".bd-grip").forEach((g) => g.remove());
-    el.before(c);
-    const w = c.getBoundingClientRect().width;
-    c.remove();
-    return Math.ceil(w);
-  };
   /** 그 열에 보이는 내용(열 제목 포함) 가운데 가장 긴 폭 */
   const fitOf = (col: ColId, head: HTMLElement) => {
     const ci = VC.findIndex(([c]) => c === col);
     const cells = [head, ...document.querySelectorAll<HTMLElement>(`.bd-body .bd-rw > .bd-c:nth-child(${ci + 1})`)];
-    return Math.max(col === "name" ? 160 : 36, Math.max(...cells.map(need)) + 1);
+    return Math.max(col === "name" ? 160 : 36, Math.max(...cells.map((c) => contentWidth(c))) + 1);
   };
   /** 배치최적화(2026-10-19 사용자): 고정 폭 열(구분·집행률·단계·메모) 빼고 모든 열을 보이는 내용 폭에 맞춰요 – 끝선 두 번 누르기를 한 번에 */
   const fitAll = async () => {

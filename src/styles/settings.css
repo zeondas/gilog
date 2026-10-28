@@ -516,3 +516,9 @@
   font-weight: 700;
 }
 
+
+/* ---------- late.css에서 옮김(정리 ⑥ 2026-10-28) ---------- */
+/* 설정 민원처리 · 지시부 메일 제목 칸(2026-10-20) */
+.proc-dir .input.proc-mail-subject { width: 420px; }
+/* 설정 [구글 로그인] – 흰 보조 단추 모양(.btn)이 덮던 것을 주 단추 모양으로(공통 부품 ✔8, 마우스를 올렸을 때는 late.css) */
+.btn.btn-primary.g-login { border-color: transparent; background: var(--accent); color: var(--on-accent); }

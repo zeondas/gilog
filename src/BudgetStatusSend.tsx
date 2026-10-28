@@ -13,6 +13,7 @@ import { api } from "./api";
 import { BudgetProject, KINDS, typing } from "./budget";
 import { defaultSetup, isCarryName, Manual, rowShares, Setup, SOURCES, splitOf } from "./budgetStatus";
 import { overlayDown } from "./useOutsideClose";
+import { startColDrag } from "./ColGrip";
 
 const X = "M6 6l12 12M18 6L6 18";
 const ICON = (d: string, s = 14, w = 2) => (
@@ -124,25 +125,18 @@ export function BudgetStatusSend({
       .catch(() => {});
   }, []);
   const startDrag = (e: RMouseEvent, k: keyof Cols) => {
-    e.preventDefault();
     e.stopPropagation();
-    const x0 = e.clientX;
-    const w0 = cols[k];
-    const grip = e.currentTarget as HTMLElement;
-    grip.classList.add("drag");
     let w = cols;
-    const mv = (ev: MouseEvent) => {
-      w = { ...w, [k]: Math.max(72, Math.round(w0 + ev.clientX - x0)) };
-      setCols(w);
-    };
-    const up = () => {
-      grip.classList.remove("drag");
-      removeEventListener("mousemove", mv);
-      removeEventListener("mouseup", up);
-      api.set(COLS_KEY, JSON.stringify(w)).catch(() => {});
-    };
-    addEventListener("mousemove", mv);
-    addEventListener("mouseup", up);
+    startColDrag(e, {
+      base: cols[k],
+      min: 72,
+      grip: e.currentTarget as HTMLElement,
+      onMove: (px) => {
+        w = { ...w, [k]: px };
+        setCols(w);
+      },
+      onEnd: () => void api.set(COLS_KEY, JSON.stringify(w)).catch(() => {}),
+    });
   };
   // 공사명 같은 앞부분(✔1 ①): 둘 이상이고 모두 같은 말로 시작하면 표 머리에 한 번만 적고 줄에선 떼요 –
   // 같게 시작하는 데까지를 띄어쓰기 자리에서 끊고, 4글자 이상·뗀 뒤 모든 줄에 글자가 남을 때만

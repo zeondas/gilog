@@ -12,6 +12,7 @@ import { finalizePhone } from "../../phone";
 import { api, Contact, ContactInput, ContactsData, Project, ProjectGroup } from "../../api";
 import { AskBand } from "../../AskBand";
 import { SearchBox } from "../../SearchBox";
+import { startColDrag } from "../../ColGrip";
 import { PjMenu, CtxMenu } from "./Menu";
 import { MemoLine, COLOR_NAMES, projectColor, pjLabel, pjFull, pjStyle, koSort, pjSections, useFolded, FoldArrow } from "./parts";
 
@@ -687,20 +688,7 @@ function EdgeGrip({ side, width, onWidth, onFit }: { side: "l" | "r"; width: num
     <div
       className={"pjm-grip pjm-grip-" + side}
       aria-hidden="true"
-      onMouseDown={(e) => {
-        e.preventDefault();
-        const x0 = e.clientX;
-        const w0 = width;
-        const move = (ev: MouseEvent) => onWidth(w0 + (ev.clientX - x0) * (side === "r" ? 1 : -1) * 2);
-        const up = () => {
-          window.removeEventListener("mousemove", move);
-          window.removeEventListener("mouseup", up);
-          document.body.classList.remove("ew-dragging");
-        };
-        document.body.classList.add("ew-dragging");
-        window.addEventListener("mousemove", move);
-        window.addEventListener("mouseup", up);
-      }}
+      onMouseDown={(e) => startColDrag(e, { base: width, scale: (side === "r" ? 1 : -1) * 2, round: false, bodyClass: "ew-dragging", onMove: onWidth })}
       onDoubleClick={onFit}
       title="끌어서 폭 바꾸기 · 두 번 누르면 가장 긴 이름에 맞춤"
     />
@@ -717,20 +705,9 @@ function ColGrip({ width, onWidth, onFit, label }: { width: number; onWidth: (w:
       aria-label={label + " 열 폭"}
       title="끌어서 열 폭 바꾸기 · 두 번 누르면 가장 긴 이름에 맞춤"
       onMouseDown={(e) => {
-        e.preventDefault();
         e.stopPropagation();
-        const x0 = e.clientX;
-        const w0 = width;
         // 창이 가운데라 열이 d 넓어지면 경계는 d/2만 움직여요 → 2배로 늘려 손잡이가 마우스를 따라와요.
-        const move = (ev: MouseEvent) => onWidth(w0 + (ev.clientX - x0) * 2);
-        const up = () => {
-          window.removeEventListener("mousemove", move);
-          window.removeEventListener("mouseup", up);
-          document.body.classList.remove("ew-dragging");
-        };
-        document.body.classList.add("ew-dragging");
-        window.addEventListener("mousemove", move);
-        window.addEventListener("mouseup", up);
+        startColDrag(e, { base: width, scale: 2, round: false, bodyClass: "ew-dragging", onMove: onWidth });
       }}
       onDoubleClick={(e) => {
         e.stopPropagation();

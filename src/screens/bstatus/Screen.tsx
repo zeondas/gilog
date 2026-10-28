@@ -17,6 +17,7 @@ import { todayStr } from "../../journal";
 import { keyAction } from "../../keys";
 import { overlayDown, useOutsideClose } from "../../useOutsideClose";
 import { SearchBox } from "../../SearchBox";
+import { contentWidth, startColDrag } from "../../ColGrip";
 
 const ICON = (d: string, s = 14, w = 2) => (
   <svg aria-hidden="true" width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={w} strokeLinecap="round" strokeLinejoin="miter">
@@ -285,41 +286,25 @@ export default function BudgetStatusScreen() {
     api.set(COLS_KEY, JSON.stringify({ w: nw })).catch(() => {});
   };
   const startDrag = (e: React.MouseEvent, id: string) => {
-    e.preventDefault();
     e.stopPropagation();
-    const x0 = e.clientX;
     const w0 = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect().width;
     let w: Record<string, number> = { ...wv };
-    const grip = e.currentTarget as HTMLElement;
-    grip.classList.add("drag");
-    const mv = (ev: MouseEvent) => {
-      w = { ...w, [id]: Math.max(id === "name" ? 160 : 36, Math.round(w0 + ev.clientX - x0)) };
-      setW((o) => ({ ...o, [view]: w }));
-    };
-    const up = () => {
-      grip.classList.remove("drag");
-      removeEventListener("mousemove", mv);
-      removeEventListener("mouseup", up);
-      saveCols(w);
-    };
-    addEventListener("mousemove", mv);
-    addEventListener("mouseup", up);
-  };
-  /** 칸을 복사해 폭 제한 없이 놓고 잰 내용 폭 */
-  const need = (el: HTMLElement) => {
-    const c = el.cloneNode(true) as HTMLElement;
-    c.style.cssText += ";position:absolute;left:0;top:0;visibility:hidden;width:max-content;min-width:0;max-width:none";
-    c.querySelectorAll(".bd-grip").forEach((g) => g.remove());
-    el.before(c);
-    const w = c.getBoundingClientRect().width;
-    c.remove();
-    return Math.ceil(w);
+    startColDrag(e, {
+      base: w0,
+      min: id === "name" ? 160 : 36,
+      grip: e.currentTarget as HTMLElement,
+      onMove: (px) => {
+        w = { ...w, [id]: px };
+        setW((o) => ({ ...o, [view]: w }));
+      },
+      onEnd: () => saveCols(w),
+    });
   };
   /** 그 열에 보이는 내용(열 제목 포함) 가운데 가장 긴 폭 */
   const fitOf = (ci: number, head: HTMLElement) => {
     const cells = [head, ...document.querySelectorAll<HTMLElement>(`.bs .bd-body .bd-rw > .bd-c:nth-child(${ci + 1})`)];
     const text = cols[ci]?.id === "name" || cols[ci]?.id === "yrs";
-    return Math.max(cols[ci]?.id === "name" ? 160 : 36, Math.max(...cells.map(need)) + (text ? 16 : 1)); // 글자 열은 오른쪽 여유 16(2026-10-19 사용자)
+    return Math.max(cols[ci]?.id === "name" ? 160 : 36, Math.max(...cells.map((c) => contentWidth(c))) + (text ? 16 : 1)); // 글자 열은 오른쪽 여유 16(2026-10-19 사용자)
   };
   /** 배치최적화: 고정 폭 열 빼고 모든 열을 보이는 내용 폭에 맞춰요 */
   const fitAll = () => {

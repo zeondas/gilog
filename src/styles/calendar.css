@@ -1235,3 +1235,9 @@
   display: block;
 }
 
+
+/* ---------- late.css에서 옮김(정리 ⑥ 2026-10-28) ---------- */
+/* 뜨는 창은 바탕이 한 단계 밝아서 색 동그라미 둘레를 창 바탕에 맞춰요(마우스를 올렸을 때는 late.css) */
+.dialog .cal-cbtn {
+  box-shadow: 0 0 0 2px var(--surface-raised), 0 0 0 3px var(--line);
+}
