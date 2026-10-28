@@ -375,6 +375,27 @@ impl Store {
         self.complaint(id)
     }
 
+    /// 분류 합치기(2026-10-28 사용자 ✔1 – 유선 → 전화): 접수유형(`intake`)이나 민원유형(`ctype`)이 `from`인 민원을
+    /// 한 번에 `to`로 바꿔요. 같은 날 민원은 접수유형 순서라 연번을 다시 매기고, 바뀐 뒤 전체 민원을 돌려줘요(연번이 다른 줄도 바뀔 수 있어서).
+    pub fn replace_complaint_field(&mut self, field: &str, from: &str, to: &str) -> Result<Vec<Complaint>> {
+        let col = match field {
+            "intake" => "intake",
+            "ctype" => "ctype",
+            _ => return Err(bad("바꿀 칸이 맞지 않아요")),
+        };
+        let (from, to) = (from.trim(), to.trim());
+        if from.is_empty() || to.is_empty() {
+            return Err(bad("합칠 값이 비어 있어요"));
+        }
+        if from != to {
+            let tx = self.conn.transaction()?;
+            tx.execute(&format!("UPDATE complaints SET {col} = ?2 WHERE {col} = ?1"), params![from, to])?;
+            renumber(&tx)?;
+            tx.commit()?;
+        }
+        self.complaints()
+    }
+
     pub fn delete_complaint(&mut self, id: i64) -> Result<()> {
         let tx = self.conn.transaction()?;
         tx.execute("DELETE FROM complaints WHERE id = ?1", params![id])?;
@@ -493,6 +514,29 @@ mod tests {
     /// 접수일·상태 말고 모든 칸이 빈 민원(등록 안 됨)
     fn empty() -> ComplaintInput {
         ComplaintInput { intake: "".into(), ctype: "".into(), area: "".into(), place: "".into(), person: "".into(), phone: "".into(), body: "".into(), due: "".into(), ..input("") }
+    }
+
+    #[test]
+    fn replace_field_merges_values_and_renumbers() {
+        let d = tempfile::tempdir().unwrap();
+        let mut s = Store::create(d.path(), "1234").unwrap();
+        let mk = |intake: &str, ctype: &str, place: &str| ComplaintInput { intake: intake.into(), ctype: ctype.into(), place: place.into(), ..input("가") };
+        let a = s.add_complaint(&mk("유선", "포트홀", "가")).unwrap();
+        let b = s.add_complaint(&mk("전화", "배수", "나")).unwrap();
+        let c = s.add_complaint(&mk("유선", "배수", "다")).unwrap();
+        // 같은 날 – 합치면 모두 전화라 위치 가나다 순(가 a · 나 b · 다 c)으로 다시 매겨요
+        let all = s.replace_complaint_field("intake", " 유선 ", "전화").unwrap();
+        assert!(all.iter().all(|x| x.intake == "전화"));
+        assert_eq!(all.len(), 3);
+        let order: Vec<i64> = all.iter().map(|x| x.id).collect();
+        assert_eq!(order, vec![a.id, b.id, c.id]);
+        // 민원유형도 같아요, 다른 칸은 그대로
+        let all = s.replace_complaint_field("ctype", "배수", "배수불량").unwrap();
+        assert_eq!(all.iter().filter(|x| x.ctype == "배수불량").count(), 2);
+        assert_eq!(all.iter().find(|x| x.id == a.id).unwrap().ctype, "포트홀");
+        // 맞지 않는 칸·빈 값은 거절
+        assert!(s.replace_complaint_field("status", "접수", "완료").is_err());
+        assert!(s.replace_complaint_field("intake", "전화", " ").is_err());
     }
 
     #[test]

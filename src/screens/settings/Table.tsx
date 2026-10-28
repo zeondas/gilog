@@ -1,5 +1,6 @@
 // 설정 – 카드·줄 부품: 모듈·키 카드, 구글·탐색기·민원처리·주소 줄, 목록 묶음(ListGroup·KindsGroup), PIN·저장 위치·백업 줄. 화면 몸통은 Screen.tsx.
-import { FormEvent, Fragment, useEffect, useRef, useState } from "react";
+import { FormEvent, Fragment, Ref, useEffect, useRef, useState } from "react";
+import { ChoiceInput } from "../../PlaceInputs";
 import { PATH_NAME, setWebKey, testWeb, webKey, webStatus, WebStatus } from "../../addressWeb";
 import { api, errorText, inApp, RoadTableInfo } from "../../api";
 import { splitJamo } from "../../journal";
@@ -501,9 +502,13 @@ function eulReul(w: string) {
   return c >= 0 && c < 11172 && c % 28 ? "을" : "를";
 }
 
+/** 지울 때 합치기(2026-10-28 민원대장 ✔1): 그 값을 쓰는 민원 수와, 다른 값으로 한 번에 바꾸는 일 */
+export type ListMerge = { used: (name: string) => number; run: (from: string, to: string) => Promise<void> };
+
 /**
  * 목록 묶음(상태·접수유형·민원유형). ×를 누르면 "지울까요?"를 물어요(2026-10-17 사용자 – 다른 화면과 같게).
  * stack이면 관리 창 모양: 배지 아래 줄에 넓은 추가 칸과 "＋ 추가" 단추.
+ * merge가 있으면 그 값을 쓰는 민원이 있을 때 띠가 두 줄 – "어느 값으로 합칠까요?" + 합칠 값 고르기 + [합치고 지우기].
  */
 export function ListGroup({
   title,
@@ -513,6 +518,7 @@ export function ListGroup({
   colored,
   last,
   stack,
+  merge,
   onChange,
 }: {
   title: string;
@@ -522,21 +528,49 @@ export function ListGroup({
   colored?: boolean;
   last?: boolean;
   stack?: boolean;
+  merge?: ListMerge;
   onChange: (items: string[]) => void;
 }) {
   const [draft, setDraft] = useState("");
   const [ask, setAsk] = useState<string | null>(null);
+  const [to, setTo] = useState("");
+  const [busy, setBusy] = useState(false);
+  const askFor = (name: string | null) => {
+    setAsk(name);
+    setTo("");
+  };
   const band = useRef<HTMLDivElement>(null);
   // Esc와 바깥 누르기는 묻는 띠만 접어요(창 전체의 Esc보다 먼저 받아요).
-  useOutsideClose(ask !== null, [band], () => setAsk(null), {
+  useOutsideClose(ask !== null, [band], () => askFor(null), {
     onEsc: (e) => {
       if (e.isComposing) return;
+      // 합칠 값 목록이 열려 있으면 Esc는 목록만 닫아요(고르기 칸이 받아요).
+      if (band.current?.querySelector('[aria-expanded="true"]')) return;
       e.preventDefault();
       e.stopPropagation();
-      setAsk(null);
+      askFor(null);
     },
     escCapture: true,
   });
+  /** 지우기(쓰는 민원이 있고 합칠 곳이 있으면 먼저 합치고, 합치기에 실패하면 지우지 않아요) */
+  async function confirm() {
+    if (ask === null || busy) return;
+    const others = items.filter((x) => x !== ask);
+    if (merge && merge.used(ask) > 0 && others.length > 0) {
+      if (!others.includes(to)) return;
+      setBusy(true);
+      try {
+        await merge.run(ask, to);
+      } catch {
+        return;
+      } finally {
+        setBusy(false);
+      }
+    }
+    onChange(others);
+    askFor(null);
+  }
+
   function add() {
     const v = draft.trim();
     if (!v || items.includes(v)) return;
@@ -570,12 +604,12 @@ export function ListGroup({
           return (
             <span
               key={name}
-              className={"chip" + (c ? " chip-colored" : "") + (name === keep ? " chip-keep" : "")}
+              className={"chip" + (c ? " chip-colored" : "") + (name === keep ? " chip-keep" : "") + (name === ask ? " chip-asking" : "")}
               style={c ? { background: c[0], color: c[1] } : undefined}
             >
               {name}
               {name !== keep && (
-                <button type="button" className="chip-x" aria-label={`${name} 삭제`} onClick={() => setAsk(name)}>
+                <button type="button" className="chip-x" aria-label={`${name} 삭제`} onClick={() => askFor(name)}>
                   <X />
                 </button>
               )}
@@ -592,17 +626,7 @@ export function ListGroup({
         )}
       </div>
       {ask !== null && (
-        <AskBand
-          bandRef={band}
-          className="list-ask"
-          label={`${title} 지우기 확인`}
-          text={`"${ask}"${eulReul(ask)} 지울까요? 이미 적은 민원은 그대로예요.`}
-          onNo={() => setAsk(null)}
-          onYes={() => {
-            onChange(items.filter((x) => x !== ask));
-            setAsk(null);
-          }}
-        />
+        <ListAsk title={title} name={ask} items={items} merge={merge} to={to} setTo={setTo} busy={busy} bandRef={band} onNo={() => askFor(null)} onYes={confirm} />
       )}
       {stack && (
         <div className="padd mgr-addrow">
@@ -613,6 +637,58 @@ export function ListGroup({
         </div>
       )}
     </div>
+  );
+}
+
+/** 분류 지우기 띠: 쓰는 민원이 없으면 "지울까요?", 있으면 합칠 값을 고르는 두 줄 띠(2026-10-28 ✔1) */
+function ListAsk({
+  title,
+  name,
+  items,
+  merge,
+  to,
+  setTo,
+  busy,
+  bandRef,
+  onNo,
+  onYes,
+}: {
+  title: string;
+  name: string;
+  items: string[];
+  merge?: ListMerge;
+  to: string;
+  setTo: (v: string) => void;
+  busy: boolean;
+  bandRef: Ref<HTMLDivElement>;
+  onNo: () => void;
+  onYes: () => void;
+}) {
+  const q = `"${name}"${eulReul(name)}`;
+  const n = merge?.used(name) ?? 0;
+  const others = items.filter((x) => x !== name);
+  if (!merge) return <AskBand bandRef={bandRef} className="list-ask" label={`${title} 지우기 확인`} text={`${q} 지울까요? 이미 적은 민원은 그대로예요.`} onNo={onNo} onYes={onYes} />;
+  if (n === 0 || others.length === 0) {
+    const text = n === 0 ? `${q} 지울까요? 쓰는 민원은 없어요.` : `${q} 지울까요? 쓰던 민원 ${n}건은 값이 그대로 남아요.`;
+    return <AskBand bandRef={bandRef} className="list-ask" label={`${title} 지우기 확인`} text={text} onNo={onNo} onYes={onYes} />;
+  }
+  return (
+    <AskBand
+      bandRef={bandRef}
+      className="list-ask"
+      label={`${title} 합치고 지우기 확인`}
+      text={`${q} 쓰는 민원이 ${n}건 있어요. 어느 값으로 합칠까요?`}
+      yes="합치고 지우기"
+      yesDisabled={busy || !others.includes(to)}
+      extra={
+        <div className="ask-merge-pick">
+          합칠 값
+          <ChoiceInput name="merge-to" label="합칠 값" placeholder="고르세요" value={to} options={others} stayOnTab onChange={setTo} />
+        </div>
+      }
+      onNo={onNo}
+      onYes={onYes}
+    />
   );
 }
 

@@ -40,6 +40,7 @@ import { DEFAULT_SETTINGS, DONE_STATUS, isClosed, loadSettings, saveSettings, Se
 import { SearchBox } from "../../SearchBox";
 import { HeadRow, FilterChips, NewRow, EditRow, ViewRow } from "./Table";
 import { MemoDialog, CatsDialog } from "./Dialogs";
+import type { ListMerge } from "../settings/Table";
 import { RowMenu, FilterMenu } from "./Menu";
 import { Lists, PlaceStyle, placeText } from "./parts";
 
@@ -146,6 +147,16 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
     if (cs) setList(cs);
     return cs;
   }, [run]);
+
+  /** 분류 합치기(2026-10-28 ✔1): 그 값을 쓰는 민원 수, 한 번에 바꾸기(실패하면 띠를 그대로 둬요). */
+  const mergeFor = (field: "intake" | "ctype"): ListMerge => ({
+    used: (name) => (list ?? []).filter((c) => c[field] === name).length,
+    run: async (from, to) => {
+      const cs = await run(api.replaceComplaintField(field, from, to));
+      if (!cs) throw new Error("merge");
+      setList(cs);
+    },
+  });
 
   /** 그 민원 자리로 가서 잠깐 빛나게(접수일을 적으면 그 날 자리로 옮겨 가요). */
   const goTo = useCallback((id: number, cs: Complaint[] | null) => {
@@ -498,7 +509,7 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
         />
       )}
 
-      {catsOpen && <CatsDialog lists={settings} onChange={saveLists} onClose={() => setCatsOpen(false)} />}
+      {catsOpen && <CatsDialog lists={settings} mergeFor={mergeFor} onChange={saveLists} onClose={() => setCatsOpen(false)} />}
     </>
   );
 }

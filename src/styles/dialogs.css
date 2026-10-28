@@ -645,3 +645,44 @@ button.del-btn:hover:not(:disabled) { filter: brightness(0.86); }
 :has(> .dlg-x) .xl-ask-title { padding-right: 32px; }
 .dlg-x { position: absolute; top: 12px; right: 12px; z-index: 1; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); cursor: pointer; }
 .dlg-x > svg { display: block; }
+
+/* 두 줄 띠(2026-10-28 민원대장 분류 합치기 ✔1): 물음 글은 한 줄 전체, 아래 줄 왼쪽에 고르기, 오른쪽 끝에 취소·단추 */
+.ask-band.ask-two > span {
+  flex-basis: 100%;
+}
+
+.ask-band.ask-two > .btn:first-of-type {
+  margin-left: auto;
+}
+
+.ask-band .btn-danger:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.ask-merge-pick {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ask-merge-pick .pin {
+  width: 150px;
+}
+
+.ask-merge-pick .cell-input {
+  height: 28px;
+  background: var(--surface);
+  font-weight: 400;
+}
+
+.ask-merge-pick .pin-list {
+  color: var(--ink);
+  font-weight: 400;
+}
+
+/* 묻고 있는 칩(지우려는 분류) */
+.chip.chip-asking {
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--line));
+  background: var(--danger-wash);
+}

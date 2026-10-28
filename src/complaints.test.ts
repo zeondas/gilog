@@ -1,7 +1,7 @@
 // 민원대장 규칙 시험 – 지금 동작을 고정해요(정리 2차 2026-10-26): 남은 날·걸린 날·검색(초성·번호)·유형 초성·필터.
 import { describe, expect, test } from "vitest";
 import type { Complaint } from "./api";
-import { daysBetween, daysLeft, daysTaken, ddayText, dueSoon, expandType, filterValues, isUrgent, matches, NO_FILTERS, passes, readStatusFilter, shortDate, shortIntake, takenText } from "./complaints";
+import { COLUMNS, layoutCols, daysBetween, daysLeft, daysTaken, ddayText, dueSoon, expandType, filterValues, isUrgent, matches, NO_FILTERS, passes, readStatusFilter, shortDate, shortIntake, takenText } from "./complaints";
 
 const C = (o: Partial<Complaint>): Complaint => ({
   id: 1, no: 1, intake: "국민신문고", received: "2026-10-10", ctype: "포트홀", area: "조리읍", place: "봉일천리 113 일원",
@@ -104,5 +104,26 @@ describe("열 필터", () => {
     expect(readStatusFilter("null")).toBeNull();
     expect(readStatusFilter("{")).toBeNull();
     expect(readStatusFilter('[1]')).toBeNull();
+  });
+});
+
+describe("layoutCols – 끈 열의 줄인 모양(2026-10-28 사용자 1안)", () => {
+  // 모든 열 40, 접수유형은 전체 120·줄인 모양 40 – 좁은 표라 자동이면 접수유형까지 줄여요.
+  const needs = Object.fromEntries(COLUMNS.map((c) => [c.key, { full: 40 }])) as Record<string, { full: number; short?: number }>;
+  needs.due = { full: 90, short: 40 };
+  needs.received = { full: 90, short: 60 };
+  needs.intake = { full: 120, short: 40 };
+  needs.place = { full: 200, short: 60 };
+  const avail = 900;
+  test("끌지 않으면 좁은 표에서 접수유형을 줄여요", () => {
+    expect(layoutCols(needs, avail).short.has("intake")).toBe(true);
+  });
+  test("끌어서 넓히면(전체 + 12 이상) 전체 글자", () => {
+    const r = layoutCols(needs, avail, { intake: 200 / avail });
+    expect(r.short.has("intake")).toBe(false);
+  });
+  test("끌었어도 모자라면 줄인 모양", () => {
+    const r = layoutCols(needs, avail, { intake: 100 / avail });
+    expect(r.short.has("intake")).toBe(true);
   });
 });

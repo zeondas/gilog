@@ -8,7 +8,7 @@ import { parseLines, plainOf, stringifyLines } from "../../bullets";
 import { MemoEditor } from "../../screens/contacts/Dialogs";
 import { memoText, parseMemo } from "../../screens/contacts/parts";
 import { parseDate } from "../../journal";
-import { ListGroup } from "../settings/Table";
+import { ListGroup, ListMerge } from "../settings/Table";
 import { DONE_STATUS } from "../../settingsStore";
 import { DateInput } from "../../DateInput";
 import { Lists, Draft, DateKey, Bad } from "./parts";
@@ -170,7 +170,18 @@ export function MemoDialog({ c, onClose, onSave }: { c: Complaint; onClose: () =
 
 // ---------- 분류 관리 창 ----------
 
-export function CatsDialog({ lists, onChange, onClose }: { lists: Lists; onChange: (l: Lists) => void; onClose: () => void }) {
+/** 분류 관리 창. mergeFor가 주는 것으로 지울 때 그 값을 쓰는 민원을 다른 값으로 합쳐요(2026-10-28 ✔1). */
+export function CatsDialog({
+  lists,
+  mergeFor,
+  onChange,
+  onClose,
+}: {
+  lists: Lists;
+  mergeFor: (field: "intake" | "ctype") => ListMerge;
+  onChange: (l: Lists) => void;
+  onClose: () => void;
+}) {
   useEffect(() => {
     const key = (e: globalThis.KeyboardEvent) => {
       if (e.key === "Escape" && !e.isComposing) {
@@ -191,8 +202,8 @@ export function CatsDialog({ lists, onChange, onClose }: { lists: Lists; onChang
         </div>
         <DialogX onClick={onClose} />
         <div className="dialog-body">
-          <ListGroup title="접수유형" items={cur.intake} stack onChange={(intake) => onChange({ ...cur, intake })} />
-          <ListGroup title="민원유형" items={cur.ctype} stack onChange={(ctype) => onChange({ ...cur, ctype })} last />
+          <ListGroup title="접수유형" items={cur.intake} stack merge={mergeFor("intake")} onChange={(intake) => onChange({ ...cur, intake })} />
+          <ListGroup title="민원유형" items={cur.ctype} stack merge={mergeFor("ctype")} onChange={(ctype) => onChange({ ...cur, ctype })} last />
         </div>
       </div>
     </div>

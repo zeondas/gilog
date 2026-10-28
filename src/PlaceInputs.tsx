@@ -408,9 +408,12 @@ export function ChoiceInput({
   stayOnTab,
   onChange,
   inputRef,
+  placeholder,
 }: {
   name: string;
   label: string;
+  /** 빈 칸 안내 글(처음 값 = label) */
+  placeholder?: string;
   value: string;
   options: string[];
   allow?: string;
@@ -446,7 +449,7 @@ export function ChoiceInput({
         name={name}
         aria-label={label}
         aria-invalid={invalid || undefined}
-        placeholder={label}
+        placeholder={placeholder ?? label}
         className={"cell-input" + (invalid ? " invalid" : "")}
         role="combobox"
         aria-expanded={show}

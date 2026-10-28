@@ -1,13 +1,13 @@
 // 설정 화면이에요. 시안 Settings.dc.html과 사양서 "설정" 절을 따라요 – 몸통(SettingsScreen)·설정 찾기. 카드·줄 부품은 Table.tsx.
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { BudgetShareRows } from "../../BudgetShareCard";
-import { ACCENTS, DEFAULT_PREFS, errorText, Prefs, Status } from "../../api";
+import { ACCENTS, api, Complaint, DEFAULT_PREFS, errorText, Prefs, Status } from "../../api";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, Settings } from "../../settingsStore";
 import { isOn, Modules, onScreens, SCREENS, firstOn } from "../../screens";
 import Logo, { AppIcon } from "../../Logo";
 import { VERSION } from "../../version";
 import { setKeyMap } from "../../keys";
-import { ModulesCard, ModuleCard, KeysCard, GoogleRows, FilesRows, ListGroup, KindsGroup, PinRow, FolderRow, BackupRow, AddressRows, ProcessRows } from "./Table";
+import { ModulesCard, ModuleCard, KeysCard, GoogleRows, FilesRows, ListGroup, ListMerge, KindsGroup, PinRow, FolderRow, BackupRow, AddressRows, ProcessRows } from "./Table";
 import { PasswordChange } from "./Dialogs";
 import { Row, Toggle, X } from "./parts";
 
@@ -47,6 +47,23 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
   const body = useRef<HTMLDivElement>(null);
   const findBox = useRef<HTMLInputElement>(null);
   const [scrolled, setScrolled] = useState(false);
+  /** 민원대장 접수유형·민원유형을 지울 때 합치기(2026-10-28 민원대장 ✔1 – 분류 관리 창과 같은 부품) */
+  const [complaints, setComplaints] = useState<Complaint[]>([]);
+  useEffect(() => {
+    api.complaints().then(setComplaints, () => {});
+  }, []);
+  const mergeFor = (field: "intake" | "ctype"): ListMerge => ({
+    used: (name) => complaints.filter((c) => c[field] === name).length,
+    run: async (from, to) => {
+      try {
+        setComplaints(await api.replaceComplaintField(field, from, to));
+        setNote("");
+      } catch (e) {
+        setNote(errorText(e));
+        throw e;
+      }
+    },
+  });
   useLayoutEffect(() => {
     setFound(applyFind(body.current, q));
   });
@@ -382,8 +399,8 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
             <FilesRows value={s.files} onChange={(files) => update({ ...s, files })} />
           ) : sc.id === "complaints" ? (
             <>
-              <ListGroup title="접수유형" items={s.intake} onChange={(intake) => update({ ...s, intake })} />
-              <ListGroup title="민원유형" items={s.ctype} onChange={(ctype) => update({ ...s, ctype })} />
+              <ListGroup title="접수유형" items={s.intake} merge={mergeFor("intake")} onChange={(intake) => update({ ...s, intake })} />
+              <ListGroup title="민원유형" items={s.ctype} merge={mergeFor("ctype")} onChange={(ctype) => update({ ...s, ctype })} />
               <Row k="위치 표기 법정동 행정동 지번" label="위치 표기" desc={s.placeStyle === "legal" ? "동 지역은 법정동과 지번만 – 동패동 1234" : "행정동 + 법정동 + 지번 – 운정3동 동패동 1234"}>
                 {/* 2026-10-25 사용자 ③1안 – 리 지역은 둘 다 "조리읍 대원리 1234" */}
                 <span className="seg" role="radiogroup" aria-label="위치 표기">
