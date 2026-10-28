@@ -449,32 +449,6 @@
   width: 600px;
 }
 
-.cal-dlg-title {
-  padding: var(--space-4) 20px var(--space-2);
-}
-
-.cal-dlg-title input {
-  width: 100%;
-  height: 40px;
-  padding: 0 2px;
-  border: 0;
-  border-bottom: 2px solid var(--line);
-  outline: 0;
-  background: transparent;
-  color: var(--ink);
-  font: inherit;
-  font-size: 16px;
-  font-weight: 700;
-}
-
-.cal-dlg-title input:focus {
-  border-bottom-color: var(--accent);
-}
-
-.cal-dlg-title input.invalid {
-  border-bottom-color: var(--urgent);
-}
-
 .cal-dlg-grid {
   display: grid;
   grid-template-columns: 64px minmax(0, 1fr);
@@ -1240,4 +1214,23 @@
 /* 뜨는 창은 바탕이 한 단계 밝아서 색 동그라미 둘레를 창 바탕에 맞춰요(마우스를 올렸을 때는 late.css) */
 .dialog .cal-cbtn {
   box-shadow: 0 0 0 2px var(--surface-raised), 0 0 0 3px var(--line);
+}
+
+/* 제목 칸 잘 보이게(10-28 사용자 ✔1 – 제목 칸을 못 보고 등록이 안 된다는 제보): 빠른 입력·상세 창 제목만 연보라 칸, 비우면 "제목 없음" */
+.cal-quick .cal-q-title,
+.cal-dialog .cal-in-title {
+  border: 1.5px solid var(--accent-line);
+  background: var(--accent-wash);
+  font-weight: 600;
+}
+
+.cal-quick .cal-q-title::placeholder,
+.cal-dialog .cal-in-title::placeholder {
+  color: var(--ink-2);
+  font-weight: 500;
+  opacity: 0.75;
+}
+
+.cal-dialog .cal-in-title {
+  font-size: 15px;
 }

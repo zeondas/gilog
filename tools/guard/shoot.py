@@ -317,6 +317,21 @@ async def s_budgetstatus_settings(p):
     await p.wait_for_timeout(300)
 
 
+async def s_calendar_new(p):
+    # 빈 날(10/27)을 두 번 눌러 새 일정 창 – 머리 "새 일정"·첫 줄 "제목" 칸(10-28 캘린더 ✔1)
+    await p.locator("[role=gridcell]").nth(30).dblclick()
+    await p.wait_for_timeout(300)
+
+
+async def s_calendar_notitle(p):
+    # 제목 없이 빠른 입력 등록 → "제목 없음" 칩(10-28 캘린더 ✔1)
+    t = p.locator(".cal-quick input[name=time]").first
+    await t.click()
+    await t.fill("14")
+    await p.locator(".cal-add").first.click()
+    await p.wait_for_timeout(300)
+
+
 async def s_calendar_event(p):
     await p.locator(".cal-ev", has_text="방호벽 협의").first.dblclick()
     await p.wait_for_timeout(300)
@@ -395,6 +410,8 @@ SCENES.update({
     "process_works": ("민원처리", s_process_works),
     "budgetstatus_settings": ("예산현황", s_budgetstatus_settings),
     "calendar_event": ("캘린더", s_calendar_event),
+    "calendar_new": ("캘린더", s_calendar_new),
+    "calendar_notitle": ("캘린더", s_calendar_notitle),
     "journal_memo": ("업무일지", s_journal_memo),
     "files_findmore": ("탐색기", s_files_findmore),
     "files_viewmenu": ("탐색기", s_files_viewmenu),
