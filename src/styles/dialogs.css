@@ -641,7 +641,7 @@ button.del-btn:hover:not(:disabled) { filter: brightness(0.86); }
 }
 /* 창 닫기 ×(2026-10-26 공통 부품 ✔7, DialogX.tsx) – 위 오른쪽 12px·제목 줄 가운데(top은 부품이 재서 넣어요), 머리 줄 오른쪽 52px 비움 – 마우스를 올렸을 때는 late.css */
 :has(> .dlg-x) { position: relative; }
-:has(> .dlg-x) :is(.dialog-head, .cal-dlg-title, .jp-head, .fx-cf-head, .fx-rn-head) { padding-right: 52px; }
+:has(> .dlg-x) :is(.dialog-head, .jp-head, .fx-cf-head, .fx-rn-head) { padding-right: 52px; }
 :has(> .dlg-x) .xl-ask-title { padding-right: 32px; }
 .dlg-x { position: absolute; top: 12px; right: 12px; z-index: 1; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); cursor: pointer; }
 .dlg-x > svg { display: block; }

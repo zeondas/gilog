@@ -132,6 +132,33 @@ async def c_dialog(p):
     assert not await shown(p, sel), "바탕을 눌렀는데 안 닫힘"
 
 
+async def c_calendar_notitle_quick(p):
+    # 10-28 캘린더 ✔1: 제목을 비우고 빠른 입력으로 등록하면 "제목 없음"
+    await shoot.nav(p, "캘린더")
+    await shoot.s_calendar_notitle(p)
+    assert await p.locator(".cal-ev", has_text="제목 없음").count() > 0, "제목 없이 등록이 안 됨"
+
+
+async def c_calendar_notitle_outside(p):
+    # 10-28 캘린더 ✔1 버그: 새 일정 창에서 제목 없이 장소만 적고 바깥을 누르면 "제목 없음"으로 저장(전엔 버려짐)
+    await shoot.nav(p, "캘린더")
+    await shoot.s_calendar_new(p)
+    await p.locator(".cal-dialog input[aria-label='장소']").first.fill("문산읍 현장")
+    await press_out(p, (20, 880))
+    assert not await shown(p, ".cal-dialog"), "바깥 눌렀는데 창이 남음"
+    assert await p.locator(".cal-ev", has_text="제목 없음").count() > 0, "바깥 눌렀는데 저장 안 됨"
+
+
+async def c_calendar_blank_close(p):
+    # 아무것도 안 적은 새 일정 창은 바깥을 누르면 그냥 닫혀요(일정 안 생김)
+    await shoot.nav(p, "캘린더")
+    n = await p.locator(".cal-ev").count()
+    await shoot.s_calendar_new(p)
+    await press_out(p, (20, 880))
+    assert not await shown(p, ".cal-dialog"), "바깥 눌렀는데 창이 남음"
+    assert await p.locator(".cal-ev").count() == n, "아무것도 안 적었는데 일정이 생김"
+
+
 async def c_journal_save(p):
     await shoot.nav(p, "업무일지")
     await p.locator(".jcard", has_text="설계 변경").first.dblclick()
@@ -454,6 +481,9 @@ CASES = {
     "settings_esc": c_settings_esc,
     "settings_band": c_settings_band,
     "calendar_dialog": c_dialog,
+    "calendar_notitle_quick": c_calendar_notitle_quick,
+    "calendar_notitle_outside": c_calendar_notitle_outside,
+    "calendar_blank_close": c_calendar_blank_close,
     "files_dialog": c_files_dialog,
     "journal_save": c_journal_save,
     "tasks_add_save": c_tasks_add,

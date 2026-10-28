@@ -41,7 +41,12 @@ export type Draft = {
   remindTime: string;
 };
 
-type Bad = Partial<Record<"title" | "date" | "end" | "time" | "endTime" | "until" | "remind" | "remindTime", true>>;
+type Bad = Partial<Record<"date" | "end" | "time" | "endTime" | "until" | "remind" | "remindTime", true>>;
+
+/** 제목을 비우면 "제목 없음"으로 저장해요(10-28 사용자 – 제목 칸을 못 보고 등록이 안 된다는 제보). */
+export const NO_TITLE = "제목 없음";
+const TITLE_HINT = "일정 제목 (비워 두면 제목 없음)";
+export const titleOf = (t: string) => t.trim() || NO_TITLE;
 
 /** 상세 창의 값을 저장할 값으로 바꿔요. 틀린 칸이 있으면 그 칸들을 돌려줘요. */
 function toInput(d: Draft): { input: EventInput | null; bad: Bad } {
@@ -51,7 +56,6 @@ function toInput(d: Draft): { input: EventInput | null; bad: Bad } {
   const time = d.allDay ? "" : parseTime(d.time);
   const endTime = d.allDay ? "" : d.endTime.trim() ? parseTime(d.endTime) : time ? hourLater(time) : "";
   const until = d.repeat ? parseDate(d.until) : "";
-  if (!d.title.trim()) bad.title = true;
   if (!date) bad.date = true;
   if (!end || (date && end < date)) bad.end = true;
   if (!d.allDay && !time) bad.time = true;
@@ -64,7 +68,7 @@ function toInput(d: Draft): { input: EventInput | null; bad: Bad } {
   if (Object.keys(bad).length) return { input: null, bad };
   return {
     input: {
-      title: d.title,
+      title: titleOf(d.title),
       kind: d.kind,
       date: date!,
       end: end!,
@@ -127,7 +131,7 @@ export function QuickRow({
   const [endTime, setEndTime] = useState("");
   const [title, setTitle] = useState("");
   const [kind, setKind] = useState(firstKind(kinds));
-  const [bad, setBad] = useState<"date" | "time" | "endTime" | "title" | "">("");
+  const [bad, setBad] = useState<"date" | "time" | "endTime" | "">("");
   const row = useRef<HTMLDivElement>(null);
   const focus = (n: string) => {
     const el = row.current?.querySelector<HTMLInputElement>(`[name="${n}"]`);
@@ -168,10 +172,9 @@ export function QuickRow({
     const et = endTime.trim() ? parseTime(endTime) : "";
     if (et === null || (t && et && et < t)) return setBad("endTime"), focus("endTime");
     if (!t && et) return setBad("time"), focus("time");
-    if (!title.trim()) return setBad("title"), focus("title");
     setBad("");
     const ok = await onAdd({
-      title,
+      title: titleOf(title),
       kind: kind.trim() || firstKind(kinds),
       date: d,
       end: d,
@@ -249,14 +252,11 @@ export function QuickRow({
       />
       <input
         name="title"
-        aria-label="일정"
-        placeholder="일정"
-        className={"cell-input" + (bad === "title" ? " invalid" : "")}
+        aria-label="일정 제목"
+        placeholder={TITLE_HINT}
+        className="cell-input cal-q-title"
         value={title}
-        onChange={(e) => {
-          setTitle(e.target.value);
-          if (bad === "title") setBad("");
-        }}
+        onChange={(e) => setTitle(e.target.value)}
       />
       <KindPicker kinds={kinds} value={kind} onChange={setKind} />
       <button
@@ -323,7 +323,8 @@ export function EventDialog({
 
   /** 바깥을 누르면 저장해요(사용자가 정한 규칙). 고친 것이 없으면 그냥 닫아요. */
   function outside() {
-    if (JSON.stringify(draft) === start.current || (isNew && !draft.title.trim())) onClose();
+    // 새 일정은 아무것도 안 적었을 때만 그냥 닫아요 – 제목이 비어도 다른 칸을 적었으면 "제목 없음"으로 저장(10-28 버그: 적은 것이 사라졌어요).
+    if (JSON.stringify(draft) === start.current && !(isNew && (draft.title.trim() || draft.place.trim() || draft.desc.some((l) => l.t.trim())))) onClose();
     else save();
   }
 
@@ -369,17 +370,19 @@ export function EventDialog({
       <div className="dialog cal-dialog" role="dialog" aria-modal="true" aria-label="일정 상세" onKeyDown={onKeyDown}>
         {/* × = 바깥 누르기와 같음: 고친 것이 있으면 저장하고 닫기(✔7) */}
         <DialogX label="저장하고 닫기" title="저장하고 닫기 (버리려면 Esc)" onClick={outside} />
-        <div className="cal-dlg-title" data-dialog-title>
+        <div className="dialog-head" data-dialog-title>
+          <span className="dialog-title">{isNew ? "새 일정" : "일정"}</span>
+        </div>
+        <div className="cal-dlg-grid">
+          <span className="cal-dlg-label">제목</span>
           <input
             ref={titleRef}
             aria-label="제목"
-            placeholder="제목 추가"
-            className={bad.title ? "invalid" : undefined}
+            placeholder={TITLE_HINT}
+            className="cell-input cal-in-title"
             value={draft.title}
             onChange={(e) => set("title", e.target.value)}
           />
-        </div>
-        <div className="cal-dlg-grid">
           <span className="cal-dlg-label">일시</span>
           <div className="cal-dlg-line">
             <DateInput label="시작 날짜" placeholder="" className="cal-in-date" invalid={bad.date} value={draft.date} onChange={(v) => set("date", v)} onBlur={() => dateFix("date")} />
