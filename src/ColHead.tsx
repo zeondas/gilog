@@ -84,6 +84,7 @@ export function ColGrip({
   label,
   width,
   min,
+  max,
   last,
   onMove,
   onEnd,
@@ -92,6 +93,7 @@ export function ColGrip({
   label?: string;
   width: number;
   min: number;
+  max?: number;
   last?: boolean;
   onMove: (px: number) => void;
   onEnd: (px: number | null) => void;
@@ -107,7 +109,7 @@ export function ColGrip({
       onMouseDown={(e) => {
         e.stopPropagation();
         if (e.button !== 0) return;
-        startColDrag(e, { base: width, min, bodyClass: "col-dragging", grip: e.currentTarget, on: "document", onMove, onEnd });
+        startColDrag(e, { base: width, min, max, bodyClass: "col-dragging", grip: e.currentTarget, on: "document", onMove, onEnd });
       }}
       // 머리 칸이 누르기로 다른 일(탐색기 열 순서 끌기)을 하면 손잡이에서 시작한 누르기는 거기로 안 가게
       onPointerDown={(e) => e.stopPropagation()}
@@ -257,6 +259,7 @@ export function useColHead(o: { store: string; part?: string; cols: ColDef[]; me
         label={c.label}
         width={widthOf(c, saved)}
         min={minOf(c)}
+        max={c.max}
         last={opt?.last}
         onMove={(px) => setSaved((s) => ({ ...s, [id]: px }))}
         onEnd={(px) => px !== null && save({ ...savedRef.current, [id]: px })}

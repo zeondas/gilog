@@ -67,3 +67,12 @@ describe("내용에 맞춤", () => {
     expect(fitAllPx([name, num, fixed, act], { act: 150 }, (id) => m[id])).toEqual({ name: 250, bud: 95, act: 150 });
   });
 });
+
+describe("가장 넓게(max)", () => {
+  it("저장값·맞춤 모두 max 안으로", () => {
+    const short: ColDef = { id: "short", init: 120, max: 200 };
+    expect(widthOf(short, { short: 500 })).toBe(200);
+    expect(fitPx(short, 900)).toBe(200);
+    expect(widthOf({ id: "s", init: 120, max: 20 }, {})).toBe(40);
+  });
+});

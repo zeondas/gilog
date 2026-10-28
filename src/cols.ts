@@ -15,6 +15,8 @@ export type ColDef = {
   text?: boolean;
   /** 가장 좁게를 따로 정할 때(탐색기 날짜 열 = 형식 글자 폭) */
   min?: number;
+  /** 가장 넓게(창 안 표에서 창 폭을 따라가는 긴 글 열이 가장 좁게 아래로 안 가게 – 사업 관리 창 축약 열) */
+  max?: number;
   /** 열 제목(손잡이 이름표) */
   label?: string;
 };
@@ -36,12 +38,14 @@ export function minOf(c: ColDef): number {
 export function widthOf(c: ColDef, saved: ColPx): number {
   if (c.fixed) return c.init;
   const v = saved[c.id];
-  return Math.max(minOf(c), v ?? c.init);
+  const w = Math.max(minOf(c), v ?? c.init);
+  return c.max != null ? Math.max(minOf(c), Math.min(c.max, w)) : w;
 }
 
 /** 내용 폭(칸 여백 포함)으로 맞춘 폭 */
 export function fitPx(c: ColDef, content: number): number {
-  return Math.max(minOf(c), Math.ceil(content));
+  const w = Math.max(minOf(c), Math.ceil(content));
+  return c.max != null ? Math.max(minOf(c), Math.min(c.max, w)) : w;
 }
 
 /** 저장값 읽기 – `{열: px}`만 받아요. part가 있으면 그 칸(예산현황 요약·자세히). 모양이 다르면(옛 키·옛 모양) 빈 값. */
