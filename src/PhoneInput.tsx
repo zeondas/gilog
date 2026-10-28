@@ -7,16 +7,12 @@ type Props = Omit<InputHTMLAttributes<HTMLInputElement>, "value" | "onChange"> &
 };
 
 /**
- * 전화번호 칸. 숫자만 치면 하이픈을 자동으로 붙이고,
- * 하이픈이나 다른 글자를 직접 치면 그때부터는 친 그대로 둬요(칸을 비우면 다시 자동).
+ * 전화번호 칸. 숫자와 하이픈만 치면 하이픈 자리와 상관없이 규칙대로 다시 붙이고,
+ * 괄호·띄어쓰기·글자 등을 섞어 치면 친 그대로 둬요(2026-10-28 사용자 1안).
  */
 export function PhoneInput({ value, onChange, onBlur, ...rest }: Props) {
   const ref = useRef<HTMLInputElement>(null);
-  // 직접 적는 중인지. 처음 값이 자동 모양이 아니면 직접 적은 것으로 봐요.
-  const manual = useRef(!isAutoShape(value));
   const caret = useRef<number | null>(null);
-
-  if (!value) manual.current = false;
 
   useLayoutEffect(() => {
     if (caret.current !== null && ref.current && document.activeElement === ref.current) {
@@ -28,14 +24,9 @@ export function PhoneInput({ value, onChange, onBlur, ...rest }: Props) {
   function change(e: ChangeEvent<HTMLInputElement>) {
     const raw = e.target.value;
     const ie = e.nativeEvent as InputEvent;
-    if (!raw) {
-      manual.current = false;
-      return onChange("");
-    }
-    // 하이픈·띄어쓰기·괄호 등을 직접 쳤거나, 숫자·하이픈 말고 다른 글자가 있으면 그대로 받아요.
-    if (ie.inputType?.startsWith("insert") && ie.data && /[^0-9]/.test(ie.data)) manual.current = true;
-    if (/[^0-9-]/.test(raw)) manual.current = true;
-    if (manual.current) return onChange(raw);
+    if (!raw) return onChange("");
+    // 숫자·하이픈 말고 다른 글자가 있으면 그대로 받아요.
+    if (!isAutoShape(raw)) return onChange(raw);
 
     const pos = e.target.selectionStart ?? raw.length;
     let digits = digitsOf(raw);
