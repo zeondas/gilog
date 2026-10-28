@@ -1,6 +1,6 @@
 // 업무연락처 적는 칸·창 – 신규 줄(NewRow)·사업 칸(ProjectChips)·고치는 카드(EditCard)·메모 창(MemoEditor, 민원대장도 씀)·사업 관리 창(ProjectDialog·GroupInput·GroupRename·NamesEdit·ColorPick). 화면 몸통은 Screen.tsx.
 import { KeyboardEvent, MutableRefObject, RefObject, useEffect, useRef, useState } from "react";
-import { DelGlyph, DelMark } from "../../Icons";
+import { DelGlyph } from "../../Icons";
 import { DialogX } from "../../DialogX";
 import { overlayDown, useOutsideClose } from "../../useOutsideClose";
 import { CYCLE, isBlank, kindOf, layout, newLineFor, NewLineMode, TRIGGERS, withKind } from "../../bullets";
@@ -658,56 +658,46 @@ export function MemoEditor({
 
 // ---------- 사업 관리 창 (2026-10-20 사용자: "프로젝트 관리" → "사업 관리") ----------
 
-/** 열 폭(2026-10-20 사용자): 창을 열 때 가장 긴 사업명·축약 공사명에 맞추고, 열 제목 경계를 끌어 바꿔요. */
+/** 창 크기(2026-10-28 사용자 ③2안·폭 3안): 정해진 폭 680으로 열고, 가장자리를 끌면 끈 쪽만 움직여요.
+ *  늘고 준 폭은 사업명 열이 받고(긴 이름은 …), 마지막 창 폭·축약 열 폭은 kv `contacts.pjmSize`에 기억해요. */
 const PJM_N = 56; // 연락처 열
 const PJM_MIN_NAME = 160;
 const PJM_MIN_SHORT = 96;
-/** 사업명·축약 열 밖의 폭: 창 테두리 2 + 몸통 좌우 40 + 줄 좌우(그룹 안 20+4) + 색 22 + 칸 사이 10×4 + 연락처 + 지우기 28 + 스크롤 막대 12 */
-const pjmFixed = (grouped: boolean) => 2 + 40 + (grouped ? 24 : 8) + 22 + 40 + PJM_N + 28 + 12;
-const pjmMaxW = () => window.innerWidth - 32;
-const PJM_MIN_W = 640;
+const PJM_W0 = 680;
+const PJM_MIN_W = 560;
+const PJM_KEY = "contacts.pjmSize";
+/** 뜨는 창 바깥 여백(.overlay padding) */
+const PJM_PAD = 16;
+/** 사업명·축약 열 밖의 폭: 창 테두리 2 + 몸통 좌우 40 + 줄 좌우(그룹 안 20+4) + 색 22 + 칸 사이 10×3 + 연락처 + 스크롤 막대 12 */
+const pjmFixed = (grouped: boolean) => 2 + 40 + (grouped ? 24 : 8) + 22 + 30 + PJM_N + 12;
+const pjmMaxW = () => window.innerWidth - PJM_PAD * 2;
+const clampW = (w: number) => Math.round(Math.max(Math.min(PJM_MIN_W, pjmMaxW()), Math.min(w, pjmMaxW())));
 
-/** 가장 긴 사업명·축약 공사명 글자 폭(줄 글꼴 13px, 축약은 굵게) + 여유 */
-function fitCols(projects: Project[]): { name: number; short: number } {
+/** 가장 긴 축약 공사명 글자 폭(줄 글꼴 13px 굵게) + 여유 */
+function fitShort(projects: Project[]): number {
   const ctx = document.createElement("canvas").getContext("2d");
-  if (!ctx) return { name: 360, short: 220 };
-  const family = getComputedStyle(document.body).fontFamily;
-  const w = (xs: string[], weight: number) => {
-    ctx.font = `${weight} 13px ${family}`;
-    return Math.max(0, ...xs.filter(Boolean).map((x) => ctx.measureText(x).width));
-  };
-  return {
-    name: Math.max(PJM_MIN_NAME, Math.ceil(w(projects.map(pjFull), 400)) + 8),
-    short: Math.max(PJM_MIN_SHORT, Math.ceil(w(projects.map((p) => p.alias), 600)) + 8),
-  };
+  if (!ctx) return 160;
+  ctx.font = `600 13px ${getComputedStyle(document.body).fontFamily}`;
+  return Math.max(PJM_MIN_SHORT, Math.ceil(Math.max(0, ...projects.map((p) => p.alias).filter(Boolean).map((x) => ctx.measureText(x).width))) + 8);
 }
 
-/** 창 왼쪽·오른쪽 가장자리 손잡이. 창은 가운데에 있으니 끈 만큼 양쪽이 같이 늘어요(손잡이가 마우스를 따라와요). */
-function EdgeGrip({ side, width, onWidth, onFit }: { side: "l" | "r"; width: number; onWidth: (w: number) => void; onFit: () => void }) {
-  return (
-    <div
-      className={"pjm-grip pjm-grip-" + side}
-      aria-hidden="true"
-      onMouseDown={(e) => startColDrag(e, { base: width, scale: (side === "r" ? 1 : -1) * 2, round: false, bodyClass: "ew-dragging", onMove: onWidth })}
-      onDoubleClick={onFit}
-      title="끌어서 폭 바꾸기 · 두 번 누르면 가장 긴 이름에 맞춤"
-    />
-  );
+/** 창 왼쪽·오른쪽 가장자리 손잡이 – 끈 쪽 가장자리만 마우스를 따라오고 반대쪽은 그대로예요. */
+function EdgeGrip({ side, onDown }: { side: "l" | "r"; onDown: (e: React.MouseEvent) => void }) {
+  return <div className={"pjm-grip pjm-grip-" + side} aria-hidden="true" onMouseDown={onDown} title="끌어서 창 폭 바꾸기" />;
 }
 
-/** 열 제목 경계 손잡이: 끌면 그 열이 넓어지고 창도 같이 넓어져요. 두 번 누르면 가장 긴 이름에 맞춰요. */
-function ColGrip({ width, onWidth, onFit, label }: { width: number; onWidth: (w: number) => void; onFit: () => void; label: string }) {
+/** 열 제목 경계 손잡이: 축약 공사명 열 폭을 바꿔요(사업명 열이 나머지를 받아요). 두 번 누르면 가장 긴 축약명에 맞춰요. */
+function ColGrip({ onDown, onFit, label }: { onDown: (e: React.MouseEvent) => void; onFit: () => void; label: string }) {
   return (
     <span
       className="pjm-colgrip"
       role="separator"
       aria-orientation="vertical"
       aria-label={label + " 열 폭"}
-      title="끌어서 열 폭 바꾸기 · 두 번 누르면 가장 긴 이름에 맞춤"
+      title="끌어서 열 폭 바꾸기 · 두 번 누르면 가장 긴 축약명에 맞춤"
       onMouseDown={(e) => {
         e.stopPropagation();
-        // 창이 가운데라 열이 d 넓어지면 경계는 d/2만 움직여요 → 2배로 늘려 손잡이가 마우스를 따라와요.
-        startColDrag(e, { base: width, scale: 2, round: false, bodyClass: "ew-dragging", onMove: onWidth });
+        onDown(e);
       }}
       onDoubleClick={(e) => {
         e.stopPropagation();
@@ -738,8 +728,31 @@ export function ProjectDialog({
   const [groupMenu, setGroupMenu] = useState<{ id: number; x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState<number | null>(null);
   const [askGroup, setAskGroup] = useState<number | null>(null);
-  // 열 폭(2026-10-20 사용자): 열 때 가장 긴 사업명·축약 공사명에 맞추고, 창 폭 = 열 폭의 합이에요.
-  const [cols, setCols] = useState(() => fitCols(data.projects));
+  // 창 폭·축약 열 폭(2026-10-28 사용자): 처음 680, 끈 크기는 기억해요. x = 끌어서 정한 창 왼쪽 자리(null이면 가운데).
+  const [size, setSize] = useState(() => ({ w: clampW(PJM_W0), short: fitShort(data.projects) }));
+  const [x, setX] = useState<number | null>(null);
+  const sizeRef = useRef(size);
+  sizeRef.current = size;
+  const dlgRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let live = true;
+    api.get(PJM_KEY).then(
+      (v) => {
+        if (!live || !v) return;
+        try {
+          const o = JSON.parse(v);
+          if (typeof o.w === "number" && typeof o.short === "number") setSize({ w: clampW(o.w), short: Math.max(PJM_MIN_SHORT, Math.round(o.short)) });
+        } catch {
+          /* 읽을 수 없으면 처음 크기 */
+        }
+      },
+      () => {},
+    );
+    return () => {
+      live = false;
+    };
+  }, []);
+  const saveSize = () => api.set(PJM_KEY, JSON.stringify(sizeRef.current)).catch(() => {});
   const [rowMenu, setRowMenu] = useState<{ id: number; x: number; y: number } | null>(null);
   /** [그룹 추가]를 눌러 새 그룹 이름을 적는 중(2026-10-20 사용자: 처음 쓰는 사람도 그룹 만드는 곳을 알게) */
   const [newGroup, setNewGroup] = useState(false);
@@ -823,21 +836,54 @@ export function ProjectDialog({
 
   const groupName = (id: number | null) => groups.find((g) => g.id === id)?.name ?? "";
   const fixed = pjmFixed(!flat);
-  const pjmW = Math.max(PJM_MIN_W, Math.min(fixed + cols.name + cols.short, pjmMaxW()));
-  /** 사업명 열: 창이 화면보다 넓어지지 않게 막아요 */
-  const setNameW = (w: number) => setCols((c) => ({ ...c, name: Math.round(Math.max(PJM_MIN_NAME, Math.min(w, pjmMaxW() - fixed - c.short))) }));
-  const setShortW = (w: number) => setCols((c) => ({ ...c, short: Math.round(Math.max(PJM_MIN_SHORT, Math.min(w, pjmMaxW() - fixed - PJM_MIN_NAME))) }));
-  const fit = () => setCols(fitCols(data.projects));
-  const colVars = { width: pjmW, "--pjm-short": cols.short + "px" } as React.CSSProperties;
+  const pjmW = size.w;
+  const maxShort = Math.max(PJM_MIN_SHORT, pjmW - fixed - PJM_MIN_NAME);
+  const shortW = Math.min(size.short, maxShort);
+  /** 끌어서 옮긴 창은 그 왼쪽 자리를 지켜요(화면 밖으로는 안 나가게) */
+  const vw = window.innerWidth;
+  const left = x === null ? 0 : Math.max(PJM_PAD, Math.min(x, vw - PJM_PAD - pjmW)) - (vw - pjmW) / 2;
+  const colVars = { width: pjmW, left, "--pjm-short": shortW + "px" } as React.CSSProperties;
+  const edgeDown = (side: "l" | "r") => (e: React.MouseEvent) => {
+    const r = dlgRef.current?.getBoundingClientRect();
+    if (!r) return;
+    const anchor = side === "r" ? r.left : r.right;
+    startColDrag(e, {
+      base: r.width,
+      scale: side === "r" ? 1 : -1,
+      min: Math.min(PJM_MIN_W, pjmMaxW()),
+      max: side === "r" ? vw - PJM_PAD - anchor : anchor - PJM_PAD,
+      bodyClass: "ew-dragging",
+      onMove: (w) => {
+        setSize((s) => ({ ...s, w }));
+        setX(side === "r" ? anchor : anchor - w);
+      },
+      onEnd: (w) => w !== null && saveSize(),
+    });
+  };
+  /** 사업명|축약 경계는 왼쪽으로 끌면 축약이 넓어지고(-1), 축약|연락처 경계는 오른쪽으로 끌면 넓어져요(1). */
+  const shortDown = (scale: number) => (e: React.MouseEvent) =>
+    startColDrag(e, {
+      base: shortW,
+      scale,
+      min: PJM_MIN_SHORT,
+      max: maxShort,
+      bodyClass: "ew-dragging",
+      onMove: (short) => setSize((s) => ({ ...s, short })),
+      onEnd: (w) => w !== null && saveSize(),
+    });
+  const fitS = () => {
+    setSize((s) => ({ ...s, short: Math.min(fitShort(data.projects), maxShort) }));
+    setTimeout(saveSize);
+  };
 
   return (
     <div
       className="overlay"
       onMouseDown={overlayDown(onClose)}
     >
-      <div className="dialog mgr pjm" role="dialog" aria-modal="true" aria-label="사업 관리" style={colVars}>
-        <EdgeGrip side="l" width={pjmW} onWidth={(w) => setNameW(w - fixed - cols.short)} onFit={fit} />
-        <EdgeGrip side="r" width={pjmW} onWidth={(w) => setNameW(w - fixed - cols.short)} onFit={fit} />
+      <div className="dialog mgr pjm" role="dialog" aria-modal="true" aria-label="사업 관리" style={colVars} ref={dlgRef}>
+        <EdgeGrip side="l" onDown={edgeDown("l")} />
+        <EdgeGrip side="r" onDown={edgeDown("r")} />
         <div className="dialog-head pjm-head">
           <span className="dialog-title">사업 관리</span>
           <span className="mgr-info">{data.projects.length}개</span>
@@ -900,16 +946,15 @@ export function ProjectDialog({
             <button type="button" className="pjm-sort" aria-pressed={sort === "name"} onClick={() => setSort("name")}>
               사업명{sort === "name" ? " ↓" : ""}
             </button>
-            <ColGrip label="사업명" width={cols.name} onWidth={setNameW} onFit={fit} />
+            <ColGrip label="사업명" onDown={shortDown(-1)} onFit={fitS} />
           </span>
           <span className="pjm-thc">
             <span>축약 공사명</span>
-            <ColGrip label="축약 공사명" width={cols.short} onWidth={setShortW} onFit={fit} />
+            <ColGrip label="축약 공사명" onDown={shortDown(1)} onFit={fitS} />
           </span>
           <button type="button" className="pjm-sort pjm-n" aria-pressed={sort === "count"} onClick={() => setSort("count")}>
             {sort === "count" ? "↓ " : ""}연락처
           </button>
-          <span />
         </div>
         <div className="dialog-body pjm-body" ref={bodyRef}>
           {newGroup && (
@@ -1047,9 +1092,6 @@ export function ProjectDialog({
           </>
         )}
         <span className={"pjm-n" + (users ? "" : " pjm-zero")}>{users}명</span>
-        <button type="button" className="tool-box pjm-tool del-hit" aria-label={`${p.name} 지우기`} title="이 사업 지우기" onClick={() => setAsk(p.id)}>
-          <DelMark />
-        </button>
         {rowMenu?.id === p.id && (
           <PjMenu
             x={rowMenu.x}

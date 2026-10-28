@@ -643,7 +643,7 @@
 /* ---------- 프로젝트 관리 창 · 표 모양 (2026-10-19 사용자 1안, 시안 ProjectMgr) ---------- */
 .mgr.pjm {
   position: relative;
-  width: 960px;
+  width: 680px;
   height: min(760px, 100%);
 }
 
@@ -683,7 +683,7 @@
 
 .pjm-row {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) var(--pjm-short) 56px 28px;
+  grid-template-columns: 22px minmax(0, 1fr) var(--pjm-short) 56px;
   align-items: center;
   column-gap: 10px;
   min-height: 32px;
@@ -756,18 +756,6 @@
   color: var(--muted);
 }
 
-.pjm-row > .tool-box.pjm-tool {
-  margin: 0;
-  width: 28px;
-  height: 28px;
-  color: var(--muted);
-}
-
-.pjm-row > .tool-box.pjm-tool:hover:not(:disabled):first-of-type {
-  background: var(--surface-band);
-  color: var(--ink);
-}
-
 .pjm-edit {
   grid-column: 2 / 4;
   padding: 4px 0;
@@ -806,16 +794,21 @@
   cursor: ew-resize;
 }
 
+/* 창이 바깥을 잘라서(overflow hidden) 손잡이는 창 안쪽 가장자리 8px에 둬요 – 전엔 반이 잘려 4px만 잡혔어요(2026-10-28) */
 .pjm-grip-l {
-  left: -4px;
+  left: 0;
 }
 
 .pjm-grip-r {
-  right: -4px;
+  right: 0;
 }
 
-.pjm-grip:hover {
-  background: linear-gradient(90deg, transparent 3px, var(--accent) 3px, var(--accent) 5px, transparent 5px);
+.pjm-grip-l:hover {
+  background: linear-gradient(90deg, var(--accent) 2px, transparent 2px);
+}
+
+.pjm-grip-r:hover {
+  background: linear-gradient(270deg, var(--accent) 2px, transparent 2px);
 }
 
 body.ew-dragging,
