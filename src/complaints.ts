@@ -91,8 +91,7 @@ export type ColKey =
 
 /**
  * 사양서 순서 12열(2026-10-21 사용자 – 지역은 위치 칸에 합치고, 민원인·연락처는 "민원인" 한 칸).
- * w가 null인 열(내용·조치내용)은 남는 폭을 반씩 나눠 가져요. 다른 열 폭은 `layoutCols`가 글 폭으로 정해요.
- * w 숫자는 민원처리 화면이 같이 쓰는 `fitWidths`가 볼 때만 쓰는 예전 값이에요.
+ * 처음 폭은 `layoutCols`가 글 폭·창 폭으로 정해요(w는 예전 값 – 쓰지 않아요).
  */
 export const COLUMNS: { key: ColKey; label: string; w: number | null; fixed?: boolean }[] = [
   { key: "no", label: "연번", w: 52 },
@@ -109,34 +108,8 @@ export const COLUMNS: { key: ColKey; label: string; w: number | null; fixed?: bo
   { key: "memo", label: "메모", w: 48 },
 ];
 
-/** 내용·조치내용의 가장 좁은 폭 */
+/** 표 폭을 아직 모를 때 내용·조치내용 처음 폭 */
 export const FLEX_MIN = 140;
-export const COL_MIN = 40;
-
-/**
- * 표 폭(avail)에 맞춰 보이는 폭을 정해요 – 민원처리 화면이 써요. 고정 열 + 남는 폭 열 최소 폭이 표 폭을 넘으면
- * 고정 열을 같은 비율로 줄여요(가장 좁게 COL_MIN). 저장된 값은 그대로 두어 창을 넓히면 다시 원래 폭이에요.
- */
-export function fitWidths(ws: (number | null)[], avail: number, fixed?: boolean[]): (number | null)[] {
-  if (!(avail > 0)) return ws;
-  const flex = ws.filter((w) => w === null).length * FLEX_MIN;
-  const total = ws.reduce<number>((a, w) => a + (w ?? 0), 0);
-  if (total + flex <= avail) return ws;
-  // 고정 열(체크·칩·막대처럼 줄일 수 없는 것)은 그대로 두고 나머지만 줄여요(2026-10-21 화면 배율 – 큰 배율에서 넘치지 않게).
-  const keep = ws.reduce<number>((a, w, i) => a + (w !== null && fixed?.[i] ? w : 0), 0);
-  const k = Math.max(0, avail - flex - keep) / Math.max(1, total - keep);
-  return ws.map((w, i) => (w === null || fixed?.[i] ? w : Math.max(COL_MIN, Math.floor(w * k))));
-}
-
-export function gridTemplate(ws: (number | null)[], flexMin = FLEX_MIN): string {
-  return ws.map((w) => (w === null ? `minmax(${flexMin}px, 1fr)` : `${w}px`)).join(" ");
-}
-
-/** 열 하나를 끌어 넓힐 수 있는 가장 큰 폭(다른 열과 남는 폭 열 최소 폭을 빼고) – 민원처리 화면이 써요. */
-export function maxWidthOf(ws: (number | null)[], i: number, avail: number, base: number[]): number {
-  const others = ws.reduce<number>((a, w, j) => a + (j === i ? 0 : w === null ? FLEX_MIN : base[j]), 0);
-  return Math.max(COL_MIN, Math.floor(avail - others));
-}
 
 // ---------- 민원대장 열 폭(2026-10-21 사용자 결정 – 시안 ComplaintCols.dc.html 시안 4·5·최대화) ----------
 

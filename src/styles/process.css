@@ -1367,3 +1367,20 @@
   line-height: 1.4;
 }
 
+
+/* 헤더 열 조정 통일(2026-10-28): 머리 줄·목록을 가로 스크롤 상자에 넣어요 – 넓힌 열이 넘치면 표 안에서만 가로로 밀려요(세로는 목록 그대로). */
+.pr-hs {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.pr-hs > .pr-headrow,
+.pr-hs > .pr-body {
+  min-width: var(--pr-w, 100%);
+}
+.pr-hs > .pr-headrow {
+  flex: none;
+}

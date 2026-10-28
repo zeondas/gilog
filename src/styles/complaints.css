@@ -96,42 +96,6 @@
   justify-content: flex-end;
 }
 
-.cm-grip {
-  position: absolute;
-  top: 0;
-  right: -5px;
-  z-index: 1;
-  width: 10px;
-  height: 100%;
-  cursor: col-resize;
-}
-
-.cm-grip::after {
-  content: "";
-  position: absolute;
-  top: 25%;
-  left: 4px;
-  width: 2px;
-  height: 50%;
-  border-radius: 1px;
-  background: transparent;
-}
-
-.cm-head:hover .cm-grip::after {
-  background: var(--line);
-}
-
-.cm-grip:hover::after,
-body.col-dragging .cm-grip::after {
-  background: var(--accent);
-}
-
-body.col-dragging,
-body.col-dragging * {
-  cursor: col-resize !important;
-  user-select: none;
-}
-
 .cm-c {
   min-width: 0;
   display: flex;

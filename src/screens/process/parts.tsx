@@ -8,19 +8,26 @@ export function workColor(w: Work | undefined, cd: ContactsData | null): number 
   return p ? projectColor(p) : 0;
 }
 
-/** 열 제목과 처음 폭. null은 남는 폭을 쓰는 열(민원 요약)이에요. 끌어서 바꾼 폭은 COLS_KEY에 저장해요. */
-export const COLUMNS: { label: string; w: number | null; center?: boolean; fixed?: boolean }[] = [
-  { label: "", w: 36, fixed: true },
+/**
+ * 열 제목과 처음 폭. null은 처음 값을 창 폭에 맞추는 긴 글 열(민원 요약)이에요.
+ * 끌어서 바꾼 폭은 공통 부품 ColHead가 `process.cols`에 끈 열만 px로 저장해요(헤더 열 조정 통일 2026-10-28).
+ * fixed = 손잡이 없는 열(체크·판단 공사·진행), text = 가장 좁게가 처음 값 절반인 글자 열.
+ */
+export const COLUMNS: { id: string; label: string; w: number | null; center?: boolean; fixed?: boolean; text?: boolean }[] = [
+  { id: "check", label: "", w: 36, fixed: true },
   // 번호·접수·기한·위치·판단 공사는 글자에 맞춰 다시 재요(AUTO_COLS) – 아래는 재기 전 처음 폭
-  { label: "번호", w: 80 },
-  { label: "접수", w: 62 },
-  { label: "기한", w: 105 },
-  { label: "위치", w: 151 },
-  { label: "민원 요약", w: null },
-  { label: "판단 공사", w: 164, fixed: true },
-  { label: "고려사항", w: 300 },
-  { label: "진행", w: 190, fixed: true },
+  { id: "no", label: "번호", w: 80 },
+  { id: "recv", label: "접수", w: 62 },
+  { id: "due", label: "기한", w: 105 },
+  { id: "place", label: "위치", w: 151, text: true },
+  { id: "sum", label: "민원 요약", w: null, text: true },
+  { id: "work", label: "판단 공사", w: 164, fixed: true },
+  { id: "note", label: "고려사항", w: 300, text: true },
+  { id: "prog", label: "진행", w: 190, fixed: true },
 ];
+
+/** 민원 요약 처음 값의 가장 좁은 폭 */
+export const SUM_MIN = 140;
 
 /**
  * 열 폭 자동 맞춤(2026-10-21 사용자 1안): 번호·접수·기한·위치·판단 공사는 그 열의 가장 긴 글자(머리 글자 포함) + COL_GAP –
@@ -30,7 +37,7 @@ export const AUTO_COLS = [1, 2, 3, 4, 6];
 
 export const COL_GAP = 24;
 
-/** 위치 열은 이만큼까지만 넓히고, 더 긴 주소는 그 줄만 두 줄(지역 위·위치 아래)로 써요. */
+/** 위치 열 처음 값은 이만큼까지만 넓히고, 열보다 긴 주소는 그 줄만 두 줄(지역 위·위치 아래)로 써요(끌어서 넓히면 그 폭까지 한 줄). */
 export const PLACE_MAX = 260;
 
 /** 글자들이 한 줄로 놓일 때의 폭(가로로 늘어놓은 자식들 + 사이 간격). 위치 칸은 지역 + 4 + 위치예요. */
@@ -44,7 +51,7 @@ export function textWidth(el: Element): number {
     const kids = [...el.children];
     return kids.reduce((a, k) => a + rangeW(k), 0) + (kids.length - 1) * PLACE_SPACE;
   }
-  const kids = [...el.children].filter((k) => !k.classList.contains("cm-grip"));
+  const kids = [...el.children].filter((k) => !k.classList.contains("colh-grip"));
   if (!kids.length) return rangeW(el);
   const left = Math.min(...kids.map((k) => k.getBoundingClientRect().left));
   const right = Math.max(...kids.map((k) => k.getBoundingClientRect().right));

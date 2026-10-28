@@ -2,74 +2,22 @@
 import { createPortal } from "react-dom";
 import { CSSProperties, MouseEvent as ReactMouseEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Case, ContactsData, Work } from "../../api";
-import { COL_MIN, maxWidthOf } from "../../complaints";
-import { startColDrag } from "../../ColGrip";
+import type { ColHead } from "../../ColHead";
 import { BLine, linesToText, parseLines, stringifyLines } from "../../bullets";
 import { BulletEditor, Mark } from "../../BulletParts";
 import { useOutsideClose } from "../../useOutsideClose";
 import { PlaceInput } from "../../PlaceInputs";
-import { Floating } from "./Menu";
-import { workColor, COLUMNS, COL_GAP, PLACE_MAX, textWidth, DocPlusIcon, MailIcon, PhoneIcon, CheckIcon, Prog, isPath, WarnIcon } from "./parts";
+import { workColor, COLUMNS, COL_GAP, textWidth, DocPlusIcon, MailIcon, PhoneIcon, CheckIcon, Prog, isPath, WarnIcon } from "./parts";
 
 const UNKNOWN = "주소불명";
 
 // ---------- 열 제목 줄 (끌어서 열 너비, 우클릭 열 너비 초기화 – 민원대장과 같아요) ----------
 
-export function HeadRow({
-  all,
-  onAll,
-  widths,
-  avail,
-  onResize,
-  onResized,
-  onReset,
-}: {
-  all: "none" | "some" | "all";
-  onAll: () => void;
-  widths: (number | null)[];
-  avail: number;
-  onResize: (w: (number | null)[]) => void;
-  onResized: (w: (number | null)[]) => void;
-  onReset: () => void;
-}) {
-  const rowRef = useRef<HTMLDivElement>(null);
-  const [menu, setMenu] = useState<DOMRect | null>(null);
-
-  function start(e: ReactMouseEvent, i: number) {
-    e.preventDefault();
-    const row = rowRef.current;
-    if (!row) return;
-    const base = widths.map((w, j) => w ?? (row.children[j] as HTMLElement).getBoundingClientRect().width);
-    const max = avail > 0 ? maxWidthOf(widths, i, avail, base) : Infinity;
-    let last = widths;
-    startColDrag(e, {
-      base: base[i],
-      min: COL_MIN,
-      max,
-      bodyClass: "col-dragging",
-      on: "document",
-      onMove: (px) => {
-        const next = widths.slice();
-        next[i] = px;
-        last = next;
-        onResize(next);
-      },
-      onEnd: () => last !== widths && onResized(last),
-    });
-  }
-
+export function HeadRow({ all, onAll, cols }: { all: "none" | "some" | "all"; onAll: () => void; cols: ColHead }) {
   return (
-    <div
-      className="pr-row pr-headrow"
-      role="row"
-      ref={rowRef}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        setMenu(new DOMRect(e.clientX, e.clientY, 0, 0));
-      }}
-    >
+    <div className="pr-row pr-headrow colh-row" role="row" onContextMenu={cols.onContextMenu}>
       {COLUMNS.map((col, i) => (
-        <div role="columnheader" key={col.label || "check"} className={i === 0 ? "pr-check" : col.center ? "pr-c" : undefined}>
+        <div role="columnheader" key={col.id} className={i === 0 ? "pr-check" : col.center ? "pr-c" : undefined}>
           {i === 0 ? (
             <input
               type="checkbox"
@@ -85,34 +33,18 @@ export function HeadRow({
           ) : (
             col.label
           )}
-          {/* 남는 폭을 쓰는 열(민원 요약)은 끌지 않아요 – 옆 열을 끌면 따라 바뀌어요. */}
-          {i < COLUMNS.length - 1 && col.w !== null && !col.fixed && <span className="cm-grip" aria-hidden="true" title="끌어서 열 너비 바꾸기" onMouseDown={(e) => start(e, i)} />}
+          {/* 고정 열(체크·판단 공사·진행)은 손잡이 없음 – 공통 부품이 걸러요 */}
+          {cols.grip(col.id, { last: i === COLUMNS.length - 1 })}
         </div>
       ))}
-      {menu && (
-        <Floating rect={menu} align="left" onClose={() => setMenu(null)} menu>
-          <div className="dmenu pr-hmenu" role="menu" aria-label="열 제목 메뉴">
-            <button
-              type="button"
-              role="menuitem"
-              className="dmenu-item"
-              onClick={() => {
-                setMenu(null);
-                onReset();
-              }}
-            >
-              열 너비 초기화
-            </button>
-          </div>
-        </Floating>
-      )}
+      {cols.menu()}
     </div>
   );
 }
 
 // ---------- 위치 칸: 그 자리에서 고쳐요(법정리·동 + 지번, 리·동을 고르면 지역이 채워져요 – 민원대장 위치 칸과 같은 부품) ----------
 
-export function PlaceCell({ c, disabled, onSave }: { c: Case; disabled: boolean; onSave: (area: string, place: string, road: string) => void }) {
+export function PlaceCell({ c, colW, disabled, onSave }: { c: Case; colW: number; disabled: boolean; onSave: (area: string, place: string, road: string) => void }) {
   const start = c.place === UNKNOWN ? "" : c.place;
   const [place, setPlace] = useState(start);
   const [area, setArea] = useState(c.area);
@@ -132,14 +64,15 @@ export function PlaceCell({ c, disabled, onSave }: { c: Case; disabled: boolean;
   useLayoutEffect(() => {
     const el = viewRef.current;
     if (!el) return;
-    const fit = () => setTwo(textWidth(el) + COL_GAP > PLACE_MAX);
+    // 열 폭(처음엔 260까지 글자에 맞춘 폭, 끌어서 넓히면 그 폭)보다 길면 그 줄만 두 줄
+    const fit = () => setTwo(textWidth(el) + COL_GAP > colW);
     fit();
     let alive = true;
     document.fonts?.ready.then(() => alive && fit());
     return () => {
       alive = false;
     };
-  }, [c.area, c.place, editing]);
+  }, [c.area, c.place, editing, colW]);
   if (disabled || !editing) {
     return (
       <div
