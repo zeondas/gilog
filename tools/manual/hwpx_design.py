@@ -9,7 +9,7 @@ from PIL import Image
 
 PW, PH = 59528, 84186
 LEFT = 5669                      # 왼쪽 여백 20mm
-BAND_W = 4252                    # 띠 15mm
+BAND_W = int(os.environ.get("BAND_MM", "17")) * 28346 // 100   # 색인 띠 폭(종이 끝부터, 바깥 약 5mm는 인쇄에서 잘려도 되게)
 CH_KEYS = ["overview", "explorer", "complaints", "process", "budget", "bstatus",
            "calendar", "todo", "journal", "contacts", "settings"]
 
@@ -35,6 +35,9 @@ def put_in_first_run(p, pic):
     if m2 and (not m or m2.start() < m.start()):
         return p[:m2.end()] + pic + p[m2.end():]
     return p[:m.start()] + f'<hp:run charPrIDRef="{m.group(1)}">{pic}</hp:run>' + p[m.end():]
+
+# 예시만 만들 때: SAMPLE="30-66,66-99"(맨 위 문단 번호 범위)
+KEEP = [tuple(map(int, r.split("-"))) for r in os.environ.get("SAMPLE", "").split(",") if r]
 
 def main():
     src, out, img = sys.argv[1:4]
@@ -80,6 +83,8 @@ def main():
             assert not re.search(r'<hp:t>[^<]', p), i
             p = put_in_first_run(p, fpic(rule, os.path.join(img, "rule.png"), PW - 2 * LEFT, 57, LEFT, 700, "PARA", "PAPER", 2))
             nrule += 1
+        if KEEP and not any(a <= i < c for a, c in KEEP):
+            continue
         newp.append(p)
     sec2 = head + "".join(newp) + tail
     hpf = hpf.replace("</opf:manifest>", "".join(f'<opf:item id="{x}" href="BinData/{x}.png" media-type="image/png" isEmbeded="1"/>'
