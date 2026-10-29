@@ -233,6 +233,8 @@ pub struct Store {
     conn: Connection,
     dir: PathBuf,
     key: [u8; 32],
+    /// 메모리 저장소(`Store::memory` – 브라우저 미리 보기)면 열쇠 정보가 파일 대신 여기 있어요. 파일 저장소는 None.
+    mem: Option<Meta>,
 }
 
 /// 열쇠로 자료 파일을 열어요. `check`는 믿을 수 있는 열쇠 검사 값(없으면 옛 방식).
@@ -278,9 +280,35 @@ impl Store {
         meta.check = Some(key_check(&key));
         meta.write(&dir.join(META_FILE))?;
         let conn = open_with_key(dir, &key, None)?;
-        let store = Store { conn, dir: dir.to_path_buf(), key };
+        let store = Store { conn, dir: dir.to_path_buf(), key, mem: None };
         store.migrate(false)?;
         Ok(store)
+    }
+
+    /// 파일 없이 메모리에만 두는 저장소를 만들어요(브라우저 미리 보기용 – 암호화 없음).
+    /// 표·`migrate`·명령 규칙은 파일 저장소와 똑같고, 비밀번호 확인·바꾸기도 같은 Argon2 규칙을 써요.
+    /// 파일 일(백업·되살리기·옮기기)은 하지 않아요(`Error::Invalid("memory")`).
+    pub fn memory(password: &str) -> Result<Store> {
+        check_len(password)?;
+        let mut meta = Meta::fresh();
+        let key = meta.derive(password)?;
+        meta.check = Some(key_check(&key));
+        let conn = Connection::open_in_memory()?;
+        let store = Store { conn, dir: PathBuf::new(), key, mem: Some(meta) };
+        store.migrate(false)?;
+        Ok(store)
+    }
+
+    /// 메모리 저장소인지 – 파일 일을 하지 않아요.
+    pub fn is_memory(&self) -> bool {
+        self.mem.is_some()
+    }
+
+    fn no_files(&self) -> Result<()> {
+        if self.mem.is_some() {
+            return Err(Error::Invalid("memory".into()));
+        }
+        Ok(())
     }
 
     /// 암호로 자료 파일을 열어요.
@@ -312,7 +340,7 @@ impl Store {
                     } else {
                         let _ = fs::remove_file(dir.join(META_NEW_FILE));
                     }
-                    let store = Store { conn, dir: dir.to_path_buf(), key };
+                    let store = Store { conn, dir: dir.to_path_buf(), key, mem: None };
                     store.migrate(true)?;
                     return Ok(store);
                 }
@@ -377,7 +405,10 @@ impl Store {
 
     /// 열려 있는 파일의 비밀번호가 맞는지만 봐요(윈도우 PIN 풀기를 켤 때).
     pub fn check_password(&self, password: &str) -> Result<()> {
-        let current = Meta::read(&self.dir.join(META_FILE))?;
+        let current = match &self.mem {
+            Some(m) => m.clone(),
+            None => Meta::read(&self.dir.join(META_FILE))?,
+        };
         if current.derive(password)? != self.key {
             return Err(Error::WrongPassword);
         }
@@ -387,13 +418,22 @@ impl Store {
     /// 지금 암호가 맞는지 확인하고 새 암호로 바꿔요.
     pub fn change_password(&mut self, old: &str, new: &str) -> Result<()> {
         check_len(new)?;
-        let current = Meta::read(&self.dir.join(META_FILE))?;
+        let current = match &self.mem {
+            Some(m) => m.clone(),
+            None => Meta::read(&self.dir.join(META_FILE))?,
+        };
         if current.derive(old)? != self.key {
             return Err(Error::WrongPassword);
         }
         let mut meta = Meta::fresh();
         let key = meta.derive(new)?;
         meta.check = Some(key_check(&key));
+        if self.mem.is_some() {
+            // 메모리 저장소는 암호화하지 않으니 열쇠 정보만 바꿔요.
+            self.mem = Some(meta);
+            self.key = key;
+            return Ok(());
+        }
         let new_path = self.dir.join(META_NEW_FILE);
         meta.write(&new_path)?;
         self.conn
@@ -441,13 +481,14 @@ impl Store {
             Meta::read(&dir.join(META_FILE)).ok().and_then(|m| m.check)
         };
         let conn = open_with_key(dir, &key, check.as_deref())?;
-        let store = Store { conn, dir: dir.to_path_buf(), key };
+        let store = Store { conn, dir: dir.to_path_buf(), key, mem: None };
         store.migrate(true)?;
         Ok(store)
     }
 
     /// 자료 파일과 열쇠 정보를 파일 하나로 내보내요. 내용은 암호화된 그대로예요.
     pub fn export_backup(&self, to: &Path) -> Result<()> {
+        self.no_files()?;
         // 쓰다 만 내용이 없게 하고 파일을 복사해요.
         self.conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")?;
         let meta = fs::read_to_string(self.dir.join(META_FILE))?;
@@ -468,6 +509,7 @@ impl Store {
 
     /// `auto_backup`의 날짜를 정해 부르는 쪽(시험용). `day`는 YYYY-MM-DD.
     pub fn auto_backup_on(&self, day: &str) -> Result<Option<PathBuf>> {
+        self.no_files()?;
         let folder = self.dir.join(BACKUP_DIR);
         fs::create_dir_all(&folder)?;
         let path = folder.join(format!("gilog_{day}.gilogbak"));
@@ -1136,5 +1178,58 @@ mod tests {
         rename_retry(&from, &to).unwrap();
         h.join().unwrap();
         assert_eq!(fs::read(&to).unwrap(), b"y");
+    }
+
+    /// 메모리 저장소(미리 보기)는 파일 저장소와 같은 표·규칙을 쓰고, 비밀번호 규칙도 같아요.
+    #[test]
+    fn memory_store_same_rules_no_files() {
+        assert!(matches!(Store::memory("12"), Err(Error::PasswordTooShort)));
+        let mut s = Store::memory("1234").unwrap();
+        assert!(s.is_memory());
+        let v: i32 = s.conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
+        assert_eq!(v, SCHEMA_VERSION);
+        // 처음 목록·종류가 파일 저장소와 같아요.
+        let tmp = tempfile::tempdir().unwrap();
+        let f = Store::create(tmp.path(), "1234").unwrap();
+        assert_eq!(serde_json::to_value(s.tasks_data().unwrap()).unwrap(), serde_json::to_value(f.tasks_data().unwrap()).unwrap());
+        assert_eq!(serde_json::to_value(s.cal_kinds().unwrap()).unwrap(), serde_json::to_value(f.cal_kinds().unwrap()).unwrap());
+        s.set("note", "봉일천리 113").unwrap();
+        assert_eq!(s.get("note").unwrap().as_deref(), Some("봉일천리 113"));
+        assert!(matches!(s.check_password("4321"), Err(Error::WrongPassword)));
+        s.check_password("1234").unwrap();
+        assert!(matches!(s.change_password("틀림", "abcd"), Err(Error::WrongPassword)));
+        s.change_password("1234", "abcd").unwrap();
+        s.check_password("abcd").unwrap();
+        assert!(matches!(s.check_password("1234"), Err(Error::WrongPassword)));
+        assert_eq!(s.get("note").unwrap().as_deref(), Some("봉일천리 113"));
+        assert!(matches!(s.export_backup(&tmp.path().join("x.gilogbak")), Err(Error::Invalid(_))));
+        assert!(matches!(s.auto_backup_on("2026-10-29"), Err(Error::Invalid(_))));
+        assert!(!tmp.path().join("x.gilogbak").exists());
+    }
+
+    /// rusqlite 0.32(SQLCipher)로 만든 자료 파일을 지금 판으로 열어 그때 읽은 값과 같은지 봐요.
+    /// 고정 파일은 `fixtures/sqlcipher-rusqlite-0.32`(비밀번호 fixture-1234) – 2026-10-29 0.57.0 core로 만들었어요.
+    #[test]
+    fn opens_file_made_by_rusqlite_0_32() {
+        let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/sqlcipher-rusqlite-0.32");
+        let tmp = tempfile::tempdir().unwrap();
+        for name in [DB_FILE, META_FILE] {
+            fs::copy(src.join(name), tmp.path().join(name)).unwrap();
+        }
+        let s = Store::open(tmp.path(), "fixture-1234").unwrap();
+        let all = serde_json::json!({
+            "settings": s.get("settings").unwrap(),
+            "contacts": s.contacts_data().unwrap(),
+            "complaints": s.complaints().unwrap(),
+            "tasks": s.tasks_data().unwrap(),
+            "calendar": s.calendar_data().unwrap(),
+            "journal": s.journal_data().unwrap(),
+            "budget": s.budget_data(2026).unwrap(),
+            "bstatus": s.bstatus_list().unwrap(),
+            "process": s.process_data().unwrap(),
+        });
+        let want: serde_json::Value = serde_json::from_str(&fs::read_to_string(src.join("expected.json")).unwrap()).unwrap();
+        assert_eq!(all, want);
+        assert!(matches!(Store::open(tmp.path(), "틀린-비밀번호"), Err(Error::WrongPassword)));
     }
 }
