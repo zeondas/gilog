@@ -5,6 +5,20 @@
 ## 버전별 — 들어간 것 · 시험 항목
 사용자 "통과"는 0.11.0~0.27.0 모두 기다려요(빌드 줄). 시험 항목은 윈도우에서만 볼 수 있는 것이에요.
 
+### 0.57.0(build-77) — 경로 검사 보강(②-2)
+- 들어간 것: guardrails2(7119243) – 품질 보완 ②-2: 쓰기 명령 7곳(엑셀 3·백업 내보내기·폰으로 보내기·자료 옮기기·백업 불러오기) `export_to` 경로 검사 · "실행할까요?" 확인은 앱이 준 일회용 번호로만 · zip 안 드라이브·맨 앞 `\` 이름 거부, 상대 경로·`C:foo` 거부 · 앱 Rust 시험을 check.yml 윈도우 검사에 · 되살리기 원자성(before-import 백업, `.old` 짝 복구, `_before-vN` 최근 3개) – 화면 변화 없음
+- 시험: 엑셀 내보내기 · 백업 내보내기/불러오기/되살리기 · 자료 위치 옮기기 · 탐색기 실행 파일 "실행할까요?" 뒤 실행 · 설정에서 Claude 실행 파일 바꾸기 · 압축 풀기
+
+#### 대기 목록 "경로 검사 보강" 칸(0.57.0에 들어가 옮김)
+### 경로 검사 보강 (품질 보완 ②-2, `wip/guardrails2` – [재평가 절](https://github.com/zeondas/gilog/blob/main/docs/qa/review-2026-10-29.md), 10-29 19:59 사용자 ①1안, 화면 변화 없음)
+- **check 실패 고침(21:5x)**: `files::tests` 두 시험이 결정 키·되돌리기 짝을 `b.join("사진/1.jpg")`처럼 `/`로 만들어 윈도우에서 실제 경로(`\`)와 글자가 달랐어요(✔3 정규화와 무관 – `transfer`는 경로를 그대로 견줘요). 시험만 `rel()`로 고침 `7119243`, check 통과 [실행](https://github.com/zeondas/gilog/actions/runs/40875506990).
+- (20:00 "코딩하자" → `wip/guardrails2` `f638473`(+ 시험 고침 `7119243`)에 ✔1~5 모두 들어감, 합치면 이 칸 지움)
+- ✔ 1. 쓰기 명령 검사: `excel_write`·`budget_excel_write`·`bstatus_excel_write`·`export_backup`·`send_order`·`move_data`·`import_backup`에 새 `guard::export_to`(자료 폴더·AppData 앱 폴더·윈도우·프로그램 폴더 금지 – 탐색기 `writable`은 그대로), `build.rs` `RISKY`에 쓰기 명령 더함, `protected()`가 prefs를 못 읽어도 기본 자료 폴더(`문서\giLog`)는 늘 넣음.
+- ✔ 2. 실행 확인 1안(일회용 번호): `fs_open`이 `need_confirm`과 함께 30초·그 경로 하나·한 번만 쓰는 번호를 주고, 화면 `RunAsk` "예" 뒤 그 번호로만 실행(`run: true` 없앰, 창 모양 그대로) · 민원처리 exe: `set_value("settings")`가 `process.claude`를 바꾸면 `path_denied`, 바꾸기는 전용 `set_process_exe`(RISKY)로 – 설정 화면은 지금처럼 바꿀 수 있게 · 실행 확장자 더함(url·scf·jar·msc·chm·xll·docm·application·settingcontent-ms·library-ms).
+- ✔ 3. zip·가장자리: 압축 풀기 항목의 드라이브 접두·맨 앞 `\` 거부 · guard: 상대 경로·`C:foo` 거부, 없는 경로는 있는 부모로 canonicalize, `\\localhost\c$\…`·`\\?\` 드라이브 모양으로 정규화 · `process.rs` `same_path`는 guard `key_of`/`norm`을 씀.
+- ✔ 4. 앱 Rust 시험 CI: check.yml 윈도우 검사에 `cargo test --manifest-path src-tauri/Cargo.toml`(리눅스 빠지는 부분 cfg) · `permissions: contents: write`는 댓글 job만, guard 갈래는 read.
+- ✔ 5. 되살리기 원자성: `restore_backup` 임시 준비 → 옛 둘 `.old` → 새 둘 rename → `.old` 삭제, 열 때 `.old` 짝 복구 · `import_backup` 전 `backup\gilog_YYYY-MM-DD_before-import.gilogbak` · `write_atomic` 잠김 3번 재시도·임시 이름 `.tmp-<pid>` · `_before-vN` 최근 3개 · `move_data`는 복사 크기 확인 뒤에만 원본 백업 폴더 삭제.
+
 ### 0.56.0(build-76) — 검사 자동화(지킴이 CI·부하 시험·마이그레이션·부품 시험)
 - 들어간 것: ci2(24380a0) – 품질 보완 ③ 검사 자동화: `check.yml`에 모양 지킴이(사진·계산 모양·동작, 4갈래 병렬 약 4분, 흔들림 장면은 두 번까지 다시) · 새 `load.yml` 부하 시험(수동·주 1회 예약) · core 마이그레이션 시험 3(`migrate_tests.rs`) · 화면 부품 시험 34(`*.test.tsx`) · `build.yml` 보강(설치 파일 전 npm test, 액션 SHA 고정, 릴리스 제목 "기록 0.N.0 (build-N)") · `tools/guard/ci.py`·`tools/load/report.py` – 앱 동작 변화 없음. 바뀐 build.yml 첫 실행 성공(약 14분)
 - 시험: 앱 동작은 0.55.0과 같아야 함(설치·열기·화면 몇 개) · 0.55.0의 CSP 시험은 그대로 유효
