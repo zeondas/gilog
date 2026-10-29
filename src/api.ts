@@ -9,6 +9,8 @@ import { fakeBudget } from "./budgetFake";
 import type { ShareOp } from "./budgetShare";
 
 export type Status = { exists: boolean; unlocked: boolean; folder: string };
+/** 자동 백업(하루 하나, 최근 7개) – 잠겨 있어도 읽어요. latest는 YYYY-MM-DD */
+export type BackupInfo = { folder: string; count: number; latest: string | null; latestPath: string | null };
 
 /** 강조색 네 가지. 보라가 기본이에요(tokens.css에 묶음 없음). */
 export type Accent = "purple" | "noctua" | "blue" | "ink";
@@ -77,6 +79,9 @@ export type ErrorCode =
   | "meta"
   | "invalid"
   | "offline"
+  | "corrupt"
+  | "too_new"
+  | "prefs_bad"
   | "hello_unavailable"
   | "hello_canceled"
   | "hello_failed"
@@ -1328,7 +1333,19 @@ function fakeCall(cmd: string, args: Record<string, unknown>): unknown {
     case "unlock":
       if (fake.password === null) throw "not_found";
       if (a.password !== fake.password) throw "wrong_password";
+      // 미리 보기에서 손상 안내를 보려면 주소 끝에 ?fake=corrupt
+      if (typeof location !== "undefined" && new URLSearchParams(location.search).get("fake") === "corrupt") throw "corrupt";
       fake.unlocked = true;
+      return null;
+    case "backup_info":
+      return { folder: "문서\\giLog\\backup (미리 보기)", count: 7, latest: "2026-10-20", latestPath: "gilog_2026-10-20.gilogbak" };
+    case "open_backup_folder":
+      return null;
+    case "restore_and_open":
+      if (a.password !== fake.password) throw "wrong_password";
+      fake.unlocked = true;
+      fake.prefs.askPassword = true;
+      fake.pin.on = false;
       return null;
     case "lock":
       fake.unlocked = false;
@@ -1412,6 +1429,10 @@ export const api = {
   exportBackup: (path: string) => call<null>("export_backup", { path }),
   importBackup: (path: string, password: string) => call<null>("import_backup", { path, password }),
   moveData: (folder: string) => call<null>("move_data", { folder }),
+  backupInfo: () => call<BackupInfo>("backup_info"),
+  openBackupFolder: () => call<null>("open_backup_folder"),
+  /** 잠금 화면: 손상된 자료를 백업으로 되살리고 바로 열어요(손상된 파일은 옆에 남겨요). */
+  restoreAndOpen: (path: string, password: string) => call<null>("restore_and_open", { path, password }),
   pinStatus: () => call<PinStatus>("pin_status"),
   pinEnable: (password: string) => call<null>("pin_enable", { password }),
   pinDisable: () => call<null>("pin_disable"),
@@ -1598,6 +1619,12 @@ export function errorText(e: unknown): string {
       return "넣은 값을 확인해 주세요.";
     case "offline":
       return "인터넷에 연결하지 못했어요.";
+    case "corrupt":
+      return "자료 파일이 손상됐어요.";
+    case "too_new":
+      return "이 자료는 더 새 버전의 기록으로 만든 거예요.\n기록을 업데이트해 주세요.";
+    case "prefs_bad":
+      return "설정 파일을 읽을 수 없어요.\n자료는 그대로 있어요. AppData의 kr.gilog.app\\prefs.json을 확인해 주세요.";
     default:
       return "파일을 읽거나 쓰지 못했어요. 자료 폴더를 확인해 주세요.";
   }

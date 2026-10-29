@@ -7,7 +7,7 @@ import { isOn, Modules, onScreens, SCREENS, firstOn } from "../../screens";
 import Logo, { AppIcon } from "../../Logo";
 import { VERSION } from "../../version";
 import { setKeyMap } from "../../keys";
-import { ModulesCard, ModuleCard, KeysCard, GoogleRows, FilesRows, ListGroup, ListMerge, KindsGroup, PinRow, FolderRow, BackupRow, AddressRows, ProcessRows } from "./Table";
+import { ModulesCard, ModuleCard, KeysCard, GoogleRows, FilesRows, ListGroup, ListMerge, KindsGroup, PinRow, FolderRow, AutoBackupRow, BackupRow, AddressRows, ProcessRows } from "./Table";
 import { PasswordChange } from "./Dialogs";
 import { Row, Toggle, X } from "./parts";
 
@@ -384,6 +384,7 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
         )}
         <PasswordChange />
         <FolderRow folder={status.folder} onLocked={onLocked} setNote={setNote} />
+        <AutoBackupRow setNote={setNote} />
         <BackupRow onLocked={onLocked} setNote={setNote} />
       </section>
 

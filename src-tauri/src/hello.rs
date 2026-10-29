@@ -104,6 +104,7 @@ pub(crate) async fn pin_unlock(app: AppHandle, window: WebviewWindow) -> Result<
     let dir = data_dir(&app)?;
     match Store::open(&dir, &password) {
         Ok(store) => {
+            crate::daily_backup(&store);
             *app.state::<AppState>().store.lock().map_err(io)? = Some(store);
             Ok(())
         }
