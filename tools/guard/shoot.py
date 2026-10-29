@@ -133,7 +133,8 @@ async def s_complaints_dbl(p):
 
 async def s_complaints_edit_ask(p):
     await s_complaints_edit(p)
-    await p.get_by_role("button", name="2번 민원 지우기").first.click()
+    # 연번은 core가 접수일 순으로 매겨요(0.59.0 – 배수불량은 3번) – 번호와 상관없이 고치는 줄의 지우기 단추
+    await p.locator("button.cm-del").first.click()
 
 
 async def s_complaints_cats_merge(p):

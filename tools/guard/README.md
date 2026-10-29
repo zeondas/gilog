@@ -12,6 +12,15 @@
 - 계산된 모양 값 비교 `styles.py`(2026-10-26 정리 2차): 같은 장면을 두 빌드에서 열어 모든 요소(::before·::after 포함)의 `getComputedStyle` 전부를 견줘요 – 사진이 못 잡는 차이까지. CSS를 옮기거나 나눌 때 `python3 tools/guard/styles.py /tmp/g_base /tmp/g_cur` → 0이어야 해요. 알아 둘 것: `complaints_newrow_baddate`·`journal_memo`는 main끼리 찍어도 사진이 조금씩 흔들려요(1,400점·1점).
 - 동작 시험 `behave.py`: 메뉴·띠·창을 열고 ① 안에서 눌러 바깥에서 떼면 안 닫힘 ② 바깥 누르면 닫힘 ③ Esc로 닫힘, 지울까요 띠는 열리면 취소에 커서·Esc는 띠만 접힘, 날짜 칸은 보기 값 여덟 개가 떠날 때 8자리·abc는 빨강, 고치는 카드는 바깥 누르면 저장되는지.
 
+## 미리 보기 = WASM core (2026-10-30 품질 보완 ②-3)
+
+브라우저 미리 보기는 흉내 코드 없이 **앱과 같은 Rust 저장 규칙(`src-tauri/core`)을 브라우저용(WASM)으로** 써요(`src-tauri/core-wasm`, 메모리 저장소).
+- 만들기: `npm run build:wasm`(`tools/preview/build-wasm.mjs` – rustup 대상 `wasm32-unknown-unknown`·clang·`wasm-bindgen-cli` 0.2.129) → `src/wasm-pkg/`(저장소에 넣지 않아요).
+  작업 공간에서 Rust 받기가 막히면 check.yml이 남긴 산출물 **`preview-wasm`**(7일)을 받아 `src/wasm-pkg/`에 풀어요.
+- 그다음 이 폴더의 `vite.config.ts`로 빌드해요 – `tools/preview/plugin.ts`가 빈 자리 `src/previewCore.ts`를 `tools/preview/core.ts`(WASM)로 바꿔 끼워요. 앱 빌드(`npm run build`)는 빈 자리 그대로라 설치 파일에는 들어가지 않아요.
+- 시험 자료 `seed.js`는 `window.__previewSeed = async (call) => { … }` 하나예요 – 저장 모듈이 준비된 뒤 화면이 처음 부르기 전에 한 번 불려요. `call`은 앱 명령 이름 그대로(`call("add_complaint", { complaint })`)라 연번·정리·검사가 실제 앱과 같아요. 도구에서 나중에 자료를 고칠 때는 `window.__preview.call(…)`(화면은 이미 읽은 사본을 들고 있으니 다시 열거나, 처음부터 seed에 넣어요).
+- 윈도우·파일·인터넷이 필요한 명령은 자리 표시자예요(`src-tauri/core-wasm/src/placeholder.rs`). 탐색기 파일 목록(`src/filesApi.ts`)과 집행현황 팀 공유 시트(`src/budgetShare.ts` `__shareFake`)는 core 밖이라 미리 보기 전용 자료를 그대로 써요.
+
 ## 검사(CI)에서 저절로(2026-10-29 검사 자동화 ✔1)
 
 `check.yml`의 "모양 지킴이 0~3" 네 갈래가 wip 가지 push마다 윈도우 검사와 동시에 돌아요(화면 쪽 `src/`·`tools/guard/` 등을 안 바꾼 가지는 건너뜀).
