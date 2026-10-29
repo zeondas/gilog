@@ -1773,6 +1773,11 @@ pub fn fs_watch(app: AppHandle, state: tauri::State<Watch>, dirs: Vec<String>) -
 mod tests {
     use super::*;
 
+    /// "a/b/c"를 윈도우 구분자로 이어요 – 문자열로 견주는 경로(결정 키·되돌리기 짝)는 실제 경로와 글자가 같아야 해요.
+    fn rel(base: &Path, r: &str) -> PathBuf {
+        r.split('/').fold(base.to_path_buf(), |p, c| p.join(c))
+    }
+
     fn tmp(name: &str) -> PathBuf {
         let d = std::env::temp_dir().join(format!("gilog-files-{}-{}", name, std::process::id()));
         let _ = fs::remove_dir_all(&d);
@@ -1810,8 +1815,8 @@ mod tests {
         let cs = conflicts(&srcs, &b);
         assert_eq!(cs.len(), 2);
         let mut dec = HashMap::new();
-        dec.insert(b.join("사진/1.jpg").to_string_lossy().into_owned(), "over".to_string());
-        dec.insert(b.join("사진/2.jpg").to_string_lossy().into_owned(), "both".to_string());
+        dec.insert(rel(&b, "사진/1.jpg").to_string_lossy().into_owned(), "over".to_string());
+        dec.insert(rel(&b, "사진/2.jpg").to_string_lossy().into_owned(), "both".to_string());
         let s = transfer(false, &srcs, &b, &dec, &|_, _, _| {}).unwrap();
         assert_eq!(s.done, 4);
         assert_eq!(fs::read_to_string(b.join("사진/1.jpg")).unwrap(), "new1");
@@ -1854,7 +1859,7 @@ mod tests {
         // 복사: 새로 생긴 것만 짝으로(합친 폴더는 파일 단위, "메모 (2).txt")
         let s = transfer(false, &[a.join("현장"), a.join("메모.txt")], &b, &dec, &|_, _, _| {}).unwrap();
         let got: HashSet<String> = s.pairs.iter().map(|(_, t)| t.clone()).collect();
-        assert!(got.contains(&b.join("현장/사진/1.jpg").to_string_lossy().into_owned()), "{got:?}");
+        assert!(got.contains(&rel(&b, "현장/사진/1.jpg").to_string_lossy().into_owned()), "{got:?}");
         assert!(got.contains(&b.join("메모 (2).txt").to_string_lossy().into_owned()), "{got:?}");
         assert!(!got.contains(&b.join("현장").to_string_lossy().into_owned()));
         // 덮어쓰기는 짝에서 빠져요
@@ -1880,7 +1885,7 @@ mod tests {
         assert_eq!(r.errors[0].1, "exists");
         // 복사 다시 하기·새 폴더
         let r = run_steps(&[
-            Step::Copy { from: c.join("현장").to_string_lossy().into_owned(), to: d.join("e/현장").to_string_lossy().into_owned() },
+            Step::Copy { from: c.join("현장").to_string_lossy().into_owned(), to: rel(&d, "e/현장").to_string_lossy().into_owned() },
             Step::Mkdir { path: d.join("새 폴더").to_string_lossy().into_owned() },
         ]);
         assert_eq!(r.done, 2);
@@ -1990,9 +1995,9 @@ mod tests {
         let root = d.to_string_lossy().into_owned();
         let hits = vec![
             serde_json::json!({ "p": d.join("공사").to_string_lossy(), "d": true }),
-            serde_json::json!({ "p": d.join("공사/261015_봉일천리_포트홀.pptx").to_string_lossy(), "d": false }),
-            serde_json::json!({ "p": d.join("공사/포트홀 메모.txt").to_string_lossy(), "d": false }),
-            serde_json::json!({ "p": d.join("공사/지워진.txt").to_string_lossy(), "d": false }),
+            serde_json::json!({ "p": rel(&d, "공사/261015_봉일천리_포트홀.pptx").to_string_lossy(), "d": false }),
+            serde_json::json!({ "p": rel(&d, "공사/포트홀 메모.txt").to_string_lossy(), "d": false }),
+            serde_json::json!({ "p": rel(&d, "공사/지워진.txt").to_string_lossy(), "d": false }),
         ];
         let ask = move |q: &serde_json::Value| -> Option<serde_json::Value> {
             match q["op"].as_str()? {
