@@ -121,7 +121,11 @@ pub(crate) fn data_dir(app: &AppHandle) -> Result<PathBuf, String> {
     if !prefs.data_dir.is_empty() {
         return Ok(PathBuf::from(prefs.data_dir));
     }
-    // 시험용 두 번째 기록(--profile B)은 문서\giLog-B
+    default_data_dir(app)
+}
+
+/// 기본 자료 폴더 – 시험용 두 번째 기록(--profile B)은 문서\giLog-B
+pub(crate) fn default_data_dir(app: &AppHandle) -> Result<PathBuf, String> {
     app.path().document_dir().map(|d| d.join(format!("giLog{}", profile::suffix()))).map_err(io)
 }
 
@@ -305,6 +309,10 @@ fn get_value(state: State<AppState>, key: String) -> Result<Option<String>, Stri
 fn set_value(state: State<AppState>, key: String, value: String) -> Result<(), String> {
     let guard = state.store.lock().map_err(io)?;
     let store = guard.as_ref().ok_or_else(|| "locked".to_string())?;
+    // 설정 저장이 민원처리의 Claude 실행 파일 자리를 바꾸면 막아요 – 그건 `set_process_exe`로만(②-2 ✔2)
+    if key == "settings" && !process::settings_keep_exe(store.get("settings").map_err(code)?.as_deref(), &value) {
+        return Err(guard::DENIED.into());
+    }
     store.set(&key, &value).map_err(code)
 }
 
@@ -530,8 +538,9 @@ fn delete_complaint(state: State<AppState>, id: i64) -> Result<(), String> {
 // 파일 경로는 화면이 윈도우 열기·저장 창(dialog 플러그인)으로 받아 와요. 칸 맞추기·머릿기호 글자는 화면 쪽(src/excel.ts)이 해요.
 
 #[tauri::command]
-fn excel_write(path: String, kind: SheetKind, data: ExcelExport) -> Result<(), String> {
-    gilog_core::excel::write_xlsx(std::path::Path::new(&path), kind, &data).map_err(code)
+fn excel_write(app: AppHandle, path: String, kind: SheetKind, data: ExcelExport) -> Result<(), String> {
+    let path = guard::export_to(&path, &guard::protected(&app))?;
+    gilog_core::excel::write_xlsx(&path, kind, &data).map_err(code)
 }
 
 #[tauri::command]
@@ -605,7 +614,9 @@ fn delete_task(state: State<AppState>, id: i64) -> Result<usize, String> {
 // ---------- 백업과 저장 위치 ----------
 
 #[tauri::command]
-fn export_backup(state: State<AppState>, path: String) -> Result<(), String> {
+fn export_backup(app: AppHandle, state: State<AppState>, path: String) -> Result<(), String> {
+    // 백업 파일을 자료 폴더 안(자동 백업 자리 포함)에 덮어쓰지 않게(②-2 ✔1)
+    let path = guard::export_to(&path, &guard::protected(&app))?.to_string_lossy().to_string();
     let guard = state.store.lock().map_err(io)?;
     let store = guard.as_ref().ok_or_else(|| "locked".to_string())?;
     store.export_backup(&PathBuf::from(path)).map_err(code)
@@ -614,9 +625,12 @@ fn export_backup(state: State<AppState>, path: String) -> Result<(), String> {
 /// 백업을 불러오면 지금 자료가 백업 내용으로 바뀌고 앱이 잠겨요. 백업의 암호로 다시 열어야 해요.
 #[tauri::command]
 fn import_backup(app: AppHandle, state: State<AppState>, path: String, password: String) -> Result<(), String> {
+    guard::plain(&path)?;
     let dir = data_dir(&app)?;
     let mut guard = state.store.lock().map_err(io)?;
     *guard = None;
+    // 불러오기 전에 지금 자료를 backup\…_before-import로 남겨요(②-2 ✔5)
+    gilog_core::snapshot_before_import(&dir).map_err(code)?;
     gilog_core::restore_backup(&dir, &PathBuf::from(path), &password).map_err(code)?;
     // 맡겨 둔 열쇠는 이제 맞지 않아요.
     keyring_delete();
@@ -664,6 +678,7 @@ fn open_backup_folder(app: AppHandle) -> Result<(), String> {
 /// 손상된 파일은 `gilog_손상_날짜.db`로 옆에 남기고, 되살린 뒤는 "백업 불러오기"처럼 맡긴 열쇠·PIN을 꺼요.
 #[tauri::command]
 fn restore_and_open(app: AppHandle, state: State<AppState>, path: String, password: String) -> Result<(), String> {
+    guard::plain(&path)?;
     let dir = data_dir(&app)?;
     let mut guard = state.store.lock().map_err(io)?;
     *guard = None;
@@ -689,6 +704,8 @@ fn move_data(app: AppHandle, state: State<AppState>, folder: String) -> Result<(
     if to == from {
         return Ok(());
     }
+    // 옮길 곳이 지금 자료 폴더 안·앱 설정 폴더·윈도우 폴더면 막아요(②-2 ✔1)
+    guard::export_to(&folder, &guard::protected(&app))?;
     let mut guard = state.store.lock().map_err(io)?;
     *guard = None;
     gilog_core::move_data(&from, &to).map_err(code)?;
@@ -871,6 +888,7 @@ pub fn run() {
             process::make_order,
             process::order_jpg,
             process::send_order,
+            process::set_process_exe,
             process::check_sent,
             process::order_mailed,
             process::open_path,

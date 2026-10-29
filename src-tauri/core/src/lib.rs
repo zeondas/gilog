@@ -122,17 +122,38 @@ fn key_check(key: &[u8; 32]) -> String {
 
 /// 파일을 바로 덮어쓰지 않고 옆 임시 파일에 다 쓴 뒤 한 번에 바꿔치기해요.
 /// 쓰다가 꺼져도 옛 파일이나 새 파일 둘 중 하나는 온전히 남아요.
+/// 임시 이름은 `<이름>.tmp-<프로세스 번호>`라 두 번째 기록(--profile B)과 겹치지 않아요. 바꿔치기가 잠김(백신·색인)으로
+/// 실패하면 짧게 3번 더 해 봐요(②-2 ✔5).
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     use std::io::Write;
     let mut tmp = path.as_os_str().to_owned();
-    tmp.push(".tmp");
+    tmp.push(format!(".tmp-{}", std::process::id()));
     let tmp = PathBuf::from(tmp);
     {
         let mut f = fs::File::create(&tmp)?;
         f.write_all(bytes)?;
         f.sync_all()?;
     }
-    fs::rename(&tmp, path)
+    let r = rename_retry(&tmp, path);
+    if r.is_err() {
+        let _ = fs::remove_file(&tmp);
+    }
+    r
+}
+
+/// 이름 바꾸기 – 실패하면 50·100·150ms 쉬고 다시(모두 4번)
+pub fn rename_retry(from: &Path, to: &Path) -> std::io::Result<()> {
+    let mut last = None;
+    for i in 0..4u64 {
+        if i > 0 {
+            std::thread::sleep(std::time::Duration::from_millis(50 * i));
+        }
+        match fs::rename(from, to) {
+            Ok(()) => return Ok(()),
+            Err(e) => last = Some(e),
+        }
+    }
+    Err(last.unwrap_or_else(|| std::io::Error::other("rename")))
 }
 
 impl Meta {
@@ -173,9 +194,38 @@ impl Meta {
     }
 }
 
-/// 폴더에 자료 파일이 있는지 봐요.
+/// 폴더에 자료 파일이 있는지 봐요. 되살리기가 중간에 끊긴 흔적(`.old`)이 있으면 먼저 짝을 맞춰요.
 pub fn exists(dir: &Path) -> bool {
+    recover_swap(dir);
     dir.join(DB_FILE).is_file()
+}
+
+const OLD_TAIL: &str = ".old";
+
+fn old_of(dir: &Path, name: &str) -> PathBuf {
+    dir.join(format!("{name}{OLD_TAIL}"))
+}
+
+/// 되살리기(`restore_backup`)는 옛 두 파일을 `.old`로 비켜 두고 새 두 파일을 넣은 뒤 `.old`를 지워요(②-2 ✔5).
+/// 그 사이에 꺼졌으면: 새 두 파일이 다 있으면 바꿔치기는 끝난 것이라 `.old`만 지우고,
+/// 하나라도 없으면 `.old` 짝으로 되돌려요 – 늘 옛 짝이나 새 짝 하나가 온전히 남아요.
+pub fn recover_swap(dir: &Path) {
+    let names = [DB_FILE, META_FILE];
+    if !names.iter().any(|n| old_of(dir, n).is_file()) {
+        return;
+    }
+    if names.iter().all(|n| dir.join(n).is_file()) {
+        for n in names {
+            let _ = fs::remove_file(old_of(dir, n));
+        }
+        return;
+    }
+    for n in names {
+        let old = old_of(dir, n);
+        if old.is_file() {
+            let _ = rename_retry(&old, &dir.join(n));
+        }
+    }
 }
 
 /// 열려 있는 자료 파일이에요. 이 값을 버리면(drop) 잠겨요.
@@ -289,6 +339,7 @@ impl Store {
             if !path.exists() {
                 self.export_backup(&path)?;
             }
+            prune_before_v(&self.dir);
         }
         self.migrate_tables()?;
         if version < SCHEMA_VERSION {
@@ -502,9 +553,98 @@ pub fn restore_backup(dir: &Path, from: &Path, password: &str) -> Result<()> {
     for tail in ["-journal", "-wal", "-shm"] {
         let _ = fs::remove_file(dir.join(format!("{DB_FILE}{tail}")));
     }
-    fs::rename(tmp.join(DB_FILE), dir.join(DB_FILE))?;
-    fs::rename(tmp.join(META_FILE), dir.join(META_FILE))?;
+    swap_in(dir, &tmp, None)?;
     let _ = fs::remove_dir_all(&tmp);
+    Ok(())
+}
+
+/// 임시 폴더의 새 두 파일로 바꿔요: 옛 둘 → `.old` · 새 둘 → 제자리 · `.old` 지움.
+/// `stop_after`는 시험용(그 단계 뒤에 꺼진 것처럼 멈춤): 1 = 옛 하나 비킴, 2 = 옛 둘, 3 = 새 하나, 4 = 새 둘.
+fn swap_in(dir: &Path, tmp: &Path, stop_after: Option<u8>) -> Result<()> {
+    recover_swap(dir);
+    let names = [DB_FILE, META_FILE];
+    let mut step = 0u8;
+    let stop = |step: u8| stop_after == Some(step);
+    for n in names {
+        if dir.join(n).is_file() {
+            rename_retry(&dir.join(n), &old_of(dir, n))?;
+        }
+        step += 1;
+        if stop(step) {
+            return Ok(());
+        }
+    }
+    for n in names {
+        if let Err(e) = rename_retry(&tmp.join(n), &dir.join(n)) {
+            // 새 파일을 다 못 넣었으면 옛 짝으로 되돌려요
+            let _ = fs::remove_file(dir.join(n));
+            recover_swap(dir);
+            return Err(e.into());
+        }
+        step += 1;
+        if stop(step) {
+            return Ok(());
+        }
+    }
+    for n in names {
+        let _ = fs::remove_file(old_of(dir, n));
+    }
+    Ok(())
+}
+
+/// 백업 불러오기 전에 지금 자료를 `backup\gilog_YYYY-MM-DD_before-import.gilogbak`으로 남겨요(②-2 ✔5).
+/// 자료가 닫혀 있을 때(잠근 뒤) 불러요 – 파일을 그대로 묶어요. 같은 날 두 번이면 `-2`·`-3`…을 붙여요.
+pub fn snapshot_before_import(dir: &Path) -> Result<Option<PathBuf>> {
+    if !exists(dir) || !dir.join(META_FILE).is_file() {
+        return Ok(None);
+    }
+    let meta = fs::read_to_string(dir.join(META_FILE))?;
+    let db = fs::read(dir.join(DB_FILE))?;
+    let mut out = Vec::with_capacity(db.len() + meta.len() + 64);
+    out.extend_from_slice(BACKUP_MAGIC);
+    out.extend_from_slice(meta.replace('\n', "").as_bytes());
+    out.push(b'\n');
+    out.extend_from_slice(&db);
+    let folder = dir.join(BACKUP_DIR);
+    fs::create_dir_all(&folder)?;
+    let day = today();
+    let mut path = folder.join(format!("gilog_{day}_before-import.gilogbak"));
+    let mut i = 2;
+    while path.exists() {
+        path = folder.join(format!("gilog_{day}_before-import-{i}.gilogbak"));
+        i += 1;
+    }
+    write_atomic(&path, &out)?;
+    Ok(Some(path))
+}
+
+/// 형식 버전 올리기 전 백업(`_before-vN`)은 최근 `BEFORE_V_KEEP`개만 둬요(이름 순 = 날짜 순).
+pub const BEFORE_V_KEEP: usize = 3;
+
+pub fn prune_before_v(dir: &Path) {
+    let Ok(read) = fs::read_dir(dir.join(BACKUP_DIR)) else {
+        return;
+    };
+    let mut list: Vec<PathBuf> = read
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| {
+            let n = p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+            n.starts_with("gilog_") && n.contains("_before-v") && n.ends_with(".gilogbak")
+        })
+        .collect();
+    list.sort();
+    while list.len() > BEFORE_V_KEEP {
+        let _ = fs::remove_file(list.remove(0));
+    }
+}
+
+/// 복사하고 받은 쪽 크기가 원본과 같은지 확인해요
+fn copy_checked(src: &Path, dst: &Path) -> Result<()> {
+    fs::copy(src, dst)?;
+    if fs::metadata(src)?.len() != fs::metadata(dst)?.len() {
+        return Err(Error::Meta("복사한 파일 크기가 달라요".into()));
+    }
     Ok(())
 }
 
@@ -517,17 +657,17 @@ pub fn move_data(from: &Path, to: &Path) -> Result<()> {
     for name in [DB_FILE, META_FILE] {
         let src = from.join(name);
         if src.is_file() {
-            fs::copy(&src, to.join(name))?;
+            copy_checked(&src, &to.join(name))?;
         }
     }
-    // 자동 백업 폴더도 함께 옮겨요(옮기다 실패해도 원래 자리에 남아 있어요).
+    // 자동 백업 폴더도 함께 옮겨요. 모두 복사하고 크기를 확인한 뒤에만 원래 백업 폴더를 지워요(②-2 ✔5).
     let bak = from.join(BACKUP_DIR);
     if bak.is_dir() {
         let dest = to.join(BACKUP_DIR);
         fs::create_dir_all(&dest)?;
         for e in fs::read_dir(&bak)?.flatten() {
             if e.path().is_file() {
-                fs::copy(e.path(), dest.join(e.file_name()))?;
+                copy_checked(&e.path(), &dest.join(e.file_name()))?;
             }
         }
         let _ = fs::remove_dir_all(&bak);
@@ -868,5 +1008,133 @@ mod tests {
         move_data(&a, &b).unwrap();
         assert_eq!(daily_backups(&b).len(), 1);
         assert!(!a.join(BACKUP_DIR).exists());
+    }
+
+    // ---------- ②-2 ✔5 되살리기 원자성 ----------
+
+    /// 자료 "note" 값이 v인 자료 폴더와 그 백업 파일
+    fn store_with(dir: &Path, v: &str) -> PathBuf {
+        let s = Store::create(dir, "abcd1234").unwrap();
+        s.set("note", v).unwrap();
+        let bak = dir.join("x.gilogbak");
+        s.export_backup(&bak).unwrap();
+        bak
+    }
+
+    fn note(dir: &Path) -> String {
+        Store::open(dir, "abcd1234").unwrap().get("note").unwrap().unwrap()
+    }
+
+    /// 새 짝을 임시 폴더에 펼쳐 둬요(restore_backup이 하는 것처럼)
+    fn staged(dir: &Path, bak: &Path) -> PathBuf {
+        let bytes = fs::read(bak).unwrap();
+        let rest = &bytes[BACKUP_MAGIC.len()..];
+        let nl = rest.iter().position(|b| *b == b'\n').unwrap();
+        let tmp = dir.join(".restore-tmp");
+        fs::create_dir_all(&tmp).unwrap();
+        fs::write(tmp.join(META_FILE), &rest[..nl]).unwrap();
+        fs::write(tmp.join(DB_FILE), &rest[nl + 1..]).unwrap();
+        tmp
+    }
+
+    #[test]
+    fn restore_interrupted_recovers_a_whole_pair() {
+        let other = tempfile::tempdir().unwrap();
+        let new_bak = store_with(other.path(), "새 자료");
+        // 1~3단계에서 꺼지면 옛 짝으로, 4단계(새 둘 다 들어감) 뒤면 새 짝으로
+        for (stop, want) in [(1u8, "옛 자료"), (2, "옛 자료"), (3, "옛 자료"), (4, "새 자료")] {
+            let tmp = tempfile::tempdir().unwrap();
+            store_with(tmp.path(), "옛 자료");
+            let st = staged(tmp.path(), &new_bak);
+            swap_in(tmp.path(), &st, Some(stop)).unwrap();
+            assert!(exists(tmp.path()), "{stop}");
+            assert_eq!(note(tmp.path()), want, "{stop}");
+            assert!(!old_of(tmp.path(), DB_FILE).exists() && !old_of(tmp.path(), META_FILE).exists(), "{stop}");
+        }
+    }
+
+    #[test]
+    fn restore_leaves_no_old_files() {
+        let tmp = tempfile::tempdir().unwrap();
+        store_with(tmp.path(), "옛 자료");
+        let other = tempfile::tempdir().unwrap();
+        let bak = store_with(other.path(), "새 자료");
+        restore_backup(tmp.path(), &bak, "abcd1234").unwrap();
+        assert_eq!(note(tmp.path()), "새 자료");
+        assert!(!old_of(tmp.path(), DB_FILE).exists());
+        assert!(!tmp.path().join(".restore-tmp").exists());
+    }
+
+    #[test]
+    fn snapshot_before_import_keeps_current_data() {
+        let tmp = tempfile::tempdir().unwrap();
+        store_with(tmp.path(), "지금 자료");
+        let a = snapshot_before_import(tmp.path()).unwrap().unwrap();
+        let b = snapshot_before_import(tmp.path()).unwrap().unwrap();
+        assert_ne!(a, b);
+        assert!(a.file_name().unwrap().to_string_lossy().ends_with("_before-import.gilogbak"));
+        assert!(b.file_name().unwrap().to_string_lossy().ends_with("_before-import-2.gilogbak"));
+        // 하루치 자동 백업에 세지 않아요
+        assert!(daily_backups(tmp.path()).is_empty());
+        // 그 파일로 되살리면 지금 자료가 돌아와요
+        let other = tempfile::tempdir().unwrap();
+        store_with(other.path(), "다른 자료");
+        restore_backup(other.path(), &a, "abcd1234").unwrap();
+        assert_eq!(note(other.path()), "지금 자료");
+        // 자료가 없으면 남기지 않아요
+        let empty = tempfile::tempdir().unwrap();
+        assert!(snapshot_before_import(empty.path()).unwrap().is_none());
+    }
+
+    #[test]
+    fn before_v_backups_keep_three() {
+        let tmp = tempfile::tempdir().unwrap();
+        let folder = tmp.path().join(BACKUP_DIR);
+        fs::create_dir_all(&folder).unwrap();
+        for d in ["2026-01-01", "2026-02-01", "2026-03-01", "2026-04-01", "2026-05-01"] {
+            fs::write(folder.join(format!("gilog_{d}_before-v1.gilogbak")), b"x").unwrap();
+        }
+        fs::write(folder.join("gilog_2026-01-01.gilogbak"), b"x").unwrap();
+        fs::write(folder.join("gilog_2026-01-01_before-import.gilogbak"), b"x").unwrap();
+        prune_before_v(tmp.path());
+        let mut left: Vec<String> = fs::read_dir(&folder).unwrap().flatten().map(|e| e.file_name().to_string_lossy().to_string()).collect();
+        left.sort();
+        assert_eq!(
+            left,
+            [
+                "gilog_2026-01-01.gilogbak",
+                "gilog_2026-01-01_before-import.gilogbak",
+                "gilog_2026-03-01_before-v1.gilogbak",
+                "gilog_2026-04-01_before-v1.gilogbak",
+                "gilog_2026-05-01_before-v1.gilogbak"
+            ]
+        );
+    }
+
+    #[test]
+    fn write_atomic_uses_pid_tmp_and_retries() {
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path().join("prefs.json");
+        write_atomic(&p, b"1").unwrap();
+        write_atomic(&p, b"2").unwrap();
+        assert_eq!(fs::read(&p).unwrap(), b"2");
+        assert_eq!(fs::read_dir(tmp.path()).unwrap().count(), 1);
+        // 바꿔치기 대상이 폴더라 계속 실패하면 오류를 돌려주고 임시 파일은 남기지 않아요
+        let d = tmp.path().join("dir");
+        fs::create_dir_all(d.join("in")).unwrap();
+        assert!(write_atomic(&d, b"x").is_err());
+        assert_eq!(fs::read_dir(tmp.path()).unwrap().count(), 2);
+        // 처음엔 없다가 생기는 대상: rename_retry는 다시 해 봐요
+        let from = tmp.path().join("a");
+        let to = tmp.path().join("later").join("b");
+        fs::write(&from, b"y").unwrap();
+        let mk = to.parent().unwrap().to_path_buf();
+        let h = std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(30));
+            fs::create_dir_all(mk).unwrap();
+        });
+        rename_retry(&from, &to).unwrap();
+        h.join().unwrap();
+        assert_eq!(fs::read(&to).unwrap(), b"y");
     }
 }

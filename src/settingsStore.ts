@@ -178,12 +178,23 @@ export async function loadSettings(): Promise<Settings> {
   try {
     const saved = JSON.parse(raw) as Partial<Settings>;
     saved.status = [...STATUSES];
+    savedExe = saved.process?.claude ?? "";
     return withMemo({ ...structuredClone(DEFAULT_SETTINGS), ...saved, process: { ...DEFAULT_PROCESS, ...(saved.process ?? {}) }, files: { ...DEFAULT_FILES_SETTINGS, ...saved.files, dateFmt: dateFormatOf(saved.files?.dateFmt), treeHidden: saved.files?.treeHidden ?? saved.files?.hiddenDrives ?? [], cols: { ...DEFAULT_FILES_SETTINGS.cols, ...(saved.files?.cols ?? {}) } }, modules: { ...(saved.modules ?? {}) } });
   } catch {
     return structuredClone(DEFAULT_SETTINGS);
   }
 }
 
-export function saveSettings(s: Settings): Promise<null> {
+/** 마지막으로 읽거나 저장한 민원처리 Claude 실행 파일 자리(null = 아직 모름) */
+let savedExe: string | null = null;
+
+/** 설정 저장 – Claude 실행 파일 자리가 바뀌었으면 먼저 전용 명령으로 바꿔요.
+ *  앱은 설정 저장만으로는 그 자리를 못 바꾸게 막아요(품질 보완 ②-2 ✔2). */
+export async function saveSettings(s: Settings): Promise<null> {
+  const exe = s.process?.claude ?? "";
+  if (savedExe === null || savedExe.trim() !== exe.trim()) {
+    await api.setProcessExe(exe);
+    savedExe = exe;
+  }
   return api.set(KEY, JSON.stringify(s));
 }

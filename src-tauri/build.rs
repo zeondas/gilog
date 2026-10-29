@@ -26,6 +26,13 @@ const RISKY: &[&str] = &[
     "move_data",
     "import_backup",
     "restore_and_open",
+    // ②-2: 경로 검사를 거치는 쓰기 명령·Claude 실행 파일 자리 바꾸기
+    "excel_write",
+    "budget_excel_write",
+    "bstatus_excel_write",
+    "export_backup",
+    "send_order",
+    "set_process_exe",
 ];
 
 fn commands() -> Vec<String> {

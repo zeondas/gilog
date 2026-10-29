@@ -76,8 +76,9 @@ pub fn import_budget(state: State<AppState>, year: i64, projects: Vec<BudgetImpo
 }
 
 #[tauri::command]
-pub fn budget_excel_write(path: String, data: BudgetExport) -> Result<(), String> {
-    gilog_core::budget_xlsx::write_budget_xlsx(std::path::Path::new(&path), &data).map_err(code)
+pub fn budget_excel_write(app: tauri::AppHandle, path: String, data: BudgetExport) -> Result<(), String> {
+    let path = crate::guard::export_to(&path, &crate::guard::protected(&app))?;
+    gilog_core::budget_xlsx::write_budget_xlsx(&path, &data).map_err(code)
 }
 
 #[tauri::command]

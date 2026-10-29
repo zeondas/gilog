@@ -633,7 +633,9 @@ pub async fn order_jpg(state: State<'_, AppState>, id: i64) -> Result<Order, Str
 
 /// 폰으로 보내기: 지시부의 JPG(쪽마다)를 모두 보낼 폴더에 복사하고 "보내는 중"으로 적어요.
 #[tauri::command]
-pub fn send_order(state: State<AppState>, id: i64, outbox: String) -> Result<Order, String> {
+pub fn send_order(app: tauri::AppHandle, state: State<AppState>, id: i64, outbox: String) -> Result<Order, String> {
+    // 보낼 폴더가 자료 폴더·앱 설정 폴더·윈도우 폴더면 막아요(②-2 ✔1)
+    crate::guard::export_to(outbox.trim(), &crate::guard::protected(&app))?;
     let o = with_store(&state, |s| s.order(id))?;
     if o.jpgs.is_empty() || o.jpgs.iter().any(|j| !Path::new(j).is_file()) {
         return Err("nojpg".into());
@@ -1231,16 +1233,41 @@ fn saved_process(state: &State<AppState>) -> Result<SavedProcess, String> {
     Ok(parse_saved_process(raw.as_deref()))
 }
 
-/// 경로 비교: 앞뒤 빈칸·`/`·끝 `\`·대소문자를 무시
+/// 경로 비교: 앞뒤 빈칸·`/`·끝 `\`·대소문자를 무시 – 경로 검사와 같은 `guard::norm` 하나로 비교해요(②-2 ✔3)
 fn same_path(a: &str, b: &str) -> bool {
-    let n = |x: &str| {
-        let mut y = x.trim().replace('/', "\\").to_lowercase();
-        while y.len() > 3 && y.ends_with('\\') {
-            y.pop();
-        }
-        y
-    };
-    n(a) == n(b)
+    crate::guard::norm(a) == crate::guard::norm(b)
+}
+
+/// 설정 저장(`set_value("settings")`)이 Claude 실행 파일 자리를 바꾸지 않는지(②-2 ✔2).
+/// 바꾸는 것은 전용 명령 `set_process_exe`로만 해요 – 새 값이 읽히지 않는 글이면 막아요.
+pub(crate) fn settings_keep_exe(old: Option<&str>, new: &str) -> bool {
+    if serde_json::from_str::<serde_json::Value>(new).is_err() {
+        return false;
+    }
+    same_path(&parse_saved_process(old).claude, &parse_saved_process(Some(new)).claude)
+}
+
+/// 저장된 설정 글에서 Claude 실행 파일 자리만 바꾼 글(다른 값은 그대로)
+pub(crate) fn with_process_exe(old: Option<&str>, exe: &str) -> Result<String, String> {
+    let mut v: serde_json::Value = old.and_then(|t| serde_json::from_str(t).ok()).unwrap_or_else(|| serde_json::json!({}));
+    if !v.is_object() {
+        v = serde_json::json!({});
+    }
+    if !v["process"].is_object() {
+        v["process"] = serde_json::json!({});
+    }
+    v["process"]["claude"] = serde_json::Value::String(exe.to_string());
+    serde_json::to_string(&v).map_err(|e| e.to_string())
+}
+
+/// 설정 → 민원처리의 Claude 실행 파일 자리를 바꿔요(위험 명령 묶음, ②-2 ✔2). 실행할 때 이름 검사(`checked_exe`)는 그대로예요.
+#[tauri::command]
+pub fn set_process_exe(state: State<AppState>, exe: String) -> Result<(), String> {
+    with_store(&state, |s| {
+        let old = s.get("settings")?;
+        let next = with_process_exe(old.as_deref(), &exe).map_err(gilog_core::Error::Meta)?;
+        s.set("settings", &next)
+    })
 }
 
 /// 실행할 Claude: 화면이 보낸 값이 저장된 설정 값과 같고, 파일 이름이 claude(.exe)일 때만(✔2)
@@ -1250,7 +1277,10 @@ pub(crate) fn checked_exe(req_exe: &str, saved: &SavedProcess) -> Result<PathBuf
     if !same_path(&req, &set) {
         return Err(crate::guard::DENIED.into());
     }
-    crate::guard::plain(&set)?;
+    // 처음 값 "claude"(설치기가 넣는 자리·PATH)는 경로가 아니라 이름이에요
+    if set != "claude" {
+        crate::guard::plain(&set)?;
+    }
     let exe = claude_exe(&set);
     let full = exe.to_string_lossy().to_lowercase();
     let name = full.rsplit(['\\', '/']).next().unwrap_or("");
@@ -1658,6 +1688,33 @@ mod guard_tests {
         assert_eq!(checked_exe("C:\\x\\evil.exe", &bad).unwrap_err(), crate::guard::DENIED);
         let up = parse_saved_process(Some(r#"{"process":{"claude":"C:\\x\\..\\claude.exe"}}"#));
         assert_eq!(checked_exe("C:\\x\\..\\claude.exe", &up).unwrap_err(), crate::guard::DENIED);
+    }
+
+    #[test]
+    fn settings_save_cannot_change_exe() {
+        let old = r#"{"theme":"a","process":{"claude":"C:\\Users\\me\\.local\\bin\\claude.exe","inbox":"D:\\x"}}"#;
+        // 다른 값은 바꿔도 돼요(대소문자·끝 \\ 차이도 같은 자리)
+        assert!(settings_keep_exe(Some(old), r#"{"theme":"b","process":{"claude":"c:/users/me/.local/bin/CLAUDE.EXE","inbox":"E:\\y"}}"#));
+        // Claude 자리를 바꾸면 막아요
+        assert!(!settings_keep_exe(Some(old), r#"{"process":{"claude":"C:\\Windows\\System32\\cmd.exe"}}"#));
+        assert!(!settings_keep_exe(Some(old), r#"{"theme":"b"}"#));
+        assert!(!settings_keep_exe(Some(old), "깨진 글"));
+        // 처음 저장(없음 → 처음 값)은 돼요
+        assert!(settings_keep_exe(None, r#"{"process":{"claude":""}}"#));
+        assert!(settings_keep_exe(None, r#"{"theme":"a"}"#));
+    }
+
+    #[test]
+    fn set_process_exe_keeps_other_values() {
+        let old = r#"{"theme":"a","process":{"claude":"claude","inbox":"D:\\x"}}"#;
+        let next = with_process_exe(Some(old), "C:\\c\\claude.exe").unwrap();
+        let s = parse_saved_process(Some(&next));
+        assert_eq!(s.claude, "C:\\c\\claude.exe");
+        assert_eq!(s.inbox, "D:\\x");
+        assert!(next.contains("\"theme\":\"a\""));
+        assert_eq!(parse_saved_process(Some(&with_process_exe(None, "C:\\c\\claude.exe").unwrap())).claude, "C:\\c\\claude.exe");
+        // 이렇게 바꾼 뒤의 설정 저장은 통과해요
+        assert!(settings_keep_exe(Some(&next), &next));
     }
 
     #[test]
