@@ -47,18 +47,43 @@ _
 _
 # 4. 상세설명
 ## 가. Claude Code 넣기
-<그림 {claude.exe를 처음 실행했을 때 검은 창의 로그인 안내 화면}>
 ○ 회사 망은 인터넷 설치 명령이 막혀 있어, 미리 받아 둔 claude.exe 파일을 정해진 폴더에 직접 복사하는 방식
-1) claude.exe 파일 준비 : 【확인 필요】 기록앱 담당자에게 파일로 받거나, Claude에게 "윈도우용 Claude Code 설치 파일"을 요청하여 받음
+○ 처음 실행하면 영어로 된 검은 창(명령 창)이 열리지만, 아래 그림의 순서대로 키보드 Enter와 ↓(아래 화살표) 키만 누르면 됨
+1) claude.exe 파일 준비 : 기록앱 담당자에게 압축 파일(claude-code_버전_win-x64.zip)로 받아 압축을 풀면 claude.exe 파일 1개
 2) 윈도우 탐색기 주소 칸에 %USERPROFILE% 입력 후 Enter, 내 사용자 폴더(C:\Users\내 이름) 표시
 3) 그 폴더에 새 폴더 .local을 만들고, .local 안에 새 폴더 bin을 만듦
 4) bin 폴더에 claude.exe를 복사 (최종 위치 : C:\Users\내 이름\.local\bin\claude.exe)
-5) claude.exe를 더블클릭하여 실행하고 검은 창의 안내에 따라 로그인 진행
-6) 브라우저에 Claude 로그인 화면이 열리면 가.의 Claude 계정으로 로그인 후 허용
-7) 검은 창에 로그인 완료가 표시되면 창 닫기
 - 폴더 이름 .local이 만들어지지 않으면 끝에 점을 하나 더 붙여 .local. 으로 입력
+<그림 claude/01_bin폴더.png>
+5) bin 폴더의 claude를 더블클릭, 검은 창이 열리고 글자 색 고르기 화면 표시
+6) 이미 Dark mode에 √ 표시가 있으므로 그대로 Enter
+<그림 claude/02_글자색.png>
+7) 로그인 방법 고르기 화면 : 1번 Claude account with subscription(Claude 유료 요금제 계정)에 > 표시가 있으므로 그대로 Enter
+<그림 claude/03_로그인방법.png>
+8) 잠시 후 브라우저(엣지 또는 크롬)가 저절로 열림, 검은 창에는 아래 화면이 표시되고 기다림
+- 브라우저가 열리지 않으면 검은 창에서 c 키를 눌러 주소를 복사하고, 브라우저 주소 칸에 붙여 넣은 뒤 Enter
+<그림 claude/04_로그인주소.png>
+9) 브라우저의 Claude 로그인 화면에서 Claude 유료 계정으로 로그인 (Google로 계속하기 또는 이메일 입력)
+<그림 claude/05_브라우저로그인.png>
+10) "Claude Code 앱에서 내 Claude chat account 연결을 요청합니다" 화면에서 [승인]
+<그림 claude/06_연결승인.png>
+11) "Claude Code 사용 준비가 완료되었습니다" 표시가 나오면 브라우저 창을 닫고 검은 창으로 돌아감 (작업 표시줄의 검은 창 아이콘 클릭)
+<그림 claude/07_준비완료.png>
+12) 검은 창에 Login successful(로그인 성공) 표시, Enter
+<그림 claude/08_로그인성공.png>
+13) Security notes(보안 안내) 화면, Enter
+<그림 claude/09_보안안내.png>
+14) "이 폴더를 믿을까요" 화면 : ↓ 키를 한 번 눌러 Yes, I trust this folder로 옮긴 뒤 Enter
+- 처음 > 표시는 No, exit(아니요, 끝내기)에 있으므로, 그대로 Enter를 누르면 창이 닫힘, 5)부터 다시 진행
+<그림 claude/10_폴더확인.png>
+15) 크롬 확장을 찾았다는 화면이 나오면 ↓ 키를 한 번 눌러 Yes, use my browser로 옮긴 뒤 Enter
+- 크롬에 Claude 확장(나.)이 아직 없으면 이 화면은 나오지 않음
+<그림 claude/11_크롬확장.png>
+16) 맨 위에 Claude Code와 계정 요금제(Claude Max 등)가 표시되고 > 입력 칸이 나오면 준비 완료, 오른쪽 위 × 로 검은 창 닫기
+<그림 claude/12_완료.png>
 - 기록앱은 이 폴더를 먼저 찾으므로 설정 → 민원처리 카드 → Claude 실행 파일 칸은 처음 값(claude) 그대로 둠
 - 다른 폴더에 넣었으면 그 파일의 전체 위치를 Claude 실행 파일 칸에 입력
+- 한 번 로그인하면 다시 할 필요 없음, 로그인이 풀리면 기록앱에 "Claude Code 로그인이 필요해요"가 표시되며 그때 5)부터 다시 진행
 ## 나. 크롬 Claude 확장
 <그림 {크롬 웹 스토어의 Claude 확장 화면([Chrome에 추가] 버튼이 보이게)}>
 ○ Claude Code가 크롬 화면을 보고 클릭할 수 있게 해 주는 크롬 도우미
