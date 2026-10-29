@@ -105,9 +105,9 @@ async def fig_png(br, url, fg, out):
 
 CROP_BASE = 1_900_000_000   # hwpx_build.py와 같은 값 – 상세설명 제목 아래 "그 부분" 그림 틀
 LABELS = "가나다라마바사아자차카타파하"
-CROP_MAX_H = 14200          # 그 부분 그림 높이 한도(약 5cm)
-CROP_PAD = 28               # 요소 둘레 여백(CSS px)
-CROP_MIN_W = 360            # 너무 좁은 요소는 양옆을 더 보여 줘요
+CROP_MAX_H = 18400          # 그 부분 그림 높이 한도(약 6.5cm)
+CROP_PAD = 90               # 요소 둘레 여백(CSS px) – 옆 UI가 보여 어디쯤인지 알 수 있게(12:45 사용자)
+CROP_MIN_W = 760            # 좁은 요소도 이만큼은 양옆을 보여 줘요
 
 CROP_HTML = """<!doctype html><meta charset=utf-8><style>
 @font-face{font-family:P;src:url(%(font)s) format('woff2');font-weight:100 900}
@@ -115,7 +115,8 @@ body{margin:0;background:#fff;font-family:P}
 .s{position:relative;width:%(w)dpx;height:%(h)dpx}
 .s img{position:absolute;left:0;top:0;width:%(w)dpx;height:%(h)dpx}
 .frame{position:absolute;inset:0;border:1px solid #D6D4DE;border-radius:4px}
-.hl{position:absolute;left:%(bx)dpx;top:%(by)dpx;width:%(bw)dpx;height:%(bh)dpx;border:2px solid #6A4DFF;border-radius:6px;box-sizing:border-box}
+.s{overflow:hidden}
+.hl{box-shadow:0 0 0 4000px rgba(255,255,255,.42);position:absolute;left:%(bx)dpx;top:%(by)dpx;width:%(bw)dpx;height:%(bh)dpx;border:2px solid #6A4DFF;border-radius:6px;box-sizing:border-box}
 .ring{position:absolute;left:%(rx)dpx;top:%(ry)dpx;width:22px;height:22px;border-radius:50%%;border:1.5px solid #1C1B22;background:#fff;color:#1C1B22;
  font-size:11.5px;font-weight:700;display:flex;align-items:center;justify-content:center;box-sizing:border-box}
 </style><div class=s id=s><img src="%(img)s"><div class=frame></div><div class=hl></div><div class=ring>%(label)s</div></div>"""
@@ -140,8 +141,11 @@ async def crop_pngs(br, url, mp, labels, outs):
             c = (x0 + x1) / 2
             x0, x1 = c - CROP_MIN_W / 2, c + CROP_MIN_W / 2
         y0, y1 = b["y"] - CROP_PAD, b["y"] + b["height"] + CROP_PAD
-        x0, y0 = max(0, x0), max(0, y0)
-        x1, y1 = min(pw_css, x1), min(ph_css, y1)
+        if x0 < 0:
+            x1, x0 = min(pw_css, x1 - x0), 0
+        if x1 > pw_css:
+            x0, x1 = max(0, x0 - (x1 - pw_css)), pw_css
+        y0, y1 = max(0, y0), min(ph_css, y1)
         reg = full.crop((int(x0 * D), int(y0 * D), int(x1 * D), int(y1 * D)))
         buf = io.BytesIO()
         reg.save(buf, "PNG")
@@ -164,7 +168,7 @@ async def crop_pngs(br, url, mp, labels, outs):
     return missing
 
 
-SPLIT_W = 760   # 이보다 넓은 띠(머리 줄 단추 등)는 여러 줄로 나눠 쌓아요 – 한 줄로 두면 글자가 너무 작아져요
+SPLIT_W = 1000  # 이보다 넓은 띠(머리 줄 단추 등)는 여러 줄로 나눠 쌓아요 – 한 줄로 두면 글자가 너무 작아져요
 
 
 def split_wide(path):
@@ -173,7 +177,7 @@ def split_wide(path):
     w = im.width / D
     if w <= SPLIT_W:
         return
-    k = -(-int(w) // 700)
+    k = -(-int(w) // 850)
     g = im.convert("L")
     px = g.load()
     def ink(x):   # 세로 한 줄의 진한 점 수 – 단추 사이 빈 곳에서 자르려고
