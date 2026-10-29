@@ -165,7 +165,8 @@ pub fn write_budget_xlsx(path: &Path, data: &BudgetExport) -> Result<()> {
         .set_align(FormatAlign::VerticalCenter);
     for (i, (h, _)) in COLS.iter().enumerate() {
         // 비율 열 머리: 집행률 보기 "집행률", 시공량 보기 "사용률"
-        let h = if i == 8 && act { "사용률" } else { *h };
+        // 원인행위 열 머리: 시공량 보기는 "계약금액"(2026-10-28 21:58 사용자)
+        let h = if i == 8 && act { "사용률" } else if i == 4 && act { "계약금액" } else { *h };
         ws.write_string_with_format(2, i as u16, h, &head).map_err(xerr)?;
     }
     ws.write_string(2, 12, "줄").map_err(xerr)?;
@@ -461,6 +462,7 @@ mod tests {
         let grid = read_grid(&path).unwrap();
         assert_eq!(grid[0].rows[1][0], "기준일 2026-10-18 · 단위 원 · 보기 집행률");
         assert_eq!(grid[0].rows[2][8], "집행률");
+        assert_eq!(grid[0].rows[2][4], "원인행위");
     }
 
     /// 시공량 보기: 공사 줄 잔액·비율 = G(끝난 공사도), 합계 줄 비율 G/D·머리 "사용률", 집행액 F 열 숨김
@@ -478,6 +480,7 @@ mod tests {
         let grid = read_grid(&path).unwrap();
         assert_eq!(grid[0].rows[1][0], "기준일 2026-10-18 · 단위 원 · 보기 시공량");
         assert_eq!(grid[0].rows[2][8], "사용률");
+        assert_eq!(grid[0].rows[2][4], "계약금액");
     }
 
     /// 가용액 = 예산 − Σ(완료·타절 × 집행액) − Σ(진행 중 × 원인행위) — 보기와 상관없이 같아요(G는 안 들어가요)
