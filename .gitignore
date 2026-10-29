@@ -7,3 +7,5 @@ src-tauri/core/target
 src-tauri/core/Cargo.lock
 src-tauri/fastfind/target
 src-tauri/bin
+__pycache__/
+*.pyc

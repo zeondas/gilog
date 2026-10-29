@@ -539,6 +539,9 @@ pub fn move_data(from: &Path, to: &Path) -> Result<()> {
 }
 
 #[cfg(test)]
+mod migrate_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
