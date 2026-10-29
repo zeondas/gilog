@@ -60,6 +60,11 @@ def main():
     toc_i = next(i for i, p in enumerate(paras) if "<hp:pageHiding" in p)
     assert len(titles) == len(CH_KEYS) and titles[0] > toc_i, (titles, toc_i)
     starts = {i for i, p in enumerate(paras) if (first_vert(p) or [1])[0] == 0 and i >= titles[0]}
+    # 옮겨 온 문단(준비 편 등 – hwpx_merge_setup.py): 쪽 시작을 미리 모르니 문단마다 띠(겹쳐도 같은 자리라 안 보여요)
+    for r in os.environ.get("BAND_ALL", "").split(","):
+        if r:
+            a, c = map(int, r.split("-"))
+            starts |= set(range(a, c))
     subrule = {t + 2 for t in titles}
     bands = {k: b(f"band_{k}.png") for k in CH_KEYS}
     bar, rule = b("bar.png"), b("rule.png")
@@ -113,7 +118,7 @@ def main():
             elif it.filename == "Contents/content.hpf": data = hpf.encode("utf-8")
             elif it.filename == "Contents/header.xml": data = header.encode("utf-8")
             zi = zipfile.ZipInfo(it.filename, date_time=it.date_time)
-            zi.compress_type = zipfile.ZIP_STORED if it.filename == "mimetype" or it.filename.startswith("BinData/") else zipfile.ZIP_DEFLATED
+            zi.compress_type = zipfile.ZIP_STORED if it.filename == "mimetype" or (it.filename.startswith("BinData/") and not it.filename.lower().endswith(".bmp")) else zipfile.ZIP_DEFLATED
             zi.external_attr = it.external_attr
             zout.writestr(zi, data)
         for x, png in items:
