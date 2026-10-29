@@ -5,6 +5,18 @@
 ## 버전별 — 들어간 것 · 시험 항목
 사용자 "통과"는 0.11.0~0.27.0 모두 기다려요(빌드 줄). 시험 항목은 윈도우에서만 볼 수 있는 것이에요.
 
+### 0.56.0(build-76) — 검사 자동화(지킴이 CI·부하 시험·마이그레이션·부품 시험)
+- 들어간 것: ci2(24380a0) – 품질 보완 ③ 검사 자동화: `check.yml`에 모양 지킴이(사진·계산 모양·동작, 4갈래 병렬 약 4분, 흔들림 장면은 두 번까지 다시) · 새 `load.yml` 부하 시험(수동·주 1회 예약) · core 마이그레이션 시험 3(`migrate_tests.rs`) · 화면 부품 시험 34(`*.test.tsx`) · `build.yml` 보강(설치 파일 전 npm test, 액션 SHA 고정, 릴리스 제목 "기록 0.N.0 (build-N)") · `tools/guard/ci.py`·`tools/load/report.py` – 앱 동작 변화 없음. 바뀐 build.yml 첫 실행 성공(약 14분)
+- 시험: 앱 동작은 0.55.0과 같아야 함(설치·열기·화면 몇 개) · 0.55.0의 CSP 시험은 그대로 유효
+
+#### 대기 목록 "검사 자동화" 칸(0.56.0에 들어가 옮김)
+### 검사 자동화 (품질 보완 ③, `wip/ci2` – 10-29 17:27 사용자 "제안대로" ①~④ 1안, [review](https://github.com/zeondas/gilog/blob/main/docs/qa/review-2026-10-29.md))
+- ✔ 1. 지킴이(사진·계산 모양·동작)를 check.yml에 – 리눅스 검사로 윈도우 검사와 동시에, 화면(`src/`)·`tools/guard`를 바꾼 wip push마다(①1안), 4갈래로 나눠 돌림. 기준은 main을 같은 기계에서 빌드. 흔들림 장면(`files_find_baddate`·`journal_memo`·`complaints_newrow_baddate`)은 장면별 허용 점수(`tools/guard`만 고침). 10-27 09:26 문서만·Rust 건너뜀은 그대로. CI 시간 전후를 재서 현황판에.
+- ✔ 2. 부하 시험 `load.yml` – 주 1회 예약(월요일 아침, main) + 수동(②1안), 3년치 흉내 자료로 loadtest.md 항목, 결과는 요약 표, 기준 넘어도 실패 아님(숫자만).
+- ✔ 3. 마이그레이션 시험(core) – 시험이 0.35.0 무렵 표 구조(나중에 더한 칸 16개 없음)·user_version 0 파일을 직접 만들어 열고, 지금 버전·칸·자료 그대로인지. `SCHEMA_VERSION`을 올릴 때마다 한 단계씩 더하는 틀.
+- ✔ 4. 화면 부품 시험 – happy-dom(이미 있음) + `@testing-library/react` 하나 추가(③1안), `src/**/*.test.tsx`로 `PhoneInput`·`BulletEditor`·`ColHead`·`YearNav`·`Gate` 손상 띠의 키·입력 동작만, `npm test`에 포함.
+- ✔ 5. build.yml – 설치 파일 만들기 전 `npm test`, 태그는 `build-N` 그대로·릴리스 제목에 "기록 0.N.0 (build-N)"(④1안), 바깥 액션 SHA 고정(check.yml도), `workflow_dispatch` "시험 모드"면 Releases 단계 건너뜀. 덤: 저장소에 든 `tools/guard/__pycache__`를 빼고 무시 목록에.
+
 ### 0.55.0(build-75) — 명령 경로 검사·실행 확인 창·CSP·사진 범위
 - 들어간 것: guardrails(4f16914) – 품질 보완 ② 명령 경로 검사: 새 `src-tauri/src/guard.rs`(지우기·옮기기·실행 명령 경로 검사 – 드라이브 맨 위·윈도우·앱·자료 폴더 금지, `..`·특수 경로 거름 → `path_denied`), 탐색기에서 실행 파일을 열면 "실행할까요?" 창(새 장면 `files_runask`), 민원처리는 설정에 저장된 claude.exe만·Edit 도구 뺌, `tauri.conf.json` CSP(로컬·asset·ipc·구글·공휴일·주소정보누리집), 사진 미리 보기는 연 폴더만, 명령 허용 묶음(`build.rs` app-commands·app-risky, `permissions/` 자동 생성) – Rust 앱, 앱 Rust 시험 50(+10)
 - 시험: (CSP) 구글 캘린더 로그인·맞추기 · 공휴일 받기 · 탐색기 사진 미리 보기 · 민원처리 "민원 불러오기" · 도로명주소 변환 / exe·bat 두 번 누르기 → "실행할까요?", hwp·xlsx는 바로 열림 / 탐색기 지우기·옮기기
