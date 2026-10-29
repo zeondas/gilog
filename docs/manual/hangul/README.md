@@ -13,3 +13,7 @@
 사용자가 한글에서 간격·쪽을 맞춘 파일이 기준이에요. 처음부터 다시 만들지 않고 고칠 곳만 바꿔요.
 `python3 tools/manual/hwpx_patch.py <미리 보기 빌드> docs/manual/hangul/사용자-수정본-v4_2026-10-29.hwpx 결과.hwpx docs/manual/hangul/map docs/manual/hangul/settings.txt`
 – 글 바로잡기(REPLACE)·버튼 표기(대괄호까지 회색 바탕)·키 표기·"1. 기획 의도"·설정 장 다시 쓰기(카드별 그림)·{붉은 글자} 칸 그림. 다른 그림은 그대로.
+
+## 앞부분(표지·목차·Ⅰ. 프로그램 개요) (2026-10-29 v7)
+`python3 tools/manual/hwpx_front.py <미리 보기 빌드> docs/manual/hangul/사용자-수정본-v6_2026-10-29.hwpx 결과.hwpx docs/manual/hangul/map docs/manual/hangul/front.txt`
+– 글은 `front.txt`, 목차·모듈 구성은 장 제목과 부제목을 읽어 만들어요. 그림: 잠금 화면·시작 화면(`map_overview.json`, `extra_scenes_overview.py`). 쪽 번호는 Ⅰ장 첫 쪽부터.

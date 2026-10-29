@@ -1,0 +1,46 @@
+{
+ "scene": "screen_07",
+ "feats": [
+  {
+   "label": "가",
+   "name": "모듈 메뉴",
+   "sel": ".side-list >> nth=0",
+   "side": "왼쪽",
+   "hint": ""
+  },
+  {
+   "label": "나",
+   "name": "설정",
+   "sel": ".side-item:has-text(\"설정\")",
+   "side": "왼쪽",
+   "hint": ""
+  },
+  {
+   "label": "다",
+   "name": "잠그기",
+   "sel": ".side-item:has-text(\"잠그기\")",
+   "side": "왼쪽",
+   "hint": ""
+  },
+  {
+   "label": "라",
+   "name": "접기",
+   "sel": ".side-toggle .side-item",
+   "side": "왼쪽",
+   "hint": ""
+  },
+  {
+   "label": "마",
+   "name": "본문",
+   "sel": ".main",
+   "side": "위",
+   "hint": ""
+  }
+ ],
+ "figs": [],
+ "lock": {
+  "scene": "overview_lock",
+  "sel": ".gate-card"
+ },
+ "crop": "#root"
+}
