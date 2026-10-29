@@ -19,7 +19,7 @@ import zipfile
 sys.path.insert(0, os.path.dirname(__file__))
 from hwpx_toplevel import top_paras  # noqa: E402
 
-FONT = os.environ.get("NUM_FONT", "Noto Sans KR Black")
+FONT = os.environ.get("NUM_FONT", "HY견고딕")   # 10-29 23:42 사용자 1안 – Noto Sans KR 가변 글꼴은 한글이 Thin으로 그려요
 SCALE = 1.5
 COLOR = "#B8B8BF"
 DESC_HANGUL, DESC_DIGIT = 0.097, 0.014          # Noto Sans CJK KR Black 실측(em)
