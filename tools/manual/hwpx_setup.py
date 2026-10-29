@@ -143,7 +143,7 @@ def frame(spec):
     png = os.path.join(imgdir, spec)
     bid = f"setup{len(items) + 1:02d}"
     items.append((bid, png))
-    return t[:tb.start()] + hp.fill(tb.group(0), png, bid, CENTER, hp.PX) + t[tb.end():]
+    return t[:tb.start()] + hp.fill(tb.group(0), png, bid, CENTER, None) + t[tb.end():]
 
 
 # ---------- 원고 → 문단 ----------
