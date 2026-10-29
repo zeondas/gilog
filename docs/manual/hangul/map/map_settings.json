@@ -1,5 +1,5 @@
 {
- "scene": "settings_tall",
+ "scene": "screen_09",
  "feats": [
   {
    "label": "가",
@@ -41,28 +41,34 @@
    "name": "보안·저장",
    "sel": "section.card >> nth=2 >> .card-head",
    "side": "왼쪽",
-   "hint": ""
+   "hint": "",
+   "screen": false
   },
   {
    "label": "사",
    "name": "키 설정",
    "sel": "section.card >> nth=3 >> .card-head",
    "side": "왼쪽",
-   "hint": ""
+   "hint": "",
+   "screen": false
   },
   {
    "label": "아",
    "name": "모듈별 설정",
    "sel": "h2.set-sec >> nth=1",
    "side": "왼쪽",
-   "hint": ""
+   "hint": "",
+   "screen": false
   }
  ],
- "figs": [
-  {
-   "head": "아. 모듈별 설정",
-   "scene": "settings_calendar",
-   "sel": "section[aria-label='캘린더']"
-  }
+ "figs": [],
+ "crop_scene": "settings_full",
+ "cards": [
+  "section.mod-card >> nth=0",
+  "section.mod-card >> nth=1",
+  "section.mod-card >> nth=2",
+  "section.mod-card >> nth=3",
+  "section.mod-card >> nth=4",
+  "section.mod-card >> nth=5"
  ]
 }

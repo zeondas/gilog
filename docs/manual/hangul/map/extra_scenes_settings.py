@@ -5,3 +5,11 @@ async def s_settings_tall(p):
     await p.wait_for_timeout(400)
 
 EXTRA = {"settings_tall": ("설정", s_settings_tall)}
+
+
+async def s_settings_full(p):
+    # 상세설명 "아. 모듈별 설정" 카드 그림용 – 모듈별 카드 6장까지 한 화면에 들어오게 창 높이만 늘려요.
+    await p.set_viewport_size({"width": 1600, "height": 5400})
+    await p.wait_for_timeout(400)
+
+EXTRA["settings_full"] = ("설정", s_settings_full)

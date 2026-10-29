@@ -56,13 +56,13 @@ async def screen_png(br, url, mp, out):
     """화면 그림 + 가·나·다 표식 → PNG(3배)."""
     ch = {"scene": mp["scene"], "crop": mp.get("crop", ""), "title": mp["scene"], "detail": [],
           "marks": [{"name": f["label"], "sel": f["sel"], "text": "", "hint": f"{f.get('side', '')} {f.get('hint', '')}"}
-                    for f in mp["feats"]]}
+                    for f in mp["feats"] if f.get("screen", True)]}
     missing = []
     sh = await build.shoot_chapter(br, url, ch, missing)
     W, BAND, R = build.IMG_W, build.BAND, 22
     total = BAND * 2 + sh["h"]
     svg, rings = [], []
-    left = {f["label"] for f in mp["feats"] if f.get("side") == "왼쪽"}
+    left = {f["label"] for f in mp["feats"] if f.get("side") == "왼쪽" and f.get("screen", True)}
     LB = 34 if left else 0          # 왼쪽 표식 띠(세로로 긴 화면용 – 지시선을 짧게)
     for m in sh["marks"]:
         if not m["box"]:
@@ -119,28 +119,32 @@ body{margin:0;background:#fff;font-family:P}
 .hl{box-shadow:0 0 0 4000px rgba(255,255,255,.42);position:absolute;left:%(bx)dpx;top:%(by)dpx;width:%(bw)dpx;height:%(bh)dpx;border:2px solid #6A4DFF;border-radius:6px;box-sizing:border-box}
 .ring{position:absolute;left:%(rx)dpx;top:%(ry)dpx;width:22px;height:22px;border-radius:50%%;border:1.5px solid #1C1B22;background:#fff;color:#1C1B22;
  font-size:11.5px;font-weight:700;display:flex;align-items:center;justify-content:center;box-sizing:border-box}
-</style><div class=s id=s><img src="%(img)s"><div class=frame></div><div class=hl></div><div class=ring>%(label)s</div></div>"""
+</style><div class=s id=s><img src="%(img)s"><div class=frame></div><div class=hl style="%(hs)s"></div><div class=ring style="%(rs)s">%(label)s</div></div>"""
 
 
 async def crop_pngs(br, url, mp, labels, outs):
     """화면 장면에서 기능별 요소(가·나·다)마다 둘레를 잘라 보라 테두리 + 번호를 얹어요(3배)."""
     feats = {f["label"]: f for f in mp["feats"]}
-    ctx, p = await cap.open_scene(br, url, mp["scene"])
+    ctx, p = await cap.open_scene(br, url, mp.get("crop_scene", mp["scene"]))
     full = Image.open(io.BytesIO(await p.screenshot(full_page=True))).convert("RGB")
     D = cap.DPR
     pw_css, ph_css = full.width / D, full.height / D
     missing, jobs = [], []
     for label, out in zip(labels, outs):
-        f = feats.get(label)
+        f = feats.get(label) or ({"sel": label[1:]} if label.startswith("@") else None)   # "@선택자" = 번호 없는 카드 그림
+        card = label.startswith("@")
+        if card:
+            label = ""
         b = await cap.box(p, f["sel"]) if f else None
         if not b:
             missing.append(f"상세 그림 {label}")
             b = {"x": 0, "y": 0, "width": pw_css, "height": min(ph_css, 300)}
-        x0, x1 = b["x"] - CROP_PAD, b["x"] + b["width"] + CROP_PAD
-        if x1 - x0 < CROP_MIN_W:
+        pad = 10 if card else CROP_PAD
+        x0, x1 = b["x"] - pad, b["x"] + b["width"] + pad
+        if not card and x1 - x0 < CROP_MIN_W:
             c = (x0 + x1) / 2
             x0, x1 = c - CROP_MIN_W / 2, c + CROP_MIN_W / 2
-        y0, y1 = b["y"] - CROP_PAD, b["y"] + b["height"] + CROP_PAD
+        y0, y1 = b["y"] - pad, b["y"] + b["height"] + pad
         if x0 < 0:
             x1, x0 = min(pw_css, x1 - x0), 0
         if x1 > pw_css:
@@ -155,15 +159,17 @@ async def crop_pngs(br, url, mp, labels, outs):
             "font": "data:font/woff2;base64," + base64.b64encode(open(FONT, "rb").read()).decode(), "w": w, "h": h,
             "img": "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode(),
             "bx": bx, "by": by, "bw": b["width"] + 6, "bh": b["height"] + 6,
-            "rx": max(1, min(w - 24, bx - 22)), "ry": max(1, min(h - 24, by - 22)), "label": label}))
+            "rx": max(1, min(w - 24, bx - 22)), "ry": max(1, min(h - 24, by - 22)), "label": label, "rs": "" if label else "display:none",
+            "hs": "display:none" if card else ""}, card))
     await ctx.close()
     ctx = await br.new_context(device_scale_factor=cap.DPR, viewport={"width": 1700, "height": 1200})
     pg = await ctx.new_page()
-    for out, html in jobs:
+    for out, html, card in jobs:
         await pg.set_content(html)
         await pg.evaluate("() => document.fonts.ready")
         await pg.locator("#s").screenshot(path=out)
-        split_wide(out)
+        if not card:
+            split_wide(out)
     await ctx.close()
     return missing
 
