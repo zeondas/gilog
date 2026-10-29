@@ -3,7 +3,8 @@
 2026-10-21 공통 부품 세션이 만들었어요(사용자 결정 ⑥ 1안 – 모든 세션이 화면을 고친 뒤 돌려요).
 고치기 **전(main)** 과 **뒤(내 가지)** 를 같은 장면으로 찍어 한 점씩 비교해요. 맞춰 둔 간격이 모르는 사이 틀어지는 것을 막는 것이 목적이에요.
 
-- 기준: 1600×900 · 100% · 밝게 · 시계 2026-10-21 10:00(서울) 고정 · 움직임(전환·커서 깜빡임) 끔 · 흉내 자료 `seed.js`
+- 기준: 1600×900 · 100% · 밝게 · 시계 2026-10-21 10:00(서울) 고정 · 움직임(전환·커서 깜빡임) 끔 · 시험 자료 `seed.js`
+- 저장 규칙은 앱과 같은 Rust core를 브라우저용(WASM)으로 써요(2026-10-30 ②-3 2차 – 전엔 `api.ts` 흉내). 빌드 전에 `npm run build:wasm`(`tools/preview/build-wasm.mjs`), `seed.js`는 실제 명령을 같은 순서로 불러 채워요(`window.__previewSeed`).
 - 장면: 화면 10개 + 메뉴·지울까요 띠·창·날짜 칸이 열린 모습 33개 + 탐색기 칸 모양 4개(`files_tb`·`files_3l`·`files_3r`·`files_four`, 2026-10-25)(`shoot.py`의 `SCENES`). 새 메뉴·띠·창을 만들면 여기에 장면을 더해요. 매뉴얼 열린 모습 장면 `process_works`·`budgetstatus_settings`·`calendar_event`·`journal_memo`(2026-10-26 매뉴얼 세션 – `tools/manual/`이 같은 장면을 2배로 찍어요).
 - 화면 크기 장면(2026-10-21 화면 배율): `zoom15_00`~`zoom17_09` – 설정 "화면 크기" 15·17에서 화면 10개. 앱처럼 CSS 화면을 1600÷z × 900÷z로 줄이고 점 배율 z(15÷13, 17÷13)로 찍어 그림은 1600×900이에요. 13·100% 장면은 그대로 0점이어야 해요.
 - 작은 창 장면(2026-10-26 창 크기): `small_00`~`small_09` – 창 1200×700·13에서 화면 10개, 가로 스크롤 막대가 보이게 찍어요(막대 숨김을 끔). 본문만 가로로 밀리고 칸이 줄지 않는지 지켜요([docs/qa/viewport.md](../../docs/qa/viewport.md)).
@@ -25,7 +26,8 @@
 ```
 # 1) 기준(main)과 내 가지를 각각 빌드 – 기준은 main을 다른 폴더에 받아 빌드
 git worktree add /tmp/gilog-main origin/main
-(cd /tmp/gilog-main && npm ci && npx vite build -c tools/guard/vite.config.ts --outDir /tmp/g_base)
+(cd /tmp/gilog-main && npm ci && { [ -f tools/preview/build-wasm.mjs ] && npm run build:wasm; true; } && npx vite build -c tools/guard/vite.config.ts --outDir /tmp/g_base)
+npm run build:wasm
 npx vite build -c tools/guard/vite.config.ts --outDir /tmp/g_cur
 
 # 2) 찍기
