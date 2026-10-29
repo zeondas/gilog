@@ -1,21 +1,107 @@
-{"scene": "screen_00",
+{
+ "scene": "screen_00",
  "feats": [
-  {"label": "가", "name": "파일 찾기", "sel": "label.search.fx-search", "side": "위", "hint": ""},
-  {"label": "나", "name": "탐색기 탭", "sel": "button.fx-tab", "side": "위", "hint": ""},
-  {"label": "다", "name": "빠른 필터", "sel": "input.fx-filter", "side": "위", "hint": ""},
-  {"label": "라", "name": "드라이브", "sel": "button.fx-drv >> nth=2", "side": "위", "hint": ""},
-  {"label": "마", "name": "경로표시줄", "sel": "div.fx-crumbs", "side": "위", "hint": ""},
-  {"label": "바", "name": "머리줄 단추", "sel": "div.fx-tools", "side": "위", "hint": ""},
-  {"label": "사", "name": "단축키 안내", "sel": "div.fx-keys", "side": "아래", "hint": "왼끝"},
-  {"label": "아", "name": "폴더트리", "sel": "aside.fx-tree", "side": "아래", "hint": ""},
-  {"label": "자", "name": "파일 목록", "sel": ".fx-frow >> nth=2", "side": "아래", "hint": "왼끝"},
-  {"label": "차", "name": "문서보안 해제", "sel": "span.fx-lock", "side": "아래", "hint": ""}
+  {
+   "label": "가",
+   "name": "파일 찾기",
+   "sel": "label.search.fx-search",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "나",
+   "name": "탐색기 탭",
+   "sel": "button.fx-tab",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "다",
+   "name": "빠른 필터",
+   "sel": "input.fx-filter",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "라",
+   "name": "드라이브",
+   "sel": "button.fx-drv >> nth=2",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "마",
+   "name": "경로표시줄",
+   "sel": "div.fx-crumbs",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "바",
+   "name": "머리줄 단추",
+   "sel": "div.fx-tools",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "사",
+   "name": "단축키 안내",
+   "sel": "button.fx-info",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "아",
+   "name": "폴더트리",
+   "sel": "aside.fx-tree",
+   "side": "아래",
+   "hint": ""
+  },
+  {
+   "label": "자",
+   "name": "파일 목록",
+   "sel": ".fx-frow >> nth=2",
+   "side": "아래",
+   "hint": "왼끝"
+  },
+  {
+   "label": "차",
+   "name": "문서보안 해제",
+   "sel": "span.fx-lock",
+   "side": "아래",
+   "hint": ""
+  }
  ],
  "figs": [
-  {"head": "가. 파일 찾기", "scene": "files_findmore", "sel": ".fx-findpanel"},
-  {"head": "나. 탐색기 탭", "scene": "files_tabmenu", "sel": "div.fx-tabmenu"},
-  {"head": "라. 드라이브", "scene": "files_viewmenu", "sel": "div.fx-menu.fx-menu-r"},
-  {"head": "바. 머리줄 단추", "scene": "files_rename", "sel": "div.dialog"},
-  {"head": "아. 폴더트리", "scene": "settings_files", "sel": "section.mod-card:has(.mod-head:text-is(\"탐색기\"))"},
-  {"head": "자. 파일 목록", "scene": "files_delete", "sel": "div.dialog"}
- ]}
+  {
+   "head": "가. 파일 찾기",
+   "scene": "files_findmore",
+   "sel": ".fx-findpanel"
+  },
+  {
+   "head": "나. 탐색기 탭",
+   "scene": "files_tabmenu",
+   "sel": "div.fx-tabmenu"
+  },
+  {
+   "head": "라. 드라이브",
+   "scene": "files_viewmenu",
+   "sel": "div.fx-menu.fx-menu-r"
+  },
+  {
+   "head": "바. 머리줄 단추",
+   "scene": "files_rename",
+   "sel": "div.dialog"
+  },
+  {
+   "head": "아. 폴더트리",
+   "scene": "settings_files",
+   "sel": "section.mod-card:has(.mod-head:text-is(\"탐색기\"))"
+  },
+  {
+   "head": "자. 파일 목록",
+   "scene": "files_delete",
+   "sel": "div.dialog"
+  }
+ ]
+}
