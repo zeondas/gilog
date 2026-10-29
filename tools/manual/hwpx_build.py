@@ -323,11 +323,11 @@ header = header.replace("</hh:paraProperties>", "".join(new_pp) + "</hh:paraProp
 header = re.sub(r'(<hh:paraProperties itemCnt=")\d+', lambda m: m.group(1) + str(next_pp), header, count=1)
 header = header.replace("</hh:charProperties>", "".join(new_cp) + "</hh:charProperties>", 1)
 header = re.sub(r'(<hh:charProperties itemCnt=")\d+', lambda m: m.group(1) + str(next_cp), header, count=1)
-hpf = re.sub(r'<opf:item id="manual\d+"[^>]*/>', "", hpf)
+hpf = re.sub(r'<opf:item [^>]*href="BinData/[^"]*"[^>]*/>', "", hpf)   # 옛 그림(한글이 image1… 로 이름을 바꿔 둔 것까지)
 
 with zipfile.ZipFile(out, "w") as zout:
     for item in zin.infolist():
-        if re.match(r"BinData/manual\d+\.", item.filename):
+        if item.filename.startswith("BinData/"):
             continue
         data = zin.read(item.filename)
         if item.filename == "Contents/section0.xml":
