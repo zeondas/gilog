@@ -8,8 +8,10 @@ from hwpx_toplevel import top_paras, first_vert
 from PIL import Image
 
 PW, PH = 59528, 84186
-LEFT = 5669                      # 왼쪽 여백 20mm
-BAND_W = int(os.environ.get("BAND_MM", "17")) * 28346 // 100   # 색인 띠 폭(종이 끝부터, 바깥 약 5mm는 인쇄에서 잘려도 되게)
+MM = 283.46
+LEFT = round(float(os.environ.get("ML", "20")) * MM)    # 왼쪽 여백
+RIGHT = round(float(os.environ.get("MR", "20")) * MM)   # 오른쪽 여백
+BAND_W = round(float(os.environ.get("BAND_MM", "17")) * 283.46)   # 색인 띠 폭(종이 끝부터, 바깥 약 5mm는 인쇄에서 잘려도 되게)
 CH_KEYS = ["overview", "explorer", "complaints", "process", "budget", "bstatus",
            "calendar", "todo", "journal", "contacts", "settings"]
 
@@ -61,6 +63,7 @@ def main():
     subrule = {t + 2 for t in titles}
     bands = {k: b(f"band_{k}.png") for k in CH_KEYS}
     bar, rule = b("bar.png"), b("rule.png")
+    paras[0] = re.sub(r'(<hp:margin [^>]*?)left="\d+" right="\d+"', lambda m: f'{m.group(1)}left="{LEFT}" right="{RIGHT}"', paras[0], count=1)
     newp = []
     # 표지: 첫 문단(구역 설정)에 쪽 전체 그림
     newp.append(put_in_first_run(paras[0], fpic(b("cover.png"), os.path.join(img, "cover.png"), PW, PH, 0, 0)))
@@ -81,7 +84,7 @@ def main():
             nbar += 1
         if i in subrule:
             assert not re.search(r'<hp:t>[^<]', p), i
-            p = put_in_first_run(p, fpic(rule, os.path.join(img, "rule.png"), PW - 2 * LEFT, 57, LEFT, 700, "PARA", "PAPER", 2))
+            p = put_in_first_run(p, fpic(rule, os.path.join(img, "rule.png"), PW - LEFT - RIGHT, 57, LEFT, 700, "PARA", "PAPER", 2))
             nrule += 1
         if KEEP and not any(a <= i < c for a, c in KEEP):
             continue
