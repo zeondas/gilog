@@ -24,7 +24,7 @@
   },
   {
    "label": "라",
-   "name": "고르기 칸",
+   "name": "선택란",
    "sel": ".pr-row >> nth=1 >> .pr-check",
    "side": "아래",
    "hint": ""
@@ -59,7 +59,7 @@
   },
   {
    "label": "자",
-   "name": "줄 메뉴",
+   "name": "행 메뉴",
    "sel": ".pr-row >> nth=1 >> button.pr-more",
    "side": "아래",
    "hint": ""
@@ -72,7 +72,7 @@
    "sel": ".dialog.pr-works"
   },
   {
-   "head": "자. 줄 메뉴",
+   "head": "자. 행 메뉴",
    "scene": "process_rowmenu",
    "sel": "div.dmenu.pr-rowmenu"
   }

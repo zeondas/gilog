@@ -10,8 +10,8 @@
   },
   {
    "label": "나",
-   "name": "배치최적화",
-   "sel": "button.cm-tool",
+   "name": "열 폭 조정",
+   "sel": ".cm-head .colh-grip >> nth=1",
    "side": "위",
    "hint": ""
   },
@@ -38,7 +38,7 @@
   },
   {
    "label": "바",
-   "name": "신규 줄",
+   "name": "신규 행",
    "sel": ".cm-row.cm-new",
    "side": "아래",
    "hint": "왼끝"
@@ -79,7 +79,7 @@
    "sel": ".cm-fdd"
   },
   {
-   "head": "바. 신규 줄",
+   "head": "바. 신규 행",
    "scene": "complaints_rowmenu",
    "sel": ".dmenu"
   }

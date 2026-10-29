@@ -10,7 +10,7 @@
   },
   {
    "label": "나",
-   "name": "목록 칸",
+   "name": "목록 영역",
    "sel": "nav.td-lists",
    "side": "위",
    "hint": ""
@@ -67,7 +67,7 @@
  ],
  "figs": [
   {
-   "head": "나. 목록 칸",
+   "head": "나. 목록 영역",
    "scene": "tasks_listmenu",
    "sel": ".dmenu"
   },
