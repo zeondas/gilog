@@ -106,7 +106,9 @@ fn looks_locked(path: &Path) -> bool {
 
 /// 폴더 안 목록. 숨김 파일은 show_hidden일 때만.
 #[tauri::command]
-pub async fn fs_list(path: String, show_hidden: bool) -> Result<Vec<Entry>, String> {
+pub async fn fs_list(app: AppHandle, path: String, show_hidden: bool) -> Result<Vec<Entry>, String> {
+    // 이 폴더의 사진을 미리 보기로 읽게(✔4)
+    crate::guard::allow_preview_dir(&app, Path::new(&path));
     tauri::async_runtime::spawn_blocking(move || list(Path::new(&path), show_hidden)).await.map_err(|e| e.to_string())?
 }
 
@@ -291,6 +293,9 @@ pub(crate) fn list_zip(z: &Path, inner: &str) -> Result<Vec<Entry>, String> {
 /// zip 안의 것들을 임시 폴더에 풀어 그 경로를 돌려줘요(복사해 나가기·열기). 폴더면 안의 것까지.
 #[tauri::command]
 pub async fn fs_zip_extract(paths: Vec<String>) -> Result<Vec<String>, String> {
+    for p in &paths {
+        crate::guard::plain(p)?;
+    }
     tauri::async_runtime::spawn_blocking(move || zip_extract(&paths, &std::env::temp_dir().join("giLog-zip"))).await.map_err(|e| e.to_string())?
 }
 
@@ -370,7 +375,12 @@ fn check_name(name: &str) -> Result<(), String> {
 
 /// 새 폴더. 만든 경로를 돌려줘요.
 #[tauri::command]
-pub fn fs_mkdir(dir: String, name: String) -> Result<String, String> {
+pub fn fs_mkdir(app: AppHandle, dir: String, name: String) -> Result<String, String> {
+    crate::guard::writable(&dir, &crate::guard::protected(&app))?;
+    mkdir(dir, name)
+}
+
+pub(crate) fn mkdir(dir: String, name: String) -> Result<String, String> {
     check_name(&name)?;
     let p = Path::new(&dir).join(name.trim());
     if p.exists() {
@@ -382,7 +392,8 @@ pub fn fs_mkdir(dir: String, name: String) -> Result<String, String> {
 
 /// 이름 바꾸기. 바뀐 경로를 돌려줘요. 대소문자만 바꾸는 것도 돼요.
 #[tauri::command]
-pub fn fs_rename(path: String, name: String) -> Result<String, String> {
+pub fn fs_rename(app: AppHandle, path: String, name: String) -> Result<String, String> {
+    crate::guard::removable(&path, &crate::guard::protected(&app))?;
     rename_one(Path::new(&path), &name).map(|p| p.to_string_lossy().into_owned())
 }
 
@@ -407,7 +418,11 @@ pub struct RenameItem {
 /// 일괄 이름 바꾸기. 겹치는 이름은 화면이 미리 막지만, 여기서도 한 줄이라도 실패하면 이미 바꾼 것을 되돌려요.
 /// 바꾼 결과(되돌리기용: 새 경로 → 옛 이름)를 돌려줘요.
 #[tauri::command]
-pub fn fs_rename_many(items: Vec<RenameItem>) -> Result<Vec<RenameItem>, String> {
+pub fn fs_rename_many(app: AppHandle, items: Vec<RenameItem>) -> Result<Vec<RenameItem>, String> {
+    let prot = crate::guard::protected(&app);
+    for it in &items {
+        crate::guard::removable(&it.path, &prot)?;
+    }
     rename_many(&items)
 }
 
@@ -677,6 +692,16 @@ pub async fn fs_transfer(
     dest: String,
     decisions: HashMap<String, String>,
 ) -> Result<Summary, String> {
+    let prot = crate::guard::protected(&app);
+    crate::guard::writable(&dest, &prot)?;
+    for s in &sources {
+        // 옮기기는 원본이 없어지니 지우기와 같은 검사, 복사는 읽기만
+        if op == "move" {
+            crate::guard::removable(s, &prot)?;
+        } else {
+            crate::guard::plain(s)?;
+        }
+    }
     CANCEL.store(false, Ordering::SeqCst);
     tauri::async_runtime::spawn_blocking(move || {
         let srcs: Vec<PathBuf> = sources.iter().map(PathBuf::from).collect();
@@ -830,8 +855,40 @@ pub enum Step {
 }
 
 #[tauri::command]
-pub async fn fs_undo(steps: Vec<Step>) -> Result<Summary, String> {
+pub async fn fs_undo(app: AppHandle, steps: Vec<Step>) -> Result<Summary, String> {
+    check_steps(&steps, &crate::guard::protected(&app))?;
     tauri::async_runtime::spawn_blocking(move || Ok(run_steps(&steps))).await.map_err(|e| e.to_string())?
+}
+
+/// 되돌리기 걸음도 화면이 보내요 – 지우기·옮기기와 같은 검사를 거쳐요
+pub(crate) fn check_steps(steps: &[Step], prot: &crate::guard::Protected) -> Result<(), String> {
+    use crate::guard::{plain, removable, writable};
+    for st in steps {
+        match st {
+            Step::Move { from, to } => {
+                removable(from, prot)?;
+                writable(to, prot)?;
+            }
+            Step::Copy { from, to } => {
+                plain(from)?;
+                writable(to, prot)?;
+            }
+            Step::Trash { paths } => {
+                for p in paths {
+                    removable(p, prot)?;
+                }
+            }
+            Step::Restore { paths, .. } => {
+                for p in paths {
+                    writable(p, prot)?;
+                }
+            }
+            Step::Mkdir { path } => {
+                writable(path, prot)?;
+            }
+        }
+    }
+    Ok(())
 }
 
 pub(crate) fn run_steps(steps: &[Step]) -> Summary {
@@ -982,7 +1039,11 @@ fn remove_if_empty_tree(p: &Path) -> bool {
 
 /// 지우기. permanent가 거짓이면 휴지통으로 보내요.
 #[tauri::command]
-pub async fn fs_delete(paths: Vec<String>, permanent: bool) -> Result<(), String> {
+pub async fn fs_delete(app: AppHandle, paths: Vec<String>, permanent: bool) -> Result<(), String> {
+    let prot = crate::guard::protected(&app);
+    for p in &paths {
+        crate::guard::removable(p, &prot)?;
+    }
     tauri::async_runtime::spawn_blocking(move || {
         if permanent {
             for p in &paths {
@@ -1003,8 +1064,14 @@ pub async fn fs_delete(paths: Vec<String>, permanent: bool) -> Result<(), String
 }
 
 /// 윈도우 기본 프로그램으로 열어요(폴더면 윈도우 탐색기).
+/// 실행 파일(exe·bat 등, 그런 것을 가리키는 바로 가기 포함)은 화면이 "실행할까요?"를 받은 뒤 `run: true`로 다시 불러야 열어요
+/// – 아니면 `need_confirm`(품질 보완 ② ✔1, 2026-10-29).
 #[tauri::command]
-pub fn fs_open(path: String) -> Result<(), String> {
+pub fn fs_open(path: String, run: Option<bool>) -> Result<(), String> {
+    let p = crate::guard::plain(&path)?;
+    if !run.unwrap_or(false) && runs_program(&p) {
+        return Err(crate::guard::NEED_CONFIRM.into());
+    }
     #[cfg(windows)]
     {
         crate::files_win::shell_open(&path)
@@ -1015,9 +1082,23 @@ pub fn fs_open(path: String) -> Result<(), String> {
     }
 }
 
+/// 열면 프로그램이 도는지 – 실행 파일이거나 실행 파일을 가리키는 바로 가기
+fn runs_program(p: &Path) -> bool {
+    if crate::guard::is_exec(p) {
+        return true;
+    }
+    let lnk = p.extension().is_some_and(|e| e.eq_ignore_ascii_case("lnk"));
+    lnk && fs_lnk_target(p.to_string_lossy().into_owned()).is_some_and(|t| crate::guard::is_exec(Path::new(&t)))
+}
+
 /// 윈도우 탐색기로 열어요. select면 그 파일을 고른 채로 부모 폴더를 열어요.
 #[tauri::command]
 pub fn fs_explorer(path: String, select: bool) -> Result<(), String> {
+    let p = crate::guard::plain(&path)?;
+    // explorer에 실행 파일 경로를 그대로 주면 실행돼요 – 고른 채로 보이기만 해요
+    if !select && !p.is_dir() && runs_program(&p) {
+        return Err(crate::guard::DENIED.into());
+    }
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -1200,7 +1281,11 @@ pub fn fs_mods() -> (bool, bool, bool) {
 
 /// Alt 누른 채 놓기: dest에 "이름 - 바로 가기.lnk"를 만들어요. 만든 경로들을 돌려줘요.
 #[tauri::command]
-pub fn fs_make_links(paths: Vec<String>, dest: String) -> Result<Vec<String>, String> {
+pub fn fs_make_links(app: AppHandle, paths: Vec<String>, dest: String) -> Result<Vec<String>, String> {
+    crate::guard::writable(&dest, &crate::guard::protected(&app))?;
+    for p in &paths {
+        crate::guard::plain(p)?;
+    }
     let mut out = Vec::new();
     for p in &paths {
         let src = Path::new(p);
@@ -1324,10 +1409,13 @@ pub async fn fs_find(app: AppHandle, spec: FindSpec) -> Result<Vec<Found>, Strin
             let _ = app.emit("fs-find-progress", serde_json::json!({ "found": n, "dir": dir }));
         };
         // 빠른 찾기 도우미가 있으면 그것으로(모든 드라이브·바로), 없거나 그 드라이브 목록이 아직이면 폴더를 차례로 뒤져요
-        if let Some(r) = find_fast(&spec, &fast_ask, &tell) {
-            return Ok(r);
-        }
-        Ok(find(&spec, &tell))
+        let r = match find_fast(&spec, &fast_ask, &tell) {
+            Some(r) => r,
+            None => find(&spec, &tell),
+        };
+        // 찾은 파일의 사진 미리 보기(✔4)
+        crate::guard::allow_preview_files(&app, r.iter().map(|f| f.entry.path.as_str()));
+        Ok(r)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -1994,10 +2082,10 @@ mod tests {
     #[test]
     fn mkdir_and_bad_names() {
         let d = tmp("mk");
-        let p = fs_mkdir(d.to_string_lossy().into_owned(), "새 폴더".into()).unwrap();
+        let p = mkdir(d.to_string_lossy().into_owned(), "새 폴더".into()).unwrap();
         assert!(Path::new(&p).is_dir());
-        assert_eq!(fs_mkdir(d.to_string_lossy().into_owned(), "새 폴더".into()), Err("exists".into()));
-        assert_eq!(fs_mkdir(d.to_string_lossy().into_owned(), "a:b".into()), Err("bad_name".into()));
+        assert_eq!(mkdir(d.to_string_lossy().into_owned(), "새 폴더".into()), Err("exists".into()));
+        assert_eq!(mkdir(d.to_string_lossy().into_owned(), "a:b".into()), Err("bad_name".into()));
         let s = subdirs(&d, false).unwrap();
         assert_eq!(s.len(), 1);
         assert!(!s[0].has_children);

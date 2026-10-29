@@ -246,6 +246,17 @@ async def s_files_delete(p):
     await p.keyboard.press("Delete")
 
 
+# 실행할까요?(2026-10-29 명령 경로 검사 ✔1) – 실행 파일을 두 번 누르면 뜨는 창
+async def s_files_runask(p):
+    await p.locator(".fx-crumbs").first.click(position={"x": 400, "y": 10})
+    i = p.locator(".fx-path-in").first
+    await i.fill("D:\\공사\\2026 도로포장 연간단가")
+    await i.press("Enter")
+    await p.wait_for_timeout(500)
+    await p.locator("[id^=fx-row-0-]", has_text="단가표 보기.exe").first.dblclick()
+    await p.wait_for_timeout(300)
+
+
 async def s_process_rowmenu(p):
     await p.locator(".pr-more").first.click()
 
@@ -406,6 +417,7 @@ SCENES.update({
     "files_four": ("탐색기", s_files_four),
     "files_colmenu": ("탐색기", s_files_colmenu),
     "files_delete": ("탐색기", s_files_delete),
+    "files_runask": ("탐색기", s_files_runask),
     "process_rowmenu": ("민원처리", s_process_rowmenu),
     "process_ask": ("민원처리", s_process_ask),
     "process_works_ask": ("민원처리", s_process_works_ask),

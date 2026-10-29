@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-fs-fast-setup"
+description = "Enables the fs_fast_setup command without any pre-configured scope."
+commands.allow = ["fs_fast_setup"]
+
+[[permission]]
+identifier = "deny-fs-fast-setup"
+description = "Denies the fs_fast_setup command without any pre-configured scope."
+commands.deny = ["fs_fast_setup"]

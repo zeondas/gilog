@@ -25,8 +25,15 @@ fn io(e: std::io::Error) -> String {
 }
 
 #[tauri::command]
-pub fn process_data(state: State<AppState>) -> Result<ProcessData, String> {
-    with_store(&state, |s| s.process_data())
+pub fn process_data(app: tauri::AppHandle, state: State<AppState>) -> Result<ProcessData, String> {
+    let d = with_store(&state, |s| s.process_data())?;
+    allow_case_photos(&app, &d.cases);
+    Ok(d)
+}
+
+/// 민원 사진·위치도 폴더만 미리 보기로 읽게(✔4)
+fn allow_case_photos(app: &tauri::AppHandle, cases: &[Case]) {
+    crate::guard::allow_preview_files(app, cases.iter().flat_map(|c| c.photos.iter().map(|p| p.as_str()).chain(std::iter::once(c.map.as_str()))));
 }
 
 #[tauri::command]
@@ -40,8 +47,10 @@ pub fn delete_work(state: State<AppState>, id: i64) -> Result<Vec<Work>, String>
 }
 
 #[tauri::command]
-pub fn update_case(state: State<AppState>, no: String, patch: CasePatch) -> Result<Case, String> {
-    with_store(&state, |s| s.update_case(&no, &patch))
+pub fn update_case(app: tauri::AppHandle, state: State<AppState>, no: String, patch: CasePatch) -> Result<Case, String> {
+    let c = with_store(&state, |s| s.update_case(&no, &patch))?;
+    allow_case_photos(&app, std::slice::from_ref(&c));
+    Ok(c)
 }
 
 #[tauri::command]
@@ -228,7 +237,7 @@ fn parse_inbox_file(text: &str) -> Option<Vec<CaseInput>> {
 }
 
 #[tauri::command]
-pub fn read_inbox(state: State<AppState>, inbox: String, downloads: String, root: String, hold: Option<bool>) -> Result<InboxResult, String> {
+pub fn read_inbox(app: tauri::AppHandle, state: State<AppState>, inbox: String, downloads: String, root: String, hold: Option<bool>) -> Result<InboxResult, String> {
     let hold = hold.unwrap_or(false);
     let inbox = PathBuf::from(inbox.trim());
     let downloads = PathBuf::from(downloads.trim());
@@ -340,6 +349,7 @@ pub fn read_inbox(state: State<AppState>, inbox: String, downloads: String, root
         let _ = fs::create_dir_all(&done_dir);
         let _ = move_file(&file, &free_path(&done_dir, &fname));
     }
+    allow_case_photos(&app, &res.added);
     Ok(res)
 }
 
@@ -693,7 +703,11 @@ pub const SENT_DIR: &str = "보냄";
 /// 지시부 파일이나 민원 폴더를 윈도우 기본 프로그램(파워포인트·한글·탐색기)으로 열어요.
 #[tauri::command]
 pub fn open_path(path: String) -> Result<(), String> {
-    let p = PathBuf::from(path.trim());
+    let p = crate::guard::plain(&path)?;
+    // 지시부·민원 폴더만 여는 자리예요 – 실행 파일은 열지 않아요(✔1)
+    if crate::guard::is_exec(&p) {
+        return Err(crate::guard::DENIED.into());
+    }
     if !p.exists() {
         return Err("missing".into());
     }
@@ -1191,6 +1205,72 @@ fn final_state(result: &str, is_error: bool) -> (String, String) {
     }
 }
 
+/// 설정 "민원처리"의 처음 값(`settingsStore.ts`의 `DEFAULT_PROCESS`와 같아요) – 저장된 값이 없을 때 써요
+const DEFAULT_INBOX: &str = "D:\\민원처리\\가져오기";
+const DEFAULT_DOWNLOADS: &str = "D:\\";
+const DEFAULT_OUTBOX: &str = "D:\\민원처리\\보내기";
+
+/// 암호화 파일에 저장된 설정의 민원처리 칸(✔2 – 화면이 보낸 값을 믿지 않고 앱이 직접 읽어요)
+#[derive(Debug, Default, Clone, PartialEq)]
+pub(crate) struct SavedProcess {
+    pub claude: String,
+    pub inbox: String,
+    pub downloads: String,
+    pub outbox: String,
+}
+
+pub(crate) fn parse_saved_process(settings: Option<&str>) -> SavedProcess {
+    let v: serde_json::Value = settings.and_then(|t| serde_json::from_str(t).ok()).unwrap_or(serde_json::Value::Null);
+    let p = &v["process"];
+    let get = |k: &str, d: &str| p[k].as_str().map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).unwrap_or_else(|| d.to_string());
+    SavedProcess { claude: get("claude", "claude"), inbox: get("inbox", DEFAULT_INBOX), downloads: get("downloads", DEFAULT_DOWNLOADS), outbox: get("outbox", DEFAULT_OUTBOX) }
+}
+
+fn saved_process(state: &State<AppState>) -> Result<SavedProcess, String> {
+    let raw = with_store(state, |s| s.get("settings"))?;
+    Ok(parse_saved_process(raw.as_deref()))
+}
+
+/// 경로 비교: 앞뒤 빈칸·`/`·끝 `\`·대소문자를 무시
+fn same_path(a: &str, b: &str) -> bool {
+    let n = |x: &str| {
+        let mut y = x.trim().replace('/', "\\").to_lowercase();
+        while y.len() > 3 && y.ends_with('\\') {
+            y.pop();
+        }
+        y
+    };
+    n(a) == n(b)
+}
+
+/// 실행할 Claude: 화면이 보낸 값이 저장된 설정 값과 같고, 파일 이름이 claude(.exe)일 때만(✔2)
+pub(crate) fn checked_exe(req_exe: &str, saved: &SavedProcess) -> Result<PathBuf, String> {
+    let or_default = |x: &str| if x.trim().is_empty() { "claude".to_string() } else { x.trim().to_string() };
+    let (req, set) = (or_default(req_exe), or_default(&saved.claude));
+    if !same_path(&req, &set) {
+        return Err(crate::guard::DENIED.into());
+    }
+    crate::guard::plain(&set)?;
+    let exe = claude_exe(&set);
+    let full = exe.to_string_lossy().to_lowercase();
+    let name = full.rsplit(['\\', '/']).next().unwrap_or("");
+    if name != "claude.exe" && name != "claude" {
+        return Err(crate::guard::DENIED.into());
+    }
+    Ok(exe)
+}
+
+/// [민원 불러오기]는 가져올 폴더, 지시부 메일은 보낼 폴더\메일에서만 돌고, 받는 폴더는 설정의 다운로드 폴더만(✔2)
+pub(crate) fn checked_dirs(inbox: &str, downloads: &str, saved: &SavedProcess) -> Result<(), String> {
+    crate::guard::plain(inbox)?;
+    crate::guard::plain(downloads)?;
+    let mail = format!("{}\\메일", saved.outbox.trim_end_matches(['\\', '/']));
+    if !(same_path(inbox, &saved.inbox) || same_path(inbox, &mail)) || !same_path(downloads, &saved.downloads) {
+        return Err(crate::guard::DENIED.into());
+    }
+    Ok(())
+}
+
 /// Claude 실행 파일: 설정에 경로가 있으면 그것, "claude"(처음 값)면 설치기가 넣는 자리
 /// `%USERPROFILE%\.local\bin\claude.exe`를 먼저 봐요(설치 직후 PATH가 아직 안 잡혀도 돼요).
 fn claude_exe(set: &str) -> PathBuf {
@@ -1274,11 +1354,17 @@ fn parse_picks(result: &str, items: &[PickItem]) -> Vec<PickResult> {
 /// 현장사진이 여러 장인 민원마다 Claude가 사진을 열어 보고 1장을 골라요(2026-10-21 22:59 사용자 ①1안).
 /// 브라우저는 쓰지 않고 Read만 허락해요. 3분 넘으면 멈추고 고른 것 없이 돌아가요(사진 순서는 그대로).
 #[tauri::command]
-pub async fn pick_photos(req: PickRequest) -> Result<Vec<PickResult>, String> {
-    tauri::async_runtime::spawn_blocking(move || pick_photos_blocking(req)).await.map_err(|e| e.to_string())?
+pub async fn pick_photos(state: State<'_, AppState>, req: PickRequest) -> Result<Vec<PickResult>, String> {
+    let exe = checked_exe(&req.exe, &saved_process(&state)?)?;
+    for i in &req.items {
+        for p in &i.photos {
+            crate::guard::plain(p)?;
+        }
+    }
+    tauri::async_runtime::spawn_blocking(move || pick_photos_blocking(req, exe)).await.map_err(|e| e.to_string())?
 }
 
-fn pick_photos_blocking(req: PickRequest) -> Result<Vec<PickResult>, String> {
+fn pick_photos_blocking(req: PickRequest, exe: PathBuf) -> Result<Vec<PickResult>, String> {
     use std::io::{Read, Write};
     use std::process::{Command, Stdio};
     let items: Vec<PickItem> = req.items.into_iter().filter(|i| i.photos.len() > 1).collect();
@@ -1302,7 +1388,7 @@ fn pick_photos_blocking(req: PickRequest) -> Result<Vec<PickResult>, String> {
         args.push(req.model.trim().into());
     }
     let t0 = std::time::Instant::now();
-    let mut cmd = Command::new(claude_exe(req.exe.trim()));
+    let mut cmd = Command::new(&exe);
     cmd.current_dir(&cwd).args(&args).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null());
     #[cfg(windows)]
     {
@@ -1352,9 +1438,12 @@ fn pick_photos_blocking(req: PickRequest) -> Result<Vec<PickResult>, String> {
 }
 
 #[tauri::command]
-pub fn run_claude(run: State<ClaudeRun>, req: RunRequest) -> Result<(), String> {
+pub fn run_claude(state: State<AppState>, run: State<ClaudeRun>, req: RunRequest) -> Result<(), String> {
     use std::io::{BufRead, Write};
     use std::process::{Command, Stdio};
+    let saved = saved_process(&state)?;
+    let exe = checked_exe(&req.exe, &saved)?;
+    checked_dirs(&req.inbox, &req.downloads, &saved)?;
     let mut g = run.inner.lock().map_err(|_| "busy".to_string())?;
     if let Some(c) = g.child.as_mut() {
         if c.try_wait().ok().flatten().is_none() {
@@ -1365,11 +1454,11 @@ pub fn run_claude(run: State<ClaudeRun>, req: RunRequest) -> Result<(), String> 
     fs::create_dir_all(&inbox).map_err(io)?;
     let _ = fs::remove_file(inbox.join(PROGRESS_FILE));
     let _ = fs::remove_file(inbox.join(SKIPPED_FILE));
-    let exe = claude_exe(req.exe.trim());
     let mut args: Vec<String> = [
         "-p", "아래 지침대로 국민신문고 민원을 가져와요.", "--chrome", "--output-format", "stream-json", "--verbose",
         "--permission-mode", "acceptEdits", "--permission-prompts", "none",
-        "--allowedTools", "mcp__claude-in-chrome,Read,Write,Edit,Glob",
+        // 쓰기는 Write만(지침이 Write로만 쓰게 해요) – Edit는 뺐어요(✔2). 쓸 수 있는 곳은 작업 폴더(가져올 폴더)와 받는 폴더뿐이에요.
+        "--allowedTools", "mcp__claude-in-chrome,Read,Write,Glob",
         "--add-dir", req.downloads.trim(),
     ]
     .iter()
@@ -1533,4 +1622,51 @@ pub fn claude_status(run: State<ClaudeRun>, inbox: String) -> Result<RunStatus, 
         }
     }
     Ok(s)
+}
+
+#[cfg(test)]
+mod guard_tests {
+    use super::*;
+
+    fn saved() -> SavedProcess {
+        parse_saved_process(Some(r#"{"process":{"claude":"C:\\Users\\me\\.local\\bin\\claude.exe","inbox":"D:\\민원처리\\가져오기","downloads":"D:\\","outbox":"D:\\민원처리\\보내기"}}"#))
+    }
+
+    #[test]
+    fn saved_defaults_when_missing() {
+        let s = parse_saved_process(None);
+        assert_eq!(s.claude, "claude");
+        assert_eq!(s.inbox, DEFAULT_INBOX);
+        assert_eq!(parse_saved_process(Some(r#"{"process":{"claude":"  "}}"#)).claude, "claude");
+    }
+
+    #[test]
+    fn exe_must_match_saved_setting() {
+        let s = saved();
+        assert!(checked_exe("C:\\Users\\me\\.local\\bin\\claude.exe", &s).is_ok());
+        assert!(checked_exe("c:/users/ME/.local/bin/CLAUDE.EXE", &s).is_ok());
+        assert_eq!(checked_exe("C:\\Windows\\System32\\cmd.exe", &s).unwrap_err(), crate::guard::DENIED);
+        assert_eq!(checked_exe("", &s).unwrap_err(), crate::guard::DENIED);
+        // 처음 값 "claude"끼리는 돼요
+        assert!(checked_exe("", &parse_saved_process(None)).is_ok());
+        assert!(checked_exe("claude", &parse_saved_process(None)).is_ok());
+    }
+
+    #[test]
+    fn exe_name_must_be_claude() {
+        let bad = parse_saved_process(Some(r#"{"process":{"claude":"C:\\x\\evil.exe"}}"#));
+        assert_eq!(checked_exe("C:\\x\\evil.exe", &bad).unwrap_err(), crate::guard::DENIED);
+        let up = parse_saved_process(Some(r#"{"process":{"claude":"C:\\x\\..\\claude.exe"}}"#));
+        assert_eq!(checked_exe("C:\\x\\..\\claude.exe", &up).unwrap_err(), crate::guard::DENIED);
+    }
+
+    #[test]
+    fn run_dirs_are_the_saved_ones() {
+        let s = saved();
+        assert!(checked_dirs("D:\\민원처리\\가져오기", "D:\\", &s).is_ok());
+        assert!(checked_dirs("D:\\민원처리\\가져오기\\", "d:/", &s).is_ok());
+        assert!(checked_dirs("D:\\민원처리\\보내기\\메일", "D:\\", &s).is_ok());
+        assert_eq!(checked_dirs("C:\\Windows", "D:\\", &s).unwrap_err(), crate::guard::DENIED);
+        assert_eq!(checked_dirs("D:\\민원처리\\가져오기", "C:\\", &s).unwrap_err(), crate::guard::DENIED);
+    }
 }

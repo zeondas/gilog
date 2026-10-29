@@ -99,6 +99,8 @@ function addDir(path: string) {
   addDir("D:\\증빙사진\\2026 가을철\\시설물");
   addDir("D:\\증빙사진\\2026 봄철\\포장");
   addDir("D:\\공사\\2026 도로포장 연간단가");
+  // 실행 파일 – "실행할까요?" 창 장면(files_runask, 품질 보완 ②)
+  addFake("D:\\공사\\2026 도로포장 연간단가\\단가표 보기.exe", 2.1 * mb, "2026-09-30T10:00");
   addDir("D:\\프로젝트\\시도15호선");
   const C = "C:\\사용자\\hunmin\\문서\\공문\\";
   addFake(C + "도로시설물 유지보수 공사 지시 통보(2026-10-14, 조리읍 봉일천리 외 3개소, 연번 12~14).hwp", 82 * k, "2026-10-14T16:30", true);
@@ -398,7 +400,7 @@ export const fsApi = {
   /** Ctrl+V – 윈도우 클립보드의 파일 목록 */
   clipGet: () => call<{ paths: string[]; cut: boolean }>("fs_clip_get"),
   remove: (paths: string[], permanent: boolean) => call<null>("fs_delete", { paths, permanent }),
-  open: (path: string) => (inApp ? call<null>("fs_open", { path }) : Promise.resolve(null)),
+  open: (path: string) => openWithAsk(path),
   explorer: (path: string, select: boolean) => (inApp ? call<null>("fs_explorer", { path, select }) : Promise.resolve(null)),
   icons: (keys: string[], size: number) => call<Record<string, string>>("fs_icons", { keys, size }),
   /** 파일 형식 이름(윈도우 것): 키는 ".xlsx"·"<dir>" */
@@ -447,8 +449,33 @@ export function onFsProgress(f: (p: { done: number; total: number; name: string 
 }
 
 /** 실패 이름을 화면 글로 */
+/** 열면 프로그램이 도는 확장자(Rust `guard.rs`의 `EXEC_EXT`와 같아요) – 브라우저 미리 보기에서 "실행할까요?"를 흉내 낼 때만 써요 */
+export const EXEC_RE = /\.(exe|com|bat|cmd|ps1|psm1|vbs|vbe|js|jse|wsf|wsh|msi|msp|scr|pif|hta|cpl|reg|appref-ms)[. ]*$/i;
+
+let runAsker: ((path: string) => Promise<boolean>) | null = null;
+/** 탐색기 화면이 "실행할까요?" 창을 띄우는 함수를 걸어 둬요(품질 보완 ② ✔1) */
+export function setRunAsker(f: ((path: string) => Promise<boolean>) | null) {
+  runAsker = f;
+}
+
+/** 열기 – 실행 파일이면 앱이 `need_confirm`을 돌려주고, 사용자가 [실행]을 누를 때만 다시 열어요 */
+async function openWithAsk(path: string): Promise<null> {
+  if (!inApp) {
+    if (EXEC_RE.test(path) && runAsker) await runAsker(path);
+    return null;
+  }
+  try {
+    return await call<null>("fs_open", { path });
+  } catch (e) {
+    if (String(e) !== "need_confirm") throw e;
+    if (runAsker && (await runAsker(path))) return call<null>("fs_open", { path, run: true });
+    return null;
+  }
+}
+
 export function fsErrorText(e: unknown): string {
   const s = String(e);
+  if (s === "path_denied") return "기록이 지키는 곳이라 할 수 없어요(드라이브 맨 위·윈도우 폴더·기록 자료 폴더 등).";
   if (s === "exists") return "같은 이름이 이미 있어요.";
   if (s === "bad_name") return "쓸 수 없는 이름이에요.";
   if (s === "reserved_name") return "CON·PRN·AUX·NUL·COM1·LPT1 같은 이름은 윈도우가 쓰는 이름이라 쓸 수 없어요.";

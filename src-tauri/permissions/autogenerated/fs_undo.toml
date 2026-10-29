@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-fs-undo"
+description = "Enables the fs_undo command without any pre-configured scope."
+commands.allow = ["fs_undo"]
+
+[[permission]]
+identifier = "deny-fs-undo"
+description = "Denies the fs_undo command without any pre-configured scope."
+commands.deny = ["fs_undo"]

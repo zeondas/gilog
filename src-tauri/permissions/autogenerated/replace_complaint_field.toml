@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-replace-complaint-field"
+description = "Enables the replace_complaint_field command without any pre-configured scope."
+commands.allow = ["replace_complaint_field"]
+
+[[permission]]
+identifier = "deny-replace-complaint-field"
+description = "Denies the replace_complaint_field command without any pre-configured scope."
+commands.deny = ["replace_complaint_field"]

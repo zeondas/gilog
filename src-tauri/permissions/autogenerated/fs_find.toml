@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-fs-find"
+description = "Enables the fs_find command without any pre-configured scope."
+commands.allow = ["fs_find"]
+
+[[permission]]
+identifier = "deny-fs-find"
+description = "Denies the fs_find command without any pre-configured scope."
+commands.deny = ["fs_find"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-road-table-reset"
+description = "Enables the road_table_reset command without any pre-configured scope."
+commands.allow = ["road_table_reset"]
+
+[[permission]]
+identifier = "deny-road-table-reset"
+description = "Denies the road_table_reset command without any pre-configured scope."
+commands.deny = ["road_table_reset"]
