@@ -60,9 +60,9 @@
   {
    "label": "자",
    "name": "행 메뉴·메모",
-   "sel": "button.bd-memo",
+   "sel": ".bd-rw.pj > .bd-c >> nth=1",
    "side": "아래",
-   "hint": ""
+   "hint": "오른끝"
   }
  ],
  "figs": [
