@@ -3,7 +3,7 @@
  "feats": [
   {
    "label": "가",
-   "name": "해 고르기",
+   "name": "연도 선택",
    "sel": "span.bd-year",
    "side": "위",
    "hint": ""
@@ -17,7 +17,7 @@
   },
   {
    "label": "다",
-   "name": "집행액·시공량",
+   "name": "집행률·시공량 보기",
    "sel": "span.tb-seg-l",
    "side": "위",
    "hint": ""
@@ -31,8 +31,8 @@
   },
   {
    "label": "마",
-   "name": "배치최적화",
-   "sel": "button.bd-tool",
+   "name": "열 폭 조정",
+   "sel": "div.bd-hd.colh-row >> div.bd-h:has-text(\"원인행위\")",
    "side": "위",
    "hint": ""
   },

@@ -3,7 +3,7 @@
  "feats": [
   {
    "label": "가",
-   "name": "보는 해",
+   "name": "조회 연도",
    "sel": "span.bd-year",
    "side": "위",
    "hint": ""
@@ -17,8 +17,8 @@
   },
   {
    "label": "다",
-   "name": "배치최적화",
-   "sel": "button.bd-tool",
+   "name": "열 폭 조정",
+   "sel": "div.bd-hd >> div.bd-h:has-text(\"집행액\") >> nth=0",
    "side": "위",
    "hint": ""
   },
@@ -52,14 +52,14 @@
   },
   {
    "label": "아",
-   "name": "직접 적는 칸",
+   "name": "직접 입력 칸",
    "sel": ".bd-rw.pj span.bs-fld >> nth=1",
    "side": "아래",
    "hint": ""
   },
   {
    "label": "자",
-   "name": "줄 메뉴·메모",
+   "name": "행 메뉴·메모",
    "sel": "button.bd-memo",
    "side": "아래",
    "hint": ""
@@ -72,7 +72,7 @@
    "sel": ".dialog.bss2"
   },
   {
-   "head": "자. 줄 메뉴·메모",
+   "head": "자. 행 메뉴·메모",
    "scene": "budgetstatus_menu",
    "sel": ".bd-pop"
   }

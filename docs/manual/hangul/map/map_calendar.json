@@ -31,7 +31,7 @@
   },
   {
    "label": "마",
-   "name": "달 옮기기",
+   "name": "달 이동",
    "sel": "div.cal-nav",
    "side": "위",
    "hint": ""
