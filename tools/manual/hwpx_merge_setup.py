@@ -88,6 +88,8 @@ used_ids = set(re.findall(r'\bid="(\d{6,})"', SM)) | set(re.findall(r'instid="(\
 
 
 def remap(p):
+    # 줄 배치 기억(linesegarray)은 안내서 쪽 자리라 지워요 – 남기면 한글이 그 자리 그대로 그려 글이 겹치고 어긋나요
+    p = re.sub(r"<hp:linesegarray>.*?</hp:linesegarray>", "", p, flags=re.S)
     p = sub_ref(p, "charPrIDRef", CP)
     p = sub_ref(p, "paraPrIDRef", PP)
     p = sub_ref(p, "borderFillIDRef", BF)
