@@ -20,6 +20,7 @@ pub fn bstatus_set(state: State<AppState>, name: String, setup: String) -> Resul
 }
 
 #[tauri::command]
-pub fn bstatus_excel_write(path: String, data: BStatusExport) -> Result<(), String> {
-    gilog_core::bstatus::write_bstatus_xlsx(std::path::Path::new(&path), &data).map_err(code)
+pub fn bstatus_excel_write(app: tauri::AppHandle, path: String, data: BStatusExport) -> Result<(), String> {
+    let path = crate::guard::export_to(&path, &crate::guard::protected(&app))?;
+    gilog_core::bstatus::write_bstatus_xlsx(&path, &data).map_err(code)
 }

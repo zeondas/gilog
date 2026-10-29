@@ -458,7 +458,8 @@ export function setRunAsker(f: ((path: string) => Promise<boolean>) | null) {
   runAsker = f;
 }
 
-/** 열기 – 실행 파일이면 앱이 `need_confirm`을 돌려주고, 사용자가 [실행]을 누를 때만 다시 열어요 */
+/** 열기 – 실행 파일이면 앱이 `need_confirm:<번호>`(일회용, 그 경로·60초)를 돌려주고,
+ *  사용자가 [실행]을 누를 때만 그 번호로 다시 열어요(품질 보완 ②-2 ✔2 ①1안) */
 async function openWithAsk(path: string): Promise<null> {
   if (!inApp) {
     if (EXEC_RE.test(path) && runAsker) await runAsker(path);
@@ -467,8 +468,10 @@ async function openWithAsk(path: string): Promise<null> {
   try {
     return await call<null>("fs_open", { path });
   } catch (e) {
-    if (String(e) !== "need_confirm") throw e;
-    if (runAsker && (await runAsker(path))) return call<null>("fs_open", { path, run: true });
+    const s = String(e);
+    if (!s.startsWith("need_confirm:")) throw e;
+    const ticket = s.slice("need_confirm:".length);
+    if (runAsker && (await runAsker(path))) return call<null>("fs_open", { path, ticket });
     return null;
   }
 }

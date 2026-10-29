@@ -309,6 +309,9 @@ pub(crate) fn zip_extract(paths: &[String], tmp_root: &Path) -> Result<Vec<Strin
             return Err("not_found".into());
         }
         let last = inner.rsplit('/').next().unwrap_or(&inner).to_string();
+        if !crate::guard::safe_rel(&last) {
+            return Err(crate::guard::DENIED.into());
+        }
         let target = base.join(&last);
         let pre = format!("{inner}/");
         let mut a = zip_open(&z)?;
@@ -320,8 +323,8 @@ pub(crate) fn zip_extract(paths: &[String], tmp_root: &Path) -> Result<Vec<Strin
             let to = if name == inner {
                 target.clone()
             } else if let Some(rest) = name.strip_prefix(&pre) {
-                // ".." 같은 이름으로 임시 폴더 밖에 쓰지 않게
-                if rest.split('/').any(|c| c == ".." || c.is_empty()) {
+                // ".."·드라이브(`C:`)·맨 앞 `/`·`\\` 같은 이름으로 임시 폴더 밖에 쓰지 않게(②-2 ✔3)
+                if !crate::guard::safe_rel(rest) {
                     continue;
                 }
                 target.join(rest.replace('/', std::path::MAIN_SEPARATOR_STR))
@@ -1064,13 +1067,13 @@ pub async fn fs_delete(app: AppHandle, paths: Vec<String>, permanent: bool) -> R
 }
 
 /// 윈도우 기본 프로그램으로 열어요(폴더면 윈도우 탐색기).
-/// 실행 파일(exe·bat 등, 그런 것을 가리키는 바로 가기 포함)은 화면이 "실행할까요?"를 받은 뒤 `run: true`로 다시 불러야 열어요
-/// – 아니면 `need_confirm`(품질 보완 ② ✔1, 2026-10-29).
+/// 실행 파일(exe·bat 등, 그런 것을 가리키는 바로 가기 포함)은 앱이 `need_confirm:<번호>`로 일회용 번호를 주고,
+/// 화면이 "실행할까요?"에서 [실행]을 받은 뒤 그 번호(`ticket`)로 다시 불러야만 열어요(②-2 ✔2 ①1안 – 번호는 그 경로·한 번·60초).
 #[tauri::command]
-pub fn fs_open(path: String, run: Option<bool>) -> Result<(), String> {
+pub fn fs_open(path: String, ticket: Option<String>) -> Result<(), String> {
     let p = crate::guard::plain(&path)?;
-    if !run.unwrap_or(false) && runs_program(&p) {
-        return Err(crate::guard::NEED_CONFIRM.into());
+    if runs_program(&p) && !crate::guard::take_ticket(&p, ticket.as_deref().unwrap_or("")) {
+        return Err(format!("{}:{}", crate::guard::NEED_CONFIRM, crate::guard::run_ticket(&p)));
     }
     #[cfg(windows)]
     {
@@ -1770,6 +1773,11 @@ pub fn fs_watch(app: AppHandle, state: tauri::State<Watch>, dirs: Vec<String>) -
 mod tests {
     use super::*;
 
+    /// "a/b/c"를 윈도우 구분자로 이어요 – 문자열로 견주는 경로(결정 키·되돌리기 짝)는 실제 경로와 글자가 같아야 해요.
+    fn rel(base: &Path, r: &str) -> PathBuf {
+        r.split('/').fold(base.to_path_buf(), |p, c| p.join(c))
+    }
+
     fn tmp(name: &str) -> PathBuf {
         let d = std::env::temp_dir().join(format!("gilog-files-{}-{}", name, std::process::id()));
         let _ = fs::remove_dir_all(&d);
@@ -1807,8 +1815,8 @@ mod tests {
         let cs = conflicts(&srcs, &b);
         assert_eq!(cs.len(), 2);
         let mut dec = HashMap::new();
-        dec.insert(b.join("사진/1.jpg").to_string_lossy().into_owned(), "over".to_string());
-        dec.insert(b.join("사진/2.jpg").to_string_lossy().into_owned(), "both".to_string());
+        dec.insert(rel(&b, "사진/1.jpg").to_string_lossy().into_owned(), "over".to_string());
+        dec.insert(rel(&b, "사진/2.jpg").to_string_lossy().into_owned(), "both".to_string());
         let s = transfer(false, &srcs, &b, &dec, &|_, _, _| {}).unwrap();
         assert_eq!(s.done, 4);
         assert_eq!(fs::read_to_string(b.join("사진/1.jpg")).unwrap(), "new1");
@@ -1851,7 +1859,7 @@ mod tests {
         // 복사: 새로 생긴 것만 짝으로(합친 폴더는 파일 단위, "메모 (2).txt")
         let s = transfer(false, &[a.join("현장"), a.join("메모.txt")], &b, &dec, &|_, _, _| {}).unwrap();
         let got: HashSet<String> = s.pairs.iter().map(|(_, t)| t.clone()).collect();
-        assert!(got.contains(&b.join("현장/사진/1.jpg").to_string_lossy().into_owned()), "{got:?}");
+        assert!(got.contains(&rel(&b, "현장/사진/1.jpg").to_string_lossy().into_owned()), "{got:?}");
         assert!(got.contains(&b.join("메모 (2).txt").to_string_lossy().into_owned()), "{got:?}");
         assert!(!got.contains(&b.join("현장").to_string_lossy().into_owned()));
         // 덮어쓰기는 짝에서 빠져요
@@ -1877,7 +1885,7 @@ mod tests {
         assert_eq!(r.errors[0].1, "exists");
         // 복사 다시 하기·새 폴더
         let r = run_steps(&[
-            Step::Copy { from: c.join("현장").to_string_lossy().into_owned(), to: d.join("e/현장").to_string_lossy().into_owned() },
+            Step::Copy { from: c.join("현장").to_string_lossy().into_owned(), to: rel(&d, "e/현장").to_string_lossy().into_owned() },
             Step::Mkdir { path: d.join("새 폴더").to_string_lossy().into_owned() },
         ]);
         assert_eq!(r.done, 2);
@@ -1932,6 +1940,27 @@ mod tests {
     }
 
     #[test]
+    fn zip_entries_cannot_leave_tmp() {
+        let d = tmp("zipesc");
+        let zp = d.join("나쁜.zip");
+        {
+            let f = fs::File::create(&zp).unwrap();
+            let mut z = zip::ZipWriter::new(f);
+            let o = zip::write::SimpleFileOptions::default();
+            for (n, body) in [("폴더/ok.txt", "ok"), ("폴더/C:/evil.txt", "x"), ("폴더/c:evil2.txt", "x"), ("폴더//abs.txt", "x"), ("폴더/a/../../up.txt", "x"), ("폴더/\\srv\\s.txt", "x")] {
+                z.start_file(n, o).unwrap();
+                std::io::Write::write_all(&mut z, body.as_bytes()).unwrap();
+            }
+            z.finish().unwrap();
+        }
+        let out = zip_extract(&[zp.join("폴더").to_string_lossy().into_owned()], &d.join("tmp")).unwrap();
+        let mut got: Vec<String> = fs::read_dir(&out[0]).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
+        got.sort();
+        assert_eq!(got, vec!["ok.txt".to_string()]);
+        assert!(!d.join("up.txt").exists());
+    }
+
+    #[test]
     fn reserved_and_env() {
         assert!(reserved_name("CON") && reserved_name("nul.txt") && reserved_name("com3.hwp") && reserved_name("LPT9"));
         assert!(!reserved_name("CONTACT") && !reserved_name("COM10") && !reserved_name("공문.hwp") && !reserved_name("com0"));
@@ -1966,9 +1995,9 @@ mod tests {
         let root = d.to_string_lossy().into_owned();
         let hits = vec![
             serde_json::json!({ "p": d.join("공사").to_string_lossy(), "d": true }),
-            serde_json::json!({ "p": d.join("공사/261015_봉일천리_포트홀.pptx").to_string_lossy(), "d": false }),
-            serde_json::json!({ "p": d.join("공사/포트홀 메모.txt").to_string_lossy(), "d": false }),
-            serde_json::json!({ "p": d.join("공사/지워진.txt").to_string_lossy(), "d": false }),
+            serde_json::json!({ "p": rel(&d, "공사/261015_봉일천리_포트홀.pptx").to_string_lossy(), "d": false }),
+            serde_json::json!({ "p": rel(&d, "공사/포트홀 메모.txt").to_string_lossy(), "d": false }),
+            serde_json::json!({ "p": rel(&d, "공사/지워진.txt").to_string_lossy(), "d": false }),
         ];
         let ask = move |q: &serde_json::Value| -> Option<serde_json::Value> {
             match q["op"].as_str()? {

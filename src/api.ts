@@ -1386,6 +1386,18 @@ function fakeCall(cmd: string, args: Record<string, unknown>): unknown {
       if (!fake.unlocked) throw "locked";
       fake.values.set(a.key, a.value);
       return null;
+    case "set_process_exe": {
+      if (!fake.unlocked) throw "locked";
+      let v: { process?: Record<string, unknown> } = {};
+      try {
+        v = JSON.parse(fake.values.get("settings") ?? "{}") ?? {};
+      } catch {
+        v = {};
+      }
+      v.process = { ...(v.process ?? {}), claude: a.exe };
+      fake.values.set("settings", JSON.stringify(v));
+      return null;
+    }
     case "export_backup":
       return null;
     case "import_backup":
@@ -1426,6 +1438,8 @@ export const api = {
     call<null>("change_password", { oldPassword, newPassword }),
   get: (key: string) => call<string | null>("get_value", { key }),
   set: (key: string, value: string) => call<null>("set_value", { key, value }),
+  /** 민원처리 Claude 실행 파일 자리 – 설정 저장(`set`)으로는 못 바꿔요(②-2 ✔2) */
+  setProcessExe: (exe: string) => call<null>("set_process_exe", { exe }),
   exportBackup: (path: string) => call<null>("export_backup", { path }),
   importBackup: (path: string, password: string) => call<null>("import_backup", { path, password }),
   moveData: (folder: string) => call<null>("move_data", { folder }),
