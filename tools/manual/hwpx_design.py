@@ -90,6 +90,20 @@ def main():
             continue
         newp.append(p)
     sec2 = head + "".join(newp) + tail
+    header = zin.read("Contents/header.xml").decode("utf-8")
+    if os.environ.get("FRAME_LINE", "none") == "none":
+        # 그림 틀(그림이 든 표) 테두리를 보이지 않는 선(선 없음)으로 – 테두리 자체는 남아요
+        refs = {r for t in re.findall(r"<hp:tbl\b.*?</hp:tbl>", sec2, re.S) if "<hp:pic" in t
+                for r in re.findall(r'borderFillIDRef="(\d+)"', t)}
+        nid = max(int(x) for x in re.findall(r'<hh:borderFill id="(\d+)"', header)) + 1
+        remap = {}
+        for r in sorted(refs):
+            m = re.search(rf'<hh:borderFill id="{r}".*?</hh:borderFill>', header, re.S).group(0)
+            new = re.sub(r'(<hh:(?:left|right|top|bottom)Border) type="\w+"', r'\1 type="NONE"', m.replace(f'id="{r}"', f'id="{nid}"', 1))
+            header = header.replace("</hh:borderFills>", new + "</hh:borderFills>", 1)
+            remap[r] = str(nid); nid += 1
+        header = re.sub(r'<hh:borderFills itemCnt="(\d+)"', lambda x: f'<hh:borderFills itemCnt="{int(x.group(1)) + len(remap)}"', header, count=1)
+        sec2 = re.sub(r"<hp:tbl\b.*?</hp:tbl>", lambda t: re.sub(r'borderFillIDRef="(\d+)"', lambda q: f'borderFillIDRef="{remap.get(q.group(1), q.group(1))}"', t.group(0)) if "<hp:pic" in t.group(0) else t.group(0), sec2, flags=re.S)
     hpf = hpf.replace("</opf:manifest>", "".join(f'<opf:item id="{x}" href="BinData/{x}.png" media-type="image/png" isEmbeded="1"/>'
                                                  for x, _ in items) + "</opf:manifest>", 1)
     with zipfile.ZipFile(out, "w") as zout:
@@ -97,6 +111,7 @@ def main():
             data = zin.read(it.filename)
             if it.filename == "Contents/section0.xml": data = sec2.encode("utf-8")
             elif it.filename == "Contents/content.hpf": data = hpf.encode("utf-8")
+            elif it.filename == "Contents/header.xml": data = header.encode("utf-8")
             zi = zipfile.ZipInfo(it.filename, date_time=it.date_time)
             zi.compress_type = zipfile.ZIP_STORED if it.filename == "mimetype" or it.filename.startswith("BinData/") else zipfile.ZIP_DEFLATED
             zi.external_attr = it.external_attr
