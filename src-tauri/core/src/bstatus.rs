@@ -231,6 +231,17 @@ fn base(size: f64, bold: bool, fill: Option<u32>, color: u32) -> Format {
 
 /// 내보내기 — 사용자의 시도57호선 엑셀 열 순서(C~U) 그대로, 앞에 사업기간·사업명 두 열, 뒤에 메모
 pub fn write_bstatus_xlsx(path: &Path, data: &BStatusExport) -> Result<()> {
+    let mut wb = build_bstatus_xlsx(data)?;
+    wb.save(path).map_err(xerr)?;
+    Ok(())
+}
+
+/// 파일 대신 바이트로 써요(브라우저 미리 보기의 가짜 드라이브). 내용은 `write_bstatus_xlsx`와 같아요.
+pub fn bstatus_xlsx_bytes(data: &BStatusExport) -> Result<Vec<u8>> {
+    build_bstatus_xlsx(data)?.save_to_buffer().map_err(xerr)
+}
+
+fn build_bstatus_xlsx(data: &BStatusExport) -> Result<Workbook> {
     let unit = if data.unit == 1000 { 1000.0 } else { 1.0 };
     let mut wb = Workbook::new();
     let ws = wb.add_worksheet();
@@ -339,8 +350,7 @@ pub fn write_bstatus_xlsx(path: &Path, data: &BStatusExport) -> Result<()> {
     ws.set_print_fit_to_pages(1, 0);
     ws.set_repeat_rows(0, 3).map_err(xerr)?;
     ws.set_print_area(0, 0, last, 21).map_err(xerr)?;
-    wb.save(path).map_err(xerr)?;
-    Ok(())
+    Ok(wb)
 }
 
 #[cfg(test)]
@@ -408,5 +418,8 @@ mod tests {
         assert_eq!(sheets[0].name, "2026 예산현황");
         assert_eq!(sheets[0].rows[2][0], "사업기간");
         assert_eq!(sheets[0].rows[4][1], "시도57호선");
+        // 바이트로 쓴 것(미리 보기)도 파일로 쓴 것과 같은 칸으로 읽혀요.
+        let bytes = bstatus_xlsx_bytes(&data).unwrap();
+        assert_eq!(crate::budget_xlsx::read_grid_bytes(&bytes).unwrap(), sheets);
     }
 }

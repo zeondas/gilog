@@ -125,6 +125,17 @@ fn fmts(size: f64, bold: bool, fill: Option<u32>, color: u32, indent: u8) -> Fmt
 
 /// 내보내기
 pub fn write_budget_xlsx(path: &Path, data: &BudgetExport) -> Result<()> {
+    let mut wb = build_budget_xlsx(data)?;
+    wb.save(path).map_err(xerr)?;
+    Ok(())
+}
+
+/// 파일 대신 바이트로 써요(브라우저 미리 보기의 가짜 드라이브). 내용은 `write_budget_xlsx`와 같아요.
+pub fn budget_xlsx_bytes(data: &BudgetExport) -> Result<Vec<u8>> {
+    build_budget_xlsx(data)?.save_to_buffer().map_err(xerr)
+}
+
+fn build_budget_xlsx(data: &BudgetExport) -> Result<Workbook> {
     let unit = if data.unit == 1000 { 1000.0 } else { 1.0 };
     let money = |v: i64| v as f64 / unit;
     let mut wb = Workbook::new();
@@ -306,13 +317,23 @@ pub fn write_budget_xlsx(path: &Path, data: &BudgetExport) -> Result<()> {
     ws.set_print_fit_to_pages(1, 0);
     ws.set_repeat_rows(0, 2).map_err(xerr)?;
     ws.set_print_area(0, 0, last, 11).map_err(xerr)?;
-    wb.save(path).map_err(xerr)?;
-    Ok(())
+    Ok(wb)
 }
 
 /// 가져오기: 시트마다 칸 글자(수식 칸은 엑셀이 계산해 둔 값)
 pub fn read_grid(path: &Path) -> Result<Vec<GridSheet>> {
     let mut wb = open_workbook_auto(path).map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
+    grid_of(&mut wb)
+}
+
+/// 바이트에서 읽어요(브라우저 미리 보기의 가짜 드라이브). 규칙은 `read_grid`와 같아요.
+pub fn read_grid_bytes(bytes: &[u8]) -> Result<Vec<GridSheet>> {
+    let mut wb = calamine::open_workbook_auto_from_rs(std::io::Cursor::new(bytes))
+        .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
+    grid_of(&mut wb)
+}
+
+fn grid_of<RS: std::io::Read + std::io::Seek>(wb: &mut calamine::Sheets<RS>) -> Result<Vec<GridSheet>> {
     let mut out = Vec::new();
     for name in wb.sheet_names() {
         let Ok(range) = wb.worksheet_range(&name) else { continue };
@@ -515,5 +536,20 @@ mod tests {
         let path = Path::new(&out).join(format!("집행현황_{}_{}_{}.xlsx", data.year, data.unit, data.date));
         write_budget_xlsx(&path, &data).unwrap();
         println!("WROTE {}", path.display());
+    }
+
+    /// 바이트 쓰기·읽기(미리 보기)가 파일 쓰기·읽기와 같은 칸을 내요.
+    #[test]
+    fn bytes_same_as_file() {
+        for view in ["", "act"] {
+            let (_d, path) = rule_sheet("", view);
+            let from_file = read_grid(&path).unwrap();
+            assert_eq!(read_grid_bytes(&std::fs::read(&path).unwrap()).unwrap(), from_file);
+        }
+        let data = BudgetExport { year: 2026, unit: 1000, date: "2026-10-29".into(), ..Default::default() };
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("빈.xlsx");
+        write_budget_xlsx(&path, &data).unwrap();
+        assert_eq!(read_grid_bytes(&budget_xlsx_bytes(&data).unwrap()).unwrap(), read_grid(&path).unwrap());
     }
 }

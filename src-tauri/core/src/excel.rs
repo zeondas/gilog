@@ -140,14 +140,24 @@ fn xerr(e: XlsxError) -> Error {
 
 /// 내보내기: 양식(README) 그대로 써요.
 pub fn write_xlsx(path: &Path, kind: SheetKind, data: &ExcelExport) -> Result<()> {
+    let mut wb = build_xlsx(kind, data)?;
+    wb.save(path).map_err(xerr)?;
+    Ok(())
+}
+
+/// 파일 대신 바이트로 써요(브라우저 미리 보기의 가짜 드라이브). 내용은 `write_xlsx`와 같아요.
+pub fn xlsx_bytes(kind: SheetKind, data: &ExcelExport) -> Result<Vec<u8>> {
+    build_xlsx(kind, data)?.save_to_buffer().map_err(xerr)
+}
+
+fn build_xlsx(kind: SheetKind, data: &ExcelExport) -> Result<Workbook> {
     let mut wb = Workbook::new();
     write_sheet(&mut wb, kind, &data.rows, data)?;
     // 업무일지는 같은 파일에 둘째 시트 "날짜별"을 더해요.
     if kind == SheetKind::Journal {
         write_sheet(&mut wb, SheetKind::JournalDays, &data.days, data)?;
     }
-    wb.save(path).map_err(xerr)?;
-    Ok(())
+    Ok(wb)
 }
 
 fn write_sheet(wb: &mut Workbook, kind: SheetKind, rows: &[Vec<String>], data: &ExcelExport) -> Result<()> {
@@ -338,10 +348,21 @@ pub fn norm_header(s: &str) -> String {
 /// 양식이 아니면(열 제목 줄을 못 찾으면) Invalid예요.
 pub fn read_xlsx(path: &Path, kind: SheetKind) -> Result<ExcelSheet> {
     let mut wb = open_workbook_auto(path).map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
-    let mut sheet = read_kind(&mut wb, kind)?;
+    read_book(&mut wb, kind)
+}
+
+/// 바이트에서 읽어요(브라우저 미리 보기의 가짜 드라이브). 규칙은 `read_xlsx`와 같아요.
+pub fn read_xlsx_bytes(bytes: &[u8], kind: SheetKind) -> Result<ExcelSheet> {
+    let mut wb = calamine::open_workbook_auto_from_rs(std::io::Cursor::new(bytes))
+        .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
+    read_book(&mut wb, kind)
+}
+
+fn read_book<RS: std::io::Read + std::io::Seek>(wb: &mut calamine::Sheets<RS>, kind: SheetKind) -> Result<ExcelSheet> {
+    let mut sheet = read_kind(wb, kind)?;
     // 업무일지는 둘째 시트 "날짜별"도 함께 읽어요(없으면 그냥 비워요).
     if kind == SheetKind::Journal {
-        if let Ok(days) = read_kind(&mut wb, SheetKind::JournalDays) {
+        if let Ok(days) = read_kind(wb, SheetKind::JournalDays) {
             sheet.extra.push(days);
         }
     }
@@ -504,5 +525,26 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// 바이트 쓰기·읽기(미리 보기)가 파일 쓰기·읽기와 같은 결과를 내요.
+    #[test]
+    fn bytes_same_as_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let rows = vec![complaint_row("1", "○ 도로 파손\n  - 깊이 5cm"), complaint_row("2", "○ 한 줄")];
+        let day: Vec<String> = ["2026-10-19", "08:40", "자가용", "맑음", ""].iter().map(|s| s.to_string()).collect();
+        let cases = [
+            (SheetKind::Complaints, ExcelExport { rows, intake: vec!["전화".into()], status: vec!["접수".into()], ..Default::default() }),
+            (SheetKind::Journal, ExcelExport { rows: vec![vec!["1".into(), "2026-10-19".into(), "09:10".into()]], days: vec![day], ..Default::default() }),
+            (SheetKind::Contacts, ExcelExport::default()),
+        ];
+        for (kind, data) in cases {
+            let path = dir.path().join("x.xlsx");
+            write_xlsx(&path, kind, &data).unwrap();
+            let from_file = read_xlsx(&path, kind).unwrap();
+            assert_eq!(read_xlsx_bytes(&xlsx_bytes(kind, &data).unwrap(), kind).unwrap(), from_file);
+            assert_eq!(read_xlsx_bytes(&std::fs::read(&path).unwrap(), kind).unwrap(), from_file);
+        }
+        assert!(read_xlsx_bytes(b"not a workbook", SheetKind::Complaints).is_err());
     }
 }

@@ -144,6 +144,43 @@ jobs:
           { echo '검사 실패 로그 (오류 부분)'; echo '```'; grep -nE "error(\[|:)|Error|npm ERR|panicked|failed|FAILED" check.log | head -80; echo '---- 끝부분 ----'; tail -60 check.log; echo '```'; } > body.md
           gh api repos/${{ github.repository }}/commits/${{ github.sha }}/comments -f body="$(cat body.md)" >/dev/null || true
 
+  # ---------- 저장 모듈 브라우저용 빌드 확인(2026-10-29 품질 보완 ②-3 ✔1, wip/core-wasm) ----------
+  # src-tauri/core가 브라우저용(wasm32)으로도 만들어지는지 봐요 – 미리 보기가 흉내 대신 이것을 쓰게 될 거예요(2차).
+  # 윈도우 앱에는 들어가지 않아요. Rust 쪽을 안 바꾼 가지는 건너뛰어요.
+  core-wasm:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      - name: Rust 바뀜 확인
+        id: rust
+        run: |
+          if [ "${{ github.event_name }}" != "push" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          base=$(git merge-base origin/main HEAD 2>/dev/null || true)
+          if [ -z "$base" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          changed=$(git diff --name-only "$base" HEAD | grep -E '^src-tauri/|(^|/)Cargo\.[^/]*$' || true)
+          if [ -n "$changed" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; else echo "Rust 쪽 바뀐 파일 없음 – 건너뛰어요"; echo "run=false" >> "$GITHUB_OUTPUT"; fi
+
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable(2026-10-29)
+        if: steps.rust.outputs.run == 'true'
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        if: steps.rust.outputs.run == 'true'
+        with:
+          shared-key: gilog-wasm
+          workspaces: src-tauri/core
+
+      # sqlite-wasm-rs가 SQLite(C)를 브라우저용으로 만들 때 clang을 써요(ubuntu에 들어 있어요).
+      - name: 저장 모듈 브라우저용 빌드
+        if: steps.rust.outputs.run == 'true'
+        run: cargo build --release --lib --target wasm32-unknown-unknown --manifest-path src-tauri/core/Cargo.toml
+
   # ---------- 모양 지킴이(2026-10-29 검사 자동화 ✔1, tools/guard/README.md) ----------
   # main과 갈라진 곳(기준)과 이 가지를 같은 러너에서 빌드해 장면 96개를 4갈래로 나눠 견줘요(기준 사진을 저장소에 두지 않아요).
   # 일부러 바꾼 장면은 커밋 메시지에 "guard-allow: 장면 …" 줄을 적어요(ci.py 설명).

@@ -5,7 +5,6 @@ description = "giLog의 저장과 암호화. 화면과 무관하게 따로 시�
 edition = "2021"
 
 [dependencies]
-rusqlite = { version = "0.32", features = ["bundled-sqlcipher-vendored-openssl"] }
 argon2 = "0.5"
 rand = "0.8"
 hex = "0.4"
@@ -17,6 +16,17 @@ rust_xlsxwriter = { version = "0.99", default-features = false }
 calamine = { version = "0.36", default-features = false }
 zip = { version = "8", default-features = false, features = ["deflate"] }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+
+# 윈도우 앱: SQLCipher(암호화)로 자료 파일을 열어요.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+rusqlite = { version = "0.41", features = ["bundled-sqlcipher-vendored-openssl"] }
+
+# 브라우저 미리 보기(wasm32): 같은 rusqlite가 sqlite-wasm-rs의 메모리 SQLite를 써요(암호화 없음, `Store::memory`).
+# 시계는 브라우저 Date, 소금 만들기는 브라우저 crypto를 써요.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+rusqlite = { version = "0.41" }
+chrono = { version = "0.4", default-features = false, features = ["clock", "wasmbind"] }
+getrandom = { version = "0.2", features = ["js"] }
 
 [build-dependencies]
 zip = { version = "8", default-features = false, features = ["deflate"] }
