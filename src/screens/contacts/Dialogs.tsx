@@ -1,5 +1,5 @@
 // 업무연락처 적는 칸·창 – 신규 줄(NewRow)·사업 칸(ProjectChips)·고치는 카드(EditCard)·메모 창(MemoEditor, 민원대장도 씀)·사업 관리 창(ProjectDialog·GroupInput·GroupRename·NamesEdit·ColorPick). 화면 몸통은 Screen.tsx.
-import { KeyboardEvent, MutableRefObject, RefObject, useEffect, useRef, useState } from "react";
+import { KeyboardEvent, MutableRefObject, RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { DelGlyph } from "../../Icons";
 import { DialogX } from "../../DialogX";
 import { overlayDown, useOutsideClose } from "../../useOutsideClose";
@@ -12,7 +12,8 @@ import { finalizePhone } from "../../phone";
 import { api, Contact, ContactInput, ContactsData, Project, ProjectGroup } from "../../api";
 import { AskBand } from "../../AskBand";
 import { SearchBox } from "../../SearchBox";
-import { startColDrag, useColHead } from "../../ColHead";
+import { startColDrag, textPx, useColHead } from "../../ColHead";
+import { FIT_GAP_ROOMY } from "../../cols";
 import { PjMenu, CtxMenu } from "./Menu";
 import { MemoLine, COLOR_NAMES, projectColor, pjLabel, pjFull, pjStyle, koSort, pjSections, useFolded, FoldArrow } from "./parts";
 
@@ -674,13 +675,13 @@ const pjmFixed = (grouped: boolean) => 2 + 40 + (grouped ? 24 : 8) + 22 + 30 + P
 const pjmMaxW = () => window.innerWidth - PJM_PAD * 2;
 const clampW = (w: number) => Math.round(Math.max(Math.min(PJM_MIN_W, pjmMaxW()), Math.min(w, pjmMaxW())));
 
-/** 가장 긴 축약 공사명 글자 폭(줄 글꼴 13px 굵게) + 여유 */
-function fitShort(projects: Project[]): number {
-  const ctx = document.createElement("canvas").getContext("2d");
-  if (!ctx) return 160;
-  ctx.font = `600 13px ${getComputedStyle(document.body).fontFamily}`;
-  return Math.max(96, Math.ceil(Math.max(0, ...projects.map((p) => p.alias).filter(Boolean).map((x) => ctx.measureText(x).width))) + 8);
+/** 가장 긴 축약 공사명 글자 폭(줄 글꼴 13px 굵게) – 글자 재는 캔버스는 공통 부품 하나를 같이 써요 */
+function shortTextPx(projects: Project[]): number {
+  const font = `600 13px ${getComputedStyle(document.body).fontFamily}`;
+  return Math.max(0, ...projects.map((p) => p.alias).filter(Boolean).map((x) => textPx(x, font)));
 }
+/** 축약 열 처음 폭 = 글자 폭 + 8(가장 좁게 96) */
+const fitShort = (textW: number) => Math.max(96, Math.ceil(textW) + 8);
 
 /** 창 왼쪽·오른쪽 가장자리 손잡이 – 끈 쪽 가장자리만 마우스를 따라오고 반대쪽은 그대로예요. */
 function EdgeGrip({ side, onDown }: { side: "l" | "r"; onDown: (e: React.MouseEvent) => void }) {
@@ -820,10 +821,13 @@ export function ProjectDialog({
   const pjmW = size.w;
   // 축약 열 넓히기는 사업명이 가장 좁게(160)에 닿을 때까지 – 더 넓히려면 창 가장자리를 끌어요(창 안 표 ⑥2안)
   const maxShort = Math.max(40, pjmW - fixed - PJM_MIN_NAME);
+  // 축약 공사명 글자 폭은 사업 목록이 바뀔 때만 재요(cols 최적화 6)
+  const shortText = useMemo(() => shortTextPx(data.projects), [data.projects]);
   const colh = useColHead({
     store: PJM_COLS_KEY,
-    cols: [{ id: "short", label: "축약 공사명", init: Math.min(fitShort(data.projects), maxShort), max: maxShort }],
-    measure: () => fitShort(data.projects),
+    cols: [{ id: "short", label: "축약 공사명", init: Math.min(fitShort(shortText), maxShort), max: maxShort, roomy: true }],
+    // 내용에 맞춤 = 글자 폭 + 여유 16(cols.ts, 글자 열) – 가장 좁게는 처음 폭과 같은 96
+    measure: () => Math.max(96 - FIT_GAP_ROOMY, shortText),
   });
   const shortW = colh.width("short");
   /** 끌어서 옮긴 창은 그 왼쪽 자리를 지켜요(화면 밖으로는 안 나가게) */

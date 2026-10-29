@@ -3,7 +3,7 @@
 // - 창마다 탭 줄 → 드라이브 줄(드라이브 · 빠른 필터 · 보기 ▾) → 경로 줄(경로 · 폴더 경로 복사 · 윈도우 탐색기로 열기 · ★) → 목록 → 상태 줄.
 // - 우클릭(파일·폴더·빈 곳)은 윈도우 우클릭 메뉴 그대로(2안), 탭 우클릭만 기록 메뉴.
 // - 상태(탭·열 폭·정렬·보기·트리·즐겨찾기·찾기 조건·일괄 이름 바꾸기 설정)는 암호화 파일 kv "files.state".
-import { useColHead } from "../../ColHead";
+import { textPx, useColHead } from "../../ColHead";
 import type { ColDef } from "../../cols";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, inApp } from "../../api";
@@ -1639,11 +1639,18 @@ export default function FilesScreen() {
 
   // 열 폭(헤더 열 조정 통일 2026-10-28): 모든 창 공통, 끈 열만 kv `files.cols`. 수정한 날 열은 날짜 형식 글자 폭 아래로 안 줄어요.
   // 두 번 누르기·"내용에 맞춤"은 창마다 그 창 줄을 재는 함수(colFit)를 두고 가장 넓은 값을 써요.
+  // 끄는 동안은 화면을 다시 그리지 않고 창마다 줄 폭만 직접 바꿔요(colLive – cols 최적화 3).
+  // 둘 다 그리기마다 비우고 지금 그리는 창만 다시 넣어요 – 닫힌 창의 줄이 맞춤에 섞이지 않게(cols 최적화 4).
   const colFit = useRef<Record<number, (k: string) => number | null>>({});
+  const colLive = useRef<Record<number, (w: (k: string) => number) => void>>({});
+  colFit.current = {};
+  colLive.current = {};
+  // 날짜 형식 글자 폭은 형식이 바뀔 때만 재요(cols 최적화 6)
+  const dateMin = useMemo(() => dateColMin(cfg.dateFmt), [cfg.dateFmt]);
   const colDefs: ColDef[] = [
     { id: "name", label: "이름", init: DEFAULT_COLS.name, text: true },
     { id: "size", label: "크기", init: DEFAULT_COLS.size },
-    { id: "modified", label: "수정한 날", init: DEFAULT_COLS.modified, min: Math.max(40, dateColMin(cfg.dateFmt)) },
+    { id: "modified", label: "수정한 날", init: DEFAULT_COLS.modified, min: Math.max(40, dateMin) },
     { id: "folder", label: "폴더", init: DEFAULT_COLS.folder },
     { id: "type", label: "파일 형식", init: DEFAULT_COLS.type },
   ];
@@ -1654,21 +1661,20 @@ export default function FilesScreen() {
       const ws = Object.values(colFit.current).map((f) => f(k)).filter((w): w is number => w != null && w > 0);
       return ws.length ? Math.max(...ws) : null;
     },
+    live: (w) => Object.values(colLive.current).forEach((f) => f(w)),
   });
 
   if (!st) return <div className="fx-root" />;
 
   const fmt = cfg.dateFmt;
-  // 날짜 형식이 길어지면(초까지 등) 수정한 날 열이 그 글자보다 좁아지지 않게 해요.
-  const dateMin = dateColMin(fmt);
   const treeW = Math.max(TREE_W.min, Math.min(treeMax(st.layout), st.tree.width));
 
   // ---------- 그리기 ----------
   const paneCtx: PaneCtx = {
-    activeTab, cfg, closeTab, commitInline, copyPath, crumbList, cut, dateMin, dragScroll, dragSrc, driveMenu, dropTo, editPath, extHover,
+    activeTab, cfg, closeTab, commitInline, copyPath, crumbList, cut, dragScroll, dragSrc, driveMenu, dropTo, editPath, extHover,
     filterRefs, filters, flash, fmt, focusPane, go, home, inline, keepPick, lists, menu, nativeDrag, newTab, newTabBg, noCtxUntil,
     openEntry, paneCount, rerunFind, rowsOf, selected, sels, setBand, setEditPath, setFilters, setFindOpen, setForm, setInline, setMenu,
-    setPop, setSel, setSt, setSugg, shellMenu, st, stepHistory, sugg, suggest, targetOf, toggleCol, types, up, updPane, visibleDrives, colh, colFit,
+    setPop, setSel, setSt, setSugg, shellMenu, st, stepHistory, sugg, suggest, targetOf, toggleCol, types, up, updPane, visibleDrives, colh, colFit, colLive,
     note: { pane: notePane != null && notePane < paneCount ? notePane : st.active, busy, toast, cancel: () => void fsApi.cancel() },
   };
 
@@ -2201,11 +2207,8 @@ function dateColMin(fmt: string): number {
   const key = fmt + "|" + fs;
   const hit = dateMinCache.get(key);
   if (hit) return hit;
-  const c = document.createElement("canvas").getContext("2d");
-  if (!c) return 0;
-  c.font = `${fs} Pretendard, sans-serif`;
-  // 12시간 모양은 12시가 가장 넓어요 – 둘 다 재서 큰 값
-  const wide = Math.max(...[23, 12].map((h) => c.measureText(formatDate(new Date(2026, 11, 28, h, 58, 58).getTime(), fmt)).width));
+  // 12시간 모양은 12시가 가장 넓어요 – 둘 다 재서 큰 값(글자 재는 캔버스는 공통 부품 하나)
+  const wide = Math.max(...[23, 12].map((h) => textPx(formatDate(new Date(2026, 11, 28, h, 58, 58).getTime(), fmt), `${fs} Pretendard, sans-serif`)));
   const w = Math.ceil(wide) + 20 + (fmt.includes(" ") ? DATE_TIME_GAP : 0);
   dateMinCache.set(key, w);
   return w;

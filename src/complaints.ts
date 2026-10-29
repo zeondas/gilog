@@ -91,21 +91,21 @@ export type ColKey =
 
 /**
  * 사양서 순서 12열(2026-10-21 사용자 – 지역은 위치 칸에 합치고, 민원인·연락처는 "민원인" 한 칸).
- * 처음 폭은 `layoutCols`가 글 폭·창 폭으로 정해요(w는 예전 값 – 쓰지 않아요).
+ * 처음 폭은 `layoutCols`가 글 폭·창 폭으로 정해요.
  */
-export const COLUMNS: { key: ColKey; label: string; w: number | null; fixed?: boolean }[] = [
-  { key: "no", label: "연번", w: 52 },
-  { key: "intake", label: "접수유형", w: 92 },
-  { key: "received", label: "접수일", w: 96 },
-  { key: "ctype", label: "민원유형", w: 84 },
-  { key: "place", label: "위치", w: 140 },
-  { key: "person", label: "민원인", w: 120 },
-  { key: "body", label: "내용", w: null },
-  { key: "action", label: "조치내용", w: null },
-  { key: "due", label: "마감일", w: 130 },
-  { key: "status", label: "상태", w: 80 },
-  { key: "done", label: "조치완료일", w: 130 },
-  { key: "memo", label: "메모", w: 48 },
+export const COLUMNS: { key: ColKey; label: string; fixed?: boolean }[] = [
+  { key: "no", label: "연번" },
+  { key: "intake", label: "접수유형" },
+  { key: "received", label: "접수일" },
+  { key: "ctype", label: "민원유형" },
+  { key: "place", label: "위치" },
+  { key: "person", label: "민원인" },
+  { key: "body", label: "내용" },
+  { key: "action", label: "조치내용" },
+  { key: "due", label: "마감일" },
+  { key: "status", label: "상태" },
+  { key: "done", label: "조치완료일" },
+  { key: "memo", label: "메모" },
 ];
 
 /** 표 폭을 아직 모를 때 내용·조치내용 처음 폭 */
@@ -121,7 +121,8 @@ export const COL_SLACK = 28;
 /** 내용·조치내용이 이만큼(표 폭 비율) 못 받으면 하나씩 줄여요 */
 export const CONTENT_SHARE = 0.45;
 /** 칸 좌우 여백 합(styles/*.css .cm-c padding 0 10px) */
-const CELL_PAD = 20;
+/** 칸 여백(좌우 10씩) */
+export const CELL_PAD = 20;
 /** 다 줄여도 이보다 적으면 다른 열의 여유를 줄여요 */
 export const CONTENT_FLOOR = 0.4;
 /** 줄이는 순서(2026-10-21 사용자): 마감일 날짜 → 접수일 26-10-16 → 접수유형 두 글자 → 위치 읍면. 넓히면 거꾸로 풀려요. */

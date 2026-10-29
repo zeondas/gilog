@@ -17,7 +17,7 @@ import { todayStr } from "../../journal";
 import { keyAction } from "../../keys";
 import { overlayDown, useOutsideClose } from "../../useOutsideClose";
 import { SearchBox } from "../../SearchBox";
-import { contentWidth, useColHead } from "../../ColHead";
+import { useColHead, widestOf } from "../../ColHead";
 import type { ColDef } from "../../cols";
 
 const ICON = (d: string, s = 14, w = 2) => (
@@ -251,16 +251,24 @@ export default function BudgetStatusScreen() {
   const view = detail ? "detail" : "summary";
   const base = detail ? DET_COLS : SUM_COLS;
   // 열 폭(헤더 열 조정 통일 2026-10-28 ✔1~3): 끈 열만 바뀌고 넘치면 표 안 가로 스크롤, 요약·자세히 따로. 집행률·메모는 고정.
-  /** 그 열에 보이는 내용(열 제목 포함) 가운데 가장 긴 폭 – 글자 열(사업명·사업기간)은 오른쪽 여유 16(2026-10-19 사용자) */
+  /** 그 열에 보이는 내용(열 제목 포함) 가운데 가장 긴 폭 – 여유는 cols.ts가 더해요(사업명·사업기간은 넓게 16, 2026-10-19 사용자) */
   const fitOf = (id: string): number | null => {
     const ci = base.findIndex((c) => c.id === id);
     const head = document.querySelector<HTMLElement>(`.bs .bd-hd > .bd-h[data-ci="${ci}"]`);
     if (ci < 0 || !head) return null;
     const cells = [head, ...document.querySelectorAll<HTMLElement>(`.bs .bd-body .bd-rw > .bd-c:nth-child(${ci + 1})`)];
-    return Math.max(...cells.map((c) => contentWidth(c))) + (id === "name" || id === "yrs" ? 16 : 1);
+    return widestOf(cells);
   };
-  const colDefs: ColDef[] = base.map((c) => ({ id: c.id, label: c.sub || c.label, init: c.w, fixed: FIXED.has(c.id), text: c.id === "name" }));
-  const colh = useColHead({ store: COLS_KEY, part: view, cols: colDefs, measure: fitOf });
+  const colDefs: ColDef[] = base.map((c) => ({ id: c.id, label: c.sub || c.label, init: c.w, fixed: FIXED.has(c.id), text: c.id === "name", roomy: c.id === "name" || c.id === "yrs" }));
+  // 끄는 동안은 화면을 다시 그리지 않고 열 폭 변수만 바꿔요(cols 최적화 3)
+  const tblRef = useRef<HTMLDivElement>(null);
+  const colh = useColHead({
+    store: COLS_KEY,
+    part: view,
+    cols: colDefs,
+    measure: fitOf,
+    live: (w) => tblRef.current?.style.setProperty("--bd-cols", base.map((c) => w(c.id) + "px").join(" ")),
+  });
   const cols = base.map((c) => ({ ...c, w: colh.width(c.id) }));
   const tmpl = cols.map((c) => c.w + "px").join(" ");
   const grip = (c: Col) => colh.grip(c.id, { last: c.id === base[base.length - 1].id });
@@ -809,7 +817,7 @@ export default function BudgetStatusScreen() {
           엑셀{ICON(CD, 16, 2.4)}
         </button>
       </div>
-      <div className="bd-tbl" style={{ ["--bd-cols" as string]: tmpl }}>
+      <div className="bd-tbl" ref={tblRef} style={{ ["--bd-cols" as string]: tmpl }}>
         <div ref={scroller} className="bd-scroll">
           <div className={"bd-hd" + (detail ? " bs-hd2" : "")} role="row" onContextMenu={colh.onContextMenu}>
             {cols.map((c, i) => {
