@@ -19,11 +19,11 @@ import zipfile
 sys.path.insert(0, os.path.dirname(__file__))
 from hwpx_toplevel import top_paras  # noqa: E402
 
-FONT = os.environ.get("NUM_FONT", "HY견고딕")   # 10-29 23:42 사용자 1안 – Noto Sans KR 가변 글꼴은 한글이 Thin으로 그려요
+FONT = os.environ.get("NUM_FONT", "Pretendard ExtraBold")   # 10-30 00:10 사용자 "본문도 Pretendard로" – 굵기별 고정 파일(가변 글꼴은 한글이 Thin으로 그려요)
 SCALE = 1.5
 COLOR = "#B8B8BF"
 DESC_HANGUL, DESC_DIGIT = 0.097, 0.014          # Noto Sans CJK KR Black 실측(em)
-OFFSET = int(os.environ.get("NUM_OFFSET", "10"))   # 번호 글자 크기의 % – HY견고딕, 10-29 23:58 사용자 시안 확인(숫자를 살짝 더 내려야 눈에 나란함)
+OFFSET = int(os.environ.get("NUM_OFFSET", "9"))   # Pretendard ExtraBold: 맞춤 5.4% + 눈 맞춤 4%(HY견고딕 때 사용자 시안 0.9pt 아래)
 SPACE_AFTER = 1000                              # 10pt
 BODY = 71433                                    # 본문 높이(A4 − 위 15 − 아래 10 − 머리말·꼬리말 10씩, 실측 최대 71425)
 MAX_SHRINK = 0.2                                # 그림은 20%까지만 줄여요
