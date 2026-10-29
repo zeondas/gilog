@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-fs-transfer"
+description = "Enables the fs_transfer command without any pre-configured scope."
+commands.allow = ["fs_transfer"]
+
+[[permission]]
+identifier = "deny-fs-transfer"
+description = "Denies the fs_transfer command without any pre-configured scope."
+commands.deny = ["fs_transfer"]

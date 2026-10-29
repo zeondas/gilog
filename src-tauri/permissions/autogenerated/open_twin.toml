@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-open-twin"
+description = "Enables the open_twin command without any pre-configured scope."
+commands.allow = ["open_twin"]
+
+[[permission]]
+identifier = "deny-open-twin"
+description = "Denies the open_twin command without any pre-configured scope."
+commands.deny = ["open_twin"]

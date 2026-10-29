@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-add-event"
+description = "Enables the add_event command without any pre-configured scope."
+commands.allow = ["add_event"]
+
+[[permission]]
+identifier = "deny-add-event"
+description = "Denies the add_event command without any pre-configured scope."
+commands.deny = ["add_event"]

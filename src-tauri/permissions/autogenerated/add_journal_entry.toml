@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-add-journal-entry"
+description = "Enables the add_journal_entry command without any pre-configured scope."
+commands.allow = ["add_journal_entry"]
+
+[[permission]]
+identifier = "deny-add-journal-entry"
+description = "Denies the add_journal_entry command without any pre-configured scope."
+commands.deny = ["add_journal_entry"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-auto-unlock"
+description = "Enables the auto_unlock command without any pre-configured scope."
+commands.allow = ["auto_unlock"]
+
+[[permission]]
+identifier = "deny-auto-unlock"
+description = "Denies the auto_unlock command without any pre-configured scope."
+commands.deny = ["auto_unlock"]

@@ -54,7 +54,7 @@ import {
   zipOrIn,
   DEFAULT_COLS,
 } from "../../files";
-import { Conflict, FastStatus, MenuExtra, MenuResult, Step, TreeDir, fsApi, fsErrorText, onFsChanged, onFsProgress } from "../../filesApi";
+import { Conflict, FastStatus, MenuExtra, MenuResult, Step, TreeDir, fsApi, fsErrorText, onFsChanged, onFsProgress, setRunAsker } from "../../filesApi";
 import { parseDate } from "../../journal";
 import { DateInput } from "../../DateInput";
 import { useOutsideClose } from "../../useOutsideClose";
@@ -64,7 +64,7 @@ import { DialogX } from "../../DialogX";
 import { KeyHelp, PickMenu, TabMenu } from "./Menu";
 import { PaneCtx, Preview, renderPane } from "./Table";
 import { handleKey } from "./keys";
-import { AskDialog, ConflictDialog, Decision, DeleteDialog, NameDialog, RenameDialog, TransferAsk } from "./Dialogs";
+import { AskDialog, ConflictDialog, Decision, DeleteDialog, NameDialog, RenameDialog, RunAsk, TransferAsk } from "./Dialogs";
 import { DATE_TIME_GAP, EMPTY_SEL, FindRun, Listing, Pop, RPane, RState, Row, Sel } from "./parts";
 
 const STATE_KEY = "files.state";
@@ -154,6 +154,12 @@ export default function FilesScreen() {
   const [formBad, setFormBad] = useState({ from: false, to: false });
   const [conflict, setConflict] = useState<{ list: Conflict[]; i: number; op: "copy" | "move"; resolve: (d: Record<string, string> | null) => void; dec: Record<string, string> } | null>(null);
   const [del, setDel] = useState<{ items: FsEntry[]; permanent: boolean; pane: number } | null>(null);
+  // 실행할까요?(품질 보완 ② ✔1) – 열기가 실행 파일이면 filesApi가 이 창으로 물어요
+  const [runAsk, setRunAsk] = useState<{ path: string; done: (yes: boolean) => void } | null>(null);
+  useEffect(() => {
+    setRunAsker((path) => new Promise<boolean>((done) => setRunAsk({ path, done })));
+    return () => setRunAsker(null);
+  }, []);
   // 고무줄 고르기(빈 곳에서 끌기)
   const [band, setBand] = useState<{ pane: number; x0: number; y0: number; x1: number; y1: number; base: Set<string> } | null>(null);
   // F5·F6 확인 창
@@ -2178,6 +2184,19 @@ export default function FilesScreen() {
             const x = xfer;
             setXfer(null);
             void transfer(x.pane, x.op, x.items, x.dest);
+          }}
+        />
+      )}
+      {runAsk && (
+        <RunAsk
+          path={runAsk.path}
+          onYes={() => {
+            runAsk.done(true);
+            setRunAsk(null);
+          }}
+          onNo={() => {
+            runAsk.done(false);
+            setRunAsk(null);
           }}
         />
       )}

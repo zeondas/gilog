@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-add-cal-kind"
+description = "Enables the add_cal_kind command without any pre-configured scope."
+commands.allow = ["add_cal_kind"]
+
+[[permission]]
+identifier = "deny-add-cal-kind"
+description = "Denies the add_cal_kind command without any pre-configured scope."
+commands.deny = ["add_cal_kind"]

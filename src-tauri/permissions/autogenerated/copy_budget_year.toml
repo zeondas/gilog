@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-copy-budget-year"
+description = "Enables the copy_budget_year command without any pre-configured scope."
+commands.allow = ["copy_budget_year"]
+
+[[permission]]
+identifier = "deny-copy-budget-year"
+description = "Denies the copy_budget_year command without any pre-configured scope."
+commands.deny = ["copy_budget_year"]

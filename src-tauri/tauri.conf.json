@@ -26,10 +26,24 @@
       }
     ],
     "security": {
-      "csp": null,
+      "csp": {
+        "default-src": "'self'",
+        "script-src": "'self' https://www.juso.go.kr",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' asset: http://asset.localhost data: blob:",
+        "font-src": "'self' data:",
+        "media-src": "'self' asset: http://asset.localhost",
+        "connect-src": "'self' ipc: http://ipc.localhost https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com https://tasks.googleapis.com https://sheets.googleapis.com https://holidays.hyunbin.page https://cdn.jsdelivr.net https://business.juso.go.kr",
+        "object-src": "'none'",
+        "base-uri": "'self'",
+        "form-action": "'none'",
+        "frame-src": "'none'"
+      },
+      "devCsp": null,
+      "dangerousDisableAssetCspModification": ["style-src"],
       "assetProtocol": {
         "enable": true,
-        "scope": ["**/*.jpg", "**/*.jpeg", "**/*.png", "**/*.gif", "**/*.bmp", "**/*.webp", "**/*.JPG", "**/*.JPEG", "**/*.PNG", "**/*.GIF", "**/*.BMP", "**/*.WEBP"]
+        "scope": []
       }
     }
   },

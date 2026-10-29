@@ -11,6 +11,7 @@ mod process;
 mod window;
 mod files;
 mod files_text;
+mod guard;
 mod hello;
 #[cfg(windows)]
 mod files_win;

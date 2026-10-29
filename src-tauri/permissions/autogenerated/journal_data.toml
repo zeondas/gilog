@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-journal-data"
+description = "Enables the journal_data command without any pre-configured scope."
+commands.allow = ["journal_data"]
+
+[[permission]]
+identifier = "deny-journal-data"
+description = "Denies the journal_data command without any pre-configured scope."
+commands.deny = ["journal_data"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-cal-kind-visible"
+description = "Enables the set_cal_kind_visible command without any pre-configured scope."
+commands.allow = ["set_cal_kind_visible"]
+
+[[permission]]
+identifier = "deny-set-cal-kind-visible"
+description = "Denies the set_cal_kind_visible command without any pre-configured scope."
+commands.deny = ["set_cal_kind_visible"]

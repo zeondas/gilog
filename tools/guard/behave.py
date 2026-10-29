@@ -372,6 +372,24 @@ async def c_files_dialog(p):
     assert not await shown(p, ".dialog"), "바탕을 눌렀는데 안 닫힘"
 
 
+async def c_files_runask(p):
+    """실행할까요?(2026-10-29 명령 경로 검사): 실행 파일 두 번 누르기 → 창, [실행]에 커서, Esc·바깥으로 닫힘."""
+    await shoot.nav(p, "탐색기")
+    await shoot.s_files_runask(p)
+    await p.wait_for_timeout(250)
+    assert await shown(p, ".dialog"), "실행할까요 창 안 열림"
+    f = await p.evaluate("() => document.activeElement && document.activeElement.textContent")
+    assert f == "실행", f"커서가 실행에 없음({f})"
+    await p.keyboard.press("Escape")
+    await p.wait_for_timeout(250)
+    assert not await shown(p, ".dialog"), "Esc로 안 닫힘"
+    await p.locator("[id^=fx-row-0-]", has_text="단가표 보기.exe").first.dblclick()
+    await p.wait_for_timeout(250)
+    assert await shown(p, ".dialog"), "다시 열리지 않음"
+    await press_out(p, (20, 880))
+    assert not await shown(p, ".dialog"), "바탕을 눌렀는데 안 닫힘"
+
+
 def band_esc(screen, opener, sel, keep=None):
     """지울까요 띠: 열리면 취소에 커서, Esc는 띠만 접고(감싼 창·카드는 남음)."""
     async def run(p):
@@ -485,6 +503,7 @@ CASES = {
     "calendar_notitle_outside": c_calendar_notitle_outside,
     "calendar_blank_close": c_calendar_blank_close,
     "files_dialog": c_files_dialog,
+    "files_runask": c_files_runask,
     "journal_save": c_journal_save,
     "tasks_add_save": c_tasks_add,
     "tasks_check": c_tasks_check,

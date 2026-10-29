@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-road-to-jibun"
+description = "Enables the road_to_jibun command without any pre-configured scope."
+commands.allow = ["road_to_jibun"]
+
+[[permission]]
+identifier = "deny-road-to-jibun"
+description = "Denies the road_to_jibun command without any pre-configured scope."
+commands.deny = ["road_to_jibun"]
