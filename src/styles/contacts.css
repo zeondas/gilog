@@ -1,0 +1,1054 @@
+/* ===== contacts.css – 업무연락처(사업 관리 창 포함) (원래 app.css 순서 그대로, 정리 2차 2026-10-26) ===== */
+
+/* 고르기 목록이 잘리지 않게 넘침을 숨기지 않아요. 칸 폭은 창 폭에 맞춰 늘고 줄어요. */
+.ct-new {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.ct-new-in {
+  min-width: 0;
+}
+
+.ct-new-head,
+.ct-new-row {
+  display: grid;
+  grid-template-columns: 44px minmax(64px, 1.1fr) minmax(80px, 2.2fr) minmax(56px, 0.9fr) minmax(112px, 1.4fr) minmax(112px, 1.4fr) minmax(88px, 2.4fr) minmax(96px, 1.6fr) 40px;
+  align-items: center;
+}
+
+.ct-new-head {
+  border-radius: calc(var(--radius-md) - 1px) calc(var(--radius-md) - 1px) 0 0;
+  height: calc(var(--size-row) - 4px);
+  background: var(--surface-side);
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.ct-new-head > div {
+  padding: 0 10px;
+}
+
+.ct-new-row {
+  border-radius: 0 0 calc(var(--radius-md) - 1px) calc(var(--radius-md) - 1px);
+  min-height: calc(var(--size-row) + 6px);
+  background: var(--accent-wash);
+}
+
+.ct-new-row > div {
+  padding: 0 var(--space-1);
+}
+
+.ct-new-row > .ct-new-tag {
+  padding: 0 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.ct-new-add {
+  display: flex;
+  justify-content: center;
+}
+
+/* 카드 격자 */
+.ct-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(var(--size-card-min), 100%), 1fr));
+  align-items: start;
+  gap: var(--space-3);
+}
+
+.ccard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.ccard-band {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: calc(var(--space-3) * -1) -14px 0;
+  padding: 10px 14px;
+  background: var(--surface-band);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.ccard-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ccard-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--space-2);
+}
+
+.ccard-n {
+  font-size: 14.5px;
+  font-weight: 700;
+}
+
+.ccard-role {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.ccard-org {
+  color: var(--ink-2);
+}
+
+.ccard-tools {
+  flex: none;
+  display: flex;
+  gap: 2px;
+  margin: -4px -6px -4px 0;
+  opacity: 0;
+}
+
+.ccard:hover .ccard-tools,
+.ccard:focus-within .ccard-tools {
+  opacity: 1;
+}
+
+.tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-2);
+}
+
+.tool:hover {
+  background: var(--line-soft);
+}
+
+/* 메모 */
+.ccard-memo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding-top: var(--space-2);
+  border-top: 1px solid transparent;
+}
+
+.ccard-memo.lined {
+  border-top-color: var(--line-row);
+}
+
+.memo-view {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: -4px -6px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: text;
+}
+
+.memo-view:hover,
+.memo-view:focus-visible,
+.memo-add:hover {
+  background: var(--surface-band);
+}
+
+.memo-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  line-height: round(1.5em, 1px);
+  overflow-wrap: anywhere;
+}
+
+.memo-add {
+  align-self: flex-start;
+  height: 28px;
+  margin: -4px -6px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: text;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.ccard:hover .memo-add,
+.memo-add:focus-visible {
+  opacity: 1;
+}
+
+.memo-ed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.memo-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.tb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.tb b {
+  font-weight: 800;
+}
+
+.tb s {
+  font-weight: 500;
+}
+
+.tb[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+}
+
+.tb-del {
+  margin-left: auto;
+}
+
+.memo-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.memo-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+}
+
+.memo-row.on {
+  background: var(--surface-side);
+}
+
+.memo-row input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+}
+
+.memo-foot,
+.edit-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.memo-foot .hint,
+.edit-foot .hint {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.edit-foot {
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+/* 카드 전체 고치기 */
+.ccard-edit {
+  overflow: visible;
+  border: 1.5px solid var(--accent);
+  background: var(--accent-wash);
+}
+
+.edit-pair {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.edit-pair > * {
+  flex: 1 1 0;
+}
+
+.edit-grid {
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  align-items: center;
+  gap: 6px var(--space-2);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* 메모 창의 줄은 한 줄 입력 칸이라 기호를 칸 높이 가운데에 둬요 */
+.memo-row {
+  gap: 0;
+}
+
+.memo-row .bl-m {
+  height: auto;
+  align-self: center;
+}
+
+.memo-view .bl-list {
+  gap: 2px;
+}
+
+/* 프로젝트 색 고르기 (색 단추를 누르면 펼쳐져요) */
+.cpick {
+  position: relative;
+}
+
+.cpick-pop {
+  position: fixed;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.cpick-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 22px);
+  gap: var(--space-2);
+}
+
+.cpick-grid .swatch {
+  width: 22px;
+  height: 22px;
+}
+
+.cpick-auto {
+  justify-content: center;
+}
+
+/* 배지는 칸 폭을 넘지 않고 넘치는 글자는 "…", 마우스를 올리면 전체 이름(title) */
+.pbadge {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.pbadge-t {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 복사는 글자 부분만 눌려요. 줄의 나머지 빈 곳은 카드(두 번 누르면 고치기) */
+.ccard-lines .cline {
+  align-self: flex-start;
+  max-width: calc(100% + 6px);
+}
+
+.ccard {
+  cursor: default;
+}
+
+.pchips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--size-input);
+  padding: 2px 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: text;
+}
+
+.pchips:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.pchips-in {
+  flex: 1 1 60px;
+  min-width: 60px;
+  height: 22px;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  outline: none;
+}
+
+.pbadge.pchip-b {
+  gap: 2px;
+  padding-right: 4px;
+  height: var(--size-badge-h);
+}
+
+.pchip-x {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.pchip-x:hover {
+  background: color-mix(in srgb, currentColor 16%, transparent);
+}
+
+.pin-new {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1h);
+  min-width: 0;
+  font-size: 12.5px;
+}
+
+.pin-new b {
+  flex: none;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.pin-new-t {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 저장할 때 새로 만들 프로젝트 배지 */
+.pbadge.pchip-new {
+  background: var(--surface-band);
+  color: var(--ink-2);
+  box-shadow: none;
+  outline: 1px dashed var(--line);
+  outline-offset: -1px;
+}
+
+/* ---------- 업무연락처 왼쪽 프로젝트 목록 (2026-10-19 사용자 1안, 시안 ProjectFilter) ---------- */
+.ct-body {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.ct-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.ct-side {
+  flex: none;
+  position: sticky;
+  top: 0;
+  width: 240px;
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.ct-side-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-3) var(--space-2);
+}
+
+.ct-side-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ct-side-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.ct-sort {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-band);
+}
+
+.ct-sort button {
+  height: 22px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.ct-sort button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.ct-side-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 6px var(--space-2);
+}
+
+.ct-pj {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font-size: var(--fs);
+  text-align: left;
+}
+
+.ct-pj:hover {
+  background: var(--surface-band);
+}
+
+.ct-pj[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.ct-pj-all {
+  font-weight: 600;
+}
+
+.ct-pj-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  corner-shape: round;
+}
+
+.ct-pj-t {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ct-pj-n {
+  flex: none;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.ct-pj[aria-pressed="true"] .ct-pj-n {
+  color: inherit;
+}
+
+.ct-side-div {
+  height: 1px;
+  margin: 4px 8px;
+  background: var(--line-soft);
+}
+
+.ct-side-sub {
+  padding: 10px 8px 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.ct-side-none {
+  margin: var(--space-2) 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* 프로젝트 관리 창 추가 줄: 전체 공사명 + 축약 공사명 */
+
+/* ---------- 프로젝트 관리 창 · 표 모양 (2026-10-19 사용자 1안, 시안 ProjectMgr) ---------- */
+.mgr.pjm {
+  position: relative;
+  width: 680px;
+  height: min(760px, 100%);
+}
+
+.pjm-head {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* 그룹 칸 + [+] 그룹 추가(28×28) – 그룹 칸 160 안에서 칸 + 6 + 단추 */
+.pjm-addgrp { display: flex; gap: 6px; min-width: 0; }
+.pjm-addgrp > .grp-in { flex: 1; min-width: 0; }
+
+.mgr.pjm {
+  --pjm-short: 220px;
+  --pjm-btn: 64px;
+}
+
+.pjm-add {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr) var(--pjm-short) var(--pjm-btn);
+  gap: var(--space-2);
+  padding: 0 20px var(--space-3);
+}
+
+.pjm-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  height: 28px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.pjm-row {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) var(--pjm-short) 56px;
+  align-items: center;
+  column-gap: 10px;
+  min-height: 32px;
+  padding: 0 4px;
+  border-bottom: 1px solid var(--line-row);
+}
+
+.pjm-th {
+  flex: none;
+  min-height: 28px;
+  margin: 0 20px;
+  border-top: 1px solid var(--line-row);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.pjm-sort {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+
+.pjm-sort[aria-pressed="true"] {
+  color: var(--ink);
+}
+
+.pjm-th .pjm-n {
+  justify-self: end;
+}
+
+.pjm-body {
+  flex: 1;
+  min-height: 0;
+  padding-bottom: var(--space-2);
+}
+
+.pjm-row .cal-cbtn {
+  width: 14px;
+  height: 14px;
+}
+
+.pjm-short,
+.pjm-full {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pjm-short {
+  font-weight: 600;
+}
+
+.pjm-short.pjm-same {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.pjm-n {
+  text-align: right;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pjm-zero {
+  color: var(--muted);
+}
+
+.pjm-edit {
+  grid-column: 2 / 4;
+  padding: 4px 0;
+}
+
+.pjm-edit .mgr-names {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--pjm-short);
+  gap: 10px;
+}
+
+.pjm-edit .mgr-names-l {
+  display: none;
+}
+
+.pjm-ask {
+  grid-column: 1 / -1;
+  margin: 2px 0 6px;
+}
+
+.pjm-empty {
+  padding: var(--space-3) 4px;
+}
+
+.pjm-row .cpick {
+  display: flex;
+}
+
+/* 프로젝트 관리 창 양옆 손잡이(2026-10-19 사용자: 양옆으로 늘릴 수 있게) */
+.pjm-grip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 8px;
+  cursor: ew-resize;
+}
+
+/* 창이 바깥을 잘라서(overflow hidden) 손잡이는 창 안쪽 가장자리 8px에 둬요 – 전엔 반이 잘려 4px만 잡혔어요(2026-10-28) */
+.pjm-grip-l {
+  left: 0;
+}
+
+.pjm-grip-r {
+  right: 0;
+}
+
+.pjm-grip-l:hover {
+  background: linear-gradient(90deg, var(--accent) 2px, transparent 2px);
+}
+
+.pjm-grip-r:hover {
+  background: linear-gradient(270deg, var(--accent) 2px, transparent 2px);
+}
+
+body.ew-dragging,
+body.ew-dragging * {
+  cursor: ew-resize !important;
+  user-select: none;
+}
+
+/* ---------- 프로젝트 그룹 (2026-10-19 사용자 1안, 시안 ProjectGroups) ---------- */
+.grp-arrow {
+  flex: none;
+  color: var(--muted);
+}
+
+.ct-grp-h {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 28px;
+  margin-top: 2px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.ct-grp-h:hover {
+  background: var(--surface-band);
+  color: var(--ink);
+}
+
+.ct-grp .ct-pj {
+  padding-left: 24px;
+}
+
+.ct-pj-z:not([aria-pressed="true"]) {
+  color: var(--muted);
+}
+
+.ct-pj-z:not([aria-pressed="true"]) .ct-pj-dot {
+  opacity: 0.5;
+}
+
+.pjm-grp-h {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 4px;
+  border-bottom: 1px solid var(--line-row);
+}
+
+.pjm-grp-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+}
+
+.pjm-grp-name {
+  font-weight: 700;
+}
+
+.pjm-grp-in {
+  width: 260px;
+  margin: 2px 0;
+}
+
+.pjm-grp .pjm-row {
+  padding-left: 20px;
+}
+
+.pjm-grp-empty {
+  margin: 0;
+  padding: 6px 4px 6px 20px;
+  border-bottom: 1px solid var(--line-row);
+}
+
+.pjm-edit-g .mgr-names {
+  grid-template-columns: 150px minmax(0, 1fr) var(--pjm-short);
+}
+
+.grp-in .input {
+  width: 100%;
+}
+
+.grp-in .input.grp-new {
+  border-style: dashed;
+  border-color: var(--accent);
+}
+
+.pin-opt.grp-none {
+  color: var(--muted);
+}
+
+.pin-grp {
+  padding: 6px 6px 2px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* 연락처 고치는 카드 프로젝트 칸: 붙은 배지 줄 / 찾는 칸 나누기(1안) */
+.pin-stacked {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pchips-got {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.pchips-find {
+  flex-wrap: nowrap;
+  padding: 2px 6px;
+}
+
+.pchips-plus {
+  flex: none;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* ---------- 사업 관리 창 (2026-10-20 사용자): 열 제목 경계 끌기 · 줄 우클릭 메뉴 ---------- */
+.pjm-thc {
+  position: relative;
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  min-width: 0;
+}
+
+.pjm-row[aria-selected="true"] {
+  background: var(--surface-band);
+}
+
+.pjm-menu {
+  min-width: 160px;
+}
+
+.pjm-menu-sub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pjm-menu-sub.on {
+  background: var(--surface-band);
+}
+
+.pjm-submenu {
+  position: absolute;
+  top: 36px;
+  left: calc(100% + 4px);
+  min-width: 180px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.pjm-submenu-l {
+  left: auto;
+  right: calc(100% + 4px);
+}
+
+.pjm-gopt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pjm-gopt:disabled {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.pjm-gcheck {
+  flex: none;
+  width: 14px;
+  color: var(--accent);
+}
+
+.pjm-gnone {
+  color: var(--muted);
+}
+
+.dmenu-sep {
+  height: 1px;
+  margin: 2px 6px;
+  background: var(--line-soft);
+}
+
+/* [그룹 추가]: 그룹 칸 옆 [+](3안), 새 그룹 이름 줄은 목록 맨 위 */
+.pjm-grp-add {
+  flex: none;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+  justify-content: center;
+}
+
+.pjm-grp-new {
+  gap: 8px;
+  background: var(--accent-wash);
+}
+
+.pjm-grp-new .grp-arrow {
+  margin-left: 4px;
+}
+
+.pjm-grp-tip {
+  margin-left: 4px;
+}
+
+/* 업무연락처 고치는 카드: 지우기는 왼쪽 아래(2026-10-26 사용자) – 붉은 단추 28(옆 취소·저장과 같은 높이·모서리), 안내 글을 사이에 두고 취소·저장과 떨어뜨려요. */
+.edit-foot .ct-trash { flex: none; margin-left: 0; }
+.ccard-edit .ask-band.ct-ask { margin-top: var(--space-1); }
+
+
+/* ---------- late.css에서 옮김(정리 ⑥ 2026-10-28) ---------- */
+/* 사업 배지 칸(28 상자 안 22)도 아래 1px로 안 높이를 홀수로 */
+.pchips-in {
+  padding-bottom: 1px;
+  line-height: 22px;
+}
+/* 사업 관리 창 줄의 색 동그라미는 둘레 없이(마우스를 올렸을 때는 late.css) */
+.dialog .pjm-row .cal-cbtn {
+  box-shadow: none;
+}

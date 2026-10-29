@@ -39,13 +39,26 @@ export const VIEWS: { id: ViewMode; name: string; key: string }[] = [
 ];
 
 /** 설정 "탐색기" 카드의 날짜 형식(FreeCommander처럼 고르기 목록, 연-월-일 순서만 – 2026-10-18 사용자). */
-export const DATE_FORMATS = ["yyyy-mm-dd hh:nn:ss", "yyyy-mm-dd hh:nn", "yy-mm-dd hh:nn", "yyyymmdd_hhnnss", "yyyy-mm-dd", "yyyymmdd", "yymmdd"];
-export const DEFAULT_DATE_FORMAT = "yy-mm-dd hh:nn";
-// 예전 저장값(번호: 0 10-16 17:40 · 1 2026-10-16 17:40 · 2 2026. 10. 16. · 3 상대 · 4 26-10-16 17:40)을 새 형식으로.
-const OLD_FORMATS = ["yy-mm-dd hh:nn", "yyyy-mm-dd hh:nn", "yyyy-mm-dd", "yy-mm-dd hh:nn", "yy-mm-dd hh:nn"];
+/** 날짜 형식 – FC(FreeCommander)와 같은 8가지(2026-10-28 탐색기 ✔10). "AM/PM" 자리는 오전·오후, 시는 12시간.
+    Windows = 윈도우 한국어 모양(2026-10-01 오후 2:19:34). */
+export const DATE_FORMATS = [
+  "Windows",
+  "yyyy.mm.dd hh:nn",
+  "yyyy.mm.dd hh:nn:ss",
+  "dd.mm.yy hh:nn",
+  "dd.mm.yy hh:nn:ss",
+  "mm.dd.yyyy hh:nn:ss",
+  "mm.dd.yy hh:nn AM/PM",
+  "mm/dd/yyyy hh:nn AM/PM",
+];
+export const DEFAULT_DATE_FORMAT = "Windows";
+/** 옛 저장값: 연-월-일 시:분(초)은 점 모양으로, 나머지는 Windows(번호는 0.x 옛 값 – 1이 2026-10-16 17:40) */
+const OLD_DATE: Record<string, string> = { "yyyy-mm-dd hh:nn": "yyyy.mm.dd hh:nn", "yyyy-mm-dd hh:nn:ss": "yyyy.mm.dd hh:nn:ss" };
 export function dateFormatOf(v: unknown): string {
-  if (typeof v === "number") return OLD_FORMATS[v] ?? DEFAULT_DATE_FORMAT;
-  return typeof v === "string" && DATE_FORMATS.includes(v) ? v : DEFAULT_DATE_FORMAT;
+  if (typeof v === "number") return v === 1 ? "yyyy.mm.dd hh:nn" : DEFAULT_DATE_FORMAT;
+  if (typeof v !== "string") return DEFAULT_DATE_FORMAT;
+  if (DATE_FORMATS.includes(v)) return v;
+  return OLD_DATE[v] ?? DEFAULT_DATE_FORMAT;
 }
 
 const p2 = (n: number) => String(n).padStart(2, "0");
@@ -53,9 +66,14 @@ const p2 = (n: number) => String(n).padStart(2, "0");
 export function formatDate(ms: number, fmt: string): string {
   if (!ms) return "";
   const d = new Date(ms);
+  const H = d.getHours();
+  const ap = H < 12 ? "오전" : "오후";
+  const h12 = H % 12 || 12;
+  if (fmt === "Windows") return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${ap} ${h12}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
+  const half = fmt.includes("AM/PM");
   const y = String(d.getFullYear());
-  const v: Record<string, string> = { yyyy: y, yy: y.slice(2), mm: p2(d.getMonth() + 1), dd: p2(d.getDate()), hh: p2(d.getHours()), nn: p2(d.getMinutes()), ss: p2(d.getSeconds()) };
-  return fmt.replace(/yyyy|yy|mm|dd|hh|nn|ss/g, (t) => v[t]);
+  const v: Record<string, string> = { yyyy: y, yy: y.slice(2), mm: p2(d.getMonth() + 1), dd: p2(d.getDate()), hh: p2(half ? h12 : H), nn: p2(d.getMinutes()), ss: p2(d.getSeconds()), "AM/PM": ap };
+  return fmt.replace(/yyyy|yy|mm|dd|hh|nn|ss|AM\/PM/g, (t) => v[t]);
 }
 
 export function formatSize(n: number): string {
@@ -445,14 +463,18 @@ export type FilesState = {
   preview?: boolean;
   active: number;
   panes: FsPane[];
-  cols: { size: number; modified: number; folder: number; type: number };
+  /** 이름 뒤 열 순서 – 모든 창 공통(✔5, 제목을 끌어 바꿔요) */
+  colOrder: ColKey[];
   tree: { on: boolean; width: number; open: string[] };
   favorites: string[];
   finds: SavedFind[];
   rename: RenameOpts;
 };
 
-export const TREE_W = { min: 180, start: 232, max: 400 };
+/** 폴더트리 폭(2026-10-28 탐색기 ✔7): 가장 좁게 150 – 가장 넓게는 화면이 오른쪽 창들이 PANE_MIN씩 남을 때까지로 줄여요(max는 저장값 한계). */
+export const TREE_W = { min: 150, start: 232, max: 2400 };
+/** 트리를 넓힐 때 오른쪽 창 하나가 남길 폭 */
+export const PANE_MIN = 300;
 
 export function defaultState(home: string): FilesState {
   const pane = (): FsPane => ({ tabs: [{ path: home, pinned: false }], active: 0, view: "detail", sort: "name", asc: true });
@@ -461,7 +483,7 @@ export function defaultState(home: string): FilesState {
     split: 0.5,
     active: 0,
     panes: [pane(), pane(), pane(), pane()],
-    cols: { size: 80, modified: 112, folder: 140, type: 104 },
+    colOrder: [...COL_ORDER],
     tree: { on: true, width: TREE_W.start, open: [] },
     favorites: [],
     finds: [],
@@ -469,24 +491,69 @@ export function defaultState(home: string): FilesState {
   };
 }
 
+/** 처음 열 폭(✔9): 1600×900 두칸·날짜 Windows 모양(171)에서 가로 막대가 안 생기게 잰 값 – 10 + 32 + 168 + 72 + 171 + 84 = 537 ≤ 목록 538.
+ *  끈 폭은 헤더 열 조정 통일(2026-10-28)의 공통 부품이 kv `files.cols`에 끈 열만 저장해요(모든 창 공통) – 옛 `files.state`의 cols는 읽지 않아요. */
+export const DEFAULT_COLS = { name: 168, size: 72, modified: 112, folder: 140, type: 84 };
+/** 이름 뒤에 올 수 있는 열(찾기 결과는 폴더도) */
+export type ColKey = "folder" | "size" | "modified" | "type";
+export const COL_ORDER: readonly ColKey[] = ["folder", "size", "modified", "type"];
+/** 저장된 열 순서 정리: 모르는 것·겹친 것은 빼고 빠진 열은 처음 순서 자리대로 끝에 */
+export function tidyColOrder(o: unknown): ColKey[] {
+  const out: ColKey[] = [];
+  if (Array.isArray(o)) for (const k of o) if (COL_ORDER.includes(k as ColKey) && !out.includes(k as ColKey)) out.push(k as ColKey);
+  for (const k of COL_ORDER) if (!out.includes(k)) out.push(k);
+  return out;
+}
+/** 열 k를 to 자리(그 열 앞 – null이면 맨 끝)로 옮겨요 */
+export function moveCol(order: ColKey[], k: ColKey, to: ColKey | null): ColKey[] {
+  if (k === to) return order;
+  const rest = order.filter((x) => x !== k);
+  const at = to ? rest.indexOf(to) : rest.length;
+  rest.splice(at < 0 ? rest.length : at, 0, k);
+  return rest;
+}
+
+/** 고정 탭을 앞으로(2026-10-28 탐색기 ✔3): 고정 먼저, 각 묶음 안 순서는 그대로. active는 같은 탭을 따라가요. */
+export function pinFirst<T extends FsTab>(tabs: T[], active: number): { tabs: T[]; active: number } {
+  const cur = tabs[active];
+  const out = [...tabs.filter((t) => t.pinned), ...tabs.filter((t) => !t.pinned)];
+  return { tabs: out, active: Math.max(0, out.indexOf(cur)) };
+}
+/** 고정하면 고정 묶음 맨 끝, 풀면 보통 탭 맨 앞(둘 다 같은 자리 = 고정 탭 수). */
+export function togglePin<T extends FsTab>(tabs: T[], ti: number, active: number): { tabs: T[]; active: number } {
+  const t = tabs[ti];
+  if (!t) return { tabs, active };
+  const cur = tabs[active];
+  const rest = tabs.filter((_, i) => i !== ti);
+  const n = rest.filter((x) => x.pinned).length;
+  rest.splice(n, 0, { ...t, pinned: !t.pinned });
+  return { tabs: rest, active: cur === t ? n : Math.max(0, rest.indexOf(cur)) };
+}
+/** 새 탭을 끼울 자리 – 고정 탭 묶음 앞으로는 끼어들지 않아요. */
+export const freeSlot = (tabs: FsTab[], at: number) => Math.max(at, tabs.filter((t) => t.pinned).length);
+
 /** 저장된 상태를 읽어요. 모자란 칸은 처음 값으로 채워요. */
 export function readState(raw: string | null, home: string): FilesState {
   const d = defaultState(home);
   if (!raw) return d;
   try {
-    const s = JSON.parse(raw) as Partial<FilesState> & { four?: boolean };
+    const s = JSON.parse(raw) as Partial<FilesState> & { four?: boolean; cols?: unknown };
     // 옛 값(four: true/false)은 칸 모양으로 옮겨요
     const layout: Layout = s.layout && ["lr", "tb", "3l", "3r", "four"].includes(s.layout) ? s.layout : s.four ? "four" : "lr";
     delete s.four;
+    delete s.cols; // 옛 열 폭(헤더 열 조정 통일로 files.cols에 – 옮기지 않고 버려요)
     const panes = (s.panes ?? []).slice(0, 4).map((p, i) => ({ ...d.panes[i], ...p, tabs: p.tabs?.length ? p.tabs : d.panes[i].tabs }));
     while (panes.length < 4) panes.push(d.panes[panes.length]);
-    for (const p of panes) p.active = Math.min(Math.max(0, p.active), p.tabs.length - 1);
+    for (const p of panes) {
+      p.active = Math.min(Math.max(0, p.active), p.tabs.length - 1);
+      Object.assign(p, pinFirst(p.tabs, p.active));
+    }
     return {
       ...d,
       ...s,
       layout,
       panes,
-      cols: { ...d.cols, ...s.cols },
+      colOrder: tidyColOrder(s.colOrder),
       tree: { ...d.tree, ...s.tree, width: Math.min(TREE_W.max, Math.max(TREE_W.min, s.tree?.width ?? TREE_W.start)) },
       rename: { ...DEFAULT_RENAME, ...s.rename },
     };

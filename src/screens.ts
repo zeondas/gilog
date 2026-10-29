@@ -42,5 +42,5 @@ export const MODULE_DESC: Record<ModuleId, string> = {
   calendar: "일정·공휴일·알림",
   todo: "목록별 할 일·마감",
   journal: "누가 언제 무슨 말을 했는지",
-  contacts: "사람·프로젝트 연락처",
+  contacts: "사람·사업 연락처",
 };

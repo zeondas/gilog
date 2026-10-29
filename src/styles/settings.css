@@ -1,0 +1,524 @@
+/* ===== settings.css – 설정 (원래 app.css 순서 그대로, 정리 2차 2026-10-26) ===== */
+
+/* 설정: 고정 구분 표시 */
+.kind-fixed {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* 설정 "정보": 앱 아이콘 56px + 글자 로고 + 버전 */
+.about {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+}
+
+/* ---------- 설정 · 키 설정 (엔터규칙, 시안 KeySettings.dc.html 배치 2안) ---------- */
+.keys-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.keys-status {
+  margin-right: auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--urgent);
+}
+
+.keys-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: var(--space-3);
+  align-items: start;
+}
+
+.keys-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 8px 6px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-md);
+}
+
+.keys-title {
+  padding-bottom: 4px;
+  font-weight: 700;
+}
+
+.keys-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 32px;
+}
+
+.keys-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+
+.kb {
+  flex: none;
+  min-width: 118px;
+  height: 28px;
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.kb:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.kb.cap {
+  border: 1.5px solid var(--accent);
+  background: var(--accent-tint);
+}
+
+.kb.bad {
+  border: 1.5px solid var(--urgent);
+  background: var(--urgent-bg);
+}
+
+.kb-part {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.kb-plus {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.kb-cap {
+  display: inline-flex;
+  align-items: center;
+  height: var(--size-badge-h);
+  padding: 0 8px 1px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-band);
+  font-size: var(--fs-badge);
+  font-weight: 600;
+}
+
+.kb-wait {
+  padding: 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+/* 설정 – 민원처리 카드 */
+.proc-dir { display: inline-flex; align-items: center; gap: 6px; }
+.proc-tpl { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.proc-dir .input { width: 260px; }
+
+/* 설정 "탐색기" 카드 (11단계) */
+.fx-set-drives {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1h);
+}
+
+.fx-set-drive.chip {
+  padding: 0 10px;
+  color: var(--muted);
+  font-weight: 500;
+  text-decoration: line-through;
+}
+
+.fx-set-drive.chip.on {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.fx-set-dir {
+  display: inline-flex;
+  gap: var(--space-1h);
+}
+
+.fx-set-dir .input {
+  width: 280px;
+}
+
+/* 민원처리: 신문고 위치를 도로명주소에서 바꿨을 때 원래 글(판단 근거 옆 작은 글) – 주소 변환 2026-10-18 */
+
+/* ---------- 설정: 공통 / 모듈별 묶음 + 모듈 켜고 끄기 (2026-10-18 설정 세션, 시안 Settings) ---------- */
+.set-sec {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 760px;
+  margin: var(--space-2) 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.set-sec span {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.set-sec::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line-soft);
+}
+
+/* 모듈 카드: 사이드바 묶음 사이 옅은 띠 */
+.mod-div {
+  height: 6px;
+  background: var(--surface-side);
+  border-bottom: 1px solid var(--line-row);
+}
+
+.mod-icon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-band);
+  color: var(--ink-2);
+}
+
+.mod-icon .nav-icon {
+  color: inherit;
+}
+
+.mod-icon.off {
+  background: var(--surface-side);
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.switch.locked {
+  opacity: 0.45;
+}
+
+.mod-note {
+  margin: 0;
+  padding: 8px var(--space-4);
+  color: var(--urgent);
+  font-weight: 600;
+  border-top: 1px solid var(--line-row);
+}
+
+/* 모듈별 카드 머리: 사이드바 아이콘 + 이름 */
+.mod-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.mod-head .nav-icon {
+  flex: none;
+  color: var(--muted);
+}
+
+.mod-gap {
+  margin-top: var(--space-3);
+}
+
+.mod-off {
+  box-shadow: none;
+  background: var(--row-alt);
+}
+
+.mod-off .mod-head {
+  border-bottom: 0;
+  color: var(--muted);
+}
+
+.mod-tag {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  background: var(--st-hold-bg);
+  color: var(--st-hold-fg);
+  font-size: var(--fs-badge);
+  font-weight: 600;
+}
+
+/* 설정 "윈도우 PIN으로 잠금 풀기" 줄 (잠금 세션, 캔버스 Lock 판) */
+.row-off {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.row-off:hover {
+  background: var(--surface);
+}
+
+.pin-ask {
+  align-items: flex-end;
+  background: var(--accent-wash);
+}
+
+.pin-ask-field {
+  flex: 1 1 200px;
+}
+
+.pin-ask-msg {
+  flex-basis: 100%;
+  min-height: 0;
+}
+
+/* 설정 "정보" (2026-10-18 사용자): 심볼 56px · 글자 로고(버전 두 줄과 같은 높이) · 그 오른쪽 버전/WebView2 · 카드 오른쪽 개발자/이메일 – 심볼 빼고 모두 위로 맞춰요 */
+.about > .logo {
+  align-self: flex-start;
+}
+.about-ver {
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.about-dev {
+  align-self: flex-start;
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: right;
+  user-select: text;
+}
+
+/* ---------- 설정 머리 줄·찾기·닫기·맨 위로 (2026-10-18 사용자, 시안 Settings) ---------- */
+.set-head {
+  position: sticky;
+  top: calc(-1 * var(--space-6));
+  z-index: 5;
+  flex: none;
+  margin: calc(-1 * var(--space-6)) calc(-1 * var(--space-7)) 0;
+  padding: var(--space-6) var(--space-7) var(--space-3);
+  background: var(--surface);
+}
+
+.set-head-line {
+  box-shadow: 0 1px 0 var(--line-soft);
+}
+
+.set-head-in {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  max-width: 760px;
+  min-height: var(--size-ctrl);
+}
+
+.set-find {
+  flex: 1;
+  min-width: 0;
+  max-width: 320px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--size-ctrl);
+  box-sizing: border-box;
+  padding: 0 6px 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.set-find:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.set-find input {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  outline: none;
+}
+
+.set-find-x {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+}
+
+.set-find-x:hover {
+  background: var(--surface-band);
+  color: var(--ink);
+}
+
+.set-find-n {
+  flex: none;
+  white-space: nowrap;
+}
+
+.set-reset {
+  margin-left: auto;
+}
+
+.set-close {
+  width: var(--size-ctrl);
+  padding: 0;
+  justify-content: center;
+}
+
+.set-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.set-body > * {
+  flex: none;
+}
+
+.set-body [data-find-hide] {
+  display: none !important;
+}
+
+::highlight(set-find) {
+  background-color: var(--mark);
+  color: inherit;
+}
+
+.set-none {
+  max-width: 760px;
+  margin: 0;
+  padding: 40px 0;
+  text-align: center;
+  color: var(--muted);
+}
+
+/* 맨 위로: 보라 동그라미 + 위 화살표(1안) */
+.set-top {
+  position: fixed;
+  right: var(--space-7);
+  bottom: var(--space-6);
+  z-index: 6;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: 0 2px 10px rgba(var(--shadow-rgb), 0.22);
+}
+
+.set-top:hover {
+  filter: brightness(0.9);
+}
+
+/* 색 테마(2026-10-18): 설정 "일반" 테마 줄 – 밝게·어둡게·시스템 묶음 오른쪽에 강조색 동그라미 4개(22px).
+   고른 것은 테두리 2px(바깥으로 2px 띄움) + 체크. 색은 --sw-* 토큰(지금 테마에서 보일 강조색). */
+.theme-ctl {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+.accent-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.accent-dot {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  corner-shape: round;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--sw-check);
+  background: var(--sw);
+  cursor: pointer;
+}
+.accent-dot[aria-checked="true"] {
+  outline: 2px solid var(--sw);
+  outline-offset: 2px;
+}
+.accent-dot:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.accent-purple { --sw: var(--sw-purple); }
+.accent-noctua { --sw: var(--sw-noctua); }
+.accent-blue { --sw: var(--sw-blue); }
+.accent-ink { --sw: var(--sw-ink); }
+
+/* 설정 "닫기(X) 단추" 줄 – 종료를 고르면 설명 아래 한 줄 */
+.row-note {
+  display: block;
+  color: var(--danger);
+}
+
+/* 설정 탐색기 "새 탭이 여는 폴더": [고르기]를 옆 입력칸과 같은 28(모서리 6)로 – 줄 안 작은 단추 규칙(2026-10-20 사용자) */
+.fx-set-dir { align-items: center; }
+.fx-set-dir .btn { height: 28px; border-radius: var(--radius-sm); padding: 0 12px; }
+
+/* 설정 카드 안 작은 묶음 머리글 – 캘린더 카드의 "구글 연동"(2026-10-25 공통 ✔3, 시안 docs/qa/common/google_card.png 1안) */
+.set-sub {
+  padding: var(--space-3) var(--space-4) var(--space-1);
+  border-top: 1px solid var(--line-row);
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+
+/* ---------- late.css에서 옮김(정리 ⑥ 2026-10-28) ---------- */
+/* 설정 민원처리 · 지시부 메일 제목 칸(2026-10-20) */
+.proc-dir .input.proc-mail-subject { width: 420px; }
+/* 설정 [구글 로그인] – 흰 보조 단추 모양(.btn)이 덮던 것을 주 단추 모양으로(공통 부품 ✔8, 마우스를 올렸을 때는 late.css) */
+.btn.btn-primary.g-login { border-color: transparent; background: var(--accent); color: var(--on-accent); }

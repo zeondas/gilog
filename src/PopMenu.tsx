@@ -1,5 +1,5 @@
 // 떠 있는 메뉴 공통 부품(2026-10-26 공통 부품 ✔4·✔5, 결정 로그 10-21 14:58 · 시안 캔버스 MenuUnify).
-// 모양: app.css "떠 있는 메뉴 한 모양" – 바탕 --surface-raised · 그림자 --shadow-pop · 테두리 · 안쪽 4 · 모서리 8, 줄 30 · 글자 13 · 좌우 10.
+// 모양: styles/*.css "떠 있는 메뉴 한 모양" – 바탕 --surface-raised · 그림자 --shadow-pop · 테두리 · 안쪽 4 · 모서리 8, 줄 30 · 글자 13 · 좌우 10.
 // 동작: 그린 뒤 재서 화면 안 8px로 밀고, 아래가 모자라면 위로 열어요(upFrom이 있으면 그 줄 위로). 바깥 누르기·Esc·앱 창 밖으로 가면 닫혀요.
 import { useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode, RefObject } from "react";

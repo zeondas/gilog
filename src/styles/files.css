@@ -1,0 +1,1273 @@
+/* ===== files.css – 탐색기 (원래 app.css 순서 그대로, 정리 2차 2026-10-26) ===== */
+
+/* ---------- 탐색기 (11단계, 시안 Files·FilesTree·FilesConflict·FilesRename 판) ---------- */
+.main.main-fill {
+  overflow: hidden;
+}
+.main > .fx-root {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.fx-root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-height: 0;
+  --fx-ctl: var(--size-input);
+}
+.fx-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.fx-rel {
+  position: relative;
+}
+.fx-grow {
+  flex: 1;
+}
+.fx-sub,
+.fx-dim {
+  color: var(--muted);
+}
+.fx-strong {
+  font-weight: 700;
+}
+.fx-r {
+  justify-content: flex-end;
+  text-align: right;
+}
+.fx-ellip {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fx-search {
+  width: 300px;
+}
+.fx-more {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 0;
+  white-space: nowrap;
+}
+.fx-vsep {
+  width: 1px;
+  height: 22px;
+  margin: 0 2px;
+  background: var(--line-soft);
+}
+
+.fx-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.fx-panes {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr;
+  gap: 12px;
+}
+.fx-panes.fx-four {
+  grid-template-rows: 1fr 1fr;
+}
+.fx-pane {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+.fx-pane[data-on="1"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.fx-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  background: var(--surface-side);
+  border-bottom: 1px solid var(--line);
+  transition: height 120ms;
+}
+.fx-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  max-width: 220px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--muted);
+  font-size: 14.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.fx-tab:hover {
+  background: var(--surface-band);
+}
+/* 고른 탭·드라이브는 보라로 꽉 채워요(2026-10-18 사용자 2안 – 어둡게에서도 잘 보이게, 시안 FilesActive) */
+.fx-tab[data-on="1"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+}
+.fx-tab[data-on="1"] .fx-pin,
+.fx-tab[data-on="1"] .fx-tx {
+  color: var(--on-accent);
+}
+.fx-tn {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fx-tx {
+  color: var(--muted);
+  font-weight: 400;
+}
+.fx-pin {
+  flex: none;
+  color: var(--accent);
+}
+.fx-tab-add {
+  color: var(--muted);
+}
+.fx-target {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  height: var(--size-badge-h);
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-tint);
+  color: var(--accent);
+  font-size: var(--fs-badge);
+  font-weight: 600;
+}
+.fx-row1,
+.fx-row2 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1h);
+  padding: 0 8px;
+}
+.fx-row1 {
+  height: 42px;
+  border-bottom: 1px solid var(--line-row);
+}
+.fx-row2 {
+  height: 44px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.fx-drv {
+  /* 정사각형: 내 PC·C:·D:·F:·홈 모두 같은 크기(2026-10-18 사용자, 시안 FilesDrives) */
+  flex: none;
+  height: var(--fx-ctl);
+  width: var(--fx-ctl);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* 글자 높이 맞춤 2px(UI 통일)은 두고, 좌우 여백 없이 정사각형(탐색기) */
+  padding: 2px 0 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: var(--fs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.fx-drv svg {
+  color: var(--ink-2);
+}
+.fx-drv:hover {
+  background: var(--surface-band);
+}
+.fx-drv[data-on="1"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+.fx-drv[data-on="1"] svg {
+  color: var(--on-accent);
+}
+.fx-filter {
+  flex: 1;
+  min-width: 80px;
+  height: var(--fx-ctl);
+}
+.fx-vb {
+  width: calc(var(--fx-ctl) * 3 + 12px);
+  height: var(--fx-ctl);
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1h);
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.fx-ib {
+  width: var(--fx-ctl);
+  height: var(--fx-ctl);
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--muted);
+}
+.fx-vb:hover,
+.fx-ib:hover {
+  background: var(--surface-band);
+}
+.fx-ib[data-on="1"] {
+  color: var(--accent);
+}
+.fx-crumbs {
+  flex: 1;
+  min-width: 0;
+  height: var(--fx-ctl);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--ink-2);
+  overflow: hidden;
+  white-space: nowrap;
+  cursor: text;
+}
+.fx-crumbs:hover {
+  background: var(--row-alt);
+}
+.fx-crumb {
+  padding: 0 3px;
+}
+.fx-crumb-sep {
+  color: var(--muted);
+  opacity: 0.6;
+}
+.fx-path-in {
+  flex: 1;
+  min-width: 0;
+  height: var(--fx-ctl);
+}
+.fx-menu {
+  position: absolute;
+  z-index: 20;
+  min-width: 160px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-pop);
+}
+.fx-menu-r {
+  right: 0;
+  top: calc(var(--fx-ctl) + 4px);
+}
+.fx-mi {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font-size: 12.5px;
+  text-align: left;
+  white-space: nowrap;
+}
+.fx-mi:hover,
+.fx-mi[data-on="1"] {
+  background: var(--surface-band);
+}
+.fx-mi[data-on="1"] {
+  font-weight: 700;
+}
+.fx-k {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 11px;
+}
+.fx-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--line-row);
+}
+
+.fx-tabmenu {
+  position: fixed;
+}
+.fx-findband {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 30px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--accent-wash);
+  color: var(--accent);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.fx-fk {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1h);
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.fx-findband .fx-fk {
+  height: 28px;
+  padding: 0 10px;
+}
+.fx-fk b {
+  color: var(--accent);
+  font-weight: 700;
+}
+.fx-hdr,
+.fx-frow {
+  display: grid;
+  align-items: center;
+  padding: 0 10px;
+}
+.fx-hdr {
+  /* 목록에 세로 스크롤 막대가 생겨도 열 경계가 머리 줄과 맞게, 둘 다 막대 자리를 늘 비워 둬요 */
+  overflow: hidden;
+  scrollbar-gutter: stable;
+  height: 28px;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--row-alt);
+}
+.fx-hcell {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0 8px 0 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-align: left;
+  position: relative;
+}
+.fx-col {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0 8px;
+  border-left: 1px solid var(--line-row);
+}
+.fx-hdr .fx-col {
+  border-left-color: var(--line-soft);
+}
+.fx-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  user-select: none;
+}
+.fx-frow {
+  min-height: 28px;
+  font-size: 12.5px;
+  border-bottom: 1px solid var(--line-row);
+  cursor: default;
+}
+.fx-frow:hover,
+.fx-brow:hover,
+.fx-gcell:hover {
+  background: var(--row-alt);
+}
+.fx-frow[data-sel="1"],
+.fx-brow[data-sel="1"],
+.fx-gcell[data-sel="1"] {
+  background: var(--accent-tint);
+}
+.fx-frow[data-cur="1"],
+.fx-brow[data-cur="1"] {
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+.fx-frow[data-hid="1"],
+.fx-brow[data-hid="1"],
+.fx-gcell[data-hid="1"] {
+  opacity: 0.55;
+}
+.fx-icell {
+  display: inline-flex;
+  align-items: center;
+}
+.fx-ncell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1h);
+  min-width: 0;
+  padding: 3px 8px 3px 0;
+}
+.fx-nm {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-all;
+  line-height: round(1.36em, 1px);
+}
+.fx-num {
+  justify-content: flex-end;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.fx-tab-num {
+  font-variant-numeric: tabular-nums;
+}
+.fx-inline {
+  width: 100%;
+  height: 24px;
+  font-size: 12.5px;
+}
+.fx-lock {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  flex: none;
+}
+.fx-lock-s {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  margin-left: 0;
+}
+.fx-brief {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 3px 0;
+  column-width: 220px;
+  column-gap: 0;
+  column-fill: auto;
+}
+.fx-brow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 26px;
+  padding: 0 10px;
+  font-size: 12.5px;
+  white-space: nowrap;
+  break-inside: avoid;
+  border-right: 1px solid var(--line-row);
+}
+.fx-bn {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fx-grid {
+  padding: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 4px;
+}
+.fx-gcell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1h);
+  width: 96px;
+  padding: 8px 4px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  text-align: center;
+}
+.fx-gicon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.fx-gname {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fx-thumb {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+}
+.fx-thumb-ph {
+  width: 88px;
+  height: 66px;
+  background: var(--surface-band);
+}
+.fx-empty {
+  padding: 24px;
+  color: var(--muted);
+  text-align: center;
+}
+.fx-err {
+  color: var(--danger);
+}
+.fx-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 28px;
+  padding: 0 10px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--row-alt);
+  color: var(--muted);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.fx-busy {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 12px;
+  color: var(--muted);
+}
+.fx-toast {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.fx-busy + .fx-toast {
+  margin-left: 8px;
+}
+
+/* 폴더 트리 (FilesTree 2안: 안내선 + 드라이브 띠 + 지금 경로) */
+.fx-tree {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+.fx-tree-head {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 12px;
+  background: var(--surface-side);
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+.fx-tree-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 0;
+}
+.fx-tree-gap {
+  height: 8px;
+}
+.fx-tr {
+  user-select: none;
+  display: flex;
+  align-items: center;
+  height: 28px;
+  margin: 0 6px;
+  padding: 0 8px 0 6px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  white-space: nowrap;
+  cursor: default;
+}
+.fx-tr:hover {
+  background: var(--row-alt);
+}
+.fx-tr-drive {
+  height: 30px;
+  background: var(--surface-side);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+.fx-tr[data-path="1"] {
+  font-weight: 700;
+}
+.fx-tr[data-on="1"] {
+  background: var(--accent-tint);
+  color: var(--accent);
+  font-weight: 700;
+}
+.fx-tg {
+  width: 16px;
+  align-self: stretch;
+  position: relative;
+  flex: none;
+}
+.fx-tg > span {
+  position: absolute;
+  left: 7px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--line-soft);
+}
+.fx-tg > span[data-lit="1"] {
+  background: var(--accent-line);
+}
+.fx-chev {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+.fx-tico {
+  display: inline-flex;
+  flex: none;
+  margin-right: 6px;
+}
+.fx-split {
+  flex: none;
+  width: 12px;
+  align-self: stretch;
+  cursor: col-resize;
+}
+.fx-split:hover {
+  background: linear-gradient(var(--accent-line), var(--accent-line)) center / 2px 100% no-repeat;
+}
+
+/* 찾기 자세히 */
+.fx-findpanel {
+  right: 0;
+  top: 40px;
+  width: 460px;
+  padding: 14px 20px;
+  gap: 10px;
+  font-size: 12.5px;
+}
+.fx-fgrid {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: var(--space-2);
+  align-items: center;
+}
+.fx-hrow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1h);
+}
+.fx-date {
+  width: 108px;
+}
+.fx-ck {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.fx-ck input {
+  margin: 0;
+}
+.fx-bad-input {
+  border-color: var(--danger) !important;
+  outline-color: var(--danger) !important;
+}
+.fx-ffoot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-top: 10px;
+  border-top: 1px solid var(--line-row);
+}
+.fx-saved {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1h);
+}
+.fx-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.fx-chip button {
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 12px;
+}
+.fx-chip button + button {
+  padding: 0 6px;
+  color: var(--muted);
+}
+
+/* 같은 이름 묻는 창 (FilesConflict 1안) */
+.fx-cf-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 16px 20px 6px;
+}
+.fx-cf-cards {
+  display: flex;
+  gap: 10px;
+  padding: 8px 20px 0;
+}
+.fx-cf-card {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-md);
+}
+.fx-cf-cap {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.fx-cf-name {
+  font-weight: 600;
+  word-break: break-all;
+}
+.fx-cf-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.fx-cf-dir {
+  font-size: 12px;
+  color: var(--muted);
+  word-break: break-all;
+}
+.fx-new {
+  display: inline-flex;
+  align-items: center;
+  height: var(--size-badge-h);
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-tint);
+  color: var(--accent);
+  font-size: var(--fs-badge);
+  font-weight: 700;
+}
+.fx-cf-both {
+  padding: 10px 18px 0;
+  font-size: 12px;
+}
+.fx-cf-both b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.fx-cf-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 16px 20px;
+}
+.fx-warn {
+  color: var(--danger);
+}
+.fx-gap {
+  gap: var(--space-2);
+}
+
+/* 일괄 이름 바꾸기 (FilesRename) */
+.fx-rn-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px 10px;
+}
+.fx-rn-list {
+  margin: 0 18px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.fx-rn-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.1fr) 72px 110px 110px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  height: 26px;
+  padding: 0 10px;
+  font-size: 12.5px;
+  border-bottom: 1px solid var(--line-row);
+  white-space: nowrap;
+}
+.fx-rn-row > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fx-rn-hdr {
+  height: 28px;
+  background: var(--row-alt);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+  border-bottom-color: var(--line-soft);
+}
+.fx-rn-body {
+  height: 210px;
+  overflow-y: auto;
+}
+.fx-rn-row.fx-bad {
+  background: var(--danger-wash);
+}
+.fx-rn-row.fx-bad .fx-strong {
+  color: var(--danger);
+}
+.fx-rn-grid {
+  display: grid;
+  grid-template-columns: 1fr 250px 190px;
+  gap: 12px;
+  padding: 12px 20px 0;
+}
+.fx-rn-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.fx-grp {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 10px 12px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-md);
+}
+.fx-gt {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.fx-lbl {
+  font-size: 12px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.fx-span2 {
+  grid-column: span 2;
+}
+.fx-rn-pat {
+  display: grid;
+  grid-template-columns: 1fr var(--fx-ctl) 1fr var(--fx-ctl);
+  gap: var(--space-1h);
+  align-items: center;
+}
+.fx-rn-case {
+  display: grid;
+  grid-template-columns: 1fr 100px;
+  gap: var(--space-1h);
+  align-items: center;
+}
+.fx-rn-fr {
+  display: grid;
+  grid-template-columns: 1fr var(--fx-ctl);
+  gap: var(--space-1h);
+  align-items: center;
+}
+.fx-rn-cks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+}
+.fx-rn-num {
+  display: grid;
+  grid-template-columns: 1fr 84px;
+  gap: var(--space-1h);
+  align-items: center;
+}
+.fx-num.input {
+  text-align: right;
+}
+.fx-mono {
+  font-family: Consolas, Pretendard, monospace;
+}
+.fx-drop {
+  width: var(--fx-ctl);
+  height: var(--fx-ctl);
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--accent);
+}
+.fx-tok-menu {
+  left: 0;
+  top: calc(var(--fx-ctl) + 2px);
+  min-width: 220px;
+}
+.fx-tok {
+  width: 64px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.fx-rn-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.fx-rn-side .btn {
+  justify-content: center;
+}
+.fx-mt {
+  margin-top: 4px;
+}
+.fx-icon {
+  flex: none;
+}
+.fx-root .btn:disabled {
+  color: var(--muted);
+  opacity: 0.55;
+  cursor: default;
+}
+.fx-root .btn:disabled:hover {
+  background: var(--surface);
+}
+.fx-rn-col,
+.fx-rn-side,
+.fx-grp {
+  min-width: 0;
+}
+.fx-grp .input,
+.fx-grp select.input {
+  width: 100%;
+  min-width: 0;
+}
+.fx-rn-num .input {
+  width: 84px;
+}
+
+/* ---------- 125% 배율 보정 (2026-10-18 UI 통일, 결정 H9 1안) ----------
+   100%에서 맞춘 1px 보정이 125%에서는 1.25 물리 px가 되어 반올림이 갈려요. 125%에서만 물리 1px 단위로 다시 맞춘 값이에요
+   (tools/align/census.py light 1.25 filled로 잰 값 – 0.8px = 물리 1px, 글자 상자 가운데는 여백의 반만 움직여요). */
+@media (min-resolution: 1.25dppx) {
+  .cm-hbtn,
+  .fx-tab,
+  .fx-vb {
+    padding-bottom: 1.2px;
+  }
+
+  .fx-drv {
+    padding-top: 0.4px;
+  }
+
+  .cal-kp-btn {
+    padding-top: 0;
+  }
+}
+
+/* 홈 목록 묶음 이름(즐겨찾기·최근 파일) */
+.fx-ghead {
+  padding: 8px 12px 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+/* 탐색기 – 날짜 형식(2026-10-18): 수정한 날은 한 줄로, 설정 고르기 목록은 가장 긴 형식이 다 보이게 */
+.fx-nowrap { white-space: nowrap; }
+select.input.fx-set-date { width: 190px; }
+
+/* 탐색기 머리 줄 도구 모음(2026-10-18 시안): 검색창이 맨 앞, 단추는 아이콘 + 네 글자 */
+.fx-top > .fx-findbox { margin-right: 2px; }
+.fx-tool { gap: 6px; padding: 0; width: 90px; flex: none; justify-content: center; white-space: nowrap; }
+
+/* 파일 찾기 칸이 남는 폭을 채워 마지막 단추 오른쪽 끝 = 오른쪽 창 끝 */
+.fx-top > .fx-findbox { flex: 1; min-width: 200px; }
+.fx-top > .fx-findbox .fx-search { width: 100%; }
+
+.fx-tool svg { flex: none; }
+/* 켜진 단추 = 고른 탭처럼 강조색 바탕 + 흰 글자(2026-10-18 사용자) */
+.fx-tool[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 700; }
+/* 탭 줄 위 여백 = 창 왼쪽 여백 8px(2026-10-18 사용자: 위·왼쪽 간격 맞추기) */
+.fx-tabs { padding: 8px; }
+/* 폴더 트리 머리 아래 선 = 탭 줄 아래 선(8 + 탭 34 + 8 + 선 1 = 51) */
+.fx-tree-head { height: 51px; }
+/* 폴더트리 머리 글자 = 고른 탭 글자 크기(14.5px 굵게, 2026-10-18 사용자) */
+.fx-tree-head { font-size: 14.5px; font-weight: 700; }
+/* 네칸보기의 대상 창(서브 탐색기) = 연한 강조색 테두리. 두칸보기는 반대 창이 늘 대상이라 표시 없음(2026-10-18 사용자) */
+.fx-pane[data-target="1"] { border-color: var(--accent-line); box-shadow: 0 0 0 1px var(--accent-line); }
+/* 지금 창·대상 창이 아닌 창의 고른 탭은 연한 강조색(2026-10-18 사용자) */
+.fx-pane[data-rest="1"] .fx-tab[data-on="1"] { background: var(--accent-wash); border-color: var(--accent-line); color: var(--accent); }
+.fx-pane[data-rest="1"] .fx-tab[data-on="1"] .fx-pin,
+.fx-pane[data-rest="1"] .fx-tab[data-on="1"] .fx-tx { color: inherit; }
+/* 지금 창이 아닌 창의 고른 탭 = 연한 강조색(2026-10-18 사용자). 지금 창만 채운 강조색 */
+.fx-pane[data-on="0"] .fx-tab[data-on="1"] { background: var(--accent-tint); border-color: var(--accent-line); color: var(--accent); }
+.fx-pane[data-on="0"] .fx-tab[data-on="1"] .fx-pin,
+.fx-pane[data-on="0"] .fx-tab[data-on="1"] .fx-tx { color: var(--accent); }
+/* 대상 창 테두리 = 지금 창과 같은 진한 강조색 2px(2026-10-18 사용자). 둘은 탭 색(채움/연함)과 "대상" 표시로 구분 */
+.fx-pane[data-target="1"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+/* 수정한 날: 날짜와 시각 사이 = 띄어쓰기 + 3px(FilesScreen DATE_TIME_GAP과 같은 값) */
+.fx-dt-time { margin-left: calc(0.28em + 3px); }
+/* 창 사이 끌기(2026-10-18 사용자): 12px 틈 위에 겹쳐 놓아요. 트리 경계와 같은 모양 */
+.fx-panes { position: relative; }
+.fx-psplit { position: absolute; z-index: 2; }
+.fx-psplit-x { top: 0; bottom: 0; width: 12px; cursor: col-resize; }
+.fx-psplit-y { left: 0; right: 0; height: 12px; cursor: row-resize; }
+.fx-psplit-x:hover { background: linear-gradient(var(--accent-line), var(--accent-line)) center / 2px 100% no-repeat; }
+.fx-psplit-y:hover { background: linear-gradient(var(--accent-line), var(--accent-line)) center / 100% 2px no-repeat; }
+
+/* 머리 줄(2026-10-18 사용자): 제목 없음, 파일 찾기 = 폴더트리 폭(그 위), 단추 줄 = 창들 폭(12px 띄우고 오른쪽 끝까지 꽉) */
+.fx-top { gap: 12px; }
+.fx-top > .fx-findbox { flex: none; min-width: 0; }
+.fx-tools { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
+.fx-tools .fx-tool { flex: 1 1 0; width: auto; min-width: 0; }
+.fx-top > .fx-findbox { margin-right: 0; }
+/* 단추 폭은 정수 90px, 마지막(이름변경)이 남는 폭을 맡아 오른쪽 끝을 창 끝에 맞춰요(1600×900에서 88px) */
+.fx-tools .fx-tool { flex: none; width: 90px; }
+.fx-tools .fx-tool:last-child { flex: 1 1 0; width: auto; }
+/* 상자 모서리 가까이 붙은 것은 높이와 상관없이 6px(2026-10-19 사용자 1안, 공통 결정) – 탐색기 폴더 탭 */
+.fx-tab { border-radius: var(--radius-sm); }
+/* 탐색기 두 상자 곡률 = 머리 줄 단추와 같은 8px(2026-10-19 사용자 1안: 위아래로 붙은 단추와 상자 모서리를 같게) */
+.fx-pane,
+.fx-tree { border-radius: var(--radius-md); }
+/* 지금 창·대상 창 2px 테두리(2026-10-19 사용자): 한 겹 테두리로 그려야 스퀴클 모서리에 틈이 없어요.
+   보통 창은 테두리 1px + 안쪽 여백 1px, 켜진 창은 테두리 2px + 여백 0 → 바깥 끝·내용 자리가 늘 같아요. */
+.fx-pane,
+.fx-tree { padding: 1px; }
+.fx-pane[data-on="1"],
+.fx-pane[data-target="1"] { border-width: 2px; padding: 0; margin: 0; box-shadow: none; }
+/* 이름변경 단추 오른쪽 끝 1px 안으로(2026-10-19 사용자: 아래 창보다 튀어나와 보이는 착시 보정) */
+.fx-tools .fx-tool:last-child { margin-right: 1px; }
+/* 미리보기 칸(2026-10-19): 폴더트리와 같은 상자, 탐색기 창들 오른쪽 */
+/* 미리보기는 대상 창 자리에(FreeCommander의 빠른 보기와 같게) */
+.fx-pv-title { cursor: default; color: var(--ink-2); font-weight: 700; border-color: transparent; background: transparent; padding-left: 4px; }
+.fx-pv-pic { min-height: 240px; max-height: none; }
+.fx-pv-img { max-height: 520px; }
+.fx-pv-empty { padding: 24px 16px; color: var(--muted); text-align: center; }
+.fx-pv { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding: 12px; }
+.fx-pv-pic { display: flex; align-items: center; justify-content: center; min-height: 160px; max-height: 320px; background: var(--surface-band); border-radius: var(--radius-sm); overflow: hidden; }
+.fx-pv-img { max-width: 100%; max-height: 320px; object-fit: contain; }
+.fx-pv-ph { color: var(--muted); font-size: 12px; }
+.fx-pv-name { font-weight: 700; word-break: break-all; }
+.fx-pv-info { margin: 0; display: grid; grid-template-columns: 72px 1fr; gap: 6px 8px; font-size: 12.5px; }
+.fx-pv-info dt { color: var(--muted); }
+.fx-pv-info dd { margin: 0; }
+.fx-pv-path { word-break: break-all; color: var(--muted); }
+
+/* 머리 줄 단추(2026-10-19 사용자 1안): 90px 고정(기준 크기 1600×900에서 오른쪽 끝 = 창 끝), 넓어지면 남는 폭은 오른쪽 빈 곳.
+   좁아서 다 안 들어가면 글자 없이 34×34 정사각형 고정, 앞에서부터 차례로. 폭은 FilesScreen이 --tool-w로 넣어요. */
+.fx-tools .fx-tool,
+.fx-tools .fx-tool:last-child { flex: none; width: var(--tool-w, 90px); min-width: 0; }
+.fx-tools .fx-tool:last-child { width: var(--tool-last, var(--tool-w, 90px)); }
+.fx-tools[data-compact="1"] .fx-tl { display: none; }
+.fx-tools[data-compact="1"] .fx-tool { gap: 0; }
+.fx-tools { overflow: hidden; }
+
+/* 폴더트리 첫 줄·드라이브 단추 줄 간격 맞춤(2026-10-19 사용자 1안): 구분선 아래 8px, 상자 옆 끝에서 10px.
+   단추 줄 높이(42)는 그대로 두고 단추만 위로 붙여(위 8·아래 5 + 선 1) 아래 경로 줄·목록은 움직이지 않아요. */
+.fx-tree-list { padding-top: 8px; }
+.fx-tr { margin: 0 8px; }
+.fx-pane .fx-row1 { align-items: flex-start; padding: 8px 8px 5px; }
+
+/* 윈도우에서 끌어온 파일을 놓을 자리(2026-10-20): 창이면 강조색 테두리 안쪽 선, 폴더 줄·트리 줄이면 연한 강조 바탕 */
+.fx-pane[data-extdrop="1"] { box-shadow: inset 0 0 0 2px var(--accent); }
+.fx-frow[data-extdrop="1"],
+.fx-gcell[data-extdrop="1"],
+.fx-brow[data-extdrop="1"],
+.fx-tr[data-extdrop="1"] { background: var(--accent-tint); box-shadow: inset 0 0 0 1px var(--accent-line); }
+
+/* 찾기 "자세히" 상자: 찾기 칸 왼쪽 끝에 맞춰 열어요(오른쪽 맞춤이면 좁은 찾기 칸에서 화면 왼쪽 밖으로 나갔어요) */
+.fx-top > .fx-findbox > .fx-findpanel { left: 0; right: auto; }
+.fx-findpanel .fx-hrow .btn { white-space: nowrap; flex: none; }
+/* 자세히 상자 안 칸이 상자 밖으로 넘치지 않게(칸 최소 폭 0) – 어디서 줄에 "모든 드라이브" 단추가 들어가 폭 520 */
+.fx-top > .fx-findbox > .fx-findpanel { width: 520px; box-sizing: border-box; }
+.fx-findpanel .fx-fgrid > * { min-width: 0; }
+.fx-findpanel .fx-hrow > .fx-grow { flex: 1 1 0; min-width: 0; }
+/* 탐색기 호환(2026-10-20 사용자 1안): 고무줄 고르기 사각형 · 경로 줄 조각 누르기 */
+.fx-band { position: fixed; z-index: 50; pointer-events: none; background: var(--accent-tint); border: 1px solid var(--accent-line); border-radius: 2px; }
+.fx-crumb-go { cursor: pointer; border-radius: 4px; }
+.fx-crumb-go:hover { color: var(--accent); text-decoration: underline; }
+
+/* 탐색기 호환 B(2026-10-20): 작은 고르기 메뉴 · 경로 › 목록 · 주소 자동 완성 · 오른쪽 끌기 */
+.fx-pop {
+  z-index: 60;
+}
+.fx-pop-scroll {
+  max-height: min(420px, 70vh);
+  overflow-y: auto;
+  flex-wrap: nowrap;
+}
+.fx-mi[data-b="1"] {
+  font-weight: 700;
+}
+.fx-mi:disabled {
+  opacity: 0.45;
+  cursor: default;
+  background: none;
+}
+.fx-check {
+  flex: none;
+  width: 14px;
+  color: var(--accent);
+  font-weight: 700;
+}
+.fx-crumb-list {
+  padding: 0 3px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.fx-crumb-list:hover {
+  opacity: 1;
+  background: var(--surface-band);
+  color: var(--ink);
+}
+.fx-row2 {
+  position: relative;
+}
+.fx-sugg {
+  left: 8px;
+  right: 88px;
+  top: 40px;
+  max-height: 340px;
+  overflow-y: auto;
+  z-index: 40;
+}
+.fx-rdrag {
+  position: fixed;
+  z-index: 70;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 12px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* 탐색기 찾기 칸 1안: × 와 "자세히 ▾" 사이 가는 세로줄 */
+.fx-search .fx-find-sep { height: 18px; margin: 0 6px 0 4px; flex: none; }
+/* Batch rename – bottom tidy (2026-10-26 user 2안): the three columns end on one line
+   (last box of each column grows), count/message + [확인] at the bottom of the button column. */
+.fx-rn-grid {
+  align-items: stretch;
+  padding-bottom: 16px;
+}
+.fx-rn-col > .fx-grp:last-child {
+  flex: 1;
+}
+.fx-rn-info {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+}
+.fx-rn-side .fx-rn-ok {
+  width: 100%;
+  justify-content: center;
+}
+
+/* ---------- 2026-10-28 탐색기 수정(✔1~4, wip/explorer7) ---------- */
+/* ✔1 창마다 목록 가로 스크롤(FC처럼): 머리 줄을 목록 안 맨 위에 붙여(sticky) 가로로 같이 밀리고, 막대는 상태 줄 바로 위.
+   열 합(Table.tsx rowW)이 창보다 넓으면 .fx-rows가 넓어져 그 창만 밀려요(✔9 – 이름 최소 170은 없어짐). */
+.fx-list { overflow-x: auto; position: relative; scroll-padding-top: 28px; }
+.fx-rows { min-width: 0; }
+.fx-rows > .fx-hdr { position: sticky; top: 0; z-index: 1; overflow: visible; scrollbar-gutter: auto; }
+/* 창이 좁으면 위쪽 줄은 빠른 필터만 줄고(최소 80) "자세히 ▾"는 ☰만 – 경로는 끝이 보이게(앞쪽이 가려짐, Screen.tsx) */
+.fx-pane { container-type: inline-size; }
+@container (max-width: 460px) {
+  .fx-vb { width: var(--fx-ctl); padding: 0; justify-content: center; }
+  .fx-vbt { display: none; }
+}
+/* ✔3 자세히 보기 이름은 한 줄, 넘치면 끝을 "…"(전체 이름은 마우스를 올리면 떠요) */
+.fx-nm { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-line-clamp: unset; }
+.fx-frow { height: 28px; }
+/* ✔2 아래 단축키 줄을 없애고 머리 줄 맨 오른쪽 ⓘ(34 네모) – 단축키 상자는 떠 있는 메뉴 모양 */
+.fx-tools .fx-info { flex: none; width: var(--fx-ctl); min-width: var(--fx-ctl); padding: 0; justify-content: center; }
+.fx-info[aria-pressed="true"] { background: var(--surface-band); }
+.fx-keyhelp { max-width: none; }
+.fx-kh { display: grid; grid-template-columns: auto auto; column-gap: 16px; row-gap: 0; padding: 4px 6px 6px; font-size: 12.5px; color: var(--ink-2); white-space: nowrap; }
+.fx-kh-title { grid-column: 1 / -1; height: 28px; display: flex; align-items: center; font-weight: 700; color: var(--ink); }
+.fx-kh-row { display: contents; }
+.fx-kh-row > * { height: 24px; display: flex; align-items: center; }
+.fx-kh-row b { color: var(--accent); font-weight: 700; }
+/* ✔2 ②1안 진행·알림은 받는 창 상태 줄 오른쪽 – 왼쪽 글은 부딪치면 "…" */
+.fx-status { overflow: hidden; }
+.fx-st-l { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.fx-status .fx-busy { margin-left: 0; flex: none; font-size: inherit; color: var(--ink-2); gap: 8px; }
+.fx-status .fx-toast { margin-left: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: inherit; color: var(--ink-2); flex: 0 1 auto; }
+.fx-bar { width: 72px; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; flex: none; }
+.fx-bar > i { display: block; height: 100%; background: var(--accent); }
+.fx-status .fx-busy .btn-xs { height: 20px; padding: 0 8px; font-size: 11.5px; }
+
+/* 자세히 찾기 제목 줄 + 공통 ×(2026-10-28 탐색기 ✔1) */
+.fx-findpanel { position: absolute; }
+.fx-findpanel > .fx-fhead { height: 28px; line-height: 28px; margin: -4px 0 0; padding-right: 36px; font-size: 14px; font-weight: 700; color: var(--ink); }
+/* 안 고른 탭도 네모로(2026-10-28 탐색기 ✔4 – 고른 탭·다른 창 고른 탭 모양은 그대로) */
+.fx-tab:not([data-on="1"]) { border-color: var(--line); background: var(--surface); }
+.fx-tab:not([data-on="1"]):hover { background: var(--surface-band); }
+/* 폴더트리 머리 "모두 접기"(✔8 – 테두리 없음 28, 올리면 연한 바탕) */
+.fx-tree-head > .fx-fold { margin-left: auto; margin-right: -6px; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); cursor: pointer; }
+.fx-tree-head > .fx-fold:hover { background: var(--surface-band); color: var(--ink); }
+/* 열 머리 윈도우·FC 방식(2026-10-28 탐색기 ✔9): 경계 선은 열 오른쪽, 손잡이도 오른쪽 끝(끌면 그 왼쪽 열만 바뀜).
+   줄·머리 줄은 열 합만큼(Table.tsx rowW) – 오른쪽 안쪽 여백 없이 줄 밑선이 마지막 열 오른쪽 선에서 딱 끝나요. 그 뒤는 빈 곳. */
+.fx-hdr, .fx-frow { padding-right: 0; }
+.fx-rows > .fx-hdr, .fx-rows > .fx-frow { box-sizing: border-box; }
+.fx-col { border-left: 0; border-right: 1px solid var(--line-row); }
+.fx-hdr .fx-col { border-right-color: var(--line-soft); }
+.fx-frow > .fx-ncell { align-self: stretch; border-right: 1px solid var(--line-row); }
+.fx-hdr > .fx-hname { align-self: stretch; border-right: 1px solid var(--line-soft); }
+/* ✔5 열 제목 끌기 – 놓을 자리 세로 줄 */
+.fx-hdr > .fx-col[data-drag="1"] { background: var(--surface-band); color: var(--ink); }
+.fx-col-drop { position: absolute; top: 3px; bottom: 3px; width: 2px; border-radius: 1px; background: var(--accent); pointer-events: none; z-index: 3; }

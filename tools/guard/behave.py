@@ -70,6 +70,33 @@ async def c_settings_band(p):
     assert not await shown(p, ".list-ask"), "바깥 눌러도 띠가 남음"
 
 
+async def c_complaints_merge(p):
+    """분류 관리: 쓰는 민원이 있는 접수유형을 지우면 고르기 전엔 단추가 막히고, 고른 값으로 N건 바꾸고 지워요(2026-10-28 ✔1)."""
+    await shoot.nav(p, "민원대장")
+    await shoot.s_complaints_cats_merge(p)
+    assert await shown(p, ".ask-band.ask-two"), "두 줄 띠 안 열림"
+    f = await p.evaluate("() => document.activeElement && document.activeElement.textContent")
+    assert f == "취소", f"커서가 취소에 없음({f})"
+    yes = p.get_by_role("button", name="합치고 지우기")
+    assert await yes.is_disabled(), "고르기 전인데 단추가 눌림"
+    await p.locator("input[name=merge-to]").click()
+    await p.wait_for_timeout(150)
+    await p.keyboard.press("Escape")
+    await p.wait_for_timeout(150)
+    assert await shown(p, ".ask-band.ask-two"), "목록 Esc에 띠까지 접힘"
+    await p.locator("input[name=merge-to]").click()
+    await p.locator(".pin-opt", has_text="방문").first.click()
+    await p.wait_for_timeout(150)
+    assert not await yes.is_disabled(), "고른 뒤에도 단추가 막힘"
+    await yes.click()
+    await p.wait_for_timeout(400)
+    assert not await shown(p, ".ask-band"), "합친 뒤 띠가 남음"
+    chips = await p.locator(".mgr-group").first.locator(".chip").all_inner_texts()
+    assert "전화" not in [c.strip() for c in chips], f"목록에 전화가 남음 {chips}"
+    left = await p.evaluate("() => [...document.querySelectorAll('.cm-view')].map(r => r.querySelectorAll('[role=cell]')[1].getAttribute('title') || r.querySelectorAll('[role=cell]')[1].textContent)")
+    assert "전화" not in left and left.count("방문") == 2, f"민원 값이 안 바뀜 {left}"
+
+
 async def c_pjmenu_esc(p):
     await shoot.nav(p, "업무연락처")
     await shoot.s_contacts_pjmenu(p)
@@ -103,6 +130,33 @@ async def c_dialog(p):
     assert await shown(p, sel), "창 안에서 끌어 바탕에서 뗐는데 닫힘"
     await press_out(p, (20, 880))
     assert not await shown(p, sel), "바탕을 눌렀는데 안 닫힘"
+
+
+async def c_calendar_notitle_quick(p):
+    # 10-28 캘린더 ✔1: 제목을 비우고 빠른 입력으로 등록하면 "제목 없음"
+    await shoot.nav(p, "캘린더")
+    await shoot.s_calendar_notitle(p)
+    assert await p.locator(".cal-ev", has_text="제목 없음").count() > 0, "제목 없이 등록이 안 됨"
+
+
+async def c_calendar_notitle_outside(p):
+    # 10-28 캘린더 ✔1 버그: 새 일정 창에서 제목 없이 장소만 적고 바깥을 누르면 "제목 없음"으로 저장(전엔 버려짐)
+    await shoot.nav(p, "캘린더")
+    await shoot.s_calendar_new(p)
+    await p.locator(".cal-dialog input[aria-label='장소']").first.fill("문산읍 현장")
+    await press_out(p, (20, 880))
+    assert not await shown(p, ".cal-dialog"), "바깥 눌렀는데 창이 남음"
+    assert await p.locator(".cal-ev", has_text="제목 없음").count() > 0, "바깥 눌렀는데 저장 안 됨"
+
+
+async def c_calendar_blank_close(p):
+    # 아무것도 안 적은 새 일정 창은 바깥을 누르면 그냥 닫혀요(일정 안 생김)
+    await shoot.nav(p, "캘린더")
+    n = await p.locator(".cal-ev").count()
+    await shoot.s_calendar_new(p)
+    await press_out(p, (20, 880))
+    assert not await shown(p, ".cal-dialog"), "바깥 눌렀는데 창이 남음"
+    assert await p.locator(".cal-ev").count() == n, "아무것도 안 적었는데 일정이 생김"
 
 
 async def c_journal_save(p):
@@ -399,6 +453,7 @@ CASES = {
     "complaints_rowmenu": menu_case("민원대장", shoot.s_complaints_rowmenu, ".cm-rowmenu"),
     "complaints_rowmenu_ask": menu_case("민원대장", shoot.s_complaints_rowmenu_ask, ".cm-rowmenu"),
     "complaints_dbl": c_complaints_dbl,
+    "complaints_merge": c_complaints_merge,
     "no_browser_menu": c_no_browser_menu,
     "budget_menu": menu_case("집행현황", shoot.s_budget_menu, ".bd-pop"),
     "budgetstatus_menu": menu_case("예산현황", shoot.s_budgetstatus_menu, ".bd-pop", esc=False),
@@ -426,6 +481,9 @@ CASES = {
     "settings_esc": c_settings_esc,
     "settings_band": c_settings_band,
     "calendar_dialog": c_dialog,
+    "calendar_notitle_quick": c_calendar_notitle_quick,
+    "calendar_notitle_outside": c_calendar_notitle_outside,
+    "calendar_blank_close": c_calendar_blank_close,
     "files_dialog": c_files_dialog,
     "journal_save": c_journal_save,
     "tasks_add_save": c_tasks_add,

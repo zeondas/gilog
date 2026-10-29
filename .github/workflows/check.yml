@@ -1,11 +1,21 @@
 # wip/* 가지에 올릴 때마다 윈도우에서 "검사만" 해요(2026-10-20 사용자 결정 — 공통 결정 로그 21:18).
 # 설치 파일·Releases는 만들지 않아요. 기능 세션은 이 검사가 통과한 뒤 현황판을 "끝"으로 바꿔요.
+# 2026-10-27 검사 속도(공통 결정 로그 09:26 ①): 문서·매뉴얼만 바뀐 push는 검사 안 함, 같은 가지에 다시 올리면 앞 검사 취소,
+# main과 견줘 src-tauri/**·Cargo.* 가 안 바뀌었으면 Rust 단계를 건너뛰어요(직접 실행은 늘 전부). build.yml은 그대로 전부 돌아요.
 name: 검사만 하기
 
 on:
   push:
     branches: ['wip/**']
+    paths-ignore:
+      - 'docs/**'
+      - 'tools/manual/**'
+      - '**.md'
   workflow_dispatch:
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: write
@@ -14,7 +24,29 @@ jobs:
   check:
     runs-on: windows-latest
     steps:
+      # main과 견주려고 모든 기록을 받아요(갈림점을 찾아야 해요).
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 이 가지가 main에서 갈라진 뒤 Rust 쪽(src-tauri/**·Cargo.*)을 바꿨는지 봐요. 직접 실행이면 늘 전부 돌려요.
+      - name: Rust 바뀜 확인
+        id: rust
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" != "push" ]; then
+            echo "직접 실행 – Rust 단계 모두 돌려요"; echo "run=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          base=$(git merge-base origin/main HEAD 2>/dev/null || true)
+          if [ -z "$base" ]; then
+            echo "main과 갈림점을 못 찾음 – Rust 단계 모두 돌려요"; echo "run=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          changed=$(git diff --name-only "$base" HEAD | grep -E '^src-tauri/|(^|/)Cargo\.[^/]*$' || true)
+          if [ -n "$changed" ]; then
+            echo "Rust 쪽 바뀐 파일:"; echo "$changed" | head -20; echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Rust 쪽 바뀐 파일 없음 – Rust 단계 건너뛰어요"; echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: actions/setup-node@v4
         with:
@@ -22,12 +54,15 @@ jobs:
           cache: npm
 
       - uses: dtolnay/rust-toolchain@stable
+        if: steps.rust.outputs.run == 'true'
 
       # 암호화 저장(SQLCipher)에 들어가는 OpenSSL을 만들 때 필요해요.
       - uses: ilammy/setup-nasm@v1
+        if: steps.rust.outputs.run == 'true'
 
       # build.yml과 같은 이름표(shared-key)로 캐시를 나눠 써요. wip 가지는 main이 남긴 캐시를 받아 써요.
       - uses: Swatinem/rust-cache@v2
+        if: steps.rust.outputs.run == 'true'
         with:
           shared-key: gilog-win
           workspaces: |
@@ -37,6 +72,7 @@ jobs:
 
       # bash 칸에서는 Git에 딸린 perl이 먼저 잡혀 OpenSSL 만들기가 실패해요(build.yml과 같은 이유) — Strawberry Perl을 앞에 둬요.
       - name: Perl 길 맞추기
+        if: steps.rust.outputs.run == 'true'
         shell: bash
         run: |
           echo 'C:\Strawberry\perl\bin' >> "$GITHUB_PATH"
@@ -48,15 +84,22 @@ jobs:
         shell: bash
         run: npm run build 2>&1 | tee -a check.log; exit ${PIPESTATUS[0]}
 
+      # 규칙 함수 시험(2026-10-26 정리 2차 – 날짜·전화·머릿기호·민원·할 일·캘린더·예산현황·탐색기·키, vitest 1분 안쪽).
+      - name: 규칙 함수 시험
+        shell: bash
+        run: npm test 2>&1 | tee -a check.log; exit ${PIPESTATUS[0]}
+
       # 암호 풀기(argon2)는 시험 모드에서 아주 느려서 그 둘만 빠르게 만들어요(시험 결과는 같아요).
       # 만들기와 돌리기를 나눠 두면 어디서 시간이 드는지 단계 시간으로 보여요.
       - name: 저장·암호화 시험 만들기
+        if: steps.rust.outputs.run == 'true'
         shell: bash
         run: cargo test --no-run --manifest-path src-tauri/core/Cargo.toml $CORE_FAST 2>&1 | tee -a check.log; exit ${PIPESTATUS[0]}
         env:
           CORE_FAST: --config profile.dev.package.argon2.opt-level=3 --config profile.dev.package.blake2.opt-level=3
 
       - name: 저장·암호화 시험
+        if: steps.rust.outputs.run == 'true'
         shell: bash
         run: cargo test --manifest-path src-tauri/core/Cargo.toml $CORE_FAST 2>&1 | tee -a check.log; exit ${PIPESTATUS[0]}
         env:
@@ -65,12 +108,14 @@ jobs:
       # 앱 틀 검사. 빠른 찾기 도우미 exe는 설치 파일 단계에서만 만들어서, 검사 때는 빈 자리 파일을 둬요(없으면 tauri가 멈춰요).
       # --release는 build.yml이 남긴 캐시(OpenSSL 등 미리 만든 것)를 그대로 쓰려고 붙여요.
       - name: 앱 틀 검사
+        if: steps.rust.outputs.run == 'true'
         shell: bash
         run: |
           mkdir -p src-tauri/bin && touch src-tauri/bin/gilog-search.exe
           cargo check --release --manifest-path src-tauri/Cargo.toml 2>&1 | tee -a check.log; exit ${PIPESTATUS[0]}
 
       - name: 빠른 찾기 도우미 검사
+        if: steps.rust.outputs.run == 'true'
         shell: bash
         run: cargo check --manifest-path src-tauri/fastfind/Cargo.toml 2>&1 | tee -a check.log; exit ${PIPESTATUS[0]}
 

@@ -1,0 +1,63 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>cols tail</title>
+<style>
+body{margin:0;background:#F5F5F8;font-family:Pretendard,"Malgun Gothic",sans-serif;font-size:13px;color:#1C1B22}
+.wrap{padding:16px 20px}
+h2{font-size:14px;margin:0 0 8px;color:#5E5C6A;font-weight:600}
+.win{background:#FFF;border:1px solid #CFCDD9;border-radius:8px;overflow:hidden;width:1900px;margin-bottom:22px;position:relative}
+.scroll{overflow-x:auto}
+.tbl{display:grid;position:relative}
+.row{display:contents}
+.cell{height:36px;line-height:36px;padding:0 10px;border-right:1px solid #EFEEF3;border-bottom:1px solid #EFEEF3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box}
+.cell.num{text-align:right;font-variant-numeric:tabular-nums}
+.head .cell{background:#F1F0F5;color:#5E5C6A;font-weight:600;border-bottom:1px solid #CFCDD9;position:relative}
+.head .cell::after{content:"";position:absolute;right:-1px;top:8px;bottom:8px;width:2px}
+.grp .cell{background:#F0EBE2;font-weight:700}
+.sel .cell{background:#EEEAFF}
+.sub .cell{color:#8B8896}
+.chip{display:inline-block;padding:0 7px;line-height:20px;border-radius:5px;font-size:12px;vertical-align:middle}
+.c1{background:#E6F4F1;color:#1E7F6A}.c2{background:#E9EEFB;color:#2F55B0}.c3{background:#8D2A4E;color:#fff}
+.bar{display:inline-block;width:40px;height:5px;background:#E5E4EC;border-radius:3px;vertical-align:middle;margin-right:6px;position:relative}
+.bar i{position:absolute;left:0;top:0;bottom:0;background:#1C1B22;border-radius:3px}
+.tail{background:#FFF}
+/* 1안: 줄 바탕은 끝까지, 칸은 열 합에서 끝 */
+.one .tbl{grid-template-columns:300px 60px 100px 120px 120px 120px 120px 90px 120px 70px 80px 50px 1fr}
+.one .cell.tail{border-right:0;padding:0}
+.one .head .cell.tail{background:#F1F0F5}
+.one .grp .cell.tail{background:#F0EBE2}
+.one .sel .cell.tail{background:#EEEAFF}
+.one .cell.last{border-right:1px solid #CFCDD9}
+/* 3안(지금): 메모가 남는 폭을 받음 */
+.three .tbl{grid-template-columns:300px 60px 100px 120px 120px 120px 120px 90px 120px 70px 80px 1fr}
+/* 2안: 열 합까지만, 뒤는 빈 바탕 */
+.two .tbl{grid-template-columns:300px 60px 100px 120px 120px 120px 120px 90px 120px 70px 80px 50px}
+.two .cell.last{border-right:1px solid #CFCDD9}
+.note{position:absolute;right:24px;top:14px;color:#B3261E;font-size:12px;font-weight:600}
+</style></head><body><div class="wrap">
+
+<h2>1안 — 줄 바탕·고른 줄 강조는 창 끝까지, 칸(세로 선·메모)은 열 합에서 끝 (윈도우 탐색기 방식) ✔</h2>
+<div class="win one"><div class="scroll"><div class="tbl">
+<div class="row head"><div class="cell">세부사업</div><div class="cell">구분</div><div class="cell">업체(하도)</div><div class="cell num">예산</div><div class="cell num">원인행위</div><div class="cell num">집행액</div><div class="cell num">잔액</div><div class="cell">집행률</div><div class="cell num">가용액</div><div class="cell">단계</div><div class="cell">담당</div><div class="cell last">메모</div><div class="cell tail"></div></div>
+<div class="row grp"><div class="cell">⌄ 도로포장 유지관리(동부권)</div><div class="cell"></div><div class="cell"></div><div class="cell num">1,724,000,000</div><div class="cell num">1,596,513,400</div><div class="cell num">1,141,799,400</div><div class="cell num">454,714,000</div><div class="cell"><span class="bar"><i style="width:66%"></i></span>66%</div><div class="cell num">180,830,850</div><div class="cell">19/27</div><div class="cell"><span class="chip" style="border:1px solid #CFCDD9">전훈민</span></div><div class="cell last">✎</div><div class="cell tail"></div></div>
+<div class="row"><div class="cell">&nbsp;&nbsp;⌄ 사무관리비</div><div class="cell"></div><div class="cell"></div><div class="cell num">3,000,000</div><div class="cell num">3,000,000</div><div class="cell num">3,000,000</div><div class="cell num">0</div><div class="cell"><span class="bar"><i style="width:100%"></i></span>100%</div><div class="cell num">0</div><div class="cell">1/1</div><div class="cell"></div><div class="cell last">✎</div><div class="cell tail"></div></div>
+<div class="row sub"><div class="cell">&nbsp;&nbsp;&nbsp;&nbsp;└ 사무관리비</div><div class="cell">일반</div><div class="cell"></div><div class="cell num">3,000,000</div><div class="cell num">3,000,000</div><div class="cell num">0</div><div class="cell num"></div><div class="cell"><span class="bar"><i style="width:100%"></i></span>100%</div><div class="cell num"></div><div class="cell">완료 ▾</div><div class="cell"></div><div class="cell last">✎</div><div class="cell tail"></div></div>
+<div class="row sel"><div class="cell">&nbsp;&nbsp;&nbsp;&nbsp;└ 시도포장 단가계약(하반기) 아스콘(대원)</div><div class="cell"><span class="chip c1">관급</span></div><div class="cell">대원</div><div class="cell num"></div><div class="cell num">87,239,870</div><div class="cell num">26,034,750</div><div class="cell num">61,205,120</div><div class="cell"><span class="bar"><i style="width:30%"></i></span>30%</div><div class="cell num"></div><div class="cell"><span class="chip c3">추진 ▾</span></div><div class="cell"></div><div class="cell last">✎</div><div class="cell tail"></div></div>
+<div class="row"><div class="cell">&nbsp;&nbsp;&nbsp;&nbsp;└ 시도포장 단가계약(하반기2)</div><div class="cell"><span class="chip c2">공사</span></div><div class="cell">영진</div><div class="cell num"></div><div class="cell num">55,000,000</div><div class="cell num">0</div><div class="cell num">55,000,000</div><div class="cell"><span class="bar"><i style="width:0%"></i></span>0%</div><div class="cell num"></div><div class="cell"><span class="chip c3">추진 ▾</span></div><div class="cell"></div><div class="cell last">✎</div><div class="cell tail"></div></div>
+</div></div><div class="note">← 메모 열 뒤는 줄 색만 이어지고 세로 선·연필은 없음</div></div>
+
+<h2>3안 — 지금 모양: 마지막 "메모" 열이 남는 폭을 다 받아 칸이 늘어남</h2>
+<div class="win three"><div class="scroll"><div class="tbl">
+<div class="row head"><div class="cell">세부사업</div><div class="cell">구분</div><div class="cell">업체(하도)</div><div class="cell num">예산</div><div class="cell num">원인행위</div><div class="cell num">집행액</div><div class="cell num">잔액</div><div class="cell">집행률</div><div class="cell num">가용액</div><div class="cell">단계</div><div class="cell">담당</div><div class="cell">메모</div></div>
+<div class="row grp"><div class="cell">⌄ 도로포장 유지관리(동부권)</div><div class="cell"></div><div class="cell"></div><div class="cell num">1,724,000,000</div><div class="cell num">1,596,513,400</div><div class="cell num">1,141,799,400</div><div class="cell num">454,714,000</div><div class="cell"><span class="bar"><i style="width:66%"></i></span>66%</div><div class="cell num">180,830,850</div><div class="cell">19/27</div><div class="cell"><span class="chip" style="border:1px solid #CFCDD9">전훈민</span></div><div class="cell">✎</div></div>
+<div class="row sel"><div class="cell">&nbsp;&nbsp;&nbsp;&nbsp;└ 시도포장 단가계약(하반기) 아스콘(대원)</div><div class="cell"><span class="chip c1">관급</span></div><div class="cell">대원</div><div class="cell num"></div><div class="cell num">87,239,870</div><div class="cell num">26,034,750</div><div class="cell num">61,205,120</div><div class="cell"><span class="bar"><i style="width:30%"></i></span>30%</div><div class="cell num"></div><div class="cell"><span class="chip c3">추진 ▾</span></div><div class="cell"></div><div class="cell">✎</div></div>
+<div class="row"><div class="cell">&nbsp;&nbsp;&nbsp;&nbsp;└ 시도포장 단가계약(하반기2)</div><div class="cell"><span class="chip c2">공사</span></div><div class="cell">영진</div><div class="cell num"></div><div class="cell num">55,000,000</div><div class="cell num">0</div><div class="cell num">55,000,000</div><div class="cell"><span class="bar"><i style="width:0%"></i></span>0%</div><div class="cell num"></div><div class="cell"><span class="chip c3">추진 ▾</span></div><div class="cell"></div><div class="cell">✎</div></div>
+</div></div></div>
+
+<h2>2안 — 표는 열 합까지만, 뒤는 빈 바탕(줄 색도 끊김)</h2>
+<div class="win two"><div class="scroll"><div class="tbl">
+<div class="row head"><div class="cell">세부사업</div><div class="cell">구분</div><div class="cell">업체(하도)</div><div class="cell num">예산</div><div class="cell num">원인행위</div><div class="cell num">집행액</div><div class="cell num">잔액</div><div class="cell">집행률</div><div class="cell num">가용액</div><div class="cell">단계</div><div class="cell">담당</div><div class="cell last">메모</div></div>
+<div class="row grp"><div class="cell">⌄ 도로포장 유지관리(동부권)</div><div class="cell"></div><div class="cell"></div><div class="cell num">1,724,000,000</div><div class="cell num">1,596,513,400</div><div class="cell num">1,141,799,400</div><div class="cell num">454,714,000</div><div class="cell"><span class="bar"><i style="width:66%"></i></span>66%</div><div class="cell num">180,830,850</div><div class="cell">19/27</div><div class="cell"><span class="chip" style="border:1px solid #CFCDD9">전훈민</span></div><div class="cell last">✎</div></div>
+<div class="row sel"><div class="cell">&nbsp;&nbsp;&nbsp;&nbsp;└ 시도포장 단가계약(하반기) 아스콘(대원)</div><div class="cell"><span class="chip c1">관급</span></div><div class="cell">대원</div><div class="cell num"></div><div class="cell num">87,239,870</div><div class="cell num">26,034,750</div><div class="cell num">61,205,120</div><div class="cell"><span class="bar"><i style="width:30%"></i></span>30%</div><div class="cell num"></div><div class="cell"><span class="chip c3">추진 ▾</span></div><div class="cell"></div><div class="cell last">✎</div></div>
+<div class="row"><div class="cell">&nbsp;&nbsp;&nbsp;&nbsp;└ 시도포장 단가계약(하반기2)</div><div class="cell"><span class="chip c2">공사</span></div><div class="cell">영진</div><div class="cell num"></div><div class="cell num">55,000,000</div><div class="cell num">0</div><div class="cell num">55,000,000</div><div class="cell"><span class="bar"><i style="width:0%"></i></span>0%</div><div class="cell num"></div><div class="cell"><span class="chip c3">추진 ▾</span></div><div class="cell"></div><div class="cell last">✎</div></div>
+</div></div></div>
+
+</div></body></html>

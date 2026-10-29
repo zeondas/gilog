@@ -136,6 +136,14 @@ async def s_complaints_edit_ask(p):
     await p.get_by_role("button", name="2번 민원 지우기").first.click()
 
 
+async def s_complaints_cats_merge(p):
+    """분류 관리 창에서 쓰는 민원이 있는 접수유형(전화)의 × – 두 줄 "합칠까요?" 띠(2026-10-28 ✔1)"""
+    await p.get_by_role("button", name="분류 관리").first.click()
+    await p.wait_for_timeout(300)
+    await p.get_by_role("button", name="전화 삭제").first.click()
+    await p.wait_for_timeout(250)
+
+
 async def s_complaints_newrow_baddate(p):
     i = p.locator("input[name=received]").first
     await i.fill("abc")
@@ -156,6 +164,23 @@ async def s_contacts_pjmenu(p):
     await s_contacts_pjdialog(p)
     await p.wait_for_timeout(300)
     await p.locator(".pjm-row", has_text="방호벽 정비").first.click(button="right")
+
+
+async def s_contacts_pjgroups(p):
+    # 2026-10-27: 흉내 자료에 그룹이 없어 그룹 묶음 깨짐을 놓쳤어요 – 그룹 "포장"을 만들고 방호벽 정비를 넣은 모습
+    await s_contacts_pjdialog(p)
+    await p.wait_for_timeout(300)
+    await p.get_by_role("button", name="그룹 추가").click()
+    await p.wait_for_timeout(200)
+    await p.keyboard.type("포장")
+    await p.keyboard.press("Enter")
+    await p.wait_for_timeout(400)
+    await p.locator(".pjm-row", has_text="방호벽 정비").first.click(button="right")
+    await p.wait_for_timeout(200)
+    await p.locator(".pjm-menu-sub").first.hover()
+    await p.wait_for_timeout(300)
+    await p.locator(".pjm-gopt", has_text="포장").first.click()
+    await p.wait_for_timeout(400)
 
 
 async def s_calendar_event_ask(p):
@@ -300,6 +325,21 @@ async def s_budgetstatus_settings(p):
     await p.wait_for_timeout(300)
 
 
+async def s_calendar_new(p):
+    # 빈 날(10/27)을 두 번 눌러 새 일정 창 – 머리 "새 일정"·첫 줄 "제목" 칸(10-28 캘린더 ✔1)
+    await p.locator("[role=gridcell]").nth(30).dblclick()
+    await p.wait_for_timeout(300)
+
+
+async def s_calendar_notitle(p):
+    # 제목 없이 빠른 입력 등록 → "제목 없음" 칩(10-28 캘린더 ✔1)
+    t = p.locator(".cal-quick input[name=time]").first
+    await t.click()
+    await t.fill("14")
+    await p.locator(".cal-add").first.click()
+    await p.wait_for_timeout(300)
+
+
 async def s_calendar_event(p):
     await p.locator(".cal-ev", has_text="방호벽 협의").first.dblclick()
     await p.wait_for_timeout(300)
@@ -346,11 +386,13 @@ SCENES.update({
     "complaints_rowmenu": ("민원대장", s_complaints_rowmenu),
     "complaints_rowmenu_ask": ("민원대장", s_complaints_rowmenu_ask),
     "complaints_dbl": ("민원대장", s_complaints_dbl),
+    "complaints_cats_merge": ("민원대장", s_complaints_cats_merge),
     "complaints_edit_ask": ("민원대장", s_complaints_edit_ask),
     "complaints_newrow_baddate": ("민원대장", s_complaints_newrow_baddate),
     "contacts_card_ask": ("업무연락처", s_contacts_card_ask),
     "contacts_pjdialog": ("업무연락처", s_contacts_pjdialog),
     "contacts_pjmenu": ("업무연락처", s_contacts_pjmenu),
+    "contacts_pjgroups": ("업무연락처", s_contacts_pjgroups),
     "calendar_event_ask": ("캘린더", s_calendar_event_ask),
     "calendar_kinds": ("캘린더", s_calendar_kinds),
     "calendar_kindpicker": ("캘린더", s_calendar_kindpicker),
@@ -377,6 +419,8 @@ SCENES.update({
     "process_works": ("민원처리", s_process_works),
     "budgetstatus_settings": ("예산현황", s_budgetstatus_settings),
     "calendar_event": ("캘린더", s_calendar_event),
+    "calendar_new": ("캘린더", s_calendar_new),
+    "calendar_notitle": ("캘린더", s_calendar_notitle),
     "journal_memo": ("업무일지", s_journal_memo),
     "files_findmore": ("탐색기", s_files_findmore),
     "files_viewmenu": ("탐색기", s_files_viewmenu),

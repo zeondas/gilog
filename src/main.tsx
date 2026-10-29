@@ -8,7 +8,7 @@ import { installSnap } from "./snap";
 import { installNoContextMenu } from "./noContextMenu";
 import { installRuler } from "./ruler";
 import "./tokens.css";
-import "./app.css";
+import "./styles/index.css";
 
 installIme();
 // 브라우저 미리 보기에서 한글 조립을 시험할 때만: 주소 끝에 ?imetest

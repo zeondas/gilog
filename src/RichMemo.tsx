@@ -49,6 +49,9 @@ function clean(node: Node, out: Node, doc: Document) {
     }
     // 글머리 목록 줄의 머릿기호 종류(k-sq □, k-da 작대기, nb 지움 – 없으면 ●)와 지운 줄의 단계(lv1·lv2)
     if (tag === "li") {
+      // 예전 판(0.1x)이 쓰던 data-k="sq|da|none" 이름표도 알아봐요(그때 내보낸 엑셀을 다시 가져올 때)
+      const dk = el.getAttribute("data-k");
+      if (dk && OLD_KIND[dk]) el.classList.add(OLD_KIND[dk]);
       const keep = LI_CLASSES.filter((c) => el.classList.contains(c));
       if (keep.length) copy.className = [copy.className, ...keep].filter(Boolean).join(" ");
     }
@@ -68,6 +71,7 @@ function clean(node: Node, out: Node, doc: Document) {
 // 읽을 때 한 겹으로 펴고, 위계는 그대로 두되 기본이 ●가 되게 맞춰요: 깊이 1만 있으면 ●, 2단계까지면 ●·작대기, 3단계면 □·●·작대기.
 
 const LI_CLASSES = ["k-sq", "k-da", "nb", "lv1", "lv2"];
+const OLD_KIND: Record<string, string> = { sq: "k-sq", da: "k-da", none: "nb", nb: "nb" };
 const KIND_CLASS: Record<BKind, string> = { sq: "k-sq", ci: "", da: "k-da", none: "nb" };
 
 function liKind(li: Element): BKind {
@@ -180,18 +184,83 @@ export function flattenLists(root: Element, legacy = true): boolean {
   return changed;
 }
 
+/** 메모 HTML이 글자로 들어간 것(예전에 태그째 내보낸 엑셀을 가져온 메모 – "<ul><li>…</li></ul>")인지 */
+const ESCAPED_HTML = /^<(ul|ol|p|div|h3|blockquote|table)[\s>][\s\S]*<\/(ul|ol|p|div|h3|blockquote|table)>$/i;
+export const looksLikeMemoHtml = (text: string) => ESCAPED_HTML.test(text.trim());
+
+/** 글자가 없는 줄(빈 문단·빈 목록 줄) – 표·그림이 든 줄은 빈 줄이 아니에요 */
+function isBlankBlock(el: Element): boolean {
+  if (!["P", "DIV", "H3", "BLOCKQUOTE", "LI"].includes(el.tagName)) return false;
+  if (el.querySelector("table, ol, ul")) return false;
+  return !(el.textContent ?? "").replace(/\u00a0/g, " ").trim();
+}
+
+/**
+ * 빈 줄 정리(2026-10-28 집행현황 계산 세션, 사용자 "쓰고 지웠다 저장하면 더미가 딸려와요"):
+ * 맨 앞·맨 끝의 빈 줄은 지우고, 가운데 빈 줄이 겹치면 하나만 남겨요(빈 줄 하나는 묶음을 나눠요 – 머릿기호 규칙).
+ * 목록 안 빈 줄(li)과 문단 빈 줄(p) 모두 같아요. 비게 된 목록은 지워요.
+ */
+function trimBlankLines(box: Element) {
+  // 가운데: 목록 안에서 겹친 빈 줄은 하나로
+  for (const ul of [...box.children].filter((c) => c.tagName === "UL")) {
+    let prevBlank = false;
+    for (const li of [...ul.children]) {
+      const blank = isBlankBlock(li);
+      if (blank && prevBlank) li.remove();
+      prevBlank = blank;
+    }
+  }
+  // 바깥 줄(문단·목록)끼리 겹친 빈 줄도 하나로
+  let prevBlank = false;
+  for (const el of [...box.children]) {
+    const blank = isBlankBlock(el);
+    if (blank && prevBlank) el.remove();
+    prevBlank = blank;
+  }
+  // 맨 앞·맨 끝
+  const edge = (first: boolean) => {
+    for (;;) {
+      const el = first ? box.firstElementChild : box.lastElementChild;
+      if (!el) return;
+      if (el.tagName === "UL") {
+        const li = first ? el.firstElementChild : el.lastElementChild;
+        if (li && isBlankBlock(li)) {
+          li.remove();
+          if (!el.children.length) el.remove();
+          continue;
+        }
+        if (!el.children.length) {
+          el.remove();
+          continue;
+        }
+        return;
+      }
+      if (isBlankBlock(el)) {
+        el.remove();
+        continue;
+      }
+      return;
+    }
+  };
+  edge(true);
+  edge(false);
+  // 글자 밖에 남은 공백 덩어리도 지워요
+  for (const n of [...box.childNodes]) if (n.nodeType === Node.TEXT_NODE && !(n.textContent ?? "").trim()) n.remove();
+}
+
 /** 붙여 넣거나 저장할 HTML을 정해진 모양만 남겨 정리해요. */
-export function sanitize(html: string): string {
+export function sanitize(html: string, healed = false): string {
   if (!html) return "";
   const doc = new DOMParser().parseFromString(html, "text/html");
   const box = doc.createElement("div");
   clean(doc.body, box, doc);
+  // 태그가 글자로 들어간 메모는 태그로 되살려요(한 번만)
+  const only = box.childNodes.length === 1 ? box.firstChild : null;
+  const raw = (only?.nodeName === "P" || only?.nodeType === Node.TEXT_NODE ? only.textContent ?? "" : "").trim();
+  if (!healed && raw && looksLikeMemoHtml(raw)) return sanitize(raw, true);
   flattenLists(box);
+  trimBlankLines(box);
   relayout(box);
-  // 빈 문단은 끝에서만 지워요.
-  while (box.lastChild && box.lastChild.nodeName === "P" && !(box.lastChild.textContent ?? "").trim() && box.childNodes.length > 1) {
-    box.removeChild(box.lastChild);
-  }
   return box.innerHTML;
 }
 

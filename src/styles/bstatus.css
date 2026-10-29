@@ -1,0 +1,229 @@
+/* ===== bstatus.css – 예산현황 (원래 app.css 순서 그대로, 정리 2차 2026-10-26) ===== */
+
+/* 편집기와 보기의 글 모양을 같게 해요 */
+.rte-area,
+.rte-view {
+  overflow-wrap: anywhere;
+}
+
+.rte-area > :first-child,
+.rte-view > :first-child {
+  margin-top: 0;
+}
+
+.rte-area > :last-child,
+.rte-view > :last-child {
+  margin-bottom: 0;
+}
+
+.rte-area p,
+.rte-view p {
+  margin: 0 0 4px;
+}
+
+.rte-area h3,
+.rte-view h3 {
+  margin: 6px 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.rte-area blockquote,
+.rte-view blockquote {
+  margin: 4px 0;
+  padding: 2px 0 2px 10px;
+  border-left: 3px solid var(--accent-line);
+  color: var(--ink-2);
+}
+
+.rte-area ol,
+.rte-view ol {
+  margin: 2px 0 4px;
+  padding-left: 22px;
+}
+
+.rte-area li,
+.rte-view li {
+  margin: 1px 0;
+}
+
+/* ● 기본 */
+.rte-area ul > li::before,
+.rte-view ul > li::before {
+  content: "";
+  position: absolute;
+  left: 1.5px;
+  top: calc(var(--fs) * 0.775 + var(--bl-shift, 0px) - 2px);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--muted);
+  corner-shape: round;
+}
+
+/* 표 폭은 카드 폭에 고정이고, 글이 많으면 칸 안에서 줄을 바꿔요. 칸 폭은 경계선을 끌어 정해요(colgroup %). */
+.rte-area table,
+.rte-view table {
+  width: 100%;
+  margin: 4px 0 6px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.rte-area td,
+.rte-view td {
+  padding: 4px 7px;
+  border: 1px solid var(--line);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* 표 첫 줄은 머리줄처럼 옅게 칠해요 */
+.rte-area tr:first-child td,
+.rte-view tr:first-child td {
+  background: var(--surface-band);
+  font-weight: 600;
+}
+
+.rte-view {
+  line-height: round(1.55em, 1px);
+  overflow-x: auto;
+}
+
+.rte-area > div {
+  margin: 0 0 4px;
+}
+
+/* ---------- 예산현황(13단계, wip/budgetstatus) – 집행현황 표 부품 위에 덧붙임 ---------- */
+.bs .bd-rw > .bd-c.n { justify-content: flex-end; padding: 0 12px; } /* 10억 단위 13자가 양옆 12px 여유로 들어가는 폭(자세히 132·요약 152) */
+.bs .bd-rw { border-bottom-color: var(--line); } /* 구분선은 집행현황보다 진하게(2026-10-19 사용자) */
+.bs .bd-rw > .bd-c { border-right-color: var(--line); }
+.bs .bd-rw > .bd-c:last-child, .bs .bd-h:last-child { border-right: 1px solid var(--line); } /* 메모 뒤에도 세로 선 */
+.bs .bd-c.bs-yrs { padding-left: 12px; font-weight: 400; }
+.bs .bd-rw > .bd-c:nth-child(2) { justify-content: flex-start; padding: 0 8px; } /* 사업명 칸(집행현황 2열 가운데·여백 4 규칙 덮음 – 여백 8이라야 트리 선이 화살표 가운데에 와요, 10-27 ✔1) */
+.bs .bd-rw.it > .bd-c:nth-child(2) { font-weight: 600; } /* 연도 줄 이름(집행현황의 첫 칸 굵게 규칙을 둘째 칸으로) */ /* 사업연도 칸: "2026년"·"2025~2027년" + ⚙ */
+.bs-noexp { pointer-events: none; }
+.bs .bd-rw > .bd-c { user-select: none; } /* 두 번 누르기가 글자를 긁지 않게 */
+.bs .bd-in { user-select: text; }
+ /* 집행현황의 2·9·11·12열 가운데 규칙을 덮어요 – 숫자는 모두 오른쪽 */
+.bs .bd-rw.pj > .bd-c.bs-yrs { overflow: visible; }
+.bs .bd-rw.pj .bd-nm { flex: 0 1 auto; min-width: 0; }
+.bs-years { flex: none; font-size: 13px; font-weight: 500; color: var(--ink-2); white-space: nowrap; }
+.bs-gear { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-left: auto; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--muted); }
+.bs-gear:hover, .bs-gear.on { color: var(--accent); border-color: var(--accent-line); background: var(--accent-wash); }
+.bs-note { margin-left: 8px; font-size: 11.5px; font-weight: 500; color: var(--muted); white-space: nowrap; }
+.bs .bd-rw.it .bd-nm { flex: none; }
+.bs .bd-rw.gun > .bd-c .bd-nm { font-weight: 500; color: var(--ink-2); }
+
+.bs .bd-rw.edit > .bd-c.n { padding: 0 4px; }
+.bs .bd-rw.edit .bd-in { height: 28px; }
+/* 자세히 머리 줄 두 줄(28+28): 위 줄 묶음 이름은 가운데, 아래 줄 열 이름은 숫자처럼 오른쪽 */
+.bs .bd-hd { font-size: 13px; } /* 머리 글자 12 → 13(2026-10-19 사용자: 잘 안 보임) */
+.bs .bd-h { justify-content: flex-start; padding: 0 12px; } /* 머리 글자는 모두 왼쪽(2026-10-19 사용자) */
+.bs .bd-hd.bs-hd2 .bd-h.bs-span { align-items: flex-start; line-height: 28px; } /* 두 줄 걸친 머리(구분·예산현액…)는 윗줄 높이에 */
+.bs .bd-rw > .bd-c.n.bs-rate { justify-content: center; } /* 집행률 막대·숫자는 가운데 */
+.bs .bd-bar { width: 44px; }
+/* 직접 적는 칸은 입력칸 모양 테두리 상자(고치는 줄의 bd-in과 같은 자리·크기). 아래 안내 줄 */
+.bs-fld { display: inline-flex; align-items: center; justify-content: flex-end; width: 100%; height: 28px; padding: 0 6px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); font-variant-numeric: tabular-nums; }
+.bs-fld:empty::before { content: "-"; color: var(--bd-ghost); }
+.bs-fld.red { color: var(--danger); }
+.bs .bd-rw.pj .bs-fld { font-weight: 700; }
+.bs-guide { display: flex; align-items: center; gap: 6px; flex: none; height: 28px; padding: 0 12px; border-top: 1px solid var(--line-soft); font-size: 11.5px; color: var(--muted); }
+/* 예산현황으로 보내기 창(집행현황·예산현황 공용) */
+.dialog.bss { width: 560px; }
+.bss-sub { font-size: 13px; color: var(--muted); }
+
+.bss-foot { justify-content: space-between; align-items: center; }
+.bss-btns { display: flex; gap: 8px; }
+.bss-remove { color: var(--danger); }
+.bs-guide-sw { display: inline-flex; align-items: center; justify-content: flex-end; width: 28px; height: 18px; padding: 0 4px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--bd-ghost); font-size: 11px; }
+.bs .bd-h.bs-hn { justify-content: flex-start; }
+.bs .bd-hd.bs-hd2 { height: 56px; grid-template-rows: 28px 28px; }
+.bs .bd-hd.bs-hd2 .bd-h.bs-grp { border-bottom: 1px solid var(--line-soft); }
+.bs .bd-hd .bd-h { white-space: nowrap; }
+/* ⚙ 설정 상자 – 줄마다 이름표 64 + 28 높이 부품(한 줄 칸 규칙 .fld), 단년도/다년도는 묶음 단추(34 상자 안 26) */
+
+.bs-tilde { color: var(--muted); }
+.bs-yr { width: 68px; text-align: center; }
+.bs-srcs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.bs-src { display: inline-flex; align-items: center; gap: 2px; height: 28px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--muted); font-size: 12.5px; font-weight: 600; }
+.bs-src:hover { color: var(--ink); }
+.bs-src.on { background: var(--accent-tint); border-color: var(--accent-line); color: var(--accent); }
+.bs-src-x { padding-right: 3px; }
+.bs-src-x .chip-x { width: 20px; height: 20px; color: var(--accent); }
+.bs-src-x .chip-x:disabled { opacity: 0.3; cursor: default; }
+
+/* 우클릭 메뉴: 아이콘 자리 없이 글자만, 폭 160 */
+.bs-mi { padding: 0 12px; min-width: 160px; }
+/* 집행률 막대·숫자는 재원 줄도 또렷하게(2026-10-19 사용자 1안) */
+.bs .bd-bar.rowbar { height: 5px; background: var(--bd-bar-track); }
+.bs .bd-bar.rowbar > span { background: var(--bd-bar-fill); }
+.bs .bd-pct.rowp { font-weight: 400; color: var(--ink); }
+
+/* 예산현황 설정 창 2안 – 두 단(2026-10-20 사용자): 왼쪽 사업 설정 · 오른쪽 재원 나누기 표 */
+.bss2 { position: relative; max-width: calc(100vw - 80px); }
+/* 창 크기 끌기(✔1 ②) – 오른쪽 끝 세로 띠 6px · 오른쪽 아래 모서리 14px, 모서리를 끌면 높이도 */
+.bss2-rsz-r { position: absolute; top: 14px; right: 0; bottom: 14px; width: 6px; cursor: ew-resize; }
+.bss2-rsz-c { position: absolute; right: 0; bottom: 0; width: 14px; height: 14px; cursor: nwse-resize; }
+.bss2-rsz-r:hover, .bss2-rsz-r.drag { background: var(--accent-wash); }
+.bss2.sized .bss2-body { flex: 1; max-height: none; min-height: 0; }
+/* 공사명 같은 앞부분(✔1 ①) – 머리에 한 번, 줄엔 "…" 뒤 뒷부분만 */
+.bss2-lead { display: flex; align-items: baseline; gap: 8px; min-width: 0; white-space: nowrap; overflow: hidden; }
+.bss2-lead b { font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
+.bss2-dots { color: var(--muted); margin-right: 4px; }
+.bss2-head { flex-direction: row; align-items: baseline; gap: 10px; }
+.bss2-head .bss-sub b { color: var(--ink); font-weight: 600; }
+.bss2-body { gap: 0; padding-bottom: 8px; max-height: calc(100vh - 200px); }
+.bss2-body.wide { display: grid; grid-template-columns: 300px 1fr; }
+.bss2-body.wide .bss2-l { padding: 4px 20px 8px 0; border-right: 1px solid var(--line-row); }
+.bss2-l { display: flex; flex-direction: column; gap: 14px; padding-top: 4px; }
+.bss2-r { display: flex; flex-direction: column; gap: 12px; padding: 4px 0 8px 20px; min-width: 0; }
+.bss2-ttl { display: flex; align-items: center; gap: 10px; min-height: 28px; font-size: 12px; font-weight: 700; }
+.bss2-years { height: 28px; padding: 2px; }
+.bss2-years button { height: 22px; padding: 0 8px; font-size: 12px; }
+.bss2-sum { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 400; color: var(--muted); white-space: nowrap; }
+.bss2-sum b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.bss2-fl { display: flex; flex-direction: column; gap: 6px; }
+.bss2-lab { font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.bss2-row { display: flex; align-items: center; gap: 8px; }
+.bss2-fl .bs-srcs { gap: 6px; }
+.bss2-hint { font-size: 11.5px; line-height: 16px; color: var(--muted); }
+.bss2-help { display: flex; flex-direction: column; gap: 3px; padding: 8px 10px; border: 1px dashed var(--line); border-radius: var(--radius-sm); font-size: 11.5px; line-height: 16px; color: var(--muted); }
+.bss2-help b { color: var(--ink); font-weight: 600; }
+.bss2-foot-note { font-size: 11.5px; color: var(--muted); align-self: center; margin-right: 4px; }
+/* 표 – 머리 글 왼쪽, 숫자 오른쪽 */
+.bss2-tb { border: 1px solid var(--line-soft); border-radius: var(--radius-sm); overflow-x: auto; overflow-y: hidden; }
+/* 헤더 열 조정 통일(2026-10-28): 넓힌 열이 넘치면 표 안에서만 가로로 밀려요 – 줄은 열 합만큼(--bss2-min) 넓어져요 */
+.bss2-tb > .bss2-tr { min-width: var(--bss2-min, 0); }
+.bss2-tr { display: grid; align-items: center; min-height: 34px; padding: 0 10px; column-gap: 8px; border-top: 1px solid var(--line-row); background: var(--surface); font-size: 13px; }
+.bss2-tr:first-child { border-top: 0; }
+.bss2-tr.h { min-height: 28px; background: var(--surface-side); font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.bss2-tr.h > span { text-align: left; }
+.bss2-tr.sum { background: var(--surface-side); font-weight: 600; }
+.bss2-tr.exp { min-height: 30px; border-top: 1px dashed var(--line-soft); font-size: 12px; }
+.bss2-tr > .n { text-align: right; font-variant-numeric: tabular-nums; justify-self: end; }
+.bss2-tr > .m, .bss2-tr .m { color: var(--muted); font-size: 12px; }
+.bss2-tr > .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.bss2-tr .bad { color: var(--danger); font-weight: 600; }
+.bss2-th { position: relative; }
+.bss2-tb .colh-grip { right: -9px; }
+.bss2-kind { margin-left: 6px; font-size: 11px; color: var(--muted); font-weight: 500; }
+.bss2-def { font-size: 11px; color: var(--muted); font-weight: 400; }
+.bss2-amt { width: 100%; max-width: 160px; text-align: right; font-variant-numeric: tabular-nums; }
+.bss2-amt.bad { background: var(--danger-wash); }
+.bss2-amt::placeholder { color: var(--line); }
+/* [공사 추가] 줄 – 2026-10-26 연동 세션 */
+.bss2-addrow { display: flex; gap: 8px; padding: 6px 10px; align-items: center; }
+.bss2-addrow .bss2-addname { flex: 1; min-width: 160px; }
+.bss2-addrow .bss2-amt { max-width: 124px; }
+.bss2-ok { color: var(--st-done-fg); font-weight: 700; }
+.bss2-badtag { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 5px; background: var(--danger-wash); color: var(--danger); font-size: 11px; font-weight: 600; white-space: nowrap; }
+.bss2-oktag { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 5px; background: var(--st-done-bg); color: var(--st-done-fg); font-size: 11px; font-weight: 600; }
+.bss2-tr > span:first-child { font-weight: 500; }
+.bss2-tr.h > span:first-child, .bss2-tr.exp > span:first-child { font-weight: inherit; }
+.bss2-tr.sum > span:first-child { font-weight: 600; }
+.bss2-fl > .bd-unit { align-self: flex-start; }
+.bss2-other { flex: 1; min-width: 0; }
+.bss2-add { height: 28px; padding: 0 10px; flex: none; }
+.bss2-help + .bss2-help { margin-top: -4px; }

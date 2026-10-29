@@ -1,0 +1,657 @@
+/* ===== tasks.css – 할 일 (원래 app.css 순서 그대로, 정리 2차 2026-10-26) ===== */
+
+/* 제목 줄을 맨 위에 두고 그 아래 목록·카드 (2026-10-19 사용자) */
+.td-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* 목록 칸: 맨 위 "새 목록 만들기"(상자 위 끝은 카드 위 끝선보다 4px 아래 – 착시 보정) → 목록(구분선 없음).
+   체크박스는 제목 왼쪽 끝선에 맞추고, 마우스를 올린 회색 바탕은 양쪽으로 8px 넓게(2026-10-19 사용자 – "목록" 글자는 지웠어요) */
+.td-page .td-newlist {
+  margin: 4px 0 var(--space-3);
+  padding: 0;
+  border: 0;
+}
+
+.td-page .td-list {
+  margin: 0 calc(var(--space-2) * -1);
+}
+
+/* 체크박스는 오른쪽으로 2px(글자 자리는 그대로), 건수 숫자는 왼쪽으로 2px (2026-10-19 사용자) */
+.td-page .td-list-box {
+  margin: 0 -2px 0 2px;
+}
+
+.td-page .td-list-count {
+  margin-right: 2px;
+}
+
+.td-screen {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+/* 왼쪽 목록 */
+.td-lists {
+  flex: 1 0 190px;
+  max-width: 230px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.td-list {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 30px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--ink);
+  font-size: var(--fs);
+  font-weight: 500;
+  text-align: left;
+}
+
+.td-list:hover {
+  background: var(--surface-band);
+}
+
+.td-list[aria-pressed="false"] {
+  opacity: 0.55;
+}
+
+.td-list-box {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--on-accent);
+}
+
+.td-list[aria-pressed="true"] .td-list-box {
+  background: var(--accent);
+}
+
+.td-list-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.td-list-count {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.td-newlist {
+  display: flex;
+  gap: var(--space-1);
+  margin-top: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line-soft);
+}
+
+.td-newlist .cell-input {
+  flex: 1;
+}
+
+.td-newlist-add {
+  flex: none;
+  width: 28px;
+  height: 28px;
+}
+
+.dmenu-note {
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.td-rename {
+  display: flex;
+  gap: var(--space-1h);
+  padding: 2px;
+}
+
+/* 오른쪽 카드들. 가로 스크롤 없이 다음 줄로 넘어가요. */
+.td-body {
+  flex: 999 1 640px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.td-summary {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.td-cards {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+.td-card {
+  flex: 1 0 340px;
+  max-width: 560px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.td-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-band);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+/* 배지 22(결정 ④)가 머리 줄을 늘리지 않게 – 두 카드 머리 높이를 같게 */
+.td-card-head .td-link-badge {
+  margin-block: -2px;
+}
+
+.td-card-name {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.td-link-badge,
+.td-src {
+  display: inline-flex;
+  align-items: center;
+  height: var(--size-badge-h);
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-tint);
+  color: var(--accent);
+  font-size: var(--fs-badge);
+  font-weight: 700;
+}
+
+.td-card-count {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 신규 입력 */
+.td-add {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1h);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.td-add.open {
+  background: var(--accent-wash);
+}
+
+.td-add.sub {
+  padding: 6px 0 6px 0;
+  border-bottom: 0;
+  background: transparent;
+}
+
+.td-add-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.td-add-icon {
+  flex: none;
+  color: var(--accent);
+}
+
+.td-add-title {
+  flex: 1;
+  min-width: 0;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 500;
+}
+
+.td-add-title::placeholder {
+  color: var(--muted);
+}
+
+.td-add.open .td-add-title,
+.td-add.sub .td-add-title {
+  border-color: var(--line);
+  background: var(--surface);
+}
+
+.td-add-title:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.td-add-title.invalid,
+.td-due-input.invalid {
+  border-color: var(--urgent);
+  outline: 2px solid var(--urgent);
+  outline-offset: -1px;
+}
+
+.td-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1h);
+  padding-left: 26px;
+}
+
+.td-due-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1h);
+}
+
+.td-cal-btn {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink-2);
+}
+
+.td-cal-btn[aria-expanded="true"] {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+}
+
+.td-due-input {
+  flex: none;
+  width: 104px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.td-due-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.td-add-cancel {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+}
+
+.td-acts-gap {
+  flex: 1;
+}
+
+/* 항목 */
+.td-items,
+.td-done-list {
+  display: flex;
+  flex-direction: column;
+  padding: 6px var(--space-2);
+}
+
+.td-done-list {
+  padding-top: 0;
+}
+
+.td-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.td-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  outline: 0;
+  cursor: default;
+}
+
+.td-row.sub {
+  padding-left: 34px;
+}
+
+.td-subadd {
+  padding-left: 34px;
+}
+
+.td-row:hover {
+  background: var(--surface-band);
+}
+
+.td-row.sel {
+  background: var(--accent-wash);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+
+.td-row:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.td-row.flash {
+  background: var(--flash);
+}
+
+.td-row.done {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.td-row.done .td-row-main {
+  opacity: 0.6;
+}
+
+.td-row.done .td-title-t {
+  text-decoration: line-through;
+}
+
+.td-check {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 0;
+  padding: 0;
+  border: 1.5px solid var(--muted);
+  border-radius: 50%;
+  corner-shape: round;
+  background: var(--surface);
+  color: var(--on-accent);
+  cursor: pointer;
+}
+
+.td-check.on {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+/*
+ * 체크 움직임(2026-10-25 할 일 ①~④ 1안, 시안 Todo.dc.html "체크 애니메이션 체험").
+ * ① 체크 전 상자에 마우스를 올리면 연한 체크가 미리 보여요(구글 할 일처럼).
+ * ② 방금 누른 상자(.pop)만: 원이 강조색으로 차오르고(0.2초) 체크가 선으로 그려지며(0.25초) 한 번 살짝 커졌다 돌아와요(0.4초).
+ *    되돌리기·함께 완료되는 하위 항목은 .pop이 없어 바로 바뀌어요. 상자 크기·자리는 그대로(scale은 그리기만 바꿔요).
+ */
+.td-check .td-tick path {
+  stroke-dasharray: 22 30;
+  stroke-dashoffset: 0;
+}
+
+button.td-check:not(.on) .td-tick {
+  opacity: 0;
+}
+
+button.td-check:not(.on):hover .td-tick {
+  opacity: 0.4;
+  color: var(--muted);
+}
+
+.td-check.pop {
+  animation: td-check-fill 0.2s ease both, td-check-pop 0.4s ease both;
+}
+
+.td-check.pop .td-tick path {
+  animation: td-check-draw 0.25s ease 0.08s both;
+}
+
+@keyframes td-check-fill {
+  from {
+    border-color: var(--muted);
+    background: var(--surface);
+  }
+}
+
+@keyframes td-check-draw {
+  from {
+    stroke-dashoffset: 22;
+  }
+}
+
+@keyframes td-check-pop {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  55% {
+    transform: scale(1.15);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .td-check.pop,
+  .td-check.pop .td-tick path {
+    animation: none;
+  }
+}
+
+/* 체크한 뒤 "완료됨"으로 내려가기 전 잠깐(약 0.4초): 글자만 완료 모양 – 줄 높이·여백은 남은 일 그대로 */
+.td-row.settling .td-row-main {
+  opacity: 0.6;
+}
+
+.td-row.settling .td-title-t {
+  text-decoration: line-through;
+}
+
+.td-row.done .td-check {
+  opacity: 0.6;
+}
+
+.td-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.td-row-title {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1h);
+  font-weight: 500;
+}
+
+.td-title-t {
+  flex: 1;
+  min-width: 0;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.td-note-icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--muted);
+  opacity: 0.8;
+}
+
+.td-detail {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-side);
+  color: var(--ink-2);
+  font-size: 12.5px;
+  cursor: text;
+}
+
+.td-detail-none {
+  color: var(--muted);
+}
+
+.td-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1h);
+}
+
+.td-due {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1h);
+  height: var(--size-badge-h);
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  background: var(--st-hold-bg);
+  color: var(--st-hold-fg);
+  font-size: var(--fs-badge);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.td-due b {
+  font-weight: 700;
+}
+
+.td-due.today {
+  background: var(--accent-tint);
+  color: var(--accent);
+}
+
+.td-due.urgent {
+  background: var(--urgent-bg);
+  color: var(--urgent);
+}
+
+.td-due.soon {
+  background: var(--st-work-bg);
+  color: var(--st-work-fg);
+}
+
+.td-src-st {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.td-row-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1h);
+  margin-top: 2px;
+}
+
+.td-row-acts .tool-box,
+.td-due-row .tool-box {
+  margin-left: 0;
+}
+
+.td-ask {
+  flex: 1 1 100%;
+  margin-top: 0;
+}
+
+.td-empty {
+  margin: 0;
+  padding: var(--space-6) var(--space-2);
+  color: var(--muted);
+  font-size: 12.5px;
+  text-align: center;
+}
+
+.td-done {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line-row);
+}
+
+.td-done-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 34px;
+  padding: 0 var(--space-4);
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.td-done-toggle:hover {
+  color: var(--ink);
+}
+
+/* 고치기 */
+.td-edit {
+  background: var(--accent-wash);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+
+.td-edit:hover {
+  background: var(--accent-wash);
+}
+
+.td-edit .td-check {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.td-edit-title {
+  font-weight: 500;
+}
+
+.td-edit .bl-ed,
+.td-add-form .bl-ed {
+  font-size: var(--fs);
+}
+

@@ -1,0 +1,687 @@
+/* ===== dialogs.css – 창·묻는 띠·떠 있는 메뉴·엑셀 창·지우기 휴지통·창 닫기 × (원래 app.css 순서 그대로, 정리 2차 2026-10-26) ===== */
+
+/* 지우기 단추: 회색 ×, 빨강은 마우스를 올렸을 때와 "지울까요?" 띠에만 (2026-10-17 아이콘 정리 2안) */
+.tool-box {
+  color: var(--muted);
+}
+
+.tool-box:hover:not(:disabled) {
+  background: var(--danger-wash);
+  color: var(--danger);
+}
+
+.ask-band {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding: var(--space-2) 10px;
+  border-radius: var(--radius-md);
+  background: var(--danger-wash);
+  color: var(--danger);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.ask-band > span {
+  flex: 1 1 120px;
+}
+
+.btn-danger.btn-xs {
+  border-color: var(--danger);
+}
+
+.ccard-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: var(--space-1);
+}
+
+.ccard-projs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1h);
+}
+
+.ccard-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 24px;
+  margin: 0 0 0 -6px;
+  padding: 1px 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font-weight: 500;
+  text-align: left;
+}
+
+.cline:hover {
+  background: var(--surface-band);
+}
+
+.cline.copied {
+  background: var(--st-done-bg);
+}
+
+.cline-kind {
+  flex: none;
+  width: 30px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.cline-v {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.cline-note {
+  flex: none;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--st-done-fg);
+}
+
+/* 프로젝트 관리 창 */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: var(--scrim);
+}
+
+.dialog {
+  width: 560px;
+  max-width: 100%;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  box-shadow: 0 24px 64px rgba(var(--shadow-rgb), 0.35);
+  overflow: hidden;
+}
+
+.dialog-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4) 20px var(--space-3);
+}
+
+.dialog-title {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.dialog-body {
+  display: flex;
+  flex-direction: column;
+  padding: 0 20px var(--space-3);
+  overflow-y: auto;
+}
+
+/* 창 몸통이 스크롤되니 안의 줄은 줄어들지 않아요 – 줄이 많으면 줄이 최소 높이로 눌려
+   지울까요 띠가 줄 위에 겹쳤어요(2026-10-19 사용자 신고, 프로젝트 관리) */
+.dialog-body > * {
+  flex-shrink: 0;
+}
+
+.dialog-body > p {
+  margin: 0 0 var(--space-2);
+}
+
+.dialog-foot {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-3) 20px;
+  background: var(--surface-raised);
+  border-top: 1px solid var(--line-row);
+}
+
+.prow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line-row);
+}
+
+.prow-name {
+  flex: 1 0 150px;
+  min-width: 0;
+}
+
+.swatch {
+  width: 18px;
+  height: 18px;
+  margin: 0 2px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  corner-shape: round;
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px transparent;
+}
+
+.swatch[aria-checked="true"] {
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px currentColor;
+}
+
+.tool-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-left: var(--space-3);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+}
+
+.ask-wide {
+  flex: 1 0 100%;
+  margin-top: 0;
+  padding: var(--space-2) var(--space-3);
+}
+
+.ask-wide > span {
+  flex: 1 1 200px;
+}
+
+.padd {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) 0 var(--space-1);
+}
+
+.padd .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.dialog-body > .hint {
+  padding-bottom: var(--space-1);
+}
+
+/* 업무일지 날짜 우클릭 메뉴 */
+.dmenu {
+  position: fixed;
+  z-index: 30;
+  min-width: 160px;
+  max-width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.dmenu-item {
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+}
+
+.dmenu-item:hover,
+.dmenu-item:focus-visible {
+  background: var(--surface-band);
+  outline: 0;
+}
+
+.dmenu-item.danger {
+  color: var(--danger);
+}
+
+.dmenu-item:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.dmenu-ask {
+  margin: 0;
+}
+
+/* ---------- 할 일 목록 (7단계, 시안 Todo.dc.html) ---------- */
+/* ---------- 관리 창 맞추기 (2026-10-17 사용자: 프로젝트 관리·분류 관리·캘린더 종류 관리를 한 모양으로) ---------- */
+.mgr {
+  width: 480px;
+}
+
+.mgr .dialog-head {
+  padding-bottom: var(--space-2);
+}
+
+.mgr-name {
+  flex: 1 1 200px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.mgr-info {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 줄 높이 45px: 테두리 1px을 빼고 안쪽이 짝수라 배지·단추가 반 픽셀에 걸리지 않아요 */
+.mgr .prow {
+  min-height: 45px;
+}
+
+.mgr .prow > .tool-box {
+  margin-left: 4px;
+}
+
+/* 지울 수 없는 줄은 휴지통 자리를 비워 색 동그라미가 한 줄로 서요 */
+.mgr-gap {
+  flex: none;
+  width: 26px;
+  margin-left: 4px;
+}
+
+.mgr-label {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-3) 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.mgr .padd .input {
+  --fld-h: var(--size-ctrl);
+  border-radius: var(--radius-md);
+}
+
+.mgr-add {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1h);
+}
+
+.mgr-group {
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--line-row);
+}
+
+.mgr-group.row-last {
+  border-bottom: 0;
+}
+
+.mgr-addrow {
+  padding-top: 10px;
+}
+
+.list-ask {
+  margin-top: var(--space-2);
+}
+
+/* ---------- 글자 가운데 맞춤 (2026-10-17 사용자 확정, tools/align 기준: 위 여백 − 아래 여백 0 또는 −1) ---------- */
+/* ---------- 엑셀 ▾ (민원대장·업무연락처, 시안 ExcelImport.dc.html) ---------- */
+.xl-wrap {
+  position: relative;
+}
+
+.xl-btn {
+  gap: var(--space-1h);
+}
+
+.xl-btn[aria-expanded="true"] {
+  border-color: var(--accent-line);
+  background: var(--accent-tint);
+}
+
+.xl-menu {
+  position: absolute;
+  z-index: 8;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+}
+
+.xl-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+}
+
+.xl-item:hover,
+.xl-item:focus-visible {
+  background: var(--accent-wash);
+}
+
+.xl-item-t {
+  font-weight: 600;
+}
+
+.xl-item-s {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.dialog.xl-ask {
+  width: 420px;
+}
+
+.xl-ask-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 20px 20px 4px;
+}
+
+.xl-ask-title {
+  margin: 0;
+  font-size: 16px;
+  line-height: round(1.5em, 1px);
+  font-weight: 700;
+}
+
+.xl-ask-note {
+  color: var(--ink-2);
+  line-height: round(1.55em, 1px);
+}
+
+.xl-ask-path {
+  color: var(--muted);
+  line-height: round(1.55em, 1px);
+  overflow-wrap: anywhere;
+}
+
+.xl-ask-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: 16px 20px 20px;
+}
+
+.xl-toast {
+  position: fixed;
+  z-index: 30;
+  left: 50%;
+  bottom: 40px;
+  transform: translateX(-50%);
+  max-width: min(720px, calc(100vw - 32px));
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  background: var(--ink);
+  color: var(--surface);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+/* 관리 창: 배지(줄인 이름) 아래에 정식 이름 */
+.mgr .pj-mname {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+.mgr-names {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px var(--space-2);
+  width: 100%;
+}
+
+.mgr-names-l {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* ---------- 업무연락처: 카드 두 번 누르기 · 프로젝트 배지 칸 (2026-10-18 사용자) ---------- */
+/* 닫기(X) 단추 "프로그램 종료" – 끝낼지 묻는 창(2026-10-18 앱 창 세션). 다른 창 위에도 떠요. */
+.overlay.close-ask-ov {
+  z-index: 100;
+}
+
+.dialog.close-ask {
+  width: 360px;
+}
+
+/* 민원대장 줄 우클릭 메뉴 – 공통 "떠 있는 메뉴" 모양(결정 로그 2026-10-21 14:58) */
+.dmenu.cm-rowmenu {
+  min-width: 160px;
+  max-width: 340px;
+  padding: 4px;
+  gap: 0;
+  border-radius: 8px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-pop);
+}
+
+.cm-rowmenu .dmenu-item {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.cm-rowmenu .dmenu-sep {
+  margin: 4px 6px;
+  background: var(--line-row);
+}
+
+.dmenu.cm-rowmenu:has(.ask-band) {
+  max-width: none;
+}
+
+.cm-rowmenu .ask-band > span {
+  white-space: nowrap;
+}
+
+/* ---------- 민원대장 2026-10-25 사용자 18건 ---------- */
+/* 메모 창: 오른쪽 위 닫기(저장하고 닫기), 줄 지우기는 휴지통으로 줄 위·아래 옆 */
+.cm-memo-head { position: relative; padding-right: 52px; }
+.dialog-x {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.dialog-x:hover { background: var(--surface-band); color: var(--ink); }
+.memo-bar .tb-del { margin-left: 0; }
+/* 엑셀 가져오기 – 방식 고르기 창(2026-10-25 사용자 ②3안, 공통 ✔5, 그림 docs/qa/common/excel_import2.png) */
+.xl-ask {
+  width: 450px;
+}
+.xl-pick {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: var(--space-1);
+}
+.xl-pk {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 14px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.xl-pk:hover,
+.xl-pk:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-tint);
+  outline: none;
+}
+.xl-pk-red:hover,
+.xl-pk-red:focus-visible {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px var(--danger-wash);
+}
+.xl-pk-ic {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  background: var(--accent-tint);
+  color: var(--accent);
+}
+.xl-pk-red .xl-pk-ic {
+  background: var(--danger-wash);
+  color: var(--danger);
+}
+.xl-pk-t {
+  font-size: 14.5px;
+  font-weight: 700;
+}
+.xl-pk-s {
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 19px;
+}
+.xl-sum {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-band);
+  line-height: 20px;
+}
+.xl-sum b {
+  font-weight: 700;
+}
+.ask-band.xl-band {
+  margin-top: 0;
+}
+.xl-back {
+  margin-right: auto;
+}
+
+/* 지우기 휴지통(2026-10-26 공통 부품 ✔6, 시안 TrashFinal) – Icons.tsx의 DelMark·DelGlyph.
+   del-hit: 누르는 칸(28)은 그대로, 안에 붉은 스퀴클 네모 18. del-btn: 옆 테두리 단추·칸과 같은 높이·모서리의 붉은 단추. */
+.del-mark { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 18px; height: 18px; border-radius: 6px; background: var(--danger); color: var(--surface); }
+.del-mark > svg, .del-glyph > svg { display: block; }
+.del-glyph { display: flex; align-items: center; justify-content: center; }
+button.del-hit, button.del-hit:hover:not(:disabled), button.del-hit.on { background: transparent; }
+button.del-hit:hover:not(:disabled) .del-mark, button.del-hit.on .del-mark, .dmenu-item:hover .del-mark { filter: brightness(0.86); }
+button.del-hit:disabled .del-mark { opacity: 0.4; }
+button.del-btn, button.del-btn:hover:not(:disabled) { width: 28px; min-width: 28px; height: 28px; padding: 0; border: 0; border-radius: var(--radius-sm); background: var(--danger); color: var(--surface); }
+button.del-btn:hover:not(:disabled) { filter: brightness(0.86); }
+.cal-dlg-foot button.cal-trash.del-btn { width: var(--size-ctrl); min-width: var(--size-ctrl); height: var(--size-ctrl); border-radius: var(--radius-md); color: var(--surface); }
+.memo-bar button.tb-del.del-btn { width: 26px; min-width: 26px; height: 26px; }
+
+
+/* ---------- late.css에서 옮김(정리 ⑥ 2026-10-28 – 옮겨도 계산된 모양이 같은 것만) ---------- */
+/* 뜨는 창은 바탕이 한 단계 밝아서 줄 구분선을 창 바탕에 맞춰요 */
+.dialog {
+  --line-row: var(--line-raised);
+}
+/* 창 닫기 ×(2026-10-26 공통 부품 ✔7, DialogX.tsx) – 위 오른쪽 12px·제목 줄 가운데(top은 부품이 재서 넣어요), 머리 줄 오른쪽 52px 비움 – 마우스를 올렸을 때는 late.css */
+:has(> .dlg-x) { position: relative; }
+:has(> .dlg-x) :is(.dialog-head, .jp-head, .fx-cf-head, .fx-rn-head) { padding-right: 52px; }
+:has(> .dlg-x) .xl-ask-title { padding-right: 32px; }
+.dlg-x { position: absolute; top: 12px; right: 12px; z-index: 1; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); cursor: pointer; }
+.dlg-x > svg { display: block; }
+
+/* 두 줄 띠(2026-10-28 민원대장 분류 합치기 ✔1): 물음 글은 한 줄 전체, 아래 줄 왼쪽에 고르기, 오른쪽 끝에 취소·단추 */
+.ask-band.ask-two > span {
+  flex-basis: 100%;
+}
+
+.ask-band.ask-two > .btn:first-of-type {
+  margin-left: auto;
+}
+
+.ask-band .btn-danger:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.ask-merge-pick {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ask-merge-pick .pin {
+  width: 150px;
+}
+
+.ask-merge-pick .cell-input {
+  height: 28px;
+  background: var(--surface);
+  font-weight: 400;
+}
+
+.ask-merge-pick .pin-list {
+  color: var(--ink);
+  font-weight: 400;
+}
+
+/* 묻고 있는 칩(지우려는 분류) */
+.chip.chip-asking {
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--line));
+  background: var(--danger-wash);
+}
