@@ -15,7 +15,7 @@ import { createPortal } from "react-dom";
 import { CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, Case, Complaint, ContactsData, errorText, inApp, Order, OrderResult, previewInbox, RunStatus, Work, WorkInput } from "../../api";
 import { daysBetween } from "../../complaints";
-import { useColHead, widestOf } from "../../ColHead";
+import { padX, useColHead, widestOf } from "../../ColHead";
 import type { ColDef } from "../../cols";
 import { plainOf } from "../../bullets";
 import { DelMark } from "../../Icons";
@@ -297,9 +297,9 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     if (!s) return cases;
     return cases.filter((c) => [c.no, c.area, c.place, c.summary, c.reason, plainOf(c.note)].some((t) => koIndex(t, s) >= 0));
   }, [cases, q]);
-  const open = found.filter((c) => !isDone(c));
-  const done = found.filter((c) => isDone(c));
-  const rows = showDone ? [...open, ...done] : open;
+  // 줄 목록은 찾기 결과·완료 보기가 바뀔 때만 새로 만들어요 – 글자 폭 재기(아래 useLayoutEffect)가 줄 목록이 바뀔 때만 돌게(cols 최적화 1).
+  const { open, done } = useMemo(() => ({ open: found.filter((c) => !isDone(c)), done: found.filter((c) => isDone(c)) }), [found, complaints]); // eslint-disable-line react-hooks/exhaustive-deps
+  const rows = useMemo(() => (showDone ? [...open, ...done] : open), [showDone, open, done]);
 
   // ---------- 민원 불러오기: Claude가 신문고를 읽어 가져올 폴더에 놓고, 2초마다 표에 넣어요 ----------
   // hold: 실행 중엔 첨부가 아직 안 내려온 민원을 다음 번으로 미뤄요(Claude는 받기만 누르고 다음 건으로 – 2026-10-21 ②1안).
@@ -718,7 +718,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   const inits = COLUMNS.map((c, i) => auto[i] ?? c.w);
   const sumInit = Math.max(SUM_MIN, Math.floor(avail - inits.reduce<number>((a, w) => a + (w ?? 0), 0)));
   const colDefs: ColDef[] = COLUMNS.map((c, i) => ({ id: c.id, label: c.label, init: inits[i] ?? sumInit, fixed: c.fixed, text: c.text }));
-  /** 내용에 맞춤: 번호·접수·기한·위치는 글자 폭 + 같은 여유(위치도 260 제한 없이), 나머지는 칸을 복사해 잰 폭 */
+  /** 내용에 맞춤: 번호·접수·기한·위치는 글자 폭 + 칸 여백(위치도 260 제한 없이), 나머지는 칸을 복사해 잰 폭 – 여유는 cols.ts가 더해요 */
   const measureCol = (id: string): number | null => {
     const i = COLUMNS.findIndex((c) => c.id === id);
     const body = bodyRef.current;
@@ -734,7 +734,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
         m = r.getBoundingClientRect().width;
       }
       for (const c of lines) m = Math.max(m, textWidth(c));
-      return m > 0 ? Math.ceil(m) + COL_GAP : null;
+      return m > 0 ? Math.ceil(m) + padX(lines[0] ?? (head.children[i] as HTMLElement)) : null;
     }
     return widestOf([head.children[i] as HTMLElement, ...lines]);
   };

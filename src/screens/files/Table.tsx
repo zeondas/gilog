@@ -1,6 +1,7 @@
 // 탐색기 – 창 하나 그리기(탭 줄 → 드라이브 줄 → 경로 줄 → 목록 → 상태 줄)와 목록 줄 부품·미리보기 칸. 화면 몸통(Screen)이 지금 값을 묶어 넘겨요.
 import type { MutableRefObject } from "react";
 import type { ColHead } from "../../ColHead";
+import { padX, textPx } from "../../ColHead";
 import { Fragment, useEffect, useState } from "react";
 import { inApp } from "../../api";
 import { FileIcon } from "../../FileIcon";
@@ -46,7 +47,6 @@ export type PaneCtx = {
   copyPath: (pane: number) => void;
   crumbList: (pane: number, path: string, next: string | undefined, el: HTMLElement) => Promise<void>;
   cut: Set<string>;
-  dateMin: number;
   dragScroll: (x: number, y: number) => void;
   dragSrc: React.MutableRefObject<{ pane: number; rows: Row[]; } | null>;
   driveMenu: (path: string, e: React.MouseEvent) => Promise<void>;
@@ -96,6 +96,7 @@ export type PaneCtx = {
   colh: ColHead;
   /** 창마다 "그 열 글자 폭" 재는 함수(두 번 누르기·내용에 맞춤) */
   colFit: MutableRefObject<Record<number, (k: string) => number | null>>;
+  colLive: MutableRefObject<Record<number, (w: (k: string) => number) => void>>;
   types: Record<string, string>;
   up: (pane: number) => void;
   updPane: (pane: number, f: (p: RPane) => RPane) => void;
@@ -109,7 +110,7 @@ export function renderPane(pane: number, c: PaneCtx) {
     activeTab, cfg, closeTab, commitInline, copyPath, crumbList, cut, dragScroll, dragSrc, driveMenu, dropTo, editPath, extHover,
     filterRefs, filters, flash, fmt, focusPane, go, home, inline, keepPick, lists, menu, nativeDrag, newTab, newTabBg, noCtxUntil,
     openEntry, paneCount, rerunFind, rowsOf, selected, sels, setBand, setEditPath, setFilters, setFindOpen, setForm, setInline, setMenu,
-    setPop, setSel, setSt, setSugg, shellMenu, st, stepHistory, sugg, suggest, targetOf, toggleCol, types, up, updPane, visibleDrives, colh, colFit, note
+    setPop, setSel, setSt, setSugg, shellMenu, st, stepHistory, sugg, suggest, targetOf, toggleCol, types, up, updPane, visibleDrives, colh, colFit, colLive, note
   } = c;
   const p = st.panes[pane];
   const t = activeTab(p);
@@ -211,16 +212,28 @@ export function renderPane(pane: number, c: PaneCtx) {
   const rowW = 10 + 32 + colsW.reduce((a, b) => a + b, 0);
   const colStyle = { gridTemplateColumns: ["32px", ...colsW.map((w) => `${w}px`)].join(" "), width: rowW };
   const detailMode = p.view === "detail" || !!t.find;
-  // 이 창 줄의 그 열 글자 폭(글꼴로 재서 가장 긴 값) – 두 번 누르기·내용에 맞춤이 모든 창 가운데 가장 넓은 값을 써요.
+  // 이 창 줄의 그 열 내용 폭(글꼴로 잰 가장 긴 글자 + 칸 여백, 여유는 cols.ts가 더해요) – 두 번 누르기·내용에 맞춤이 모든 창 가운데 가장 넓은 값을 써요.
   colFit.current[pane] = (k: string) => {
     if (!detailMode || !rows.length) return null;
-    const c = document.createElement("canvas").getContext("2d");
-    if (!c) return null;
-    c.font = `${getComputedStyle(document.body).fontSize} Pretendard, sans-serif`;
-    if (k === "name") return Math.ceil(Math.max(0, ...rows.map((r) => c.measureText(shownName(r)).width + (r.locked ? 18 : 0)))) + 16;
+    const font = `${getComputedStyle(document.body).fontSize} Pretendard, sans-serif`;
+    const row = rowsRefs[pane].current?.querySelector(".fx-frow");
+    if (k === "name") return Math.ceil(Math.max(0, ...rows.map((r) => textPx(shownName(r), font) + (r.locked ? 18 : 0)))) + padX(row?.querySelector(".fx-ncell"));
     if (k === "folder" && !t.find) return null;
     const vals = rows.map((r) => (k === "size" ? (r.dir ? "" : formatSize(r.size)) : k === "modified" ? formatDate(r.modified, fmt) : k === "type" ? typeName(r, types) : r.folder ?? ""));
-    return Math.ceil(Math.max(0, ...vals.map((v) => c.measureText(v).width))) + 20 + (k === "modified" && fmt.includes(" ") ? DATE_TIME_GAP : 0);
+    return Math.ceil(Math.max(0, ...vals.map((v) => textPx(v, font)))) + padX(row?.querySelector(".fx-col")) + (k === "modified" && fmt.includes(" ") ? DATE_TIME_GAP : 0);
+  };
+  // 끄는 동안: 이 창 머리 줄·줄들의 열 틀과 폭만 직접 바꿔요(화면은 손을 뗀 뒤 한 번 다시 그려요)
+  colLive.current[pane] = (w) => {
+    const box = rowsRefs[pane].current;
+    if (!box || !detailMode) return;
+    const ws = [w("name"), ...shown.map((k) => w(k))];
+    const tmpl = ["32px", ...ws.map((x) => `${x}px`)].join(" ");
+    const rw = 10 + 32 + ws.reduce((a, b) => a + b, 0);
+    box.style.minWidth = rw + "px";
+    box.querySelectorAll<HTMLElement>(".fx-hdr, .fx-frow").forEach((el) => {
+      el.style.gridTemplateColumns = tmpl;
+      el.style.width = rw + "px";
+    });
   };
   /** 경계 손잡이(공통 부품): 열 오른쪽 끝 – 끌면 그 왼쪽 열만 바뀌고, 두 번 누르면 글자에 맞춰요 */
   const lastCol: "name" | ColKey = shown.length ? shown[shown.length - 1] : "name";

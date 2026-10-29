@@ -21,7 +21,7 @@ import {
   ddayText,
   FilterKey,
   filterValues,
-  COL_SLACK,
+  CELL_PAD,
   FLEXED,
   layoutCols,
   matches,
@@ -38,8 +38,8 @@ import { lookupMany } from "../../addressWeb";
 import { areaFor } from "../../address";
 import { DEFAULT_SETTINGS, DONE_STATUS, isClosed, loadSettings, saveSettings, Settings, STATUS_RENAME } from "../../settingsStore";
 import { SearchBox } from "../../SearchBox";
-import { useColHead } from "../../ColHead";
-import type { ColDef } from "../../cols";
+import { textPx, useColHead } from "../../ColHead";
+import { widthOf, type ColDef } from "../../cols";
 import { HeadRow, FilterChips, NewRow, EditRow, ViewRow } from "./Table";
 import { MemoDialog, CatsDialog } from "./Dialogs";
 import type { ListMerge } from "../settings/Table";
@@ -235,7 +235,7 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [list, settings]);
 
-  const needs = useColNeeds(all, statuses, doneFolded, today, settings.placeStyle);
+  const needs = useColNeeds(all, doneFolded, today, settings.placeStyle);
   // 열 폭(헤더 열 조정 통일 ✔1~3): 처음 값은 layoutCols(글 폭·창 폭), 끈 열은 px 그대로. 상태·메모는 고정, 접힌 조치완료일도 고정.
   const init = layoutCols(needs, avail).init;
   const colDefs: ColDef[] = COLUMNS.map((c) => ({
@@ -248,12 +248,12 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
   const cols = useColHead({
     store: COLS_KEY,
     cols: colDefs,
-    // 내용에 맞춤 = 모든 민원의 그 열 글 폭 + 같은 여유(줄인 모양이 아니라 전체 글자). 여러 줄인 내용·조치내용은 처음 폭으로.
+    // 내용에 맞춤 = 모든 민원의 그 열 글 폭 + 칸 여백(여유는 cols.ts가 더해요 – 줄인 모양이 아니라 전체 글자). 여러 줄인 내용·조치내용은 처음 폭으로.
     measure: (id) => {
       const k = id as ColKey;
       if (FLEXED.includes(k)) return null;
       const n = needs[k];
-      return n ? Math.ceil(n.full + COL_SLACK) : null;
+      return n ? n.full + CELL_PAD : null;
     },
   });
   const layout = layoutCols(needs, avail, cols.saved);
@@ -267,6 +267,8 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
   const topRef = useRef<HTMLDivElement>(null);
   const [topH, setTopH] = useState(0);
   const tableStyle = { "--cm-cols": shownWidths.map((w) => w + "px").join(" "), minWidth: total + 2 } as CSSProperties;
+  // 긴 목록이 잰 줄 높이를 버리는 기준은 손을 뗀 뒤의 폭 – 끄는 동안 1,500줄 높이를 매번 버리지 않게(cols 최적화 2)
+  const committedCols = COLUMNS.map((c) => widthOf(colDefs.find((d) => d.id === c.key)!, cols.committed) + "px").join(" ");
   (tableStyle as Record<string, string>)["--cm-top-h"] = `${topH}px`;
   const memoOf = all.find((c) => c.id === memoId) ?? null;
 
@@ -391,7 +393,7 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
           getKey={(i) => shown[i].id}
           estimate={(i) => rowEstimate(shown[i])}
           pinned={[editId, selId, flash].map((id) => (id == null ? null : shown.findIndex((c) => c.id === id)))}
-          resetKey={tableStyle["--cm-cols" as keyof CSSProperties] as string}
+          resetKey={committedCols}
           render={(i) => {
             const c = shown[i];
             return (
@@ -560,16 +562,10 @@ const DUE_GAP = 8;
  * 열 제목 글자도 넣어요 – 거르기 아이콘은 마우스를 올릴 때만 여유 자리에 겹쳐 보여 자리를 잡지 않아요(⑨ 1안).
  * 짧은 글 열(접수유형·민원유형)은 90%가 들어가는 폭, 위치는 다 보여야 해서 가장 긴 것.
  */
-function useColNeeds(all: Complaint[], statuses: string[], doneFolded: boolean, today: string, placeStyle: PlaceStyle): Partial<Record<ColKey, ColNeed>> {
+function useColNeeds(all: Complaint[], doneFolded: boolean, today: string, placeStyle: PlaceStyle): Partial<Record<ColKey, ColNeed>> {
   return useMemo(() => {
-    const ctx = document.createElement("canvas").getContext("2d");
-    if (!ctx) return {};
     const family = getComputedStyle(document.body).fontFamily;
-    const tw = (s: string, weight = 400, size = 13) => {
-      if (!s) return 0;
-      ctx.font = `${weight} ${size}px ${family}`;
-      return ctx.measureText(s).width;
-    };
+    const tw = (s: string, weight = 400, size = 13) => textPx(s, `${weight} ${size}px ${family}`);
     const max = (xs: number[]) => Math.max(0, ...xs);
     // 숫자 칸(연번·날짜·D-day·걸린 날)은 화면에서 고른 폭 숫자(tabular-nums)라 캔버스로는 좁게 재져요 – 숨긴 글자로 재요.
     const probe = document.createElement("span");
@@ -624,9 +620,8 @@ function useColNeeds(all: Complaint[], statuses: string[], doneFolded: boolean, 
       memo: { full: MEMO_BTN },
     };
     probe.remove();
-    void statuses;
     return out;
-  }, [all, statuses, doneFolded, today, placeStyle]);
+  }, [all, doneFolded, today, placeStyle]);
 }
 
 /** 고친 것이 없으면 저장하지 않아요. */

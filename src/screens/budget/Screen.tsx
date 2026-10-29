@@ -44,7 +44,7 @@ import { keyAction, rowKeys } from "../../keys";
 import { overlayDown, useOutsideClose } from "../../useOutsideClose";
 import { isEmptyMemo, MemoEditor, sanitize } from "../../RichMemo";
 import { SearchBox } from "../../SearchBox";
-import { contentWidth, useColHead } from "../../ColHead";
+import { useColHead, widestOf } from "../../ColHead";
 import type { ColDef } from "../../cols";
 import {
   AUTO_MS,
@@ -477,16 +477,22 @@ export default function BudgetScreen() {
   // 보이는 열(VC)은 공유를 끄면 "담당" 열이 빠져요. 보기에서 숨는 열(집행률 보기 = 시공량, 시공량 보기 = 집행액)은 폭 0 – 표가 그만큼 좁아져요(✔3②).
   const hide = HIDE_OF[view];
   const hideIx = VC.findIndex(([c]) => c === hide);
-  /** 그 열에 보이는 내용(열 제목 포함) 가운데 가장 긴 폭 */
+  /** 그 열에 보이는 내용(열 제목 포함) 가운데 가장 긴 폭(여유는 cols.ts가 더해요) */
   const fitOf = (col: string): number | null => {
     const ci = VC.findIndex(([c]) => c === col);
     if (ci < 0 || col === hide) return null;
     const head = document.querySelectorAll<HTMLElement>(".bd-hd > .bd-h")[ci];
     const cells = [...(head ? [head] : []), ...document.querySelectorAll<HTMLElement>(`.bd-body .bd-rw > .bd-c:nth-child(${ci + 1})`)];
-    return cells.length ? Math.max(...cells.map((c) => contentWidth(c))) + 1 : null;
+    return widestOf(cells);
   };
   const colDefs: ColDef[] = VC.map(([c, label, w]) => ({ id: c, label, init: w, fixed: FIXED.has(c), text: c === "name" }));
-  const colh = useColHead({ store: COLS_KEY, cols: colDefs, measure: fitOf });
+  // 끄는 동안은 화면을 다시 그리지 않고 열 폭 변수만 바꿔요(cols 최적화 3) – 줄이 많아도 끌기가 가벼워요
+  const colh = useColHead({
+    store: COLS_KEY,
+    cols: colDefs,
+    measure: fitOf,
+    live: (w) => rootRef.current?.style.setProperty("--bd-cols", VC.map(([c]) => (c === hide ? 0 : w(c)) + "px").join(" ")),
+  });
   const Wv = Object.fromEntries(VC.map(([c]) => [c, c === hide ? 0 : colh.width(c)])) as Record<ColId, number>;
   const cols = VC.map(([c]) => Wv[c] + "px").join(" ");
 
