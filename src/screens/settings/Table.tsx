@@ -2,7 +2,7 @@
 import { FormEvent, Fragment, Ref, useEffect, useRef, useState } from "react";
 import { ChoiceInput } from "../../PlaceInputs";
 import { PATH_NAME, setWebKey, testWeb, webKey, webStatus, WebStatus } from "../../addressWeb";
-import { api, errorText, inApp, RoadTableInfo } from "../../api";
+import { api, BackupInfo, errorText, inApp, RoadTableInfo } from "../../api";
 import { splitJamo } from "../../journal";
 import { DEFAULT_MAIL_BODY, DEFAULT_MAIL_SUBJECT, MAIL_FIELDS, Kind, MEMO_KIND, ProcessSettings, FilesSettings, STATUS_COLORS } from "../../settingsStore";
 import { aiGuide, phoneGuide } from "../../process";
@@ -888,6 +888,22 @@ export function FolderRow({ folder, onLocked, setNote }: { folder: string; onLoc
     <Row k="자료 파일 폴더" label="저장 위치" desc={`${folder} · 암호화해서 이 PC에만 저장해요.`}>
       <button type="button" className="btn" onClick={change} disabled={!inApp}>
         폴더 바꾸기
+      </button>
+    </Row>
+  );
+}
+
+/** 자동 백업 줄(2026-10-29 자료 안전 ✔1): 앱을 열 때 하루 한 번, 자료 폴더 옆 backup 폴더에 최근 7개. */
+export function AutoBackupRow({ setNote }: { setNote: (s: string) => void }) {
+  const [info, setInfo] = useState<BackupInfo | null>(null);
+  useEffect(() => {
+    api.backupInfo().then(setInfo, () => setInfo(null));
+  }, []);
+  const last = info?.latest ? ` · 마지막 ${Number(info.latest.slice(5, 7))}월 ${Number(info.latest.slice(8))}일` : "";
+  return (
+    <Row k="자동 백업 backup 복원 되살리기" label="자동 백업" desc={`앱을 열 때 하루 한 번 저장해요 · 최근 7개${last}`}>
+      <button type="button" className="btn" onClick={() => api.openBackupFolder().catch((e) => setNote(errorText(e)))} disabled={!inApp}>
+        폴더 열기
       </button>
     </Row>
   );

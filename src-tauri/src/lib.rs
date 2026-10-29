@@ -96,15 +96,22 @@ fn prefs_path(app: &AppHandle) -> Result<PathBuf, String> {
 
 pub(crate) fn read_prefs(app: &AppHandle) -> Result<Prefs, String> {
     let path = prefs_path(app)?;
-    match fs::read_to_string(&path) {
-        Ok(text) => Ok(serde_json::from_str(&text).unwrap_or_default()),
-        Err(_) => Ok(Prefs::default()),
+    parse_prefs(fs::read_to_string(&path))
+}
+
+/// 파일이 없으면(처음 켬) 기본값, 있는데 읽거나 풀 수 없으면 "prefs_bad"예요.
+/// 조용히 기본값으로 가면 자료 폴더를 옮겨 둔 사람이 "새로 만들기"로 잘못 갈 수 있어요(평가 위험 4).
+fn parse_prefs(read: std::io::Result<String>) -> Result<Prefs, String> {
+    match read {
+        Ok(text) => serde_json::from_str(&text).map_err(|_| "prefs_bad".to_string()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Prefs::default()),
+        Err(_) => Err("prefs_bad".into()),
     }
 }
 
 pub(crate) fn write_prefs(app: &AppHandle, prefs: &Prefs) -> Result<(), String> {
     let text = serde_json::to_string_pretty(prefs).map_err(io)?;
-    fs::write(prefs_path(app)?, text).map_err(io)
+    gilog_core::write_atomic(&prefs_path(app)?, text.as_bytes()).map_err(io)
 }
 
 /// 자료를 두는 폴더예요. 기본은 문서\giLog
@@ -236,6 +243,7 @@ fn auto_unlock(app: AppHandle, state: State<AppState>) -> Result<bool, String> {
     let dir = data_dir(&app)?;
     match Store::open_with_key_hex(&dir, &key) {
         Ok(store) => {
+            daily_backup(&store);
             *state.store.lock().map_err(io)? = Some(store);
             Ok(true)
         }
@@ -255,8 +263,16 @@ fn create_store(app: AppHandle, state: State<AppState>, password: String) -> Res
 fn unlock(app: AppHandle, state: State<AppState>, password: String) -> Result<(), String> {
     let dir = data_dir(&app)?;
     let store = Store::open(&dir, &password).map_err(code)?;
+    daily_backup(&store);
     *state.store.lock().map_err(io)? = Some(store);
     Ok(())
+}
+
+/// 잠금을 풀 때 그날 첫 자동 백업을 해요. 실패해도 여는 것은 막지 않아요.
+pub(crate) fn daily_backup(store: &Store) {
+    if let Err(e) = store.auto_backup() {
+        eprintln!("auto backup: {e}");
+    }
 }
 
 #[tauri::command]
@@ -610,6 +626,60 @@ fn import_backup(app: AppHandle, state: State<AppState>, path: String, password:
     hello::turn_off(&app)
 }
 
+#[derive(Serialize)]
+struct BackupInfo {
+    /// 자동 백업 폴더
+    folder: String,
+    /// 자동 백업(하루 하나) 개수
+    count: usize,
+    /// 가장 최근 것의 날짜(YYYY-MM-DD)와 경로
+    latest: Option<String>,
+    latest_path: Option<String>,
+}
+
+/// 자동 백업 상태 – 잠겨 있어도 읽어요(잠금 화면 "백업으로 되살리기", 설정 줄).
+#[tauri::command]
+fn backup_info(app: AppHandle) -> Result<BackupInfo, String> {
+    let dir = data_dir(&app)?;
+    let list = gilog_core::daily_backups(&dir);
+    let last = list.last();
+    Ok(BackupInfo {
+        folder: dir.join(gilog_core::BACKUP_DIR).to_string_lossy().to_string(),
+        count: list.len(),
+        latest: last.map(|(d, _)| d.clone()),
+        latest_path: last.map(|(_, p)| p.to_string_lossy().to_string()),
+    })
+}
+
+/// 자동 백업 폴더를 윈도우 탐색기로 열어요(없으면 만들어요).
+#[tauri::command]
+fn open_backup_folder(app: AppHandle) -> Result<(), String> {
+    let folder = data_dir(&app)?.join(gilog_core::BACKUP_DIR);
+    fs::create_dir_all(&folder).map_err(io)?;
+    process::open_path(folder.to_string_lossy().to_string())
+}
+
+/// 잠금 화면에서 손상된 자료를 백업으로 되살리고 바로 열어요.
+/// 손상된 파일은 `gilog_손상_날짜.db`로 옆에 남기고, 되살린 뒤는 "백업 불러오기"처럼 맡긴 열쇠·PIN을 꺼요.
+#[tauri::command]
+fn restore_and_open(app: AppHandle, state: State<AppState>, path: String, password: String) -> Result<(), String> {
+    let dir = data_dir(&app)?;
+    let mut guard = state.store.lock().map_err(io)?;
+    *guard = None;
+    if gilog_core::exists(&dir) {
+        gilog_core::keep_corrupt(&dir).map_err(code)?;
+    }
+    gilog_core::restore_backup(&dir, &PathBuf::from(path), &password).map_err(code)?;
+    keyring_delete();
+    let mut prefs = read_prefs(&app)?;
+    prefs.ask_password = true;
+    write_prefs(&app, &prefs)?;
+    let _ = hello::turn_off(&app);
+    let store = Store::open(&dir, &password).map_err(code)?;
+    *guard = Some(store);
+    Ok(())
+}
+
 /// 자료 폴더를 옮겨요. 옮긴 뒤 앱이 잠겨요.
 #[tauri::command]
 fn move_data(app: AppHandle, state: State<AppState>, folder: String) -> Result<(), String> {
@@ -699,6 +769,9 @@ pub fn run() {
             export_backup,
             import_backup,
             move_data,
+            backup_info,
+            open_backup_folder,
+            restore_and_open,
             contacts_data,
             add_contact,
             update_contact,
@@ -844,4 +917,22 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("기록을 시작하지 못했어요");
+}
+
+#[cfg(test)]
+mod prefs_tests {
+    use super::*;
+
+    #[test]
+    fn missing_prefs_is_default_but_broken_is_an_error() {
+        let missing = Err(std::io::Error::from(std::io::ErrorKind::NotFound));
+        assert_eq!(parse_prefs(missing).ok().map(|p| p.theme), Some("system".to_string()));
+        assert_eq!(parse_prefs(Ok("{\"dataDir\": \"D:/기록\"".into())).err().as_deref(), Some("prefs_bad"));
+        assert_eq!(parse_prefs(Ok(String::new())).err().as_deref(), Some("prefs_bad"));
+        let denied = Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
+        assert_eq!(parse_prefs(denied).err().as_deref(), Some("prefs_bad"));
+        let p = parse_prefs(Ok("{\"dataDir\": \"D:/기록\"}".into())).unwrap();
+        assert_eq!(p.data_dir, "D:/기록");
+        assert_eq!(p.close_action, "tray");
+    }
 }

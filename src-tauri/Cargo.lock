@@ -1567,6 +1567,7 @@ version = "0.1.0"
 dependencies = [
  "argon2",
  "calamine",
+ "chrono",
  "hex",
  "image",
  "rand 0.8.8",

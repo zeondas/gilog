@@ -1263,3 +1263,42 @@ mark {
 /* 높이 28 단추는 모서리 6(10-18 17:09 규칙: 34는 8, 28은 6 – 공통 부품 ✔8) */
 .btn-primary.btn-xs,
 .btn-danger.btn-xs { border-radius: var(--radius-sm); }
+
+/* 잠금 화면 손상 안내 띠(2026-10-29 자료 안전 ✔3 1안 – 시안 "자료손상_잠금화면_시안"):
+   붉은 띠 안에 되살리기 단추(흰 바탕 붉은 테두리) + "다른 백업 고르기" 밑줄 글자. */
+.gate-corrupt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.gate-restore {
+  height: 28px;
+  margin-top: 8px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--danger);
+  font: inherit;
+  font-weight: 600;
+}
+
+.gate-restore:hover:not(:disabled) {
+  background: var(--danger-wash);
+}
+
+.gate-corrupt .gate-pick {
+  margin-top: 4px;
+  color: var(--danger);
+}
+
+.gate-corrupt-msg {
+  margin-top: 8px;
+}
+
+/* 앱을 띄우지 못할 때(설정 파일을 읽을 수 없음 등) 잠금 바탕에 뜨는 글은 줄을 나눠 보여요. */
+.gate > .gate-error {
+  white-space: pre-line;
+  text-align: center;
+}

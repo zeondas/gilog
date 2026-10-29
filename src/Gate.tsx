@@ -4,13 +4,21 @@
 // 윈도우 PIN 풀기를 켠 PC에서는 잠금 화면이 뜨면 Hello 창이 저절로 떠요(앱을 켤 때·자동 잠금 뒤 모두 – 2026-10-18 사용자).
 // 창이 앞에 있을 때만 띄우고(트레이에 숨어 있거나 다른 창을 보고 있으면 돌아왔을 때), 한 번만 띄워요.
 // 취소·실패하면 비밀번호 칸으로 돌아오고, 아래 "PIN으로 풀기"로 다시 띄워요. 꺼진 PC는 비밀번호 칸만이에요.
+// 자료 파일이 손상됐으면(2026-10-29 자료 안전 ✔3 1안) 띠 안에 "○월 ○일 백업으로 되살리기" 단추와 "다른 백업 고르기" –
+// 방금 친 비밀번호로 그 백업을 열어 보고 맞으면 바꿔 넣고 바로 열려요(손상된 파일은 옆에 남겨요).
 import { FormEvent, useEffect, useState } from "react";
-import { api, errorText } from "./api";
+import { api, BackupInfo, errorText, inApp } from "./api";
 import Logo, { AppIcon } from "./Logo";
 
 type Props = { mode: "setup" | "unlock"; folder: string; onOpen: () => void };
 /** 띠 모양: 잘못(붉은 띠, 칸 테두리도 붉게) · 알림(회색 띠 – PIN 취소처럼 잘못이 아닌 것) */
 type Note = { text: string; tone: "error" | "info"; field?: boolean } | null;
+
+/** "2026-10-28" → "10월 28일" */
+function dayLabel(d: string): string {
+  const [, m, day] = d.split("-").map(Number);
+  return `${m}월 ${day}일`;
+}
 
 export default function Gate({ mode, folder, onOpen }: Props) {
   const [password, setPassword] = useState("");
@@ -18,7 +26,41 @@ export default function Gate({ mode, folder, onOpen }: Props) {
   const [note, setNote] = useState<Note>(null);
   const [busy, setBusy] = useState(false);
   const [pinOn, setPinOn] = useState(false);
+  // 손상 안내 띠(null이면 보통 띠). msg는 되살리기가 안 됐을 때 띠 안 두 번째 줄.
+  const [corrupt, setCorrupt] = useState<{ info: BackupInfo | null; msg: string } | null>(null);
   const setup = mode === "setup";
+
+  async function showCorrupt() {
+    setNote(null);
+    const info = await api.backupInfo().catch(() => null);
+    setCorrupt({ info, msg: "" });
+  }
+
+  async function restore(path: string) {
+    if (busy) return;
+    if (!password) {
+      setCorrupt((c) => c && { ...c, msg: "비밀번호를 넣고 눌러 주세요." });
+      document.getElementById("gate-password")?.focus();
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.restoreAndOpen(path, password);
+      onOpen();
+      return;
+    } catch (err) {
+      const msg = err === "wrong_password" ? "이 백업은 다른 비밀번호로 잠겨 있어요.\n그때 비밀번호를 넣고 다시 눌러 주세요." : errorText(err);
+      setCorrupt((c) => c && { ...c, msg });
+    }
+    setBusy(false);
+  }
+
+  async function pickBackup() {
+    if (!inApp) return;
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const r = await open({ title: "되살릴 백업 파일", defaultPath: corrupt?.info?.folder, filters: [{ name: "기록 백업", extensions: ["gilogbak"] }] });
+    if (typeof r === "string") restore(r);
+  }
 
   useEffect(() => {
     if (setup) return;
@@ -61,12 +103,14 @@ export default function Gate({ mode, folder, onOpen }: Props) {
     }
     setBusy(true);
     setNote(null);
+    setCorrupt(null);
     try {
       if (setup) await api.create(password);
       else await api.unlock(password);
       onOpen();
     } catch (err) {
-      setNote({ text: errorText(err), tone: "error", field: true });
+      if (err === "corrupt") await showCorrupt();
+      else setNote({ text: errorText(err), tone: "error", field: err === "wrong_password" || err === "password_too_short" });
       if (err === "wrong_password") setPassword("");
       setBusy(false);
     }
@@ -83,7 +127,8 @@ export default function Gate({ mode, folder, onOpen }: Props) {
       onOpen();
       return;
     } catch (err) {
-      if (err === "hello_canceled") setNote({ text: "PIN 확인을 취소했어요. 비밀번호를 넣어 주세요.", tone: "info" });
+      if (err === "corrupt") await showCorrupt();
+      else if (err === "hello_canceled") setNote({ text: "PIN 확인을 취소했어요. 비밀번호를 넣어 주세요.", tone: "info" });
       else {
         // 보관한 비밀번호가 맞지 않거나(pin_stale) 이 PC에서 더는 못 쓰면 링크를 숨겨요(자리는 그대로).
         if (err === "pin_stale" || err === "hello_unavailable") setPinOn(false);
@@ -140,10 +185,33 @@ export default function Gate({ mode, folder, onOpen }: Props) {
             </div>
           )}
         </form>
-        {note && (
+        {note && !corrupt && (
           <p className={"gate-note" + (note.tone === "info" ? " info" : "")} role="alert">
             {note.text}
           </p>
+        )}
+        {corrupt && (
+          <div className="gate-note gate-corrupt" role="alert">
+            {corrupt.info?.latest && corrupt.info.latestPath ? (
+              <>
+                {`자료 파일이 손상됐어요.\n${dayLabel(corrupt.info.latest)} 자동 백업으로 되살릴 수 있어요.`}
+                <button type="button" className="gate-restore" onClick={() => restore(corrupt.info!.latestPath!)} disabled={busy}>
+                  {dayLabel(corrupt.info.latest)} 백업으로 되살리기
+                </button>
+                <button type="button" className="gate-link gate-pick" onClick={pickBackup} disabled={busy}>
+                  다른 백업 고르기
+                </button>
+              </>
+            ) : (
+              <>
+                {"자료 파일이 손상됐어요.\n백업 파일이 있으면 골라 되살려 주세요."}
+                <button type="button" className="gate-restore" onClick={pickBackup} disabled={busy}>
+                  백업 파일 고르기
+                </button>
+              </>
+            )}
+            {corrupt.msg && <span className="gate-corrupt-msg">{corrupt.msg}</span>}
+          </div>
         )}
       </div>
     </div>
