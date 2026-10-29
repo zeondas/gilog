@@ -102,6 +102,97 @@ async def fig_png(br, url, fg, out):
     return missing
 
 
+
+CROP_BASE = 1_900_000_000   # hwpx_build.py와 같은 값 – 상세설명 제목 아래 "그 부분" 그림 틀
+LABELS = "가나다라마바사아자차카타파하"
+CROP_MAX_H = 14200          # 그 부분 그림 높이 한도(약 5cm)
+CROP_PAD = 28               # 요소 둘레 여백(CSS px)
+CROP_MIN_W = 360            # 너무 좁은 요소는 양옆을 더 보여 줘요
+
+CROP_HTML = """<!doctype html><meta charset=utf-8><style>
+@font-face{font-family:P;src:url(%(font)s) format('woff2');font-weight:100 900}
+body{margin:0;background:#fff;font-family:P}
+.s{position:relative;width:%(w)dpx;height:%(h)dpx}
+.s img{position:absolute;left:0;top:0;width:%(w)dpx;height:%(h)dpx}
+.frame{position:absolute;inset:0;border:1px solid #D6D4DE;border-radius:4px}
+.hl{position:absolute;left:%(bx)dpx;top:%(by)dpx;width:%(bw)dpx;height:%(bh)dpx;border:2px solid #6A4DFF;border-radius:6px;box-sizing:border-box}
+.ring{position:absolute;left:%(rx)dpx;top:%(ry)dpx;width:22px;height:22px;border-radius:50%%;border:1.5px solid #1C1B22;background:#fff;color:#1C1B22;
+ font-size:11.5px;font-weight:700;display:flex;align-items:center;justify-content:center;box-sizing:border-box}
+</style><div class=s id=s><img src="%(img)s"><div class=frame></div><div class=hl></div><div class=ring>%(label)s</div></div>"""
+
+
+async def crop_pngs(br, url, mp, labels, outs):
+    """화면 장면에서 기능별 요소(가·나·다)마다 둘레를 잘라 보라 테두리 + 번호를 얹어요(3배)."""
+    feats = {f["label"]: f for f in mp["feats"]}
+    ctx, p = await cap.open_scene(br, url, mp["scene"])
+    full = Image.open(io.BytesIO(await p.screenshot(full_page=True))).convert("RGB")
+    D = cap.DPR
+    pw_css, ph_css = full.width / D, full.height / D
+    missing, jobs = [], []
+    for label, out in zip(labels, outs):
+        f = feats.get(label)
+        b = await cap.box(p, f["sel"]) if f else None
+        if not b:
+            missing.append(f"상세 그림 {label}")
+            b = {"x": 0, "y": 0, "width": pw_css, "height": min(ph_css, 300)}
+        x0, x1 = b["x"] - CROP_PAD, b["x"] + b["width"] + CROP_PAD
+        if x1 - x0 < CROP_MIN_W:
+            c = (x0 + x1) / 2
+            x0, x1 = c - CROP_MIN_W / 2, c + CROP_MIN_W / 2
+        y0, y1 = b["y"] - CROP_PAD, b["y"] + b["height"] + CROP_PAD
+        x0, y0 = max(0, x0), max(0, y0)
+        x1, y1 = min(pw_css, x1), min(ph_css, y1)
+        reg = full.crop((int(x0 * D), int(y0 * D), int(x1 * D), int(y1 * D)))
+        buf = io.BytesIO()
+        reg.save(buf, "PNG")
+        w, h = round(x1 - x0), round(y1 - y0)
+        bx, by = b["x"] - x0 - 3, b["y"] - y0 - 3
+        jobs.append((out, CROP_HTML % {
+            "font": "data:font/woff2;base64," + base64.b64encode(open(FONT, "rb").read()).decode(), "w": w, "h": h,
+            "img": "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode(),
+            "bx": bx, "by": by, "bw": b["width"] + 6, "bh": b["height"] + 6,
+            "rx": max(1, min(w - 24, bx - 22)), "ry": max(1, min(h - 24, by - 22)), "label": label}))
+    await ctx.close()
+    ctx = await br.new_context(device_scale_factor=cap.DPR, viewport={"width": 1700, "height": 1200})
+    pg = await ctx.new_page()
+    for out, html in jobs:
+        await pg.set_content(html)
+        await pg.evaluate("() => document.fonts.ready")
+        await pg.locator("#s").screenshot(path=out)
+        split_wide(out)
+    await ctx.close()
+    return missing
+
+
+SPLIT_W = 760   # 이보다 넓은 띠(머리 줄 단추 등)는 여러 줄로 나눠 쌓아요 – 한 줄로 두면 글자가 너무 작아져요
+
+
+def split_wide(path):
+    im = Image.open(path).convert("RGB")
+    D = cap.DPR
+    w = im.width / D
+    if w <= SPLIT_W:
+        return
+    k = -(-int(w) // 700)
+    g = im.convert("L")
+    px = g.load()
+    def ink(x):   # 세로 한 줄의 진한 점 수 – 단추 사이 빈 곳에서 자르려고
+        return sum(1 for y in range(0, im.height, 2) if px[x, y] < 235)
+    cuts, prev = [0], 0
+    for i in range(1, k):
+        c = im.width * i // k
+        lo, hi = int(c - im.width * 0.12 / k * k / 2), int(c + im.width * 0.12 / k * k / 2)
+        best = min(range(max(prev + 1, lo), min(im.width - 1, hi)), key=ink)
+        cuts.append(best)
+        prev = best
+    cuts.append(im.width)
+    gap = 8 * D
+    pieces = [im.crop((cuts[i], 0, cuts[i + 1], im.height)) for i in range(k)]
+    out = Image.new("RGB", (max(pc.width for pc in pieces), im.height * k + gap * (k - 1)), "white")
+    for i, pc in enumerate(pieces):
+        out.paste(pc, (0, i * (im.height + gap)))
+    out.save(path)
+
 # ---------- 한글 파일에 넣기 ----------
 PIC = ('<hp:pic textWrap="SQUARE" textFlow="BOTH_SIDES" reverse="0" id="{id}" zOrder="{z}" numberingType="PICTURE" lock="0" '
        'dropcapstyle="None" href="" groupLevel="0" instid="{id}"><hp:offset x="0" y="0"/><hp:orgSz width="{w}" height="{h}"/>'
@@ -117,7 +208,7 @@ PIC = ('<hp:pic textWrap="SQUARE" textFlow="BOTH_SIDES" reverse="0" id="{id}" zO
        '<hp:shapeComment/></hp:pic>')
 
 
-def fill(tbl, png, bin_id, center_pp, scale_px):
+def fill(tbl, png, bin_id, center_pp, scale_px, max_h=None):
     """빈 틀(1칸 표)에 그림을 넣고 틀 높이를 그림에 맞춰요."""
     tw = int(re.search(r'<hp:sz width="(\d+)"', tbl).group(1))
     ml, mr, mt, mb = (int(x) for x in re.search(r'<hp:cellMargin left="(\d+)" right="(\d+)" top="(\d+)" bottom="(\d+)"', tbl).groups())
@@ -125,7 +216,7 @@ def fill(tbl, png, bin_id, center_pp, scale_px):
     im = Image.open(png)
     pw, ph = im.size
     w = min(inner, int(pw / 3 * scale_px)) if scale_px else inner
-    w = min(w, int(MAX_H * pw / ph))     # 세로로 긴 그림은 한 쪽 안에 들게 줄여요
+    w = min(w, int((max_h or MAX_H) * pw / ph))     # 세로로 긴 그림은 한 쪽 안에 들게 줄여요
     h = round(w * ph / pw)
     pic = PIC.format(id=random.randint(1_000_000_000, 2_000_000_000), z=random.randint(2, 900), w=w, h=h, cx=w // 2, cy=h // 2,
                      pw=pw * 75, ph=ph * 75, bin=bin_id)
@@ -157,36 +248,48 @@ async def main():
     zin = zipfile.ZipFile(src)
     sec = zin.read("Contents/section0.xml").decode("utf-8")
     tbls = list(re.finditer(r"<hp:tbl .*?</hp:tbl>", sec, re.S))
+    tid = [int(re.match(r'<hp:tbl id="(\d+)"', t.group(0)).group(1)) for t in tbls]
+    is_crop = [CROP_BASE <= i < CROP_BASE + 100_000 for i in tid]
     need = sum(1 + len(m["figs"]) for m in maps)
-    if need != len(tbls):
-        sys.exit(f"그림 틀 {len(tbls)}개, 짝 {need}개 – 개수가 달라요")
+    if need != is_crop.count(False):
+        sys.exit(f"그림 틀 {is_crop.count(False)}개, 짝 {need}개 – 개수가 달라요")
     pngdir = os.path.splitext(out)[0] + "_pics"
     os.makedirs(pngdir, exist_ok=True)
-    jobs, missing = [], []
+    plain, missing = [], []
+    crops = {}                       # 틀 번호 → (png, None)
     srv, port = cap.serve(site)
     url = f"http://127.0.0.1:{port}/"
     async with async_playwright() as pw:
         br = await pw.chromium.launch()
-        for k, mp in zip(keys, maps):
+        for ci, (k, mp) in enumerate(zip(keys, maps)):
             f = os.path.join(pngdir, f"{k}_00.png")
             missing += [f"{k}: {x}" for x in await screen_png(br, url, mp, f)]
-            jobs.append((f, None))
+            plain.append((f, None, None))
             for i, fg in enumerate(mp["figs"], 1):
                 f = os.path.join(pngdir, f"{k}_{i:02d}.png")
                 missing += [f"{k}: {x}" for x in await fig_png(br, url, fg, f)]
-                jobs.append((f, PX))
-            print("찍음", k, 1 + len(mp["figs"]))
+                plain.append((f, PX, None))
+            mine = [i for i in tid if CROP_BASE + ci * 1000 <= i < CROP_BASE + ci * 1000 + 100]
+            labels = [LABELS[i - CROP_BASE - ci * 1000] for i in mine]
+            outs = [os.path.join(pngdir, f"{k}_c{lb}.png") for lb in labels]
+            if mine:
+                missing += [f"{k}: {x}" for x in await crop_pngs(br, url, mp, labels, outs)]
+            for i, o in zip(mine, outs):
+                crops[i] = (o, PX, CROP_MAX_H)
+            print("찍음", k, 1 + len(mp["figs"]), "+ 부분", len(mine))
         await br.close()
     srv.shutdown()
+    it = iter(plain)
+    jobs = [crops[i] if c else next(it) for i, c in zip(tid, is_crop)]
 
     header = zin.read("Contents/header.xml").decode("utf-8")
     header, center = add_center_para(header)
     hpf = zin.read("Contents/content.hpf").decode("utf-8")
     items, parts, last = [], [], 0
-    for n, (t, (png, scale)) in enumerate(zip(tbls, jobs), 1):
-        bin_id = f"manual{n:02d}"
+    for n, (t, (png, scale, mh)) in enumerate(zip(tbls, jobs), 1):
+        bin_id = f"manual{n:03d}"
         parts.append(sec[last:t.start()])
-        parts.append(fill(t.group(0), png, bin_id, center, scale))
+        parts.append(fill(t.group(0), png, bin_id, center, scale, mh))
         last = t.end()
         items.append((bin_id, png))
     parts.append(sec[last:])

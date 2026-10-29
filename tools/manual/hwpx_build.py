@@ -81,10 +81,14 @@ def pp_for(t):
 used_ids = set(re.findall(r'<hp:tbl id="(\d+)"', sec))
 
 
-def frame(tpl):
-    nid = str(random.randint(1_000_000_000, 2_000_000_000))
+CROP_BASE = 1_900_000_000   # 상세설명 제목 아래 "그 부분" 그림 틀 번호 = CROP_BASE + 장 차례×1000 + 가나다 차례(hwpx_pics.py가 읽어요)
+LABELS = "가나다라마바사아자차카타파하"
+
+
+def frame(tpl, nid=None):
+    nid = nid or str(random.randint(1_000_000_000, 1_800_000_000))
     while nid in used_ids:
-        nid = str(random.randint(1_000_000_000, 2_000_000_000))
+        nid = str(random.randint(1_000_000_000, 1_800_000_000))
     used_ids.add(nid)
     return re.sub(r'(<hp:tbl id=")\d+(")', lambda m: m.group(1) + nid + m.group(2), tpl, count=1)
 
@@ -199,6 +203,18 @@ for path in chapters:
     merged.append(P("", "20", BODY))
     merged.append(P("4. 상세설명", *H))
     merged += detail(b["상세"])
+
+# ---------- 2-1) 상세설명 제목마다 "그 부분" 그림 틀(2026-10-29 12:33 사용자 – 앞장 화면을 다시 보지 않게) ----------
+withcrop, chap = [], -1
+for p in merged:
+    withcrop.append(p)
+    if f'<hp:run charPrIDRef="{title_cp}"><hp:t>' in p:
+        chap += 1
+        continue
+    m = re.match(r'<hp:p [^>]*><hp:run charPrIDRef="8"><hp:t>\s*([가-하])\.', p)
+    if m and m.group(1) in LABELS:
+        withcrop.append(frame(FRAME_DETAIL, str(CROP_BASE + chap * 1000 + LABELS.index(m.group(1)))))
+merged = withcrop
 
 # ---------- 3) 키 표기 ----------
 MOD = r"(?:ctrl|shift|alt)"
