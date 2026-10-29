@@ -435,7 +435,8 @@ export function renderPane(pane: number, c: PaneCtx) {
     </div>
   );
   const upRow = !t.find && parentOf(t.path) && (p.view === "detail" || p.view === "brief") && (
-    <div className={p.view === "brief" ? "fx-brow" : "fx-frow"} style={p.view === "detail" ? colStyle : undefined} onDoubleClick={() => up(pane)} title="두 번 누르면 위 폴더 (Backspace)">
+    // 자세히 보기의 `..` 줄은 열 머리 아래에 붙어 내려도 남아요(2026-10-29 탐색기 ✔1 – files.css .fx-uprow)
+    <div className={p.view === "brief" ? "fx-brow" : "fx-frow fx-uprow"} style={p.view === "detail" ? colStyle : undefined} onDoubleClick={() => up(pane)} title="두 번 누르면 위 폴더 (Backspace)">
       {/* FC처럼 보통 폴더 아이콘 + ".." (칩·화살표 없이, 아래 폴더와 같은 크기) */}
       {p.view === "brief" ? (
         <>
