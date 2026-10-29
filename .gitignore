@@ -9,3 +9,7 @@ src-tauri/fastfind/target
 src-tauri/bin
 __pycache__/
 *.pyc
+# 미리 보기 저장 모듈(npm run build:wasm이 만들어요 – 저장소에 넣지 않아요)
+src/wasm-pkg
+src-tauri/core-wasm/target
+src-tauri/core-wasm/Cargo.lock

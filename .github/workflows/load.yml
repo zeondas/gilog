@@ -12,6 +12,9 @@ on:
     branches: ['wip/**']
     paths:
       - 'tools/load/**'
+      - 'tools/preview/**'
+      - 'src-tauri/core-wasm/**'
+      - '.github/actions/preview-wasm/**'
       - '.github/workflows/load.yml'
 
 concurrency:
@@ -46,9 +49,13 @@ jobs:
           pip install playwright==1.63.0
           python -m playwright install --with-deps chromium
 
-      - name: 미리 보기 빌드(3년치 흉내 자료)
+      # 미리 보기 저장 모듈(브라우저용 core) – 2026-10-30 ②-3 ✔4
+      - uses: ./.github/actions/preview-wasm
+
+      - name: 미리 보기 빌드(3년치 시험 자료)
         run: |
           npm ci
+          npm run build:wasm
           npx vite build -c tools/load/vite.config.ts --outDir /tmp/site
 
       - name: 재기(5번 중간값)

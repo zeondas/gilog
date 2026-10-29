@@ -1,0 +1,27 @@
+[package]
+name = "gilog-core-wasm"
+version = "0.1.0"
+description = "브라우저 미리 보기용 저장 모듈 – 앱 명령 이름을 core 함수에 그대로 이어요(규칙은 core 한 벌). 설치 파일에는 들어가지 않아요."
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+gilog-core = { path = "../core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# wasm-bindgen CLI(`npm run build:wasm`)와 판이 같아야 해요 – 바꾸면 tools/preview/build-wasm.mjs의 WASM_BINDGEN도 함께.
+wasm-bindgen = "=0.2.129"
+
+# core의 rusqlite가 브라우저에서 쓰는 SQLite(sqlite-wasm-rs)에 시계·난수를 브라우저 것으로 이어 줘요.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+sqlite-wasm-rs = { version = "0.6", features = ["wasm-bindgen"] }
+# 엑셀 쓰기가 만든 날짜를 브라우저 시계로 읽게(없으면 시계를 못 읽어 멈춰요).
+rust_xlsxwriter = { version = "0.99", default-features = false, features = ["wasm"] }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
