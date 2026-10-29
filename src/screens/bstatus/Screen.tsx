@@ -17,6 +17,7 @@ import { todayStr } from "../../journal";
 import { keyAction } from "../../keys";
 import { overlayDown, useOutsideClose } from "../../useOutsideClose";
 import { SearchBox } from "../../SearchBox";
+import { YearNav } from "../../YearNav";
 import { useColHead, widestOf } from "../../ColHead";
 import type { ColDef } from "../../cols";
 
@@ -780,15 +781,7 @@ export default function BudgetStatusScreen() {
     <div ref={rootRef} className="bd bs">
       <div className="bd-top tb5">
         <h1 className="title">예산현황</h1>
-        <span className="bd-year">
-          <button type="button" aria-label="이전 해" onClick={() => changeYear(year - 1)}>
-            {ICON("M15 6l-6 6 6 6", 16, 2.2)}
-          </button>
-          <b>{year}년</b>
-          <button type="button" aria-label="다음 해" onClick={() => changeYear(year + 1)}>
-            {ICON("M9 6l6 6-6 6", 16, 2.2)}
-          </button>
-        </span>
+        <YearNav year={year} onChange={changeYear} />
         <span className="bd-sp" />
         {seg("요약", "자세히", detail ? 1 : 0, (i) => { setDetail(i === 1); api.set(VIEW_KEY, i === 1 ? "detail" : "summary").catch(() => {}); }, "보기", " tb-seg-l")}
         {seg("원", "천원", unit === 1 ? 0 : 1, (i) => { setUnit(i ? 1000 : 1); api.set(UNIT_KEY, i ? "1000" : "1").catch(() => {}); }, "금액 단위", " tb-seg-s")}
