@@ -125,11 +125,18 @@ def measure(port, runs):
             add("검색 · 업무연락처 \"김\"", page.evaluate("() => window.__time(() => window.__type('input[aria-label=\"연락처 검색\"]', '김'))"))
             page.evaluate("() => window.__type('input[aria-label=\"연락처 검색\"]', '')")
             page.wait_for_timeout(600)
-        # 할 일 검색
+        # 할 일 검색(0.35.0 검색창 통일 뒤 type=search가 없어졌어요 – 이름표로 찾아요, 2026-10-29 검사 자동화)
         for _ in range(runs):
             go(page, "할 일")
-            sel = "input[type=search]"
+            sel = "input[aria-label=\"할 일 검색\"]"
             add("검색 · 할 일 \"보고\"", page.evaluate("(s) => window.__time(() => window.__type(s, '보고'))", sel))
+            page.evaluate("(s) => window.__type(s, '')", sel)
+            page.wait_for_timeout(600)
+        # 업무일지 전체 검색(대기 목록 "업무일지 부하 시험" – 2026-10-29 검사 자동화에서 더함)
+        for _ in range(runs):
+            go(page, "업무일지")
+            sel = "input[aria-label=\"일지 검색\"]"
+            add("검색 · 업무일지 \"배수\"", page.evaluate("(s) => window.__time(() => window.__type(s, '배수'))", sel))
             page.evaluate("(s) => window.__type(s, '')", sel)
             page.wait_for_timeout(600)
         # DOM 크기

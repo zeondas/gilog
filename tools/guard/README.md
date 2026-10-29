@@ -11,6 +11,15 @@
 - 계산된 모양 값 비교 `styles.py`(2026-10-26 정리 2차): 같은 장면을 두 빌드에서 열어 모든 요소(::before·::after 포함)의 `getComputedStyle` 전부를 견줘요 – 사진이 못 잡는 차이까지. CSS를 옮기거나 나눌 때 `python3 tools/guard/styles.py /tmp/g_base /tmp/g_cur` → 0이어야 해요. 알아 둘 것: `complaints_newrow_baddate`·`journal_memo`는 main끼리 찍어도 사진이 조금씩 흔들려요(1,400점·1점).
 - 동작 시험 `behave.py`: 메뉴·띠·창을 열고 ① 안에서 눌러 바깥에서 떼면 안 닫힘 ② 바깥 누르면 닫힘 ③ Esc로 닫힘, 지울까요 띠는 열리면 취소에 커서·Esc는 띠만 접힘, 날짜 칸은 보기 값 여덟 개가 떠날 때 8자리·abc는 빨강, 고치는 카드는 바깥 누르면 저장되는지.
 
+## 검사(CI)에서 저절로(2026-10-29 검사 자동화 ✔1)
+
+`check.yml`의 "모양 지킴이 0~3" 네 갈래가 wip 가지 push마다 윈도우 검사와 동시에 돌아요(화면 쪽 `src/`·`tools/guard/` 등을 안 바꾼 가지는 건너뜀).
+기준은 main과 갈라진 곳을 같은 러너에서 빌드해요(기준 사진을 저장소에 두지 않아요). 한 갈래 = `ci.py`: 사진 비교 → 계산 모양 → 동작.
+- 흔들리는 장면은 `compare.py`의 `TOLERANCE` 점수까지 통과(`journal_memo`·`complaints_newrow_baddate`·`files_find_baddate`) – 그 장면도 계산 모양은 0이어야 해요.
+- **일부러 바꾼 장면**은 그 가지 커밋 메시지에 `guard-allow: 장면 장면 …` 줄을 적어요(사진·계산 모양 차이 통과). 새로 더한 장면(기준에 없음)은 찍히는지만 봐요.
+- 실패하면 요약이 커밋 댓글로 남고, 다른 장면 그림은 실행 결과 Artifacts(`guard-N`, 7일)에 있어요.
+- 손으로 한 갈래만: `python3 tools/guard/ci.py /tmp/g_base /tmp/g_cur /tmp/guard --shard 0/4 --base-tree /tmp/gilog-main --base-ref origin/main`.
+
 ## 쓰는 법
 
 ```

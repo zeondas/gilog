@@ -1,0 +1,69 @@
+# 부하 시험(2026-10-29 검사 자동화 ✔2, 사용자 ②1안): 주 1회(월요일 아침 8시 17분, main)와 직접 실행,
+# 그리고 재는 도구(tools/load·이 파일)를 바꾼 wip 가지 push 때(도구가 깨지지 않았는지).
+# 3년치 흉내 자료로 화면 전환·스크롤·검색을 재서(tools/load, 기준은 docs/loadtest.md) 실행 요약에 표로 남겨요.
+# 기준을 넘어도 실패로 만들지 않아요 – 숫자만 적고, 고치는 건 각 화면 세션 몫이에요. 리눅스 러너 값이라 사무실 PC와는 달라요.
+name: 부하 시험
+
+on:
+  schedule:
+    - cron: '17 23 * * 0' # 월요일 08:17(서울) = 일요일 23:17 UTC
+  workflow_dispatch:
+  push:
+    branches: ['wip/**']
+    paths:
+      - 'tools/load/**'
+      - '.github/workflows/load.yml'
+
+concurrency:
+  group: load-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-1.63.0-chromium
+
+      - name: 재는 도구 준비(Playwright·Chromium)
+        run: |
+          pip install playwright==1.63.0
+          python -m playwright install --with-deps chromium
+
+      - name: 미리 보기 빌드(3년치 흉내 자료)
+        run: |
+          npm ci
+          npx vite build -c tools/load/vite.config.ts --outDir /tmp/site
+
+      - name: 재기(5번 중간값)
+        run: python3 tools/load/measure.py /tmp/site /tmp/load.json --runs 5
+
+      - name: 기준과 견준 표
+        if: always()
+        run: |
+          [ -f /tmp/load.json ] && python3 tools/load/report.py /tmp/load.json /tmp/load.md || echo "재기가 끝나지 않았어요" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: load-${{ github.run_number }}
+          path: |
+            /tmp/load.json
+            /tmp/load.md
+          retention-days: 90
