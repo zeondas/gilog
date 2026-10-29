@@ -20,7 +20,7 @@
    - 같은 화면 파일(tsx·ts·rs)에서 같은 줄이 부딪치면 **뒤 가지 쪽**을 따르고, 앞 가지가 더한 다른 줄은 살려요. 뜻이 갈리면 멈추고 사용자에게 1안/2안으로 물어요.
    - CLAUDE.md는 main 쪽을 두고 빌드 줄만 고쳐요.
    - 다 합친 뒤 두 검사가 모두 0줄이어야 해요: `grep -rn "—" src src-tauri/src`(긴 줄표, 공통 결정 로그 2026-10-20 13:02) · `grep -rn "기Log" src src-tauri/src`(보이는 이름은 "기록", 2026-10-18 23:27).
-3. 검사: `npm ci` → `npm run build` · `cargo test --manifest-path src-tauri/core/Cargo.toml` · 가능하면 `cargo check --manifest-path src-tauri/Cargo.toml`.
+3. 검사: `npm ci` → `npm run build` · `npm test`(규칙 + 화면 부품) · `cargo test --manifest-path src-tauri/core/Cargo.toml`(자료 올리기 시험 포함) · 가능하면 `cargo check --manifest-path src-tauri/Cargo.toml`. 모양 지킴이는 check.yml이 가지마다 4갈래로 돌려요(2026-10-29 `wip/ci2` 뒤 – check ✓면 지킴이도 통과) – 합친 뒤 전체 한 번은 그대로 해요. build.yml도 설치 파일 전에 `npm test`를 돌리고, 릴리스 제목이 "기록 0.N.0 (build-N)"이에요(태그는 `build-N` 그대로).
 4. 버전 올리기 **4곳**(같은 값 0.N.0): `package.json`(→ `npm install --package-lock-only`로 `package-lock.json`도) · `src-tauri/tauri.conf.json` · `src-tauri/Cargo.toml`(`Cargo.lock`은 cargo가 따라 바꿔요) · `src/version.ts`. 커밋 이름 "0.N.0: <넣은 것 짧게>"(`[skip ci]` 글자는 쓰지 않아요).
 5. 사양서(https://claude.ai/code/artifact/8a776f73-e26c-4e2c-9735-3dc7cd0885f4)에서 넣은 기능의 "(다음 빌드)" 표시를 지워요.
 6. **허가를 따로 묻지 않고** 스스로 판단해 main에 올려요(2026-10-27 11:32 사용자 – 빌드 프롬프트를 준 것이 허가). 멈추고 묻는 것은 이때만: check 실패 가지 · 충돌의 뜻이 갈림 · 두 grep 수가 늘어남 · npm build·npm test·core 실패 · 지킴이에 바뀌기로 하지 않은 장면 차이. 올리면 build.yml이 돌아요. 실패하면 `gh api repos/zeondas/gilog/commits/<sha>/comments`로 오류를 읽어요.
