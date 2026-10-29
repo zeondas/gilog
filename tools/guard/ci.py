@@ -67,6 +67,17 @@ async def run(*cmd, log):
     return p.returncode, text, time.time() - t
 
 
+def failed_styles(text):
+    """styles.py 출력에서 다르거나 못 연 장면 이름"""
+    out = []
+    for line in text.splitlines():
+        if line.startswith("## ") and "요소 다름" in line:
+            out.append(line[3:].split(" – ")[0].strip())
+        elif line.strip().startswith("못 염 –"):
+            out.append(line.split("–", 1)[1].split(":")[0].strip())
+    return out
+
+
 def tail(text, n=40):
     return "\n".join(text.strip().splitlines()[-n:])
 
@@ -125,6 +136,18 @@ async def main():
     res = await asyncio.gather(*jobs)
     sty = res.pop(0) if styled else (0, "건너뜀", 0.0)
     beh = res.pop(0) if cases else (0, "건너뜀", 0.0)
+    # 계산 모양은 포커스 테두리가 잡히는 때가 가끔 늦어 한 장면이 흔들려요(10-29 첫 CI: complaints_newrow_baddate).
+    # 다른 장면만 두 번까지 다시 열어 보고, 다시 열어 같으면 통과로 봐요(진짜 차이는 매번 달라요).
+    retried = []
+    for _ in range(2):
+        if sty[0] == 0:
+            break
+        again = failed_styles(sty[1])
+        if not again:
+            break
+        retried += again
+        r = await run(py("styles.py"), base, cur, *again, log=os.path.join(out, "styles_retry.log"))
+        sty = (r[0], sty[1] + "\n\n--- 다시 열어 봄 ---\n" + r[1], sty[2] + r[2])
     total = time.time() - t0
 
     ok = cmp_ok and not cur_fail and sty[0] == 0 and beh[0] == 0
@@ -137,6 +160,8 @@ async def main():
         f"- 동작 {len(cases)}개 {mark(beh[0] == 0)} · {beh[2]:.0f}초",
         f"- 모두 {total:.0f}초",
     ]
+    if retried and sty[0] == 0:
+        lines.append(f"- 계산 모양 흔들림 – 다시 열어 같았던 장면: {' '.join(sorted(set(retried)))}")
     if allow:
         lines.append(f"- 바뀌기로 한 장면(guard-allow): {' '.join(sorted(allow))}")
     if new:
