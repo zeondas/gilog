@@ -44,6 +44,7 @@ import { keyAction, rowKeys } from "../../keys";
 import { overlayDown, useOutsideClose } from "../../useOutsideClose";
 import { isEmptyMemo, MemoEditor, sanitize } from "../../RichMemo";
 import { SearchBox } from "../../SearchBox";
+import { YearNav } from "../../YearNav";
 import { useColHead, widestOf } from "../../ColHead";
 import type { ColDef } from "../../cols";
 import {
@@ -1617,15 +1618,7 @@ export default function BudgetScreen() {
     <div ref={rootRef} className="bd" style={{ ["--bd-cols" as string]: cols }}>
       <div className="bd-top tb5">
         <h1 className="title">집행현황</h1>
-        <span className="bd-year">
-          <button type="button" aria-label="이전 해" onClick={() => void changeYear(year - 1)}>
-            {ICON("M15 6l-6 6 6 6", 16, 2.2)}
-          </button>
-          <b>{year}년</b>
-          <button type="button" aria-label="다음 해" onClick={() => void changeYear(year + 1)}>
-            {ICON("M9 6l6 6-6 6", 16, 2.2)}
-          </button>
-        </span>
+        <YearNav year={year} onChange={(y) => void changeYear(y)} />
         {shareOn && share && (
           <>
             <button
