@@ -1,0 +1,87 @@
+{
+ "scene": "screen_03",
+ "feats": [
+  {
+   "label": "가",
+   "name": "해 고르기",
+   "sel": "span.bd-year",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "나",
+   "name": "새로고침",
+   "sel": "span.bd-year",
+   "side": "위",
+   "hint": "오른끝"
+  },
+  {
+   "label": "다",
+   "name": "집행액·시공량",
+   "sel": "span.tb-seg-l",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "라",
+   "name": "원·천원",
+   "sel": "span.tb-seg-s",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "마",
+   "name": "배치최적화",
+   "sel": "button.bd-tool",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "바",
+   "name": "사업 추가",
+   "sel": ".bd-top button:has-text(\"사업 추가\")",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "사",
+   "name": "엑셀",
+   "sel": ".bd-top button:has-text(\"엑셀\")",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "아",
+   "name": "집행 표",
+   "sel": "div.bd-rw.pj",
+   "side": "아래",
+   "hint": "왼끝"
+  },
+  {
+   "label": "자",
+   "name": "집행률·가용액",
+   "sel": "div.bd-rw.pj >> span.bd-pct",
+   "side": "아래",
+   "hint": ""
+  },
+  {
+   "label": "차",
+   "name": "숫자 칸 합계",
+   "sel": "div.bd-rw.it >> div.bd-c.n >> nth=0",
+   "side": "아래",
+   "hint": ""
+  }
+ ],
+ "figs": [
+  {
+   "head": "나. 새로고침",
+   "scene": "settings_budgetshare",
+   "sel": "section.mod-card:has(.mod-head:text-is(\"집행현황\"))"
+  },
+  {
+   "head": "아. 집행 표",
+   "scene": "budget_menu",
+   "sel": "div.bd-pop"
+  }
+ ]
+}

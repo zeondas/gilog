@@ -1,0 +1,80 @@
+{
+ "scene": "calendar_google",
+ "feats": [
+  {
+   "label": "가",
+   "name": "종류 목록",
+   "sel": "button.cal-kind >> nth=0",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "나",
+   "name": "앞으로 7일",
+   "sel": "div.cal-upcoming",
+   "side": "아래",
+   "hint": ""
+  },
+  {
+   "label": "다",
+   "name": "구글 연동 상태",
+   "sel": "div.g-box",
+   "side": "아래",
+   "hint": ""
+  },
+  {
+   "label": "라",
+   "name": "빠른 입력",
+   "sel": "div.cal-quick",
+   "side": "위",
+   "hint": "왼끝"
+  },
+  {
+   "label": "마",
+   "name": "달 옮기기",
+   "sel": "div.cal-nav",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "바",
+   "name": "월·주 보기",
+   "sel": "div.cal-views",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "사",
+   "name": "달력 칸",
+   "sel": "div.cal-day.red.rest >> nth=1",
+   "side": "아래",
+   "hint": ""
+  },
+  {
+   "label": "아",
+   "name": "일정 상세",
+   "sel": "div.cal-ev.bar:has-text(\"현장 출장\")",
+   "side": "아래",
+   "hint": "왼끝"
+  },
+  {
+   "label": "자",
+   "name": "마감 일정",
+   "sel": "button.cal-ev-check >> nth=1",
+   "side": "아래",
+   "hint": ""
+  }
+ ],
+ "figs": [
+  {
+   "head": "가. 종류 목록",
+   "scene": "calendar_kinds",
+   "sel": ".dialog.mgr"
+  },
+  {
+   "head": "아. 일정 상세",
+   "scene": "calendar_event",
+   "sel": ".dialog.cal-dialog"
+  }
+ ]
+}

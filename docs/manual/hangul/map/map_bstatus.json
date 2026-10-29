@@ -1,0 +1,80 @@
+{
+ "scene": "screen_04",
+ "feats": [
+  {
+   "label": "가",
+   "name": "보는 해",
+   "sel": "span.bd-year",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "나",
+   "name": "보기·단위",
+   "sel": "span.bd-unit.tb-seg-l",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "다",
+   "name": "배치최적화",
+   "sel": "button.bd-tool",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "라",
+   "name": "검색",
+   "sel": "label.bd-search",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "마",
+   "name": "엑셀",
+   "sel": ".bd-top button.btn-text:has-text(\"엑셀\")",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "바",
+   "name": "사업기간·설정",
+   "sel": "button.bs-gear",
+   "side": "아래",
+   "hint": ""
+  },
+  {
+   "label": "사",
+   "name": "장부 표",
+   "sel": ".bd-rw.pj .bs-rate",
+   "side": "아래",
+   "hint": ""
+  },
+  {
+   "label": "아",
+   "name": "직접 적는 칸",
+   "sel": ".bd-rw.pj span.bs-fld >> nth=1",
+   "side": "아래",
+   "hint": ""
+  },
+  {
+   "label": "자",
+   "name": "줄 메뉴·메모",
+   "sel": "button.bd-memo",
+   "side": "아래",
+   "hint": ""
+  }
+ ],
+ "figs": [
+  {
+   "head": "바. 사업기간·설정",
+   "scene": "budgetstatus_settings",
+   "sel": ".dialog.bss2"
+  },
+  {
+   "head": "자. 줄 메뉴·메모",
+   "scene": "budgetstatus_menu",
+   "sel": ".bd-pop"
+  }
+ ]
+}

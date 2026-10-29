@@ -1,0 +1,80 @@
+{
+ "scene": "screen_02",
+ "feats": [
+  {
+   "label": "가",
+   "name": "신문고 열기",
+   "sel": ".ct-head button:has-text(\"신문고 열기\")",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "나",
+   "name": "민원 불러오기",
+   "sel": "button.pr-fetch",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "다",
+   "name": "공사 관리",
+   "sel": ".ct-head button:has-text(\"공사 관리\")",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "라",
+   "name": "고르기 칸",
+   "sel": ".pr-row >> nth=1 >> .pr-check",
+   "side": "아래",
+   "hint": ""
+  },
+  {
+   "label": "마",
+   "name": "위치",
+   "sel": "div.pr-place.one",
+   "side": "아래",
+   "hint": ""
+  },
+  {
+   "label": "바",
+   "name": "판단 공사",
+   "sel": "button.pr-work",
+   "side": "아래",
+   "hint": ""
+  },
+  {
+   "label": "사",
+   "name": "고려사항",
+   "sel": "div.pr-nc",
+   "side": "아래",
+   "hint": ""
+  },
+  {
+   "label": "아",
+   "name": "진행",
+   "sel": "span.pr-gauge",
+   "side": "아래",
+   "hint": ""
+  },
+  {
+   "label": "자",
+   "name": "줄 메뉴",
+   "sel": ".pr-row >> nth=1 >> button.pr-more",
+   "side": "아래",
+   "hint": ""
+  }
+ ],
+ "figs": [
+  {
+   "head": "다. 공사 관리",
+   "scene": "process_works",
+   "sel": ".dialog.pr-works"
+  },
+  {
+   "head": "자. 줄 메뉴",
+   "scene": "process_rowmenu",
+   "sel": "div.dmenu.pr-rowmenu"
+  }
+ ]
+}

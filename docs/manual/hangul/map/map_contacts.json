@@ -1,0 +1,75 @@
+{
+ "scene": "screen_08",
+ "feats": [
+  {
+   "label": "가",
+   "name": "신규 줄",
+   "sel": "div.ct-new-row",
+   "side": "위",
+   "hint": "왼끝"
+  },
+  {
+   "label": "나",
+   "name": "사업 관리",
+   "sel": ".ct-head button:has-text(\"사업 관리\")",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "다",
+   "name": "검색",
+   "sel": ".ct-head label.search",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "라",
+   "name": "엑셀",
+   "sel": ".ct-head .xl-wrap",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "마",
+   "name": "사업 목록",
+   "sel": "aside.ct-side",
+   "side": "아래",
+   "hint": ""
+  },
+  {
+   "label": "바",
+   "name": "카드",
+   "sel": "article.ccard >> nth=0 >> div.ccard-band",
+   "side": "아래",
+   "hint": "왼끝"
+  },
+  {
+   "label": "사",
+   "name": "사업 배지",
+   "sel": "article.ccard >> nth=1 >> span.pbadge >> nth=0",
+   "side": "아래",
+   "hint": ""
+  },
+  {
+   "label": "아",
+   "name": "번호·메일",
+   "sel": "article.ccard >> nth=2 >> button.cline >> nth=0",
+   "side": "아래",
+   "hint": ""
+  },
+  {
+   "label": "자",
+   "name": "메모",
+   "sel": "article.ccard >> nth=1 >> div.ccard-memo",
+   "side": "아래",
+   "hint": "왼끝"
+  }
+ ],
+ "figs": [
+  {
+   "head": "나. 사업 관리",
+   "scene": "contacts_pjdialog",
+   "sel": ".dialog.pjm"
+  }
+ ]
+}

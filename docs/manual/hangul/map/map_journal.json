@@ -1,0 +1,92 @@
+{
+ "scene": "screen_07",
+ "feats": [
+  {
+   "label": "가",
+   "name": "머리 줄",
+   "sel": "div.jday",
+   "side": "위",
+   "hint": "왼끝"
+  },
+  {
+   "label": "나",
+   "name": "검색",
+   "sel": "label.search.jn-search",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "다",
+   "name": "엑셀·인쇄",
+   "sel": ".jn-head button:has-text(\"인쇄\")",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "라",
+   "name": "달력",
+   "sel": "button.jcal-title",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "마",
+   "name": "시간·구분",
+   "sel": ".jcard-new .jpillar input.cell-input >> nth=0",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "바",
+   "name": "상대",
+   "sel": ".jcard-new div.pin.jwho",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "사",
+   "name": "말 입력 줄",
+   "sel": ".jcard-new div.jline-in",
+   "side": "아래",
+   "hint": "왼끝"
+  },
+  {
+   "label": "아",
+   "name": "메모 편집기",
+   "sel": ".jcard-new .jpillar input.cell-input >> nth=1",
+   "side": "아래",
+   "hint": ""
+  },
+  {
+   "label": "자",
+   "name": "기록 카드",
+   "sel": "article.jcard >> nth=0",
+   "side": "아래",
+   "hint": "왼끝"
+  },
+  {
+   "label": "차",
+   "name": "챙길 일",
+   "sel": "section.jn-aside",
+   "side": "아래",
+   "hint": ""
+  }
+ ],
+ "figs": [
+  {
+   "head": "다. 엑셀·인쇄",
+   "scene": "journal_print",
+   "sel": ".dialog.jp-dlg"
+  },
+  {
+   "head": "라. 달력",
+   "scene": "journal_daymenu",
+   "sel": ".dmenu"
+  },
+  {
+   "head": "아. 메모 편집기",
+   "scene": "journal_memo",
+   "sel": ".jcard-new.jcard-memo"
+  }
+ ]
+}

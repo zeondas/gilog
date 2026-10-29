@@ -28,6 +28,7 @@ import cap
 
 cap.DPR = 3
 FONT = build.FONT
+MAX_H = 62000    # 그림 높이 한도(약 22cm)
 PX = 55          # 상세설명 그림: 화면 1px = 55 HWPUNIT (틀 안쪽 폭을 넘으면 줄여요)
 
 
@@ -43,7 +44,7 @@ LABEL_HTML = """<!doctype html><meta charset=utf-8><style>
 @font-face{font-family:P;src:url(%(font)s) format('woff2');font-weight:100 900}
 body{margin:0;background:#fff;font-family:P}
 .shot{position:relative;width:%(w)dpx;height:%(th).1fpx}
-.frame{position:absolute;left:0;top:%(band)dpx;width:%(w)dpx;height:%(h).1fpx;border:1px solid #D6D4DE;border-radius:4px;overflow:hidden;box-sizing:border-box}
+.frame{position:absolute;left:%(fl)dpx;top:%(band)dpx;width:%(fw)dpx;height:%(h).1fpx;border:1px solid #D6D4DE;border-radius:4px;overflow:hidden;box-sizing:border-box}
 .frame img{display:block;width:100%%;height:100%%}
 svg{position:absolute;left:0;top:0;overflow:visible}
 .ring{position:absolute;width:22px;height:22px;border-radius:50%%;border:1.5px solid #1C1B22;background:#fff;color:#1C1B22;
@@ -61,17 +62,30 @@ async def screen_png(br, url, mp, out):
     W, BAND, R = build.IMG_W, build.BAND, 22
     total = BAND * 2 + sh["h"]
     svg, rings = [], []
+    left = {f["label"] for f in mp["feats"] if f.get("side") == "왼쪽"}
+    LB = 34 if left else 0          # 왼쪽 표식 띠(세로로 긴 화면용 – 지시선을 짧게)
     for m in sh["marks"]:
         if not m["box"]:
             continue
+        if m["name"] in left:      # 원은 그림 왼쪽 띠에, 선은 요소 왼쪽 끝까지 가로로
+            b = m["box"]
+            y = BAND + (b["y"] + b["height"] / 2 - sh["y0"]) * sh["s"]
+            x = (b["x"] - sh["x0"]) * sh["s"] + LB + 4
+            svg.append(f'<line x1="{LB / 2 + R / 2:.1f}" y1="{y:.1f}" x2="{x:.1f}" y2="{y:.1f}" stroke="#1C1B22" stroke-width="1"/>'
+                       f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3" fill="#1C1B22" stroke="#fff" stroke-width="1.5"/>')
+            rings.append(f'<div class="ring" style="left:{LB / 2 - R / 2:.1f}px;top:{y - R / 2:.1f}px">{m["name"]}</div>')
+            continue
+        m["cx"] += LB
+        m["tx"] += LB
         cy = R / 2 if m["side"] == "top" else total - R / 2
         y_from = cy + R / 2 if m["side"] == "top" else cy - R / 2
         svg.append(f'<line x1="{m["cx"]:.1f}" y1="{y_from:.1f}" x2="{m["tx"]:.1f}" y2="{m["ty"]:.1f}" stroke="#1C1B22" stroke-width="1"/>'
                    f'<circle cx="{m["tx"]:.1f}" cy="{m["ty"]:.1f}" r="3" fill="#1C1B22" stroke="#fff" stroke-width="1.5"/>')
         rings.append(f'<div class="ring" style="left:{m["cx"] - R / 2:.1f}px;top:{cy - R / 2:.1f}px">{m["name"]}</div>')
     font = "data:font/woff2;base64," + base64.b64encode(open(FONT, "rb").read()).decode()
-    html = LABEL_HTML % {"font": font, "w": W, "th": total, "band": BAND, "h": sh["h"], "img": sh["img"], "svg": "".join(svg), "rings": "".join(rings)}
-    ctx = await br.new_context(viewport={"width": W + 20, "height": int(total) + 20}, device_scale_factor=3)
+    W2 = W + LB
+    html = LABEL_HTML % {"font": font, "w": W2, "fl": LB, "fw": W, "th": total, "band": BAND, "h": sh["h"], "img": sh["img"], "svg": "".join(svg), "rings": "".join(rings)}
+    ctx = await br.new_context(viewport={"width": W2 + 20, "height": int(total) + 20}, device_scale_factor=3)
     p = await ctx.new_page()
     await p.set_content(html)
     await p.evaluate("() => document.fonts.ready")
@@ -111,6 +125,7 @@ def fill(tbl, png, bin_id, center_pp, scale_px):
     im = Image.open(png)
     pw, ph = im.size
     w = min(inner, int(pw / 3 * scale_px)) if scale_px else inner
+    w = min(w, int(MAX_H * pw / ph))     # 세로로 긴 그림은 한 쪽 안에 들게 줄여요
     h = round(w * ph / pw)
     pic = PIC.format(id=random.randint(1_000_000_000, 2_000_000_000), z=random.randint(2, 900), w=w, h=h, cx=w // 2, cy=h // 2,
                      pw=pw * 75, ph=ph * 75, bin=bin_id)

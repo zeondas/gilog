@@ -1,0 +1,87 @@
+{
+ "scene": "screen_01",
+ "feats": [
+  {
+   "label": "가",
+   "name": "상태 칩",
+   "sel": ".ct-chips",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "나",
+   "name": "배치최적화",
+   "sel": "button.cm-tool",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "다",
+   "name": "분류 관리",
+   "sel": ".ct-head button.btn-text:has-text(\"분류 관리\")",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "라",
+   "name": "검색",
+   "sel": ".ct-head label.search",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "마",
+   "name": "엑셀",
+   "sel": ".xl-wrap",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "바",
+   "name": "신규 줄",
+   "sel": ".cm-row.cm-new",
+   "side": "아래",
+   "hint": "왼끝"
+  },
+  {
+   "label": "사",
+   "name": "위치",
+   "sel": ".cm-row.cm-view >> nth=3 >> button.cm-copy",
+   "side": "아래",
+   "hint": ""
+  },
+  {
+   "label": "아",
+   "name": "마감일",
+   "sel": ".cm-due .cm-tpick:has-text(\"D-\")",
+   "side": "아래",
+   "hint": ""
+  },
+  {
+   "label": "자",
+   "name": "상태",
+   "sel": ".cm-row.cm-view >> nth=3 >> button.cm-status",
+   "side": "아래",
+   "hint": ""
+  },
+  {
+   "label": "차",
+   "name": "메모",
+   "sel": ".cm-row.cm-view >> nth=3 >> button.cm-memo",
+   "side": "아래",
+   "hint": ""
+  }
+ ],
+ "figs": [
+  {
+   "head": "가. 상태 칩",
+   "scene": "complaints_filter",
+   "sel": ".cm-fdd"
+  },
+  {
+   "head": "바. 신규 줄",
+   "scene": "complaints_rowmenu",
+   "sel": ".dmenu"
+  }
+ ]
+}

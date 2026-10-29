@@ -270,7 +270,7 @@ async def shoot_chapter(br, url, ch, missing):
     # 번호는 그림을 읽는 차례대로 다시 매겨요: 위 줄 왼쪽 → 오른쪽, 다음 아래 줄 왼쪽 → 오른쪽
     marks.sort(key=lambda m: (m["box"] is None, m.get("side") != "top", m.get("cx", 0)))
     ch["marks"] = marks
-    return {"img": png_uri(region), "h": h, "marks": marks}
+    return {"img": png_uri(region), "h": h, "marks": marks, "x0": x0, "y0": y0, "s": s}
 
 
 async def shoot_open(br, url, o, missing, title, full=False):

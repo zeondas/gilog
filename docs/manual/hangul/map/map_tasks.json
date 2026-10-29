@@ -1,0 +1,80 @@
+{
+ "scene": "screen_06",
+ "feats": [
+  {
+   "label": "가",
+   "name": "검색",
+   "sel": ".ct-head label.search",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "나",
+   "name": "목록 칸",
+   "sel": "nav.td-lists",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "다",
+   "name": "새 할 일",
+   "sel": "input.td-add-title >> nth=1",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "라",
+   "name": "할 일 항목",
+   "sel": "div.td-row-title:has-text(\"행정사무감사 자료\")",
+   "side": "아래",
+   "hint": ""
+  },
+  {
+   "label": "마",
+   "name": "체크",
+   "sel": "button.td-check:not(.linked) >> nth=0",
+   "side": "아래",
+   "hint": ""
+  },
+  {
+   "label": "바",
+   "name": "민원 목록",
+   "sel": "button.td-check.linked",
+   "side": "아래",
+   "hint": ""
+  },
+  {
+   "label": "사",
+   "name": "마감 배지",
+   "sel": "span.td-due.today",
+   "side": "아래",
+   "hint": ""
+  },
+  {
+   "label": "아",
+   "name": "하위 항목",
+   "sel": "div.td-row.sub",
+   "side": "아래",
+   "hint": "오른끝"
+  },
+  {
+   "label": "자",
+   "name": "완료됨·목록 메뉴",
+   "sel": "button.td-done-toggle",
+   "side": "아래",
+   "hint": "오른끝"
+  }
+ ],
+ "figs": [
+  {
+   "head": "나. 목록 칸",
+   "scene": "tasks_listmenu",
+   "sel": ".dmenu"
+  },
+  {
+   "head": "다. 새 할 일",
+   "scene": "tasks_minical",
+   "sel": "div.td-add.open"
+  }
+ ]
+}
