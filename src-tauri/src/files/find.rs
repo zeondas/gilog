@@ -59,7 +59,7 @@ pub async fn fs_find(app: AppHandle, spec: FindSpec) -> Result<Vec<Found>, Strin
             Some(r) => r,
             None => find(&spec, &tell),
         };
-        // 찾은 파일의 사진 미리 보기(✔4)
+        // 찾은 파일이 든 폴더의 사진을 미리 보기로 읽게 허용해요 – 처음엔 아무 곳도 허용하지 않아서(✔4)
         crate::guard::allow_preview_files(&app, r.iter().map(|f| f.entry.path.as_str()));
         Ok(r)
     })
@@ -67,7 +67,7 @@ pub async fn fs_find(app: AppHandle, spec: FindSpec) -> Result<Vec<Found>, Strin
     .map_err(|e| e.to_string())?
 }
 
-// ---------- 빠른 찾기(도우미 gilog-search, 2026-10-20 사용자 2안) ----------
+// ---------- 빠른 찾기 – 따로 설치한 도우미 gilog-search가 드라이브 색인으로 이름을 찾아요(2026-10-20 사용자 2안) ----------
 
 /// 빠른 찾기 상태(설정 줄·찾기 칸이 봐요)
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]

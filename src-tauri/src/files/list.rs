@@ -13,7 +13,7 @@ use super::*;
 /// 폴더 안 목록. 숨김 파일은 show_hidden일 때만.
 #[tauri::command]
 pub async fn fs_list(app: AppHandle, path: String, show_hidden: bool) -> Result<Vec<Entry>, String> {
-    // 이 폴더의 사진을 미리 보기로 읽게(✔4)
+    // 이 폴더의 사진을 미리 보기로 읽게 허용해요 – 처음엔 아무 곳도 허용하지 않아서(✔4)
     crate::guard::allow_preview_dir(&app, Path::new(&path));
     tauri::async_runtime::spawn_blocking(move || list(Path::new(&path), show_hidden)).await.map_err(|e| e.to_string())?
 }
