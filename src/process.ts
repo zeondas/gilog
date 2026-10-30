@@ -1,11 +1,17 @@
 // 민원처리(10단계) 화면의 규칙 함수예요. 사양서 "민원처리" 절, 시안 Process.dc.html.
 // 저장은 core/process.rs(표 works·cases), 파일 일은 src-tauri/src/process.rs가 해요.
 import type { Case } from "./api";
-import { DEFAULT_MAIL_BODY, DEFAULT_MAIL_SUBJECT } from "./settingsStore";
+import { ANSWER_STATUS, DEFAULT_MAIL_BODY, DEFAULT_MAIL_SUBJECT, isClosed } from "./settingsStore";
 
 export type { Case, Stage, Work } from "./api";
 
 export const PORTAL_URL = "https://gov.epeople.go.kr";
+
+/**
+ * 표에서 "완료 N건" 띠 아래로 숨기는 민원대장 상태: 답변·완료·불가(2026-10-30 사용자 ✔2 1안, 시안 ProcessStatus ②).
+ * 진행·보류·장기는 공사가 남을 수 있어 표에 남아요(`isAnswered`와 다름). 흐리게·고치기 막기는 완료·불가(`isClosed`)만.
+ */
+export const isHiddenStatus = (status: string) => status === ANSWER_STATUS || isClosed(status);
 
 /** 파일 경로에서 이름만 */
 export const fileName = (p: string) => p.split(/[\\/]/).pop() ?? p;

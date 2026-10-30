@@ -22,7 +22,7 @@ import { DelMark } from "../../Icons";
 import { koIndex, todayStr } from "../../journal";
 import { webLookup } from "../../addressWeb";
 import { areaFor, looksRoad } from "../../address";
-import { actionLine, aiGuide, fileName, mailDraft, mailGuide, md, orderLabel, orderTag, PORTAL_URL, processError, SAMPLE_WORKS, SAMPLES } from "../../process";
+import { actionLine, aiGuide, fileName, isHiddenStatus, mailDraft, mailGuide, md, orderLabel, orderTag, PORTAL_URL, processError, SAMPLE_WORKS, SAMPLES } from "../../process";
 import { DEFAULT_PROCESS, DONE_STATUS, isAnswered, isClosed, loadSettings, ProcessSettings } from "../../settingsStore";
 import { AskBand } from "../../AskBand";
 import { SearchBox } from "../../SearchBox";
@@ -291,6 +291,12 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     const m = complaints.find((x) => x.id === c.complaint);
     return !!m && isClosed(m.status);
   };
+  // 띠 아래로 숨기는 줄: 답변·완료·불가(✔2 1안) – 흐리게·고치기 막기는 isDone(완료·불가)만
+  const isHidden = (c: Case) => {
+    if (c.complaint == null) return false;
+    const m = complaints.find((x) => x.id === c.complaint);
+    return !!m && isHiddenStatus(m.status);
+  };
 
   const found = useMemo(() => {
     const s = q.trim();
@@ -298,7 +304,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     return cases.filter((c) => [c.no, c.area, c.place, c.summary, c.reason, plainOf(c.note)].some((t) => koIndex(t, s) >= 0));
   }, [cases, q]);
   // 줄 목록은 찾기 결과·완료 보기가 바뀔 때만 새로 만들어요 – 글자 폭 재기(아래 useLayoutEffect)가 줄 목록이 바뀔 때만 돌게(cols 최적화 1).
-  const { open, done } = useMemo(() => ({ open: found.filter((c) => !isDone(c)), done: found.filter((c) => isDone(c)) }), [found, complaints]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { open, done } = useMemo(() => ({ open: found.filter((c) => !isHidden(c)), done: found.filter((c) => isHidden(c)) }), [found, complaints]); // eslint-disable-line react-hooks/exhaustive-deps
   const rows = useMemo(() => (showDone ? [...open, ...done] : open), [showDone, open, done]);
 
   // ---------- 민원 불러오기: Claude가 신문고를 읽어 가져올 폴더에 놓고, 2초마다 표에 넣어요 ----------
@@ -763,7 +769,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
   const sameWork = chosenWork ? found.filter((c) => pickable(c) && c.work === chosenWork.id) : [];
   const allState: "none" | "some" | "all" = !chosen.length ? "none" : sameWork.every((c) => chosen.includes(c.no)) ? "all" : "some";
   const toggleAll = () => setChosen(allState === "all" ? [] : [...new Set([...chosen, ...sameWork.map((c) => c.no)])]);
-  const total = cases.filter((c) => !isDone(c)).length;
+  const total = cases.filter((c) => !isHidden(c)).length;
   const tableStyle = { "--pr-cols": shownWidths.map((w) => w + "px").join(" "), "--pr-gutter": `${gutter}px`, "--pr-w": `${colSum + gutter}px` } as CSSProperties;
 
   /** 진행 막대 한 칸(2026-10-20 1안): 채움·단계(색 진하기)·글자·아이콘 – 민원대장 답변·완료가 지시부보다 앞서요. */
