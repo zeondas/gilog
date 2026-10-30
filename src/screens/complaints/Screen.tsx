@@ -580,7 +580,14 @@ function useColNeeds(list: Complaint[] | null, doneFolded: boolean, today: strin
     if (!list) return {};
     const all = list;
     const family = getComputedStyle(document.body).fontFamily;
-    const twReal = (s: string, weight = 400, size = 13) => textPx(s, `${weight} ${size}px ${family}`);
+    // 같은 글자(접수유형·민원유형 등은 거의 같아요)는 한 번만 재요.
+    const twCache = new Map<string, number>();
+    const twReal = (s: string, weight = 400, size = 13) => {
+      const key = `${weight}/${size}/${s}`;
+      let v = twCache.get(key);
+      if (v === undefined) twCache.set(key, (v = textPx(s, `${weight} ${size}px ${family}`)));
+      return v;
+    };
     const max = (xs: number[]) => Math.max(0, ...xs);
     // 숫자 칸(연번·날짜·D-day·걸린 날)은 화면에서 고른 폭 숫자(tabular-nums)라 캔버스로는 좁게 재져요 – 숨긴 글자로 재요.
     // 재는 방식은 그대로지만 한 번에 재요(2026-10-30 속도 ①): 먼저 잴 글자를 모으고(①), 숨긴 글자를 한꺼번에 붙여 한 번의 배치로 읽은 뒤(②), 그 값으로 계산해요(③).
