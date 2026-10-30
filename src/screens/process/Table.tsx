@@ -404,7 +404,7 @@ export function useProcessCols(c: ReturnType<typeof useProcessCases>) {
     };
   }, [rows, complaints, works]);
 
-  // 열 폭(헤더 열 조정 통일 ✔1~3): 처음 값 = 글자에 맞춘 폭(AUTO_COLS)·정해진 폭, 민원 요약은 남는 폭(창에 맞춘 처음 값 – 다른 열을 끌어도 그대로).
+  // 열 폭 – 일곱 표가 같은 규칙(헤더 열 조정 통일 ✔1~3): 처음 값 = 글자에 맞춘 폭(AUTO_COLS)·정해진 폭, 민원 요약은 남는 폭(창에 맞춘 처음 값 – 다른 열을 끌어도 그대로).
   const inits = COLUMNS.map((c, i) => auto[i] ?? c.w);
   const sumInit = Math.max(SUM_MIN, Math.floor(avail - inits.reduce<number>((a, w) => a + (w ?? 0), 0)));
   const colDefs: ColDef[] = COLUMNS.map((c, i) => ({ id: c.id, label: c.label, init: inits[i] ?? sumInit, fixed: c.fixed, text: c.text }));

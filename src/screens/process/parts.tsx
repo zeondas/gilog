@@ -133,13 +133,13 @@ export const FETCHED_KEY = "process.fetched";
 /** 마지막 불러오기 결과(아래 줄 "새 민원 N건 · 건너뜀 N건 · 걸린 시간 · [로그 열기]") */
 export const LAST_RUN_KEY = "process.lastRun";
 
-/** AI가 고른 현장사진의 이유(접수번호 → 한 줄, 2026-10-21 22:59 사용자 – 지시부엔 1장만) */
+/** AI가 고른 현장사진의 이유(접수번호 → 한 줄) – 지시부엔 사진이 1장만 들어가서 왜 그 사진인지 남겨요(2026-10-21 22:59 사용자) */
 export const PICK_KEY = "process.photoPick";
 
-/** per: 건당 걸린 시간(초, 2026-10-21 신속 자동화 – 전후 비교용) */
+/** 마지막 불러오기 결과. per = 건당 걸린 시간(초) – 빠르게 고친 앞뒤를 견주려고 남겨요(2026-10-21 신속 자동화) */
 export type LastRun = { at: string; added: number; skipped: number | null; secs: number; log: string; per?: number };
 
-// 끈 열만 px(헤더 열 조정 통일 2026-10-28) – 옛 `process.colWidths5`(아홉 칸 배열)는 읽지 않아요.
+// 열 폭을 저장하는 이름 – 손으로 끈 열만 px로 남아요(헤더 열 조정 통일 2026-10-28). 옛 `process.colWidths5`(아홉 칸 배열)는 읽지 않아요.
 export const COLS_KEY = "process.cols";
 
 export const MAIL_BOX = "https://mail.korea.kr";

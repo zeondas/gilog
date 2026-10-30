@@ -11,7 +11,7 @@ export function useProcessFetch(c: ReturnType<typeof useProcessCore>) {
   const { ps, setCases, run, works, setNote, setNoteLog, cases, setRun, setFetched, setLastRun, picks, setPicks } = c;
 
   // ---------- 민원 불러오기: Claude가 신문고를 읽어 가져올 폴더에 놓고, 2초마다 표에 넣어요 ----------
-  // hold: 실행 중엔 첨부가 아직 안 내려온 민원을 다음 번으로 미뤄요(Claude는 받기만 누르고 다음 건으로 – 2026-10-21 ②1안).
+  // hold: 실행 중엔 첨부가 아직 안 내려온 민원을 다음 번으로 미뤄요 – Claude는 첨부 받기만 누르고 바로 다음 건으로 가서, 파일이 늦게 내려와요(2026-10-21 ②1안).
   async function pullInbox(acc: { n: number; failed: Set<string>; missing: number; added: string[]; got: Case[] }, hold = false) {
     const r = await api.readInbox(ps.inbox, ps.downloads, ps.root, hold);
     if (r.added.length) setCases((l) => [...l, ...r.added.filter((a) => !l.some((x) => x.no === a.no))]);
