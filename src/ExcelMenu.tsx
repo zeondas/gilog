@@ -3,6 +3,7 @@
 // 가져오기(2026-10-25 사용자 ②3안, 공통 ✔5, 그림 docs/qa/common/excel_import2.png): 파일을 고르면 "어떻게 가져올까요?" 창에서
 // 덮어쓰기(같은 것은 파일 내용으로 덮고 새 것은 더함 – 파일에 없는 것은 그대로) / 대체하기(지금 자료를 모두 지우고 파일 내용만)를 고르고,
 // 다음 창에서 건수를 보고 한 번 더 눌러요. 대체하기는 붉은 띠 + 붉은 단추. "같은 것"의 기준은 화면마다 preview가 정해요.
+import { BusyButton } from "./BusyButton";
 import { DialogX } from "./DialogX";
 import { useEffect, useRef, useState } from "react";
 import { api, errorText, inApp } from "./api";
@@ -312,7 +313,7 @@ export function ImportSteps({
           <div className="xl-ask-path">{path}</div>
         </div>
         <div className="xl-ask-foot">
-          <button type="button" className="btn btn-ctrl btn-text" onClick={onCancel}>
+          <button type="button" className="btn btn-ctrl btn-text" disabled={busy} onClick={onCancel}>
             취소
           </button>
         </div>
@@ -358,9 +359,9 @@ export function ImportSteps({
           <button type="button" className="btn btn-ctrl btn-text" onClick={onCancel}>
             취소
           </button>
-          <button type="button" className="btn-primary btn-ctrl" autoFocus disabled={busy} onClick={onGo}>
+          <BusyButton className="btn-primary btn-ctrl" autoFocus busy={busy} busyText="가져오는 중…" onClick={onGo}>
             가져오기
-          </button>
+          </BusyButton>
         </div>
       </>
     );
@@ -384,12 +385,12 @@ export function ImportSteps({
       </div>
       <div className="xl-ask-foot">
         {back}
-        <button type="button" className="btn btn-ctrl btn-text" autoFocus onClick={onCancel}>
+        <button type="button" className="btn btn-ctrl btn-text" autoFocus disabled={busy} onClick={onCancel}>
           취소
         </button>
-        <button type="button" className="btn btn-ctrl btn-text btn-danger" disabled={busy} onClick={onGo}>
+        <BusyButton className="btn btn-ctrl btn-text btn-danger" busy={busy} busyText="가져오는 중…" onClick={onGo}>
           지우고 대체하기
-        </button>
+        </BusyButton>
       </div>
     </>
   );

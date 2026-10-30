@@ -13,6 +13,7 @@ import { FastStatus, fsApi } from "../../filesApi";
 import { useOutsideClose } from "../../useOutsideClose";
 import { Action, appKeyName, conflicts, DEFAULT_KEYS, diffKeys, isRightAlt, KEY_GROUPS, KeyMap, mergeKeys } from "../../keys";
 import { AskBand } from "../../AskBand";
+import { BusyButton, BusyNote, useBusy } from "../../BusyButton";
 import {
   connectGoogle,
   DEFAULT_OPTS,
@@ -221,8 +222,9 @@ export function GoogleRows() {
   const [g, setG] = useState<GStatus | null>(null);
   const [opts, setOpts] = useState<GOpts>(DEFAULT_OPTS);
   const [msg, setMsg] = useState("");
-  const [wait, setWait] = useState(false);
   const [ask, setAsk] = useState(false);
+  // 느린 단추(10-30 22:47): login·cut-keep·cut-del·export·gtasks – 하나가 도는 동안 다른 구글 단추는 잠겨요.
+  const b = useBusy();
 
   useEffect(() => {
     loadGoogleStatus().catch(() => {});
@@ -244,44 +246,36 @@ export function GoogleRows() {
 
   async function login() {
     setMsg("브라우저에서 구글 로그인을 마쳐 주세요.");
-    setWait(true);
-    try {
-      await connectGoogle(opts.gtasks);
-      setMsg("");
-    } catch (err) {
-      setMsg(err instanceof Error ? err.message : String(err));
-    } finally {
-      setWait(false);
-    }
+    await b.run("login", () => connectGoogle(opts.gtasks));
+    setMsg("");
   }
 
   async function cut(removeEvents: boolean) {
+    // 묻는 띠는 끝날 때까지 그대로 두고, 누른 단추만 "…하는 중"으로 바뀌어요.
+    setMsg("");
+    await b.run(removeEvents ? "cut-del" : "cut-keep", () => disconnectGoogle(removeEvents), removeEvents ? "연결을 끊고 구글의 giLog 캘린더를 지웠어요" : "연결을 끊었어요 – 구글의 일정은 그대로 있어요");
     setAsk(false);
-    setMsg((await disconnectGoogle(removeEvents)) || (removeEvents ? "연결을 끊고 구글의 giLog 캘린더를 지웠어요." : "연결을 끊었어요. 구글의 일정은 그대로 있어요."));
   }
 
   async function toggle(k: keyof GOpts) {
+    if (b.busy) return;
     const next = { ...opts, [k]: !opts[k] };
     // 구글 할 일을 켜는데 지금 로그인에 할 일 권한이 없으면, 권한을 더 받는 로그인부터 해요.
     if (k === "gtasks" && next.gtasks && (await needsTasksLogin())) {
       setMsg("브라우저에서 구글 할 일 권한을 허용해 주세요.");
-      setWait(true);
-      try {
-        await connectGoogle(true);
-        setMsg("");
-      } catch (err) {
-        setMsg(err instanceof Error ? err.message : String(err));
-        setWait(false);
-        return;
-      }
-      setWait(false);
+      const ok = await b.run("gtasks", () => connectGoogle(true));
+      setMsg("");
+      if (!ok) return;
     }
     setOpts(next);
     saveOpts(next);
   }
 
   if (!g) return null;
-  const sub = g.busy ? "내보내는 중…" : g.lastError || (g.lastOk ? `기록 → 구글 한 방향 · 마지막 내보내기 ${whenText(g.lastOk)}` : "기록 → 구글 한 방향");
+  const exporting = b.is("export") || g.busy;
+  const sub = exporting ? "내보내는 중…" : g.lastError || (g.lastOk ? `기록 → 구글 한 방향 · 마지막 내보내기 ${whenText(g.lastOk)}` : "기록 → 구글 한 방향");
+  const cutting = b.is("cut-keep") || b.is("cut-del");
+  const note = (keys: string[], noLate = false) => <BusyNote busy={!!b.busy && keys.includes(b.busy)} late={b.late} flash={b.flash && keys.includes(b.flash.key) ? b.flash : null} noLate={noLate} />;
 
   return (
     <>
@@ -293,34 +287,35 @@ export function GoogleRows() {
           <span className={"g-dot" + (g.lastError ? " bad" : "")} aria-hidden="true" />
           <span className="row-text">
             <span className="row-label">{g.lastError ? "연결됨 · 내보내지 못했어요" : "연결됨 · 개인 구글 계정"}</span>
-            <span className={"small " + (g.lastError ? "g-err" : "muted")}>{sub}</span>
+            <span className={"small " + (g.lastError && !exporting ? "g-err" : "muted")}>{sub}</span>
           </span>
           {!ask ? (
             <>
+              {note(["export", "login", "cut-keep", "cut-del"], b.is("login"))}
               {g.lastError.includes("다시 로그인") && (
-                <button type="button" className="btn btn-primary g-login" disabled={wait} onClick={login}>
-                  {wait ? "로그인 기다리는 중…" : "다시 로그인"}
-                </button>
+                <BusyButton className="btn btn-primary g-login" busy={b.is("login")} busyText="로그인 기다리는 중…" disabled={!!b.busy} onClick={login}>
+                  다시 로그인
+                </BusyButton>
               )}
-              <button type="button" className="btn" disabled={g.busy} onClick={() => exportNow()}>
+              <BusyButton busy={exporting} busyText="내보내는 중…" disabled={!!b.busy} onClick={() => void b.run("export", exportNow)}>
                 지금 내보내기
-              </button>
-              <button type="button" className="btn g-cut" onClick={() => setAsk(true)}>
+              </BusyButton>
+              <button type="button" className="btn g-cut" disabled={!!b.busy || g.busy} onClick={() => setAsk(true)}>
                 연결 끊기
               </button>
             </>
           ) : (
             <span className="ask-row">
               <span className="gate-error">구글에 내보낸 일정도 지울까요?</span>
-              <button type="button" className="btn" onClick={() => setAsk(false)}>
+              <button type="button" className="btn" disabled={cutting} onClick={() => setAsk(false)}>
                 취소
               </button>
-              <button type="button" className="btn" onClick={() => cut(false)}>
+              <BusyButton busy={b.is("cut-keep")} busyText="끊는 중…" disabled={cutting} onClick={() => void cut(false)}>
                 일정은 두기
-              </button>
-              <button type="button" className="btn btn-danger" onClick={() => cut(true)}>
+              </BusyButton>
+              <BusyButton className="btn btn-danger" busy={b.is("cut-del")} busyText="지우는 중…" disabled={cutting} onClick={() => void cut(true)}>
                 일정도 지우기
-              </button>
+              </BusyButton>
             </span>
           )}
         </div>
@@ -340,20 +335,27 @@ export function GoogleRows() {
           </Row>
           )}
           <Row label="구글 로그인" desc={g.lastError || "로그인하면 구글 계정에 giLog 캘린더를 만들어 그 안에만 써요."}>
-            <button type="button" className="btn btn-primary g-login" disabled={!g.configured || wait || !inApp} onClick={login}>
-              {wait ? "로그인 기다리는 중…" : "구글 로그인"}
-            </button>
+            {note(["cut-keep", "cut-del", "login"], true)}
+            <BusyButton className="btn btn-primary g-login" busy={b.is("login")} busyText="로그인 기다리는 중…" disabled={!g.configured || !!b.busy || !inApp} onClick={login}>
+              구글 로그인
+            </BusyButton>
           </Row>
         </>
       )}
+      {ask && cutting && <BusyNote line busy late={b.late} flash={null} />}
       {msg && (
         <p className="g-msg small" role="status">
           {msg}
         </p>
       )}
       {G_TOGGLES.map(([k, label, desc]) => (
-        <Toggle key={k} k="구글" label={label} desc={desc} on={opts[k]} onChange={() => toggle(k)} />
+        <Toggle key={k} k="구글" label={label} desc={k === "gtasks" && b.is("gtasks") ? "로그인 기다리는 중…" : desc} on={opts[k]} disabled={!!b.busy} onChange={() => void toggle(k)} />
       ))}
+      {b.flash?.key === "gtasks" && !b.flash.ok && (
+        <p className="g-msg small busy-fail" role="status">
+          {b.flash.text}
+        </p>
+      )}
       <p className="g-foot small" data-k="구글">
         민원인 이름과 연락처는 어떤 경우에도 구글로 내보내지 않아요. 내보낸 일정은 시청 밖 구글 서버에 저장돼요.
       </p>
@@ -403,9 +405,9 @@ function FastRow({ on, onChange }: { on: boolean; onChange: (v: boolean) => void
   };
   return (
     <Row label="빠른 찾기" desc={busy || "모든 드라이브에서 이름을 바로 찾아요. 드라이브의 파일 목록을 미리 저장해 두는 방식이라 관리자 허용이 필요한데, 설치할 때 받지 못해 설치되지 않았어요. [설치]를 누르면 한 번 더 물어요."} k="에브리띵 everything 모든 드라이브">
-      <button type="button" className="btn btn-ctrl" disabled={f === undefined || !!busy && busy.endsWith("…")} onClick={() => void install()}>
+      <BusyButton className="btn btn-ctrl" busy={busy.endsWith("…")} busyText="설치하는 중…" disabled={f === undefined} onClick={() => void install()}>
         설치
-      </button>
+      </BusyButton>
     </Row>
   );
 }
@@ -1017,6 +1019,7 @@ export function AddressRows() {
   const [msg, setMsg] = useState("");
   const [tblMsg, setTblMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  const [testing, setTesting] = useState(false);
 
   useEffect(() => {
     webKey().then(setKey, () => setKey(""));
@@ -1036,8 +1039,10 @@ export function AddressRows() {
   async function test() {
     if (busy) return;
     setBusy(true);
-    setMsg("찾는 중…");
+    setTesting(true);
+    setMsg("");
     const r = await testWeb();
+    setTesting(false);
     setMsg(r.ok ? `됐어요 · ${PATH_NAME[r.path]} · ${(r.ms / 1000).toFixed(1)}초${r.place ? ` · 시청로 50 → ${r.place}` : ""}` : `안 돼요 – ${r.why}`);
     setSt(await webStatus());
     setBusy(false);
@@ -1091,9 +1096,9 @@ export function AddressRows() {
               onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
             />
           )}
-          <button type="button" className="btn btn-xs" onClick={test} disabled={busy || !key}>
+          <BusyButton className="btn btn-xs" small busy={testing} busyText="찾는 중…" onClick={test} disabled={busy || !key}>
             시험
-          </button>
+          </BusyButton>
         </span>
       </Row>
       <Row

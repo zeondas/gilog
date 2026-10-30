@@ -1,4 +1,5 @@
 // 캘린더 – 창·입력: 빠른 입력 줄(QuickRow), 상세 창(EventDialog·RemindField), 종류 관리 창(KindsDialog), 구글 상태 상자(GoogleBox), 알림 확인 창(NotifyDialog), 상세 창 값(Draft·toInput·draftOf·blankDraft).
+import { BusyButton, BusyNote, useBusy } from "../../BusyButton";
 import { KeyboardEvent, ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { DelGlyph, DelMark } from "../../Icons";
 import { DialogX } from "../../DialogX";
@@ -797,6 +798,7 @@ export function KindsDialog({
 
 export function GoogleBox() {
   const [g, setG] = useState<GStatus | null>(null);
+  const b = useBusy();
   useEffect(() => onGoogleStatus(setG), []);
   if (!g || !g.connected) return null;
   return (
@@ -809,9 +811,10 @@ export function GoogleBox() {
         {g.busy ? "내보내는 중…" : g.lastError || "기록 → 구글 한 방향"}
         {!g.busy && g.lastOk && <span className="g-box-at">마지막 성공 {whenText(g.lastOk)}</span>}
       </span>
-      <button type="button" className="btn btn-xs" disabled={g.busy} onClick={() => exportNow()}>
+      <BusyButton className="btn btn-xs" small busy={g.busy || b.is("export")} busyText="내보내는 중…" onClick={() => void b.run("export", exportNow)}>
         지금 내보내기
-      </button>
+      </BusyButton>
+      <BusyNote busy={b.is("export") || g.busy} late={b.late} flash={b.flash?.ok ? null : b.flash} />
     </div>
   );
 }

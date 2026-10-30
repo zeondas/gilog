@@ -1302,3 +1302,43 @@ mark {
   white-space: pre-line;
   text-align: center;
 }
+
+/* ---------- 느린 단추 (BusyButton.tsx, 2026-10-30 22:47) – 누르면 "○○하는 중…" + 도는 아이콘, 끝나면 ✓ 5초 ---------- */
+/* 쉴 때는 원래 단추 모양 그대로(지킴이 0점), 도는 동안만 아이콘 + 글자 */
+.busy-btn[aria-busy="true"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1h);
+  opacity: 0.75;
+  cursor: progress;
+}
+.busy-spin {
+  flex: none;
+  animation: cal-spin 0.9s linear infinite;
+}
+.busy-note {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.busy-line {
+  margin: 4px var(--space-4) 10px;
+  text-align: right;
+}
+.busy-late {
+  color: var(--muted);
+  font-weight: 400;
+}
+.busy-done {
+  color: var(--st-done-fg);
+  font-weight: 600;
+}
+.busy-fail {
+  color: var(--urgent);
+  font-weight: 600;
+}
+@media (prefers-reduced-motion: reduce) {
+  .busy-spin {
+    animation: none;
+  }
+}
