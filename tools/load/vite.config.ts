@@ -12,7 +12,8 @@ function filesSeedHook(): Plugin {
     name: "gilog-load-files-seed",
     transform(code, id) {
       if (!id.replace(/\\/g, "/").endsWith("/src/filesApi.ts")) return null;
-      return code + "\n;(window as unknown as { __filesSeed?: (f: typeof addFake, d: typeof addDir) => void }).__filesSeed?.(addFake, addDir);\n";
+      // TS를 JS로 바꾼 뒤에 붙으니 타입 없이 써요
+      return code + "\n;window.__filesSeed?.(addFake, addDir);\n";
     },
   };
 }
