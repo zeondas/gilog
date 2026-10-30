@@ -400,7 +400,7 @@ export function useFilesOps(c: ReturnType<typeof useFilesCore>) {
       if (close) setRenameRows(null);
       return `${back.length}개 이름을 바꿨어요`;
     } catch (e) {
-      // 2026-10-26 user 2안: Windows refused (e.g. C:\ root) – say who blocked it, and that nothing changed
+      // 윈도우가 거절했을 때(예: C:\ 맨 위): 누가 막았는지와 아무것도 바뀌지 않았다는 것을 알려요(2026-10-26 사용자 2안)
       // (rename_many rolls back on failure). Other screens keep the short fsErrorText wording.
       if (String(e) === "denied") return "윈도우가 이 폴더의 파일 이름 바꾸기를 막았어요(관리자 권한이 필요한 폴더예요). 바뀐 파일은 없어요.";
       return fsErrorText(e);

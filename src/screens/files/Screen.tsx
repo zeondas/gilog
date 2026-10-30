@@ -3,6 +3,7 @@
 // - 창마다 탭 줄 → 드라이브 줄(드라이브 · 빠른 필터 · 보기 ▾) → 경로 줄(경로 · 폴더 경로 복사 · 윈도우 탐색기로 열기 · ★) → 목록 → 상태 줄.
 // - 우클릭(파일·폴더·빈 곳)은 윈도우 우클릭 메뉴 그대로(2안), 탭 우클릭만 기록 메뉴.
 // - 상태(탭·열 폭·정렬·보기·트리·즐겨찾기·찾기 조건·일괄 이름 바꾸기 설정)는 암호화 파일 kv "files.state".
+// - 주석의 "호환 A1·B"는 윈도우 탐색기와 같게 맞춘 항목 번호예요(docs/qa/explorer-compat.md).
 import { Fragment } from "react";
 import { FileIcon } from "../../FileIcon";
 import {
@@ -304,7 +305,7 @@ export default function FilesScreen() {
             <aside className="fx-tree" aria-label="폴더 트리" style={{ width: treeW }}>
               <div className="fx-tree-head">
                 폴더트리
-                {/* 모두 접기(2026-10-28 탐색기 ✔8 – 펼치기 단추는 없어요) */}
+                {/* 트리를 한 번에 모두 접는 단추 – 펼치기 단추는 일부러 두지 않았어요(2026-10-28 탐색기 ✔8) */}
                 <button
                   type="button"
                   className="fx-fold"

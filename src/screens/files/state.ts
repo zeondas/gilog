@@ -73,7 +73,7 @@ export function useFilesCore() {
   const [formBad, setFormBad] = useState({ from: false, to: false });
   const [conflict, setConflict] = useState<{ list: Conflict[]; i: number; op: "copy" | "move"; resolve: (d: Record<string, string> | null) => void; dec: Record<string, string> } | null>(null);
   const [del, setDel] = useState<{ items: FsEntry[]; permanent: boolean; pane: number } | null>(null);
-  // 실행할까요?(품질 보완 ② ✔1) – 열기가 실행 파일이면 filesApi가 이 창으로 물어요
+  // "실행할까요?" 창 – 여는 것이 실행 파일이면 filesApi가 이 창으로 먼저 물어요(품질 보완 ② ✔1)
   const [runAsk, setRunAsk] = useState<{ path: string; done: (yes: boolean) => void } | null>(null);
   useEffect(() => {
     setRunAsker((path) => new Promise<boolean>((done) => setRunAsk({ path, done })));
