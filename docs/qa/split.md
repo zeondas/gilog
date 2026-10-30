@@ -248,3 +248,23 @@ python3 -c "import re;f=lambda p:re.sub(r'data:[^\"\')]+','D',open(p,encoding='u
 - 탐색기 쪼개기 때 `files_find_baddate`가 여러 장면을 한 번에 찍을 때 빨간 테두리 모서리 한 점(색 15 차이)이 달랐어요 – 그 장면 `styles.py` 0, 그 장면만 다시 찍으면 기준과 0점이라 흔들림으로 봤어요. 또 나오면 이렇게 확인해요(이번 전체 돌리기에서 사진이 흔들리는 `complaints_newrow_baddate`는 `styles.py`에서도 칸 한 요소의 포커스 테두리가 달랐어요 – 탐색기와 상관없는 민원대장 장면이고, 그 장면만 다시 돌리면 0).
 - `tools/guard/__pycache__/`가 저장소에 들어 있어 도구를 돌리면 바뀌어요 – 커밋 전에 `git checkout tools/guard/__pycache__`.
 - 올린 뒤 검사(check.yml)는 기다리지 않아요 – 현황판 "끝(검사 도는 중)"으로 두고 멈춰요(통과 확인은 빌드 세션).
+
+## 구조 부채 – 큰 파일 다섯 나누기 (2026-10-30 `wip/tidy2`)
+
+정리 ③ 뒤에도 몸통이 큰 화면 셋과 Rust 둘을 파일마다 800줄 안쪽으로 나눴어요(사용자 10:34 ①1안·②1안). 동작·모양은 그대로예요.
+
+- **Rust**: `files.rs` → `files/`(mod·list·archive·names·transfer·undo·shell·find·tests), `process.rs` → `process/`(mod·inbox·order·open·claude·pick·tests·guard_tests).
+  `mod.rs`가 `pub use 조각::*`로 다시 내보내서 `lib.rs`의 `files::fs_list` 같은 줄·명령 이름·`build.rs` 허용 묶음(`app-sets.toml`)이 그대로예요. 조각끼리 쓰는 비공개 함수는 `pub(super)`.
+  zip 조각은 `archive`예요 – `zip`으로 하면 zip 상자(crate) 이름을 가려요. 윈도우에서만 쓰는 가져오기는 `#[cfg(windows)]`를 붙여요(`find.rs`의 `std::io::Read`).
+- **화면 몸통 나누기(새 틀)**: 몸통 앞부분(상태·읽기)은 `use<화면>Core()`, 그 뒤는 차례대로 `use<화면><조각>(c)` – 앞 값 묶음을 받아 필요한 이름만 꺼내 쓰고 `{ ...c, 새 이름 }`을 돌려줘요.
+  화면은 원래 차례대로 불러서 훅 차례가 같아요. 타입은 `ReturnType<typeof 앞 조각>`으로 저절로 이어져요. 그리는 JSX와 이른 return(`if (!data) return …`)은 Screen에 남아요.
+  서로 부르는 함수는 한 조각에(민원처리 줄 고치기 ↔ 지시부 다시 만들기 → `cases.ts`), 뒤 조각의 함수를 부르는 대입은 그 뒤로(탐색기 `keyRef.current = …` → `useFilesKeyHandler`).
+  여러 파일이 올리는 모듈 변수는 함수로(탐색기 탭 번호 `nextTabId()`), 돌려주면 `number`로 넓어지는 값은 타입을 적어요(`paneCount: 2 | 3 | 4`).
+
+| 화면 | 전 | 뒤 |
+| --- | ---: | --- |
+| 집행현황 `budget/` | Screen 1,885 | Screen 709 · parts 76 · excel 87 · Table 489 · pick 101 · share 130 · Menu 204 · Dialogs 536 |
+| 민원처리 `process/` | Screen 1,489 | Screen 686 · fetch 137 · cases 376 · Table 620 · parts 168 |
+| 탐색기 `files/` | Screen 2,291 | Screen 627 · state 391 · ops 429 · shell 134 · find 86 · keys 351 · Tree 98 · Top 203 · drag 251 · columns 39 · parts 121 |
+
+`files/Table.tsx`(983줄)는 이번 다섯에 들지 않아 그대로예요 – 다음에 나눌 후보.
