@@ -16,6 +16,9 @@ import { Ctx, CardCols } from "./parts";
 
 // ---------- 화면 ----------
 
+/** 검색 칸에 치고 이만큼 쉬면 찾아요(ms). */
+const SEARCH_WAIT = 150;
+
 export default function JournalScreen({
   urgentDays = 2,
   onOpenComplaint,
@@ -32,6 +35,16 @@ export default function JournalScreen({
   const [today, setToday] = useState(todayStr());
   const [day, setDay] = useState(today);
   const [q, setQ] = useState("");
+  // 찾는 말은 치는 동안 0.15초 기다렸다 바꿔요(2026-10-30 속도 ② – 글자마다 전체를 다시 찾지 않게). 지우면 바로.
+  const [sq, setSq] = useState("");
+  useEffect(() => {
+    if (!q.trim()) {
+      setSq(q);
+      return;
+    }
+    const t = window.setTimeout(() => setSq(q), SEARCH_WAIT);
+    return () => window.clearTimeout(t);
+  }, [q]);
   const [onlyHits, setOnlyHits] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   // 한 번 누른 카드(골라 둔 카드). 두 번 누르거나 Enter를 누르면 고쳐요(0.6.2, 모든 화면 같은 규칙).
@@ -158,6 +171,7 @@ export default function JournalScreen({
   const go = useCallback((date: string) => {
     setDay(date);
     setQ("");
+    setSq("");
     setEditId(null);
     setMenuId(null);
   }, []);
@@ -197,7 +211,7 @@ export default function JournalScreen({
     );
   }
 
-  const query = q.trim().toLowerCase();
+  const query = sq.trim().toLowerCase();
   const entries = data.entries.filter((e) => e.date === day);
   const info = data.days.find((d) => d.date === day) ?? { date: day, arrive: "", transport: "", weather: "", note: "" };
   const counts = new Map<string, number>();
@@ -213,7 +227,7 @@ export default function JournalScreen({
               오늘
             </button>
           )}
-          <SearchBox className="jn-search" aria-label="일지 검색" placeholder="사람, 내용으로 전체 일지 검색" value={q} onChange={(e) => setQ(e.target.value)} onClear={() => setQ("")} />
+          <SearchBox className="jn-search" aria-label="일지 검색" placeholder="사람, 내용으로 전체 일지 검색" value={q} onChange={(e) => setQ(e.target.value)} onClear={() => { setQ(""); setSq(""); }} />
           <ExcelMenu
             kind="journal"
             total={data.entries.length}
@@ -271,7 +285,7 @@ export default function JournalScreen({
 
         {query ? (
           <div className="jn-scroll" key="search">
-            <SearchResults entries={data.entries} q={query} raw={q.trim()} onlyHits={onlyHits} ctx={ctx} onToggle={() => setOnlyHits(!onlyHits)} onClose={() => setQ("")} onGo={go} />
+            <SearchResults entries={data.entries} q={query} raw={sq.trim()} onlyHits={onlyHits} ctx={ctx} onToggle={() => setOnlyHits(!onlyHits)} onClose={() => { setQ(""); setSq(""); }} onGo={go} />
           </div>
         ) : (
           <>

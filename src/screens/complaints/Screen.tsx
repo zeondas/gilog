@@ -86,25 +86,34 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
   const vlRef = useRef<VirtualHandle>(null);
   const shownRef = useRef<Complaint[]>([]);
 
+  // 열 때 읽기 넷을 모아 한 번에 그려요(2026-10-30 속도 ① – 따로 오면 서너 번 다시 그리고 그때마다 열 폭을 다시 쟀어요).
+  // 하나가 실패해도 나머지는 지금처럼: 설정·접힘·상태 거르기는 처음 값, 민원 목록이 실패하면 알림만.
   useEffect(() => {
-    api
-      .complaints()
-      .then(async (cs) => {
-        // 예전 상태 이름(처리중)으로 저장된 민원은 새 이름(진행)으로 한 번 바꿔 둬요.
-        const old = cs.filter((c) => STATUS_RENAME[c.status]);
-        if (!old.length) return cs;
-        const fixed = new Map<number, Complaint>();
-        for (const c of old) fixed.set(c.id, await api.setComplaintStatus(c.id, STATUS_RENAME[c.status]));
-        return cs.map((c) => fixed.get(c.id) ?? c);
-      })
-      .then(setList, (e) => setNote(errorText(e)));
-    loadSettings().then(setSettings, () => {});
-    api.get(DONE_FOLD_KEY).then((raw) => setDoneFolded(raw !== "false"), () => {});
-    api.get(STATUS_FILTER_KEY).then((raw) => setFilters((f) => ({ ...f, status: readStatusFilter(raw) })), () => {});
+    let alive = true;
+    const listP = api.complaints().then(async (cs) => {
+      // 예전 상태 이름(처리중)으로 저장된 민원은 새 이름(진행)으로 한 번 바꿔 둬요.
+      const old = cs.filter((c) => STATUS_RENAME[c.status]);
+      if (!old.length) return cs;
+      const fixed = new Map<number, Complaint>();
+      for (const c of old) fixed.set(c.id, await api.setComplaintStatus(c.id, STATUS_RENAME[c.status]));
+      return cs.map((c) => fixed.get(c.id) ?? c);
+    });
+    const ok = <T,>(p: Promise<T>) => p.then((v) => ({ v }), (e: unknown) => ({ e }));
+    void Promise.all([ok(listP), ok(loadSettings()), ok(api.get(DONE_FOLD_KEY)), ok(api.get(STATUS_FILTER_KEY))]).then(([l, s, fold, sf]) => {
+      if (!alive) return;
+      if ("v" in s) setSettings(s.v);
+      if ("v" in fold) setDoneFolded(fold.v !== "false");
+      if ("v" in sf) setFilters((f) => ({ ...f, status: readStatusFilter(sf.v) }));
+      if ("v" in l) setList(l.v);
+      else setNote(errorText(l.e));
+    });
     // 구글 할 일에서 민원을 체크하면 상태가 바뀌어요 → 다시 읽어요.
     const reload = () => api.complaints().then(setList, () => {});
     window.addEventListener(REMOTE_CHANGE, reload);
-    return () => window.removeEventListener(REMOTE_CHANGE, reload);
+    return () => {
+      alive = false;
+      window.removeEventListener(REMOTE_CHANGE, reload);
+    };
   }, []);
 
   // 자정을 넘기면 남은 날을 다시 셈해요.
@@ -235,7 +244,7 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [list, settings]);
 
-  const needs = useColNeeds(all, doneFolded, today, settings.placeStyle);
+  const needs = useColNeeds(list, doneFolded, today, settings.placeStyle);
   // 열 폭(헤더 열 조정 통일 ✔1~3): 처음 값은 layoutCols(글 폭·창 폭), 끈 열은 px 그대로. 상태·메모는 고정, 접힌 조치완료일도 고정.
   const init = layoutCols(needs, avail).init;
   const colDefs: ColDef[] = COLUMNS.map((c) => ({
@@ -562,8 +571,11 @@ const DUE_GAP = 8;
  * 열 제목 글자도 넣어요 – 거르기 아이콘은 마우스를 올릴 때만 여유 자리에 겹쳐 보여 자리를 잡지 않아요(⑨ 1안).
  * 짧은 글 열(접수유형·민원유형)은 90%가 들어가는 폭, 위치는 다 보여야 해서 가장 긴 것.
  */
-function useColNeeds(all: Complaint[], doneFolded: boolean, today: string, placeStyle: PlaceStyle): Partial<Record<ColKey, ColNeed>> {
+function useColNeeds(list: Complaint[] | null, doneFolded: boolean, today: string, placeStyle: PlaceStyle): Partial<Record<ColKey, ColNeed>> {
   return useMemo(() => {
+    // 목록이 오기 전에는 재지 않아요(2026-10-30 속도 ① – 빈 목록을 한 번 더 재지 않게).
+    if (!list) return {};
+    const all = list;
     const family = getComputedStyle(document.body).fontFamily;
     const tw = (s: string, weight = 400, size = 13) => textPx(s, `${weight} ${size}px ${family}`);
     const max = (xs: number[]) => Math.max(0, ...xs);
@@ -621,7 +633,7 @@ function useColNeeds(all: Complaint[], doneFolded: boolean, today: string, place
     };
     probe.remove();
     return out;
-  }, [all, doneFolded, today, placeStyle]);
+  }, [list, doneFolded, today, placeStyle]);
 }
 
 /** 고친 것이 없으면 저장하지 않아요. */
