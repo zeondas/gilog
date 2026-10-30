@@ -1,6 +1,6 @@
 import { CSSProperties, Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { api, applyAccent, DEFAULT_PREFS, errorText, inApp, Prefs, Reminder, Status } from "./api";
+import { api, applyAccent, changeHooks, DEFAULT_PREFS, errorText, inApp, Prefs, Reminder, Status } from "./api";
 import { measureBullets } from "./bullets";
 import CalendarScreen, { EventFocus } from "./screens/calendar/Screen";
 import ComplaintsScreen from "./screens/complaints/Screen";
@@ -17,6 +17,7 @@ import JournalScreen from "./screens/journal/Screen";
 import SettingsScreen from "./screens/settings/Screen";
 import TasksScreen from "./screens/tasks/Screen";
 import { applyNotifyMode, refreshHolidaysDaily, syncReminders } from "./reminders";
+import { setHolidays } from "./workdays";
 import { startGoogleSync } from "./google";
 import { minWidthOf } from "./viewport";
 import { firstOn, isOn, Modules, onScreens, SCREENS, SETTINGS, ScreenId } from "./screens";
@@ -171,13 +172,23 @@ export default function App() {
       setCurrent((c) => (c && c !== SETTINGS.id && !isOn(s.modules, c) ? firstOn(s.modules) : c));
     }, () => {});
     syncReminders();
+    // 남은 날(근무일) 셈에 쓰는 공휴일 – 열 때 읽고, 공휴일을 새로 받으면 다시 읽어요.
+    const loadHolidays = () => api.calendarData().then((d) => setHolidays(d.holidays), () => {});
+    loadHolidays();
+    const onHolidays = (cmd: string) => {
+      if (cmd === "refresh_holidays" || cmd === "save_holidays") loadHolidays();
+    };
+    changeHooks.add(onHolidays);
     refreshHolidaysDaily();
     startGoogleSync();
     const t = window.setInterval(() => {
       syncReminders();
       refreshHolidaysDaily();
     }, 30 * 60 * 1000);
-    return () => window.clearInterval(t);
+    return () => {
+      window.clearInterval(t);
+      changeHooks.delete(onHolidays);
+    };
   }, [unlocked]);
   useEffect(() => {
     if (!unlocked || !prefs.autoLock) return;

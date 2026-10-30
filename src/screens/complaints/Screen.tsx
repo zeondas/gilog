@@ -33,6 +33,7 @@ import {
 } from "../../complaints";
 import { parseLines } from "../../bullets";
 import { todayStr } from "../../journal";
+import { useHolidays } from "../../workdays";
 import { useJamoGuard } from "../../koInput";
 import { lookupMany } from "../../addressWeb";
 import { areaFor } from "../../address";
@@ -82,6 +83,8 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
   const [flash, setFlash] = useState<number | null>(null);
   const [note, setNote] = useState("");
   const [today, setToday] = useState(todayStr());
+  // 공휴일 목록이 바뀌면 남은 날(근무일)을 다시 세요.
+  const holidayVer = useHolidays();
   // 보이는 줄만 그려요(2026-10-21 속도 최적화). 그 줄로 가기는 vlRef.scrollToIndex.
   const vlRef = useRef<VirtualHandle>(null);
   const shownRef = useRef<Complaint[]>([]);
@@ -235,7 +238,7 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [list, settings]);
 
-  const needs = useColNeeds(all, doneFolded, today, settings.placeStyle);
+  const needs = useColNeeds(all, doneFolded, today, settings.placeStyle, holidayVer);
   // 열 폭(헤더 열 조정 통일 ✔1~3): 처음 값은 layoutCols(글 폭·창 폭), 끈 열은 px 그대로. 상태·메모는 고정, 접힌 조치완료일도 고정.
   const init = layoutCols(needs, avail).init;
   const colDefs: ColDef[] = COLUMNS.map((c) => ({
@@ -562,7 +565,7 @@ const DUE_GAP = 8;
  * 열 제목 글자도 넣어요 – 거르기 아이콘은 마우스를 올릴 때만 여유 자리에 겹쳐 보여 자리를 잡지 않아요(⑨ 1안).
  * 짧은 글 열(접수유형·민원유형)은 90%가 들어가는 폭, 위치는 다 보여야 해서 가장 긴 것.
  */
-function useColNeeds(all: Complaint[], doneFolded: boolean, today: string, placeStyle: PlaceStyle): Partial<Record<ColKey, ColNeed>> {
+function useColNeeds(all: Complaint[], doneFolded: boolean, today: string, placeStyle: PlaceStyle, holidayVer: number): Partial<Record<ColKey, ColNeed>> {
   return useMemo(() => {
     const family = getComputedStyle(document.body).fontFamily;
     const tw = (s: string, weight = 400, size = 13) => textPx(s, `${weight} ${size}px ${family}`);
@@ -621,7 +624,8 @@ function useColNeeds(all: Complaint[], doneFolded: boolean, today: string, place
     };
     probe.remove();
     return out;
-  }, [all, doneFolded, today, placeStyle]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [all, doneFolded, today, placeStyle, holidayVer]);
 }
 
 /** 고친 것이 없으면 저장하지 않아요. */
