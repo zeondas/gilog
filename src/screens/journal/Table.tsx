@@ -1,5 +1,5 @@
 // 업무일지 카드·목록 – 왼쪽 월 달력(JournalCalendar)·날짜 머리 줄(DayHead)·기록 카드(ViewCard·Lines·PillarTel·stripe)·검색 결과(SearchResults). 화면 몸통은 Screen.tsx.
-import { ReactNode, useEffect, useRef, useState } from "react";
+import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { DayInfo, Entry } from "../../api";
 import { copyText, Hl, pjFull, pjLabel, projectColor } from "../../screens/contacts/parts";
 import { dayTitle, badgeName, isMemo, matchEntry, normTime, splitWho } from "../../journal";
@@ -385,6 +385,9 @@ export function ViewCard({
 
 // ---------- 검색 결과 ----------
 
+/** 검색 결과를 한 번에 그리는 날 수(결과가 있는 날). */
+const SEARCH_PAGE = 30;
+
 export function SearchResults({
   entries,
   q,
@@ -404,20 +407,43 @@ export function SearchResults({
   onClose: () => void;
   onGo: (date: string) => void;
 }) {
-  const groups: { date: string; items: { e: Entry; m: boolean[] }[] }[] = [];
-  for (const e of entries) {
-    const m = matchEntry(e, q);
-    if (!m.hit) continue;
-    const last = groups[groups.length - 1];
-    if (last && last.date === e.date) last.items.push({ e, m: m.lines });
-    else groups.push({ date: e.date, items: [{ e, m: m.lines }] });
-  }
-  const total = groups.reduce((a, g) => a + g.items.length, 0);
+  // 찾기는 찾는 말·기록이 바뀔 때만 해요("해당하는 말만 보기"·더 그리기 때는 그대로).
+  const groups = useMemo(() => {
+    const out: { date: string; items: { e: Entry; m: boolean[] }[] }[] = [];
+    for (const e of entries) {
+      const m = matchEntry(e, q);
+      if (!m.hit) continue;
+      const last = out[out.length - 1];
+      if (last && last.date === e.date) last.items.push({ e, m: m.lines });
+      else out.push({ date: e.date, items: [{ e, m: m.lines }] });
+    }
+    return out;
+  }, [entries, q]);
+  const total = useMemo(() => groups.reduce((a, g) => a + g.items.length, 0), [groups]);
+
+  // 최근 날짜부터 30일(결과가 있는 날 30개)씩 그리고, 아래 끝에 닿으면 다음 30일을 이어 그려요(2026-10-30 속도 ② 1안).
+  // 찾는 말이 바뀌면 처음 30일부터. 결과 수("N일 · 기록 N건")는 전체 기준이에요.
+  const [page, setPage] = useState({ q, n: SEARCH_PAGE });
+  const limit = page.q === q ? page.n : SEARCH_PAGE;
+  const more = groups.length > limit;
+  const endRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = endRef.current;
+    if (!el || !more) return;
+    const io = new IntersectionObserver(
+      (es) => {
+        if (es.some((x) => x.isIntersecting)) setPage((p) => ({ q, n: (p.q === q ? p.n : SEARCH_PAGE) + SEARCH_PAGE }));
+      },
+      { root: el.closest(".jn-scroll"), rootMargin: "0px 0px 600px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [q, more, limit]);
 
   let body: ReactNode;
   if (!total) body = <p className="muted jsearch-none">일치하는 기록이 없어요.</p>;
   else
-    body = groups.map((g) => (
+    body = groups.slice(0, limit).map((g) => (
       <section key={g.date} className="jsearch-day" aria-label={dayTitle(g.date)}>
         <div className="jsearch-date">
           <button type="button" className="jsearch-go" title="이 날짜의 일지로 이동" onClick={() => onGo(g.date)}>
@@ -483,6 +509,7 @@ export function SearchResults({
         </button>
       </div>
       {body}
+      {more && <div ref={endRef} className="jsearch-more" aria-hidden="true" />}
     </div>
   );
 }

@@ -986,6 +986,12 @@
   margin: 0;
 }
 
+/* 다음 30일을 이어 그리는 표시(보이지 않고 자리도 차지하지 않아요 – 위 gap만큼 끌어올려요). */
+.jsearch-more {
+  height: 0;
+  margin-top: calc(-1 * var(--space-3));
+}
+
 /* 챙길 일 (왼쪽 열 달력 아래) */
 .jn-aside {
   display: flex;
