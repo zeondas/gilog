@@ -1,5 +1,7 @@
 // 민원처리 – 조각끼리 함께 쓰는 값·그림(열 정의·글자 폭 재기·공사 색·진행 모양·작은 아이콘).
-import { ContactsData, Work } from "../../api";
+import { ContactsData, errorText, Work } from "../../api";
+import { md, processError } from "../../process";
+import { todayStr } from "../../journal";
 import { projectColor } from "../../screens/contacts/parts";
 
 /** 공사 색 = 업무연락처 프로젝트 색 */
@@ -122,6 +124,45 @@ export function WarnIcon({ size = 13 }: { size?: number }) {
   return (
     <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 3l10 18H2z M12 10v5 M12 18v.5" />
+    </svg>
+  );
+}
+
+export const FETCHED_KEY = "process.fetched";
+
+/** 마지막 불러오기 결과(아래 줄 "새 민원 N건 · 건너뜀 N건 · 걸린 시간 · [로그 열기]") */
+export const LAST_RUN_KEY = "process.lastRun";
+
+/** AI가 고른 현장사진의 이유(접수번호 → 한 줄, 2026-10-21 22:59 사용자 – 지시부엔 1장만) */
+export const PICK_KEY = "process.photoPick";
+
+/** per: 건당 걸린 시간(초, 2026-10-21 신속 자동화 – 전후 비교용) */
+export type LastRun = { at: string; added: number; skipped: number | null; secs: number; log: string; per?: number };
+
+// 끈 열만 px(헤더 열 조정 통일 2026-10-28) – 옛 `process.colWidths5`(아홉 칸 배열)는 읽지 않아요.
+export const COLS_KEY = "process.cols";
+
+export const MAIL_BOX = "https://mail.korea.kr";
+
+/** 판단 공사 "해당 없음"(2026-10-21 사용자) – core NA_WORK와 같은 값 */
+export const NA_WORK = 0;
+
+export const errText = (e: unknown) => processError(e) ?? (typeof e === "string" && e.length > 12 ? e : errorText(e));
+
+export const stamp = () => {
+  const t = new Date();
+  return `${md(todayStr(t))} ${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`;
+};
+
+/** 접수번호 마지막 묶음 7자리(1AA-2610-0527749 → 0527749) */
+export const shortNo = (no: string) => no.split(/[\s/]/)[0].split("-").pop() || no;
+
+export function MoreIcon() {
+  return (
+    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+      <circle cx="5" cy="12" r="1.8" />
+      <circle cx="12" cy="12" r="1.8" />
+      <circle cx="19" cy="12" r="1.8" />
     </svg>
   );
 }
