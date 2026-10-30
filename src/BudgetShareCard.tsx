@@ -4,6 +4,7 @@
 import { KeyboardEvent, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { inApp } from "./api";
+import { BusyButton, BusyNote, useBusy } from "./BusyButton";
 import {
   addPerson,
   backupInfo,
@@ -37,7 +38,9 @@ export function BudgetShareRows({ myName }: { myName: string }) {
   const [st, setSt] = useState<ShareState | null>(null);
   const [addr, setAddr] = useState("");
   const [msg, setMsg] = useState("");
-  const [wait, setWait] = useState(false);
+  // 느린 단추(10-30 22:47): 누른 단추가 "…하는 중"으로 바뀌고, 하나가 도는 동안 카드의 다른 공유 단추는 잠겨요.
+  const b = useBusy();
+  const wait = !!b.busy;
   const [edit, setEdit] = useState<{ no: number; name: string; mail: string } | null>(null);
   const [add, setAdd] = useState({ name: "", mail: "" });
   const [ask, setAsk] = useState<{ t: "remove" | "new" | "leave"; no: number } | null>(null);
@@ -63,25 +66,27 @@ export function BudgetShareRows({ myName }: { myName: string }) {
   const isHost = joined && conf.me === conf.host;
   const shown = people.filter((p) => !p.gone);
 
-  async function act(f: () => Promise<unknown>, done = "", busyText = "") {
-    setWait(true);
-    setMsg(busyText);
-    try {
-      await f();
-      setMsg(done);
-    } catch (e) {
-      setMsg(errText(e));
-    } finally {
-      setWait(false);
-    }
+  /** key: 어느 단추인지(그 단추만 "…하는 중"), done: 끝나면 ✓ 5초, hint: 도는 동안 아래 안내(브라우저 로그인 기다림). */
+  async function act(key: string, f: () => Promise<unknown>, done = "", hint = "") {
+    setMsg(hint);
+    await b.run(key, f, done, errText);
+    setMsg("");
   }
+  const LOGIN = "브라우저에서 구글 로그인을 마쳐 주세요";
+  const TOP = ["end", "leave", "take"];
+  const SHEET = ["join", "create"];
+  const PEOPLE = ["add", "edit", "remove", "offer"];
+  const placed = [...TOP, ...SHEET, ...PEOPLE];
+  const flashOf = (keys: string[]) => (b.flash && keys.includes(b.flash.key) ? b.flash : null);
+  const busyIn = (keys: string[]) => !!b.busy && keys.includes(b.busy);
+  const otherFlash = b.flash && !placed.includes(b.flash.key) ? b.flash : null;
 
   const saveEdit = () => {
     if (!edit) return;
     const p = people.find((x) => x.no === edit.no);
     setEdit(null);
     if (!p || (p.name === edit.name.trim() && p.mail === edit.mail.trim())) return;
-    void act(() => editPerson(edit.no, edit.name, edit.mail), edit.mail.trim().toLowerCase() !== p.mail.toLowerCase() ? "메일을 바꿨어요 – 호스트 앱이 새 메일로 다시 초대해요" : "");
+    void act("edit", () => editPerson(edit.no, edit.name, edit.mail), edit.mail.trim().toLowerCase() !== p.mail.toLowerCase() ? "메일을 바꿨어요 – 호스트 앱이 새 메일로 다시 초대해요" : "");
   };
   const editKeys = (e: KeyboardEvent) => {
     if (e.nativeEvent.isComposing) return;
@@ -95,7 +100,8 @@ export function BudgetShareRows({ myName }: { myName: string }) {
   };
   const doAdd = () => {
     if (!add.name.trim() && !add.mail.trim()) return;
-    void act(async () => {
+    if (wait) return;
+    void act("add", async () => {
       await addPerson(add.name, add.mail);
       setAdd({ name: "", mail: "" });
     }, isHost ? "더했어요 – 구글이 그 메일로 시트 안내를 보내요" : "더했어요 – 호스트 앱이 다음 새로고침 때 권한을 줘요");
@@ -147,17 +153,17 @@ export function BudgetShareRows({ myName }: { myName: string }) {
             )
           ) : asking ? (
             <>
-              <button
-                type="button"
+              <BusyButton
                 className="btn-danger btn-xs"
-                onClick={() => {
-                  setAsk(null);
-                  void act(() => removePerson(p.no), "내보냈어요 – 시트 권한을 거뒀어요");
-                }}
+                small
+                busy={b.is("remove")}
+                busyText="내보내는 중…"
+                disabled={wait}
+                onClick={() => void act("remove", () => removePerson(p.no), "내보냈어요 – 시트 권한을 거뒀어요").then(() => setAsk(null))}
               >
                 내보내기
-              </button>
-              <button type="button" className="btn btn-xs" onClick={() => setAsk(null)}>
+              </BusyButton>
+              <button type="button" className="btn btn-xs" disabled={wait} onClick={() => setAsk(null)}>
                 취소
               </button>
             </>
@@ -185,12 +191,14 @@ export function BudgetShareRows({ myName }: { myName: string }) {
         aria-checked={conf.on}
         className="row row-btn"
         data-k="팀 공유 구글 시트 집행현황"
+        disabled={wait}
         onClick={() => void setShareOn(!conf.on).then(() => conf.on || void refreshShare())}
       >
         <span className="row-text">
           <span className="row-label">팀 공유</span>
           <span className="muted small">같은 팀이 집행현황을 구글 시트 하나로 함께 써요. 켤 때 구글 시트 권한을 한 번 더 받아요("확인되지 않은 앱" 경고가 한 번 떠요).</span>
         </span>
+        <BusyNote busy={false} late={false} flash={flashOf(TOP)} />
         <span className={"switch" + (conf.on ? " on" : "")} aria-hidden="true">
           <span className="knob" />
         </span>
@@ -206,6 +214,7 @@ export function BudgetShareRows({ myName }: { myName: string }) {
           {msg}
         </p>
       )}
+      {!conf.on && <BusyNote line busy={false} late={false} flash={otherFlash} />}
       {!conf.on && backup && (
         <div className="row">
           <span className="row-text">
@@ -216,22 +225,22 @@ export function BudgetShareRows({ myName }: { myName: string }) {
           </span>
           {ask?.t === "new" && ask.no === -1 ? (
             <span className="bs-dir">
-              <button
-                type="button"
+              <BusyButton
                 className="btn-danger btn-xs"
-                onClick={() => {
-                  setAsk(null);
-                  void act(restoreBackup, "공유 전 집행현황으로 되돌렸어요");
-                }}
+                small
+                busy={b.is("restore")}
+                busyText="되돌리는 중…"
+                disabled={wait}
+                onClick={() => void act("restore", restoreBackup, "공유 전 집행현황으로 되돌렸어요").then(() => setAsk(null))}
               >
                 되돌리기
-              </button>
-              <button type="button" className="btn btn-xs" onClick={() => setAsk(null)}>
+              </BusyButton>
+              <button type="button" className="btn btn-xs" disabled={wait} onClick={() => setAsk(null)}>
                 취소
               </button>
             </span>
           ) : (
-            <button type="button" className="btn btn-xs" onClick={() => setAsk({ t: "new", no: -1 })}>
+            <button type="button" className="btn btn-xs" disabled={wait} onClick={() => setAsk({ t: "new", no: -1 })}>
               되돌리기
             </button>
           )}
@@ -258,7 +267,7 @@ export function BudgetShareRows({ myName }: { myName: string }) {
                   autoComplete="off"
                   onChange={(e) => setAddr(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.nativeEvent.isComposing && addr.trim()) void act(() => joinSheet(addr), "연결했어요", "브라우저에서 구글 로그인을 마쳐 주세요");
+                    if (e.key === "Enter" && !e.nativeEvent.isComposing && addr.trim() && !wait) void act("join", () => joinSheet(addr), "연결했어요", LOGIN);
                   }}
                 />
               )}
@@ -273,34 +282,35 @@ export function BudgetShareRows({ myName }: { myName: string }) {
                   주소 복사
                 </button>
               ) : (
-                <button type="button" className="btn btn-xs" disabled={wait || !addr.trim()} onClick={() => void act(() => joinSheet(addr), "연결했어요", "브라우저에서 구글 로그인을 마쳐 주세요")}>
+                <BusyButton className="btn btn-xs" small busy={b.is("join")} busyText="연결하는 중…" disabled={wait || !addr.trim()} onClick={() => void act("join", () => joinSheet(addr), "연결했어요", LOGIN)}>
                   연결
-                </button>
+                </BusyButton>
               )}
               {ask?.t === "new" && ask.no === 0 ? (
                 <>
-                  <button
-                    type="button"
+                  <BusyButton
                     className="btn-primary btn-xs"
-                    onClick={() => {
-                      setAsk(null);
-                      void act(() => createSheet(myName), "새 시트를 만들었어요 – [주소 복사]로 팀원에게 보내 주세요", "브라우저에서 구글 로그인을 마쳐 주세요");
-                    }}
+                    small
+                    busy={b.is("create")}
+                    busyText="만드는 중…"
+                    disabled={wait}
+                    onClick={() => void act("create", () => createSheet(myName), "새 시트를 만들었어요 – [주소 복사]로 팀원에게 보내 주세요", LOGIN).then(() => setAsk(null))}
                   >
                     만들기
-                  </button>
-                  <button type="button" className="btn btn-xs" onClick={() => setAsk(null)}>
+                  </BusyButton>
+                  <button type="button" className="btn btn-xs" disabled={wait} onClick={() => setAsk(null)}>
                     취소
                   </button>
                 </>
               ) : (
-                <button type="button" className="btn btn-xs" disabled={wait} onClick={() => (joined ? setAsk({ t: "new", no: 0 }) : void act(() => createSheet(myName), "새 시트를 만들었어요 – [주소 복사]로 팀원에게 보내 주세요", "브라우저에서 구글 로그인을 마쳐 주세요"))}>
+                <BusyButton className="btn btn-xs" small busy={b.is("create")} busyText="만드는 중…" disabled={wait} onClick={() => (joined ? setAsk({ t: "new", no: 0 }) : void act("create", () => createSheet(myName), "새 시트를 만들었어요 – [주소 복사]로 팀원에게 보내 주세요", LOGIN))}>
                   새로 만들기
-                </button>
+                </BusyButton>
               )}
             </span>
           </div>
           {ask?.t === "new" && ask.no === 0 && <p className="bs-warn small">새 시트를 만들면 지금 시트와 끊기고 내가 호스트가 돼요. 팀원은 새 주소로 다시 연결해야 해요.</p>}
+          <BusyNote line busy={busyIn(SHEET)} late={b.late} flash={flashOf(SHEET)} noLate />
 
           {joined && (
             <div className="row" data-k="공유 끝내기 공유에서 나가기 연결 끊기">
@@ -316,23 +326,32 @@ export function BudgetShareRows({ myName }: { myName: string }) {
               {ask?.t === "leave" ? (
                 <span className="bs-dir">
                   <span className="bs-tag ask">{isHost ? (shown.length > 1 ? `공유를 끝낼까요? 팀원 ${shown.length - 1}명도 끊겨요` : "공유를 끝낼까요?") : "공유에서 나갈까요?"}</span>
-                  <button
-                    type="button"
+                  <BusyButton
                     className="btn-danger btn-xs"
+                    small
                     autoFocus
-                    onKeyDown={(e) => e.key === "Escape" && setAsk(null)}
+                    busy={b.is("end") || b.is("leave")}
+                    busyText={isHost ? "끝내는 중…" : "나가는 중…"}
+                    disabled={wait}
+                    onKeyDown={(e) => e.key === "Escape" && !wait && setAsk(null)}
                     onClick={() => {
-                      setAsk(null);
-                      if (isHost) void act(endShare, "", "공유를 끝내는 중이에요");
-                      else void act(async () => {
-                        const r = await leaveShare();
-                        if (!r.marked) setMsg("나갔어요 – 시트에 표시하지 못했으니 호스트에게 명단에서 빼 달라고 하세요");
-                      }, "", "나가는 중이에요");
+                      // 묻는 띠는 끝날 때까지 그대로 두고 누른 단추만 "…하는 중"으로 바뀌어요.
+                      const go = isHost
+                        ? act("end", endShare, "공유를 끝냈어요")
+                        : act(
+                            "leave",
+                            async () => {
+                              const r = await leaveShare();
+                              if (!r.marked) throw new Error("나갔어요 – 시트에 표시하지 못했으니 호스트에게 명단에서 빼 달라고 하세요");
+                            },
+                            "공유에서 나갔어요",
+                          );
+                      void go.then(() => setAsk(null));
                     }}
                   >
                     {isHost ? "끝내기" : "나가기"}
-                  </button>
-                  <button type="button" className="btn btn-xs" onClick={() => setAsk(null)}>
+                  </BusyButton>
+                  <button type="button" className="btn btn-xs" disabled={wait} onClick={() => setAsk(null)}>
                     취소
                   </button>
                 </span>
@@ -343,6 +362,7 @@ export function BudgetShareRows({ myName }: { myName: string }) {
               )}
             </div>
           )}
+          {joined && busyIn(["end", "leave"]) && <BusyNote line busy late={b.late} flash={null} />}
 
           {takeOffered && conf.take === conf.me && (
             <div className="row bs-take">
@@ -350,11 +370,12 @@ export function BudgetShareRows({ myName }: { myName: string }) {
                 <span className="row-label">호스트를 넘겨받았어요</span>
                 <span className="muted small">[받기]를 누르면 새 시트를 만들어 집행현황·명단을 옮기고, 모두의 앱이 새 시트를 따라와요(구글 권한을 한 번 더 받아요).</span>
               </span>
-              <button type="button" className="btn-primary btn-xs" disabled={wait} onClick={() => void act(takeHost, "호스트가 됐어요 – 새 시트로 옮겼어요", "옮기는 중이에요")}>
+              <BusyButton className="btn-primary btn-xs" small busy={b.is("take")} busyText="옮기는 중…" disabled={wait} onClick={() => void act("take", takeHost, "호스트가 됐어요 – 새 시트로 옮겼어요", LOGIN)}>
                 받기
-              </button>
+              </BusyButton>
             </div>
           )}
+          {takeOffered && conf.take === conf.me && b.is("take") && <BusyNote line busy late={b.late} flash={null} noLate />}
 
           {joined && (
             <>
@@ -372,17 +393,17 @@ export function BudgetShareRows({ myName }: { myName: string }) {
                   {shown
                     .filter((p) => p.no !== conf.host && statusOf(p, conf.host) === "connected")
                     .map((p) => (
-                      <button
+                      <BusyButton
                         key={p.no}
-                        type="button"
                         className="btn btn-xs"
-                        onClick={() => {
-                          setHostPick(false);
-                          void act(() => offerHost(p.no), `${p.name} 님 앱에 [받기]가 떠요 – 받으면 새 시트로 옮겨요`);
-                        }}
+                        small
+                        busy={b.is("offer")}
+                        busyText="넘기는 중…"
+                        disabled={wait}
+                        onClick={() => void act("offer", () => offerHost(p.no), `${p.name} 님 앱에 [받기]가 떠요 – 받으면 새 시트로 옮겨요`).then(() => setHostPick(false))}
                       >
                         {p.name}
-                      </button>
+                      </BusyButton>
                     ))}
                   {!shown.some((p) => p.no !== conf.host && statusOf(p, conf.host) === "connected") && <span className="muted small">연결된 사람이 없어요</span>}
                 </div>
@@ -390,15 +411,15 @@ export function BudgetShareRows({ myName }: { myName: string }) {
               {takeOffered && isHost && (
                 <p className="bs-warn small">
                   {taker?.name ?? "누군가"} 님이 [받기]를 누르면 호스트가 넘어가요.{" "}
-                  <button type="button" className="link-btn" onClick={() => void act(() => offerHost(0), "넘기기를 취소했어요")}>
-                    취소
+                  <button type="button" className="link-btn" disabled={wait} onClick={() => void act("offer", () => offerHost(0), "넘기기를 취소했어요")}>
+                    {b.is("offer") ? "취소하는 중…" : "취소"}
                   </button>
                 </p>
               )}
               <div className="bs-people">
                 {shown.map(personRow)}
                 <div className="bs-p bs-add">
-                  <input className="input bs-in-name" aria-label="이름" placeholder="이름" value={add.name} autoComplete="off" onChange={(e) => setAdd({ ...add, name: e.target.value })} onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && doAdd()} />
+                  <input className="input bs-in-name" aria-label="이름" placeholder="이름" disabled={b.is("add")} value={add.name} autoComplete="off" onChange={(e) => setAdd({ ...add, name: e.target.value })} onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && doAdd()} />
                   <input
                     className="input bs-in-mail"
                     aria-label="구글 메일"
@@ -406,16 +427,18 @@ export function BudgetShareRows({ myName }: { myName: string }) {
                     data-ime="en"
                     type="email"
                     name="email"
+                    disabled={b.is("add")}
                     value={add.mail}
                     autoComplete="off"
                     onChange={(e) => setAdd({ ...add, mail: e.target.value })}
                     onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && doAdd()}
                   />
-                  <button type="button" className="btn btn-xs" disabled={wait} onClick={doAdd}>
+                  <BusyButton className="btn btn-xs" small busy={b.is("add")} busyText="더하는 중…" disabled={wait} onClick={doAdd}>
                     ＋ 더하기
-                  </button>
+                  </BusyButton>
                 </div>
               </div>
+              <BusyNote line busy={busyIn(PEOPLE)} late={b.late} flash={flashOf(PEOPLE)} />
               <div className="row">
                 <span className="row-text">
                   <span className="row-label">고친 사람 이름</span>
@@ -436,8 +459,8 @@ export function BudgetShareRows({ myName }: { myName: string }) {
                 <p className="bs-warn bad small">
                   {conf.error}{" "}
                   {conf.error.includes("다시 로그인") && (
-                    <button type="button" className="link-btn" disabled={wait} onClick={() => void act(reloginShare, "다시 로그인했어요", "브라우저에서 구글 로그인을 마쳐 주세요")}>
-                      다시 로그인
+                    <button type="button" className="link-btn" disabled={wait} aria-busy={b.is("relogin") || undefined} onClick={() => void act("relogin", reloginShare, "다시 로그인했어요", LOGIN)}>
+                      {b.is("relogin") ? "로그인 기다리는 중…" : "다시 로그인"}
                     </button>
                   )}
                 </p>
@@ -446,8 +469,8 @@ export function BudgetShareRows({ myName }: { myName: string }) {
                 <p className="bs-warn small">
                   {st.last.note}{" "}
                   {isHost && (
-                    <button type="button" className="link-btn" onClick={() => void act(grantHostScope, "권한을 받았어요", "브라우저에서 구글 로그인을 마쳐 주세요")}>
-                      권한 받기
+                    <button type="button" className="link-btn" disabled={wait} aria-busy={b.is("grant") || undefined} onClick={() => void act("grant", grantHostScope, "권한을 받았어요", LOGIN)}>
+                      {b.is("grant") ? "로그인 기다리는 중…" : "권한 받기"}
                     </button>
                   )}
                 </p>
@@ -459,6 +482,7 @@ export function BudgetShareRows({ myName }: { myName: string }) {
               {msg}
             </p>
           )}
+          <BusyNote line busy={false} late={false} flash={otherFlash} />
           <p className="g-foot small">공유 시트는 시청 밖 구글 서버에 있어요. 집행현황에는 민원인 정보가 없어요.</p>
         </>
       )}

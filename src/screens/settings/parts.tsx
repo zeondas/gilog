@@ -33,15 +33,18 @@ export function Toggle({
   on,
   onChange,
   k,
+  disabled,
 }: {
   label: string;
   desc: string;
   on: boolean;
   onChange: (v: boolean) => void;
   k?: string;
+  /** 느린 단추(10-30): 구글 권한을 받는 동안 잠가요 */
+  disabled?: boolean;
 }) {
   return (
-    <button type="button" role="switch" aria-checked={on} className="row row-btn" onClick={() => onChange(!on)} data-k={k}>
+    <button type="button" role="switch" aria-checked={on} className="row row-btn" onClick={() => onChange(!on)} data-k={k} disabled={disabled} aria-busy={disabled || undefined}>
       <span className="row-text">
         <span className="row-label">{label}</span>
         <span className="muted small">{desc}</span>
