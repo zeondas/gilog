@@ -7,6 +7,9 @@
 //   순서·위 줄·해(줄 자리)는 고르지 않고 시트 값을 따라요.
 // - 권한: 모두 시트 권한(spreadsheets), 호스트만 공유를 바꾸는 drive.file. 명단(시트 "사람" 탭)은 누구나 고치고
 //   실제 권한 주기·거두기는 호스트 앱이 새로고침 때 해요. 호스트 넘기기 = 새 호스트가 새 시트를 만들어 옮기고 옛 시트에 새 주소를 남겨요.
+// - 나가기·내보내기·끝내기(2026-10-30 사용자 ①1안 ②2안 ③1안): 내보내기는 호스트만(그 자리에서 권한을 거둬요),
+//   팀원은 [공유에서 나가기](명단의 자기 줄에 지움 표시), 호스트는 [공유 끝내기](모두의 권한을 거두고 정보 탭에 "끝냄").
+//   빠졌거나 끝난 것을 알아본 앱은 저절로 끊고 한 번 알려요. 끊어도 내 집행현황·공유 전 백업·구글 로그인은 그대로예요.
 // - 집행현황만 나가요(민원인 정보 없음).
 import { api, inApp } from "./api";
 import type { BudgetProject } from "./budget";
@@ -351,7 +354,8 @@ const googleIO: IO = {
   },
   async write(id, cells) {
     for (let i = 0; i < cells.length; i += 2000) {
-      await googleCall("POST", `${SHEETS}/${encodeURIComponent(id)}/values:batchUpdate`, { valueInputOption: "RAW", data: cells.slice(i, i + 2000) });
+      const r = await googleCall("POST", `${SHEETS}/${encodeURIComponent(id)}/values:batchUpdate`, { valueInputOption: "RAW", data: cells.slice(i, i + 2000) });
+      if (r.status === 404) throw new Error("no_sheet");
     }
   },
   async append(id, tab, rows) {
@@ -484,6 +488,16 @@ async function saveConf(c: ShareConf) {
   await putJson(K_CONF, c);
   publish({ conf: c });
 }
+/**
+ * 공유를 처음 상태로(나가기·끝내기·빠짐): 시트 주소·명단·맞춘 값·같은 칸·받은 것만 비워요.
+ * 내 집행현황·공유 전 백업(K_BACKUP)·구글 로그인은 그대로예요. notice는 설정 카드에 한 번 보여 줄 글.
+ */
+async function clearLocal(notice = ""): Promise<void> {
+  await Promise.all([putJson(K_BASE, []), putJson(K_CF, []), putJson(K_PEOPLE, []), putJson(K_GOT, [])]);
+  await putJson(K_CONF, { ...EMPTY, error: notice });
+  publish({ conf: { ...EMPTY, error: notice }, people: [], conflicts: [], busy: false, last: null });
+  window.dispatchEvent(new CustomEvent(SHARE_CHANGE, { detail: null }));
+}
 /** 공유가 켜져 있고 시트에 묶였는지(담당 열·새로고침 단추를 보일지) */
 export const shareActive = (c: ShareConf) => c.on && !!c.sheet;
 
@@ -524,6 +538,8 @@ export function shareErrorText(e: unknown): string {
   const m = e instanceof Error ? e.message : String(e);
   if (m === "not_connected" || m === "relogin") return "구글 로그인이 풀렸어요 – 설정 › 집행현황에서 다시 연결해 주세요";
   if (m === "offline" || m.includes("Failed to fetch")) return "인터넷에 연결하지 못했어요 – 고친 것은 내 PC에 두었다가 다음에 올려요";
+  if (code === 403 && /insufficient|scope/i.test(m)) return "구글 시트 권한이 없어요 – [다시 로그인]을 눌러 주세요";
+  if (code === 403 && state.conf.me && state.conf.me === state.conf.host) return "내 시트를 열 수 없어요 – 시트를 만든 구글 계정인지 확인하고 [다시 로그인]을 눌러 주세요";
   if (code === 403) return "시트를 열 수 없어요 – 호스트에게 함께 쓰는 사람에 더해 달라고 하세요";
   if (code === 401) return "구글 로그인이 풀렸어요 – 설정 › 집행현황에서 다시 연결해 주세요";
   if (m === "no_sheet" || code === 404) return "시트를 찾지 못했어요 – 주소를 확인해 주세요";
@@ -562,6 +578,12 @@ export function refreshShare(): Promise<RefreshResult | null> {
   return running;
 }
 
+/** 명단을 고친 뒤: 돌던 새로고침(고치기 전에 읽은 것)이 끝나기를 기다렸다가 새로 한 번 더 해요. */
+async function refreshAfter(): Promise<void> {
+  if (running) await running.catch(() => null);
+  await refreshShare();
+}
+
 async function doRefresh(): Promise<RefreshResult | null> {
   if (!loaded) await loadShare();
   const conf = { ...state.conf };
@@ -569,14 +591,34 @@ async function doRefresh(): Promise<RefreshResult | null> {
   publish({ busy: true });
   const now = stampNow();
   try {
-    const got = await readFollow(conf);
+    let got: Read & { id: string };
+    try {
+      got = await readFollow(conf);
+    } catch (e) {
+      // 권한이 거둬졌어요(호스트가 내보냈거나 공유를 끝냄) – 로그인 권한 부족(scope)이나 호스트 자신은 빼요.
+      if (googleErrorCode(e) === 403 && !/insufficient|scope/i.test(e instanceof Error ? e.message : "") && conf.me !== conf.host) {
+        await clearLocal("공유 시트를 열 권한이 없어져 연결을 끊었어요 – 호스트가 내보냈거나 공유를 끝냈어요. 내 집행현황은 그대로예요");
+        return null;
+      }
+      throw e;
+    }
     conf.sheet = got.id;
     const info = parseInfo(got.info);
     const people = parsePeople(got.people);
     conf.host = Number(info["호스트"] || 0);
     conf.take = Number(info["넘김"] || 0);
+    if (info["끝냄"] && conf.host !== conf.me) {
+      await clearLocal("호스트가 공유를 끝냈어요 – 연결을 끊었어요. 내 집행현황은 그대로예요");
+      return null;
+    }
     const meP = people.find((p) => !p.gone && p.mail.toLowerCase() === conf.mail.toLowerCase());
-    if (!meP) throw new Error("not_member");
+    if (!meP) {
+      if (people.some((p) => p.gone && p.mail.toLowerCase() === conf.mail.toLowerCase())) {
+        await clearLocal("명단에서 빠져 공유 연결을 끊었어요. 내 집행현황은 그대로예요");
+        return null;
+      }
+      throw new Error("not_member");
+    }
     conf.me = meP.no;
     const remote = parseSheet(got.data);
     const local = flatten(await readLocalYears());
@@ -741,8 +783,10 @@ export async function grantHostScope(): Promise<void> {
 
 // ---------- 명단 고치기 (누구나 – 권한은 호스트 앱이 반영) ----------
 
+/** 지금 시트(호스트 넘기기로 옮겼으면 새 시트)의 명단. 고치는 명령은 이 시트에 적어요. */
 async function freshPeople(): Promise<Person[]> {
-  const got = await io().read(state.conf.sheet);
+  const got = await readFollow(state.conf);
+  if (got.id !== state.conf.sheet) await saveConf({ ...state.conf, sheet: got.id });
   return parsePeople(got.people);
 }
 
@@ -754,7 +798,7 @@ export async function addPerson(name: string, mail: string): Promise<void> {
   const people = await freshPeople();
   if (people.some((p) => !p.gone && p.mail.toLowerCase() === m.toLowerCase())) throw new Error("이미 명단에 있는 메일이에요");
   await io().append(state.conf.sheet, PEOPLE, [[n, m, "", "", "", ""]]);
-  await refreshShare();
+  await refreshAfter();
 }
 
 export async function editPerson(no: number, name: string, mail: string): Promise<void> {
@@ -771,13 +815,70 @@ export async function editPerson(no: number, name: string, mail: string): Promis
   // 메일을 바꾸면 옛 권한은 거두고 새 메일에 다시 줘요(호스트 앱이). 호스트 자신은 그대로.
   if (m.toLowerCase() !== p.mail.toLowerCase() && no !== state.conf.host && p.perm) cells.push({ range: `${q(PEOPLE)}!C${no + 1}:D${no + 1}`, values: [["", p.perm]] });
   await io().write(state.conf.sheet, cells);
-  await refreshShare();
+  await refreshAfter();
 }
 
+/** 내보내기(호스트만 – 2026-10-30 ②2안): 그 자리에서 시트 권한을 거두고 명단에 지움 표시. */
 export async function removePerson(no: number): Promise<void> {
-  if (no === state.conf.host) throw new Error("호스트는 뺄 수 없어요 – 먼저 호스트를 넘겨 주세요");
-  if (no === state.conf.me) throw new Error("나는 뺄 수 없어요 – 공유를 끄면 돼요");
-  await io().write(state.conf.sheet, [{ range: `${q(PEOPLE)}!E${no + 1}`, values: [[1]] }]);
+  if (state.conf.me !== state.conf.host) throw new Error("내보내기는 호스트만 해요 – 내가 나가려면 [공유에서 나가기]를 눌러 주세요");
+  if (no === state.conf.host) throw new Error("호스트는 내보낼 수 없어요 – 먼저 호스트를 넘겨 주세요");
+  await io().ensure(true);
+  const people = await freshPeople();
+  const p = people.find((x) => x.no === no);
+  if (!p) return;
+  for (const id of [p.perm, p.oldPerm]) if (id) await io().revoke(state.conf.sheet, id);
+  await io().write(state.conf.sheet, [{ range: `${q(PEOPLE)}!C${no + 1}:E${no + 1}`, values: [["", "", 1]] }]);
+  await refreshAfter();
+}
+
+/** 팀원: 공유에서 나가기 – 명단의 내 줄에 지움 표시(호스트 앱이 권한을 거둬요) 뒤 내 PC를 처음 상태로. */
+export async function leaveShare(): Promise<{ marked: boolean }> {
+  if (running) await running.catch(() => null);
+  const conf = state.conf;
+  if (conf.sheet && conf.me && conf.me === conf.host) throw new Error("호스트는 나가지 않고 [공유 끝내기]나 [호스트 넘기기]를 해요");
+  let marked = false;
+  if (conf.sheet) {
+    try {
+      const people = await freshPeople();
+      const meP = people.find((p) => !p.gone && p.mail.toLowerCase() === conf.mail.toLowerCase());
+      if (meP) await io().write(state.conf.sheet, [{ range: `${q(PEOPLE)}!E${meP.no + 1}`, values: [[1]] }]);
+      marked = true;
+    } catch {
+      /* 시트를 못 열어도 내 PC는 끊어요(호스트가 명단에서 빼면 돼요) */
+    }
+  }
+  await clearLocal();
+  return { marked };
+}
+
+/** 호스트: 공유 끝내기 – 모든 팀원 권한을 거두고 정보 탭에 "끝냄"을 적은 뒤 내 PC를 처음 상태로. 시트 파일은 남겨요. */
+export async function endShare(): Promise<{ fail: number }> {
+  if (running) await running.catch(() => null);
+  const conf = state.conf;
+  if (!conf.sheet || conf.me !== conf.host) throw new Error("공유 끝내기는 호스트만 해요");
+  await io().ensure(true);
+  const people = await freshPeople();
+  let fail = 0;
+  const cells: Cell[] = [];
+  for (const p of people) {
+    if (p.no === conf.host) continue;
+    try {
+      for (const id of [p.perm, p.oldPerm]) if (id) await io().revoke(state.conf.sheet, id);
+      cells.push({ range: `${q(PEOPLE)}!C${p.no + 1}:E${p.no + 1}`, values: [["", "", 1]] });
+    } catch {
+      fail++;
+    }
+  }
+  cells.push({ range: `${q(INFO)}!A5:B5`, values: [["끝냄", stampNow()]] });
+  await io().write(state.conf.sheet, cells);
+  await clearLocal(fail ? `공유를 끝냈어요 – ${fail}명은 시트 권한을 거두지 못했어요. 구글 드라이브에서 시트 공유를 확인해 주세요` : "");
+  return { fail };
+}
+
+/** 구글 시트 권한이 빠졌을 때 [다시 로그인]: 권한을 다시 받고 새로고침해요. */
+export async function reloginShare(): Promise<void> {
+  if (running) await running.catch(() => null);
+  await connectForShare(state.conf.me !== 0 && state.conf.me === state.conf.host);
   await refreshShare();
 }
 
@@ -785,7 +886,7 @@ export async function removePerson(no: number): Promise<void> {
 export async function offerHost(no: number): Promise<void> {
   if (state.conf.me !== state.conf.host) throw new Error("호스트만 넘길 수 있어요");
   await io().write(state.conf.sheet, [{ range: `${q(INFO)}!B3`, values: [[no || ""]] }]);
-  await refreshShare();
+  await refreshAfter();
 }
 
 /** 넘겨받기: 새 시트를 만들어 집행현황·명단을 옮기고, 옛 시트에 새 주소를 남겨요(모두의 앱이 따라와요). */
