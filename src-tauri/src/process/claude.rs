@@ -249,7 +249,7 @@ pub(super) const DEFAULT_INBOX: &str = "D:\\민원처리\\가져오기";
 pub(super) const DEFAULT_DOWNLOADS: &str = "D:\\";
 pub(super) const DEFAULT_OUTBOX: &str = "D:\\민원처리\\보내기";
 
-/// 암호화 파일에 저장된 설정의 민원처리 칸(✔2 – 화면이 보낸 값을 믿지 않고 앱이 직접 읽어요)
+/// 암호화 파일에 저장된 설정의 민원처리 칸 – 화면이 보낸 경로를 믿지 않고 앱이 직접 읽어 실행 파일·폴더를 견줘요(✔2)
 #[derive(Debug, Default, Clone, PartialEq)]
 pub(crate) struct SavedProcess {
     pub claude: String,

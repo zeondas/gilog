@@ -89,7 +89,7 @@ pub(super) fn unzip_images(z: &Path, into: &Path) -> std::io::Result<Vec<String>
 
 /// 이름만 적힌 첨부를 찾아요: 절대 경로면 그대로, 아니면 가져올 폴더 → 다운로드 폴더 → 내 폴더\Downloads.
 /// 받은 첨부를 찾아요: 이름 그대로 → 대소문자만 다른 것 → 크롬이 같은 이름에 붙인 " (1)" 꼴(가장 새 것).
-/// 2026-10-21 사용자: 지시부에 사진이 안 들어감 – Claude가 적은 이름과 크롬이 받은 이름이 조금 다르면 못 찾아 사진 없이 들어갔어요.
+/// 이렇게 넓게 찾는 까닭: Claude가 적은 이름과 크롬이 받은 이름이 조금 다르면 못 찾아 사진 없이 지시부에 들어갔어요(2026-10-21 사용자 신고).
 pub(super) fn find_file(name: &str, dirs: &[&Path]) -> Option<PathBuf> {
     let n = name.trim();
     if n.is_empty() {
