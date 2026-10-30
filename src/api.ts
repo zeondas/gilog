@@ -371,6 +371,26 @@ export function previewInbox(list: Partial<Case>[]) {
 }
 
 /** 자료를 바꾼 명령이 성공하면 알려 줄 곳(구글 연동이 바뀐 것을 내보내요). */
+/** 설정 "자료 지우기"(2026-10-30 설정 ✔1) – core clear.rs */
+export type ClearWhat = "complaints" | "contacts" | "journal" | "tasks" | "events" | "budget" | "bstatus" | "all";
+export type ClearCounts = {
+  complaints: number;
+  cases: number;
+  contacts: number;
+  projects: number;
+  entries: number;
+  days: number;
+  tasks: number;
+  lists: number;
+  events: number;
+  budgetYearProjects: number;
+  budgetYearRows: number;
+  budgetProjects: number;
+  budgetRows: number;
+  bstatus: number;
+};
+export type Cleared = { n: number; backup: string | null };
+
 export const changeHooks = new Set<(cmd: string) => void>();
 
 async function call<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {
@@ -432,6 +452,10 @@ export const api = {
   deleteDay: (date: string) => call<number>("delete_journal_day", { date }),
   /** 엑셀 가져오기 "대체하기" – 모든 기록·날짜 머리 줄을 지워요(공통 ✔5) */
   clearJournal: () => call<number>("clear_journal"),
+  /** 설정 "자료 지우기": 화면마다 지금 건수(year = 집행현황 "그 해만"의 해) */
+  clearCounts: (year: number) => call<ClearCounts>("clear_counts", { year }),
+  /** 설정 "자료 지우기": 지우기 전 백업을 남기고 지워요(year는 집행현황만 – null이면 모든 해). 미리 보기는 백업 없음. */
+  clearData: (what: ClearWhat, year: number | null = null) => call<Cleared>("clear_data", { what, year }),
 
   complaints: () => call<Complaint[]>("complaints"),
   /** 위치 글이 파주시 도로명주소면 법정동 지번으로 (core address.rs) */

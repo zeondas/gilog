@@ -522,3 +522,54 @@
 .proc-dir .input.proc-mail-subject { width: 420px; }
 /* 설정 [구글 로그인] – 흰 보조 단추 모양(.btn)이 덮던 것을 주 단추 모양으로(공통 부품 ✔8, 마우스를 올렸을 때는 late.css) */
 .btn.btn-primary.g-login { border-color: transparent; background: var(--accent); color: var(--on-accent); }
+
+/* ---------- 설정 · 자료 지우기 카드 (2026-10-30 설정 ✔1, 시안 Settings.dc.html 맨 아래) ---------- */
+.clr-card .mod-head > svg {
+  flex: none;
+  color: var(--muted);
+}
+
+.clr-head-sub {
+  font-weight: 400;
+}
+
+/* 스위치 줄·지우기 줄: 마지막 줄은 아래 선 없음 */
+.clr-card > .row:last-child {
+  border-bottom: 0;
+}
+
+.clr-btn {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--line));
+}
+
+.clr-btn:hover:not(:disabled) {
+  background: var(--danger-wash);
+}
+
+.clr-btn:disabled {
+  color: var(--muted);
+  border-color: var(--line-soft);
+}
+
+.clr-all {
+  background: color-mix(in srgb, var(--danger-wash) 45%, var(--surface));
+}
+
+.clr-info {
+  flex: 1 0 100%;
+  margin-top: calc(var(--space-2) * -1 + 2px);
+}
+
+.clr-row > .ask-band {
+  flex: 1 0 100%;
+  margin-top: 0;
+}
+
+.clr-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  font-weight: 500;
+  opacity: 0.85;
+}

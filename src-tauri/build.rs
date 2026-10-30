@@ -33,6 +33,8 @@ const RISKY: &[&str] = &[
     "export_backup",
     "send_order",
     "set_process_exe",
+    // 설정 자료 지우기(2026-10-30 설정 ✔1)
+    "clear_data",
 ];
 
 fn commands() -> Vec<String> {

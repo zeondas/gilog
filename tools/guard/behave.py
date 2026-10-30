@@ -120,6 +120,22 @@ async def c_settings_esc(p):
     assert not await shown(p, ".list-ask"), "Esc로 띠가 안 접힘"
 
 
+async def c_settings_clear(p):
+    # 자료 지우기(2026-10-30 설정 ✔1): 띠는 취소에 커서·Esc·바깥 누르기로 접히고 지우지 않아요.
+    await shoot.nav(p, "설정")
+    await shoot.s_settings_clear_ask(p)
+    band = "[data-clear='budget'] .ask-band"
+    assert await shown(p, band), "띠 안 열림"
+    assert await p.evaluate("() => document.activeElement?.textContent === '취소'"), "취소에 커서가 없음"
+    await p.keyboard.press("Escape")
+    await p.wait_for_timeout(250)
+    assert not await shown(p, band), "Esc로 띠가 안 접힘"
+    await p.locator("[data-clear='budget'] .clr-btn").click()
+    await press_out(p, (1500, 60))
+    assert not await shown(p, band), "바깥 눌러도 띠가 남음"
+    assert "지울 것 없음" not in (await p.locator("[data-clear='budget']").inner_text()), "띠를 접었는데 지워짐"
+
+
 async def c_dialog(p):
     await shoot.nav(p, "캘린더")
     await shoot.s_calendar_kinds(p)
@@ -498,6 +514,7 @@ CASES = {
     "contacts_pjmenu_esc": c_pjmenu_esc,
     "settings_esc": c_settings_esc,
     "settings_band": c_settings_band,
+    "settings_clear": c_settings_clear,
     "calendar_dialog": c_dialog,
     "calendar_notitle_quick": c_calendar_notitle_quick,
     "calendar_notitle_outside": c_calendar_notitle_outside,
