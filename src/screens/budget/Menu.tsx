@@ -19,7 +19,7 @@ export function useBudgetMenu(c: ReturnType<typeof useBudgetRows>) {
       return;
     }
     const r = popRef.current.getBoundingClientRect();
-    // 떠 있는 메뉴 공통 규칙(✔5): 화면 안 8px, 아래가 모자라면 위로 열어요.
+    // 메뉴가 화면 밖으로 잘리지 않게: 가장자리에서 8px 안쪽에 두고, 아래 자리가 모자라면 위로 열어요(떠 있는 메뉴 공통 규칙 ✔5).
     const top = pop.y + r.height + 8 > innerHeight ? pop.y - r.height : pop.y;
     setPopPos({ left: Math.max(8, Math.min(pop.x, innerWidth - r.width - 8)), top: Math.max(8, Math.min(top, innerHeight - r.height - 8)) });
   }, [pop]);

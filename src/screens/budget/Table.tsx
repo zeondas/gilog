@@ -284,7 +284,7 @@ export function useBudgetRows(c: ReturnType<typeof useBudgetShareView>) {
     const pOpen = p.open || !!q;
     const pEdit = form?.level === "project" && form.id === p.id;
     const pk = selKey("project", p.id);
-    // 틀고정(2026-10-21 사용자 1안): 세부사업 묶음·부기사업 묶음을 감싸야 다음 묶음의 줄이 앞 줄을 밀어 올려요
+    // 위로 굴려도 세부사업·부기사업 이름 줄이 위에 붙어 있게(틀고정) 묶음마다 감싸요 – 감싸야 다음 묶음의 이름 줄이 앞 줄을 밀어 올려요(2026-10-21 사용자 1안).
     const pOut: ReactNode[] = [];
     pOut.push(
       <div

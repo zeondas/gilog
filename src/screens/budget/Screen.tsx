@@ -81,7 +81,7 @@ export function useBudgetCore() {
   const VC = shareOn ? COLS : COLS_SOLO;
   /** 닫은 결과 띠(새로고침 시각) – 다음 새로고침까지 받은 줄 초록 선도 지워요 */
   const [bandOff, setBandOff] = useState("");
-  /** 받은 것 창(✔1, 2026-10-26) */
+  /** 팀원이 바꿔 보낸 칸을 모아 보여 주는 "받은 것" 창이 열려 있는지(✔1, 2026-10-26) */
   const [gotOpen, setGotOpen] = useState(false);
   const [ask, setAsk] = useState<(BudgetImport & { path: string }) | null>(null);
   const formRow = useRef<HTMLDivElement>(null);
@@ -293,7 +293,7 @@ export function useBudgetCore() {
 
   const setF = (patch: Partial<Form>) => setForm((f) => (f ? ({ ...f, ...patch } as Form) : f));
 
-  // 업무연락처(✔2, 2026-10-26) – 화면을 열 때 한 번 읽어 공사명·업체 후보로만 써요(글자만 복사).
+  // 공사명·업체 칸의 고르기 후보로 쓰려고 화면을 열 때 업무연락처를 한 번 읽어요 – 글자만 복사하고 연결은 하지 않아요(✔2, 2026-10-26).
   const [cdata, setCdata] = useState<ContactsData | null>(null);
   useEffect(() => {
     api.contactsData().then(setCdata, () => setCdata(null));
@@ -374,8 +374,8 @@ export function useBudgetCore() {
   };
 
   // ---------- 열 ----------
-  // 헤더 열 조정 통일(2026-10-28 ✔1~3): 열마다 정해진 폭, 끈 열만 바뀌고 넘치면 표 안 가로 스크롤(남는 폭 열·왼쪽 모으기·세부사업만 줄이기 없음).
-  // 보이는 열(VC)은 공유를 끄면 "담당" 열이 빠져요. 보기에서 숨는 열(집행률 보기 = 시공량, 시공량 보기 = 집행액)은 폭 0 – 표가 그만큼 좁아져요(✔3②).
+  // 열 폭: 열마다 정해진 폭으로 시작하고 끈 열만 바뀌어요. 표가 넘치면 표 안에서 가로로 밀려요 – 일곱 표가 같은 규칙(헤더 열 조정 통일, 2026-10-28 ✔1~3).
+  // 보이는 열(VC): 팀 공유를 끄면 "담당" 열이 빠져요. 보기에서 숨는 열(집행률 보기 = 시공량, 시공량 보기 = 집행액)은 폭 0이라 표가 그만큼 좁아져요(✔3②).
   const hide = HIDE_OF[view];
   const hideIx = VC.findIndex(([c]) => c === hide);
   /** 그 열에 보이는 내용(열 제목 포함) 가운데 가장 긴 폭(여유는 cols.ts가 더해요) */
