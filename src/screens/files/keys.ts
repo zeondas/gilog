@@ -2,6 +2,11 @@
 import { FindForm, FsEntry, VIEWS, nextPane, parentOf, HOME, PC, isSpecial } from "../../files";
 import { Conflict, fsApi, fsErrorText } from "../../filesApi";
 import { EMPTY_SEL, Pop, RPane, RState, RTab, ROW_H, Row, Sel, revealRow } from "./parts";
+import { useEffect, useRef } from "react";
+import { useOutsideClose } from "../../useOutsideClose";
+import { VIEW_SIZES } from "./parts";
+import type { useFilesFind } from "./find";
+import type { useFilesLayout } from "./Top";
 
 /** 글자 칸이나 뜬 창 안에서 누른 키는 탐색기 키가 아니에요. */
 function typing(t: EventTarget | null) {
@@ -274,4 +279,73 @@ export function handleKey(e: KeyboardEvent, c: KeyCtx) {
       el.focus();
     }
   }
+}
+
+export function useFilesKeys(c: ReturnType<typeof useFilesFind>) {
+  const { menu, findOpen, pop, setMenu, setPop, setFindOpen, updPane } = c;
+
+  // ---------- 키 ----------
+  const keyRef = useRef<(e: KeyboardEvent) => void>(() => {});
+  useEffect(() => {
+    const f = (e: KeyboardEvent) => keyRef.current(e);
+    window.addEventListener("keydown", f);
+    return () => window.removeEventListener("keydown", f);
+  }, []);
+
+  // 바깥을 누르면 작은 메뉴가 닫혀요.
+  useOutsideClose(
+    !!(menu || findOpen || pop),
+    [],
+    (e) => {
+      setMenu(null);
+      setPop(null);
+      if (!(e.target as HTMLElement).closest(".fx-findbox")) setFindOpen(false);
+    },
+    {
+      ignore: ".fx-menu, .fx-menu-btn",
+      on: "window",
+      // 앱 창 밖으로 가면 메뉴도 닫혀요(✔5)
+      onBlur: () => {
+        setMenu(null);
+        setPop(null);
+      },
+    },
+  );
+
+  // Ctrl+휠: 보기 크기 바꾸기(자세히 ↔ 간단히 ↔ 큰 아이콘 ↔ 썸네일, 호환 B)
+  const wheelAt = useRef(0);
+  useEffect(() => {
+    const f = (e: WheelEvent) => {
+      if (!e.ctrlKey) return;
+      const el = (e.target as HTMLElement | null)?.closest?.<HTMLElement>(".fx-list[data-pane]");
+      if (!el) return;
+      e.preventDefault();
+      const now = performance.now();
+      if (!e.deltaY || now - wheelAt.current < 150) return;
+      wheelAt.current = now;
+      updPane(Number(el.dataset.pane), (x) => {
+        const i = Math.max(0, VIEW_SIZES.indexOf(x.view));
+        const j = Math.max(0, Math.min(VIEW_SIZES.length - 1, i + (e.deltaY < 0 ? 1 : -1)));
+        return j === i ? x : { ...x, view: VIEW_SIZES[j] };
+      });
+    };
+    window.addEventListener("wheel", f, { passive: false });
+    return () => window.removeEventListener("wheel", f);
+  }, [updPane]);
+  return { ...c, keyRef, wheelAt };
+}
+
+export function useFilesKeyHandler(c: ReturnType<typeof useFilesLayout>) {
+  const { keyRef, activeTab, ask, askDelete, askTransfer, askYes, busy, clipPaste, clipPut, closeTab, conflict, copyPath, curPath, del, filterRefs, filters, findNameRef, findOpen, flash, focusPane, form, home, menu, nameAsk, newFolder, newTab, newTabBg, openEntry, paneCount, pop, quickFind, refresh, refreshAll, renameRows, rowsOf, selected, sels, setEditPath, setFilters, setFindOpen, setForm, setMenu, setPop, setSel, setSt, shellMenu, st, startRename, stepHistory, undoRedo, up, updPane, xfer, setHelp } = c;
+
+  // 키를 누를 때 부를 함수 – 그리기마다 지금 값으로 바꿔 끼워요(아래 조각들의 함수까지 다 생긴 뒤라 여기서).
+  keyRef.current = (e: KeyboardEvent) =>
+    handleKey(e, {
+      activeTab, ask, askDelete, askTransfer, askYes, busy, clipPaste, clipPut, closeTab, conflict, copyPath, curPath, del, filterRefs,
+      filters, findNameRef, findOpen, flash, focusPane, form, home, menu, nameAsk, newFolder, newTab, newTabBg, openEntry, paneCount, pop,
+      quickFind, refresh, refreshAll, renameRows, rowsOf, selected, sels, setEditPath, setFilters, setFindOpen, setForm, setMenu, setPop,
+      setSel, setSt, shellMenu, st, startRename, stepHistory, undoRedo, up, updPane, xfer,
+      toggleHelp: () => setHelp((h) => (h === "pin" ? null : "pin")),
+    });
+  return { ...c,  };
 }
