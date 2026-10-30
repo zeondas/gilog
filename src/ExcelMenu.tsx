@@ -219,8 +219,8 @@ export function ExcelMenu<T>({
   );
 }
 
-/** 가져오기 창 안쪽: ① 방식 고르기 → ② 덮어쓰기 확인 / 대체하기 확인(붉은 띠) */
-function ImportSteps({
+/** 가져오기 창 안쪽: ① 방식 고르기 → ② 덮어쓰기 확인 / 대체하기 확인(붉은 띠). 집행현황 가져오기 창도 써요(2026-10-30 ✔1). */
+export function ImportSteps({
   title,
   noun,
   n,
@@ -232,12 +232,18 @@ function ImportSteps({
   onStep,
   onCancel,
   onGo,
+  warn,
+  heading,
 }: {
   title: string;
   noun: string;
   n: number;
   path: string;
-  note: string;
+  note: React.ReactNode;
+  /** 대체하기 확인 창 붉은 띠 아래 한 줄(집행현황 팀 공유 안내) */
+  warn?: React.ReactNode;
+  /** 고르기 창 제목을 바꿀 때(집행현황: "2026년 집행현황 – 공사 N건을 …") */
+  heading?: string;
   step: "pick" | ImportMode;
   stats: { same: number; total: number } | null;
   busy: boolean;
@@ -276,7 +282,11 @@ function ImportSteps({
       <>
         <div className="xl-ask-body">
           <h2 className="xl-ask-title">
-            {title} {won(n)}건을 어떻게 가져올까요?
+            {heading ?? (
+              <>
+                {title} {won(n)}건을 어떻게 가져올까요?
+              </>
+            )}
           </h2>
           {note && <div className="xl-ask-note">{note}</div>}
           <div className="xl-pick" ref={pickRef} onKeyDown={arrows}>
@@ -369,6 +379,7 @@ function ImportSteps({
             <span>{stats ? `지금 ${noun} ${won(stats.total)}건이 모두 지워져요.` : `지금 ${josa(title, "이", "가")} 모두 지워져요.`} 되돌릴 수 없어요.</span>
           </div>
         )}
+        {warn && <div className="xl-ask-note">{warn}</div>}
         <div className="xl-ask-path">{path}</div>
       </div>
       <div className="xl-ask-foot">

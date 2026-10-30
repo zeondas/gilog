@@ -473,8 +473,8 @@ pub(crate) fn browser(s: &mut Session, cmd: &str, a: &Args) -> Option<Result<Val
             with(s, |st| st.copy_budget_year(from, to))
         })(),
         "import_budget" => (|| {
-            let (year, projects): (i64, Vec<BudgetImportProject>) = (a.id("year")?, a.get("projects")?);
-            with(s, |st| st.import_budget(year, &projects))
+            let (year, projects, replace): (i64, Vec<BudgetImportProject>, bool) = (a.id("year")?, a.get("projects")?, a.get::<Option<bool>>("replace")?.unwrap_or(false));
+            with(s, |st| st.import_budget(year, &projects, replace))
         })(),
         "budget_excel_write" => (|| {
             let (path, data): (String, BudgetExport) = (a.s("path")?, a.get("data")?);
