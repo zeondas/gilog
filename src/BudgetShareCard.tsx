@@ -1,6 +1,6 @@
 // 설정 › 모듈별 › 집행현황 카드 – 팀 공유(2026-10-20 사용자, 시안 BudgetShare.dc.html ③·④)
-// 공유 켜기 · 공유 시트(호스트는 [새로 만들기], 팀원은 주소 붙여 넣고 [연결]) · 함께 쓰는 사람(누구나 더하기·빼기·두 번 눌러 고치기,
-// 권한은 호스트 앱이 새로고침 때 반영) · 고친 사람 이름 · 마지막 새로고침.
+// 공유 켜기 · 공유 시트(호스트는 [새로 만들기]·[공유 끝내기], 팀원은 주소 붙여 넣고 [연결]·[공유에서 나가기]) ·
+// 함께 쓰는 사람(누구나 더하기·두 번 눌러 고치기, 내보내기는 호스트만 – 2026-10-30 ②2안) · 고친 사람 이름 · 마지막 새로고침.
 import { KeyboardEvent, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { inApp } from "./api";
@@ -9,12 +9,15 @@ import {
   backupInfo,
   createSheet,
   editPerson,
+  endShare,
   grantHostScope,
   joinSheet,
+  leaveShare,
   offerHost,
   onShare,
   Person,
   refreshShare,
+  reloginShare,
   removePerson,
   restoreBackup,
   setShareOn,
@@ -37,7 +40,7 @@ export function BudgetShareRows({ myName }: { myName: string }) {
   const [wait, setWait] = useState(false);
   const [edit, setEdit] = useState<{ no: number; name: string; mail: string } | null>(null);
   const [add, setAdd] = useState({ name: "", mail: "" });
-  const [ask, setAsk] = useState<{ t: "remove" | "new"; no: number } | null>(null);
+  const [ask, setAsk] = useState<{ t: "remove" | "new" | "leave"; no: number } | null>(null);
   const [hostPick, setHostPick] = useState(false);
   const [backup, setBackup] = useState<{ at: string; n: number } | null>(null);
   // 시험용 두 번째 기록(2026-10-25 사용자 – 한 PC에서 두 구글 계정으로 팀 공유 시험): 이 창이 시험 창이면 그 이름("B")
@@ -134,7 +137,7 @@ export function BudgetShareRows({ myName }: { myName: string }) {
       <div key={p.no} className="bs-p" onDoubleClick={() => !wait && setEdit({ no: p.no, name: p.name, mail: p.mail })} title="두 번 누르면 이름·메일을 고쳐요">
         <span className="bs-pn">{p.name || "(이름 없음)"}</span>
         <span className="bs-pm">{p.mail}</span>
-        <span className="bs-st2">{asking ? <span className="bs-tag ask">명단에서 뺄까요?</span> : tag(p)}</span>
+        <span className="bs-st2">{asking ? <span className="bs-tag ask">내보낼까요?</span> : tag(p)}</span>
         <span className="bs-act">
           {p.no === conf.host ? (
             isHost && (
@@ -149,18 +152,18 @@ export function BudgetShareRows({ myName }: { myName: string }) {
                 className="btn-danger btn-xs"
                 onClick={() => {
                   setAsk(null);
-                  void act(() => removePerson(p.no), "뺐어요 – 호스트 앱이 다음 새로고침 때 권한을 거둬요");
+                  void act(() => removePerson(p.no), "내보냈어요 – 시트 권한을 거뒀어요");
                 }}
               >
-                빼기
+                내보내기
               </button>
               <button type="button" className="btn btn-xs" onClick={() => setAsk(null)}>
                 취소
               </button>
             </>
           ) : (
-            p.no !== conf.me && (
-              <button type="button" className="bs-x" aria-label={`${p.name} 빼기`} title="명단에서 빼기" disabled={wait} onClick={() => setAsk({ t: "remove", no: p.no })} onDoubleClick={(e) => e.stopPropagation()}>
+            isHost && (
+              <button type="button" className="bs-x" aria-label={`${p.name} 내보내기`} title="내보내기(시트 권한을 거둬요)" disabled={wait} onClick={() => setAsk({ t: "remove", no: p.no })} onDoubleClick={(e) => e.stopPropagation()}>
                 ×
               </button>
             )
@@ -193,6 +196,16 @@ export function BudgetShareRows({ myName }: { myName: string }) {
         </span>
       </button>
 
+      {!conf.on && !conf.sheet && conf.error && (
+        <p className="bs-warn small" role="status">
+          {conf.error}
+        </p>
+      )}
+      {!conf.on && msg && !conf.error && (
+        <p className="bs-warn small" role="status">
+          {msg}
+        </p>
+      )}
       {!conf.on && backup && (
         <div className="row">
           <span className="row-text">
@@ -289,6 +302,48 @@ export function BudgetShareRows({ myName }: { myName: string }) {
           </div>
           {ask?.t === "new" && ask.no === 0 && <p className="bs-warn small">새 시트를 만들면 지금 시트와 끊기고 내가 호스트가 돼요. 팀원은 새 주소로 다시 연결해야 해요.</p>}
 
+          {joined && (
+            <div className="row" data-k="공유 끝내기 공유에서 나가기 연결 끊기">
+              <span className="row-text">
+                <span className="row-label">{isHost ? "공유 끝내기" : "공유에서 나가기"}</span>
+                <span className="muted small">
+                  {isHost
+                    ? "팀원 모두의 시트 권한을 거두고 공유를 끝내요. 팀이 계속 쓰려면 끝내지 말고 [호스트 넘기기]를 해 주세요."
+                    : "명단에서 나를 빼고 이 PC의 공유 연결을 끊어요."}{" "}
+                  내 집행현황은 그대로예요.
+                </span>
+              </span>
+              {ask?.t === "leave" ? (
+                <span className="bs-dir">
+                  <span className="bs-tag ask">{isHost ? (shown.length > 1 ? `공유를 끝낼까요? 팀원 ${shown.length - 1}명도 끊겨요` : "공유를 끝낼까요?") : "공유에서 나갈까요?"}</span>
+                  <button
+                    type="button"
+                    className="btn-danger btn-xs"
+                    autoFocus
+                    onKeyDown={(e) => e.key === "Escape" && setAsk(null)}
+                    onClick={() => {
+                      setAsk(null);
+                      if (isHost) void act(endShare, "", "공유를 끝내는 중이에요");
+                      else void act(async () => {
+                        const r = await leaveShare();
+                        if (!r.marked) setMsg("나갔어요 – 시트에 표시하지 못했으니 호스트에게 명단에서 빼 달라고 하세요");
+                      }, "", "나가는 중이에요");
+                    }}
+                  >
+                    {isHost ? "끝내기" : "나가기"}
+                  </button>
+                  <button type="button" className="btn btn-xs" onClick={() => setAsk(null)}>
+                    취소
+                  </button>
+                </span>
+              ) : (
+                <button type="button" className="btn btn-xs" disabled={wait} onClick={() => setAsk({ t: "leave", no: 0 })}>
+                  {isHost ? "공유 끝내기" : "나가기"}
+                </button>
+              )}
+            </div>
+          )}
+
           {takeOffered && conf.take === conf.me && (
             <div className="row bs-take">
               <span className="row-text">
@@ -307,7 +362,7 @@ export function BudgetShareRows({ myName }: { myName: string }) {
                 <span className="row-text">
                   <span className="row-label">함께 쓰는 사람</span>
                   <span className="muted small">
-                    더한 구글 계정만 시트를 열 수 있어요. 누구나 더하고 빼고, 권한은 호스트 앱이 다음 새로고침 때 반영해요. 이 명단에서 세부사업 담당(한 명)을 골라요.
+                    더한 구글 계정만 시트를 열 수 있어요. 누구나 더하고, 내보내기는 호스트가 해요. 이 명단에서 세부사업 담당(한 명)을 골라요.
                   </span>
                 </span>
               </div>
@@ -377,7 +432,16 @@ export function BudgetShareRows({ myName }: { myName: string }) {
                   {conf.up || conf.down ? `올림 ${shortTime(conf.up) || "–"} · 받음 ${shortTime(conf.down) || "–"}` : "아직 새로고침 전"} · 함께 쓰는 사람 {shown.length}명
                 </span>
               </div>
-              {conf.error && <p className="bs-warn bad small">{conf.error}</p>}
+              {conf.error && (
+                <p className="bs-warn bad small">
+                  {conf.error}{" "}
+                  {conf.error.includes("다시 로그인") && (
+                    <button type="button" className="link-btn" disabled={wait} onClick={() => void act(reloginShare, "다시 로그인했어요", "브라우저에서 구글 로그인을 마쳐 주세요")}>
+                      다시 로그인
+                    </button>
+                  )}
+                </p>
+              )}
               {st.last?.note && (
                 <p className="bs-warn small">
                   {st.last.note}{" "}
@@ -390,7 +454,7 @@ export function BudgetShareRows({ myName }: { myName: string }) {
               )}
             </>
           )}
-          {msg && (
+          {msg && msg !== conf.error && (
             <p className="bs-warn small" role="status">
               {msg}
             </p>
