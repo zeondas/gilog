@@ -327,12 +327,11 @@ async def s_settings_calendar(p):
 
 
 async def s_settings_clear(p):
-    # 설정 맨 아래 "자료 지우기"(2026-10-30 설정 ✔1) – 스위치를 켠 모습
+    # 설정 "자료 지우기"(2026-10-30 설정 ✔1, 정보 카드 바로 위) – 스위치를 켠 모습
     card = p.locator("section[aria-label='자료 지우기']").first
     await card.locator("[role=switch]").click()
     await p.wait_for_timeout(300)
-    await card.scroll_into_view_if_needed()
-    await p.evaluate("() => document.querySelector('.main').scrollTo(0, 99999)")
+    await p.evaluate("() => document.querySelector(\"section[aria-label='자료 지우기']\").scrollIntoView({ block: 'end' })")
     await p.wait_for_timeout(200)
 
 
@@ -340,7 +339,7 @@ async def s_settings_clear_ask(p):
     # 집행현황 줄의 "정말 지울까요?" 띠
     await s_settings_clear(p)
     await p.locator("[data-clear='budget'] .clr-btn").click()
-    await p.evaluate("() => document.querySelector('.main').scrollTo(0, 99999)")
+    await p.evaluate("() => document.querySelector(\"section[aria-label='자료 지우기']\").scrollIntoView({ block: 'end' })")
     await p.wait_for_timeout(200)
 
 

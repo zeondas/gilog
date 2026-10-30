@@ -442,6 +442,9 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
         </ModuleCard>
       ))}
 
+      {/* "자료 지우기"는 정보 바로 위(2026-10-30 설정 ✔1·13:29 사용자) – 스위치는 저장하지 않아 설정을 나가면 꺼져요 */}
+      <ClearCard setNote={setNote} />
+
       <h2 className="set-sec">정보</h2>
       <section className="card" aria-label="정보" data-k="정보 버전 개발자 이메일">
         <div className="about">
@@ -457,8 +460,6 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
           </div>
         </div>
       </section>
-      {/* 맨 아래 "자료 지우기"(2026-10-30 설정 ✔1) – 스위치는 저장하지 않아 설정을 나가면 꺼져요 */}
-      <ClearCard setNote={setNote} />
         {q.trim() && found === 0 && <p className="set-none">“{q.trim()}”에 맞는 설정이 없어요.</p>}
       </div>
       {scrolled && (
