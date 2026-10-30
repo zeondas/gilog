@@ -4,6 +4,7 @@ import { plainOf } from "./bullets";
 import { parseMemo } from "./screens/contacts/parts";
 import { initials, isChosung, koIndex, splitJamo } from "./journal";
 import { isAnswered } from "./settingsStore";
+import { workDaysBetween } from "./workdays";
 
 /** 2026-10-15 두 날짜 사이의 날 수 (to - from) */
 export function daysBetween(from: string, to: string): number {
@@ -14,10 +15,10 @@ export function daysBetween(from: string, to: string): number {
   return Math.round((d(to) - d(from)) / 86_400_000);
 }
 
-/** 남은 날. 마감이 없거나 완료면 null이에요. */
+/** 남은 날 – 근무일로(토·일·공휴일 빼고, 국민신문고와 같게 2026-10-30). 마감이 없거나 완료면 null이에요. */
 export function daysLeft(c: Pick<Complaint, "due" | "status">, today: string): number | null {
   if (!c.due || isAnswered(c.status)) return null;
-  return daysBetween(today, c.due);
+  return workDaysBetween(today, c.due);
 }
 
 /** 접수일부터 조치완료일까지 걸린 날(조치완료일 − 접수일). 둘 중 하나라도 없거나 거꾸로면 null이에요. */

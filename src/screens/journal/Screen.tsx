@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, changeHooks, Complaint, ContactsData, DayInfo, Entry, EntryInput, errorText, JournalData, Task, TaskList, TasksData } from "../../api";
 import { firstLineOf } from "../../bullets";
-import { daysBetween, daysLeft, ddayText, dueSoon, isUrgent } from "../../complaints";
+import { daysLeft, ddayText, dueSoon, isUrgent } from "../../complaints";
 import { tasksDueSoon } from "../../tasks";
+import { useHolidays, workDaysBetween } from "../../workdays";
 import { dayTitle, sortEntries, todayStr } from "../../journal";
 import { ExcelMenu } from "../../ExcelMenu";
 import { journalDayRows, journalImports, journalRows } from "../../excel";
@@ -30,6 +31,8 @@ export default function JournalScreen({
   const [myName, setMyName] = useState(DEFAULT_SETTINGS.myName);
   const [kinds, setKinds] = useState<Kind[]>(DEFAULT_SETTINGS.kinds);
   const [today, setToday] = useState(todayStr());
+  // 공휴일 목록이 바뀌면 남은 날(근무일)을 다시 세요.
+  useHolidays();
   const [day, setDay] = useState(today);
   const [q, setQ] = useState("");
   const [onlyHits, setOnlyHits] = useState(false);
@@ -404,7 +407,7 @@ function DueList({
           );
         }
         const task = t!;
-        const n = daysBetween(today, task.due);
+        const n = workDaysBetween(today, task.due);
         const listName = lists.find((l) => l.id === task.list)?.name ?? "";
         return (
           <button key={"t" + task.id} type="button" className="jn-due-item" title="할 일 목록에서 보기" onClick={() => onOpenTask?.(task.id)}>

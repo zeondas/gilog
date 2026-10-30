@@ -14,7 +14,7 @@
 import { createPortal } from "react-dom";
 import { CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, Case, Complaint, ContactsData, errorText, inApp, Order, OrderResult, previewInbox, RunStatus, Work, WorkInput } from "../../api";
-import { daysBetween } from "../../complaints";
+import { useHolidays, workDaysBetween } from "../../workdays";
 import { padX, useColHead, widestOf } from "../../ColHead";
 import type { ColDef } from "../../cols";
 import { plainOf } from "../../bullets";
@@ -60,6 +60,8 @@ const stamp = () => {
 };
 
 export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
+  // 공휴일 목록이 바뀌면 남은 날(근무일)을 다시 세요.
+  useHolidays();
   const [works, setWorks] = useState<Work[] | null>(null);
   const [cases, setCases] = useState<Case[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -795,7 +797,7 @@ export default function ProcessScreen({ urgentDays, onOpenComplaint }: Props) {
     const w = works.find((x) => x.id === c.work);
     const na = c.work === NA_WORK;
     const isD = isDone(c);
-    const left = c.due ? daysBetween(today, c.due) : null;
+    const left = c.due ? workDaysBetween(today, c.due) : null;
     const k = workColor(w, cd);
     const o = orderOf(c);
     const b = o ? busy[o.id] : undefined;

@@ -14,6 +14,7 @@ import { SearchBox } from "../../SearchBox";
 import { ItemRow, ListPanel } from "./Table";
 import { ListMenu } from "./Menu";
 import { AddForm } from "./Dialogs";
+import { useHolidays } from "../../workdays";
 
 
 /** 체크 움직임 시간(ms) – styles/*.css `.td-check.pop`의 td-check-pop과 같게 */
@@ -34,6 +35,8 @@ export default function TasksScreen({ urgentDays, focusId, onFocused, onOpenComp
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [statuses, setStatuses] = useState<string[]>(DEFAULT_SETTINGS.status);
   const [today, setToday] = useState(todayStr());
+  // 공휴일 목록이 바뀌면 남은 날(근무일)을 다시 세요.
+  useHolidays();
   const [q, setQ] = useState("");
   const [note, setNote] = useState("");
   /** 골라 둔(한 번 누른) 항목. 세부정보가 펼쳐져요. */

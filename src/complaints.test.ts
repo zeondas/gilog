@@ -15,7 +15,8 @@ describe("남은 날", () => {
     expect(daysBetween("2026-12-31", "2027-01-01")).toBe(1);
   });
   test("daysLeft – 마감이 없거나 답변이 끝났으면 null", () => {
-    expect(daysLeft(C({ due: "2026-10-20" }), "2026-10-15")).toBe(5);
+    // 근무일(2026-10-30 사용자): 10-15(목) → 10-20(화) = 16·19·20일
+    expect(daysLeft(C({ due: "2026-10-20" }), "2026-10-15")).toBe(3);
     expect(daysLeft(C({ due: "" }), "2026-10-15")).toBeNull();
     // 결정 로그 10-25 20:13: "진행"도 답변이 끝난 상태
     for (const s of ["진행", "답변", "완료", "보류", "장기"]) expect(daysLeft(C({ due: "2026-10-20", status: s }), "2026-10-15")).toBeNull();
@@ -38,7 +39,8 @@ describe("남은 날", () => {
       C({ id: 4, no: 4, due: "2026-10-22", status: "답변" }),
       C({ id: 5, no: 0, due: "2026-10-22" }),
     ];
-    expect(dueSoon(list, "2026-10-15").map((c) => c.id)).toEqual([3, 5, 1]);
+    // 7근무일 안: 10-23(금)은 6근무일이라 들어와요(2026-10-30 근무일 셈)
+    expect(dueSoon(list, "2026-10-15").map((c) => c.id)).toEqual([3, 5, 1, 2]);
   });
 });
 
