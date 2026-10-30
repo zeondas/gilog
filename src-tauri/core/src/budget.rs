@@ -603,9 +603,19 @@ impl Store {
     /// 그 해 안에서 세부사업 → 부기사업 → 공사를 차례로 이름으로 맞춰요(같은 이름이 여럿이면 앞에서부터 하나씩).
     /// 맞으면 파일 값으로 바꾸고(예산은 파일 칸이 비면 그대로, 메모는 파일 메모가 비면 그대로), 없으면 맨 아래에 더해요.
     /// 파일에 없는 것은 그대로 둬요. 돌려주는 값: (그 해 전체, 공사 덮어쓰기 수, 공사 새로 더하기 수).
-    pub fn import_budget(&mut self, year: i64, list: &[BudgetImportProject]) -> Result<(Vec<BudgetProject>, usize, usize)> {
-        let have = read_year(&self.conn, year)?;
+    /// replace(대체하기, 2026-10-30 사용자 ①1안): 그 해의 세부사업·부기사업·공사를 먼저 모두 지우고 파일 내용만 넣어요(같은 트랜잭션).
+    /// 다른 해는 그대로예요.
+    pub fn import_budget(&mut self, year: i64, list: &[BudgetImportProject], replace: bool) -> Result<(Vec<BudgetProject>, usize, usize)> {
+        let have = if replace { Vec::new() } else { read_year(&self.conn, year)? };
         let tx = self.conn.transaction()?;
+        if replace {
+            tx.execute(
+                "DELETE FROM budget_rows WHERE item IN (SELECT i.id FROM budget_items i JOIN budget_projects p ON i.project = p.id WHERE p.year = ?1)",
+                params![year],
+            )?;
+            tx.execute("DELETE FROM budget_items WHERE project IN (SELECT id FROM budget_projects WHERE year = ?1)", params![year])?;
+            tx.execute("DELETE FROM budget_projects WHERE year = ?1", params![year])?;
+        }
         let mut ord: i64 = tx.query_row("SELECT COALESCE(MAX(ord), -1) + 1 FROM budget_projects WHERE year = ?1", params![year], |r| r.get(0))?;
         let (mut upd, mut add) = (0usize, 0usize);
         let mut used_p: Vec<i64> = Vec::new();
@@ -972,7 +982,7 @@ mod tests {
         assert_eq!(y[0].items[0].memo, "<ul><li>메모</li></ul>");
         let y = s.set_budget_open(BudgetLevel::Project, a, false, true).unwrap();
         assert!(y[0].open && !y[0].items[0].open);
-        s.import_budget(2025, &[BudgetImportProject { name: "(명시이월) 다".into(), carry: true, ..Default::default() }]).unwrap();
+        s.import_budget(2025, &[BudgetImportProject { name: "(명시이월) 다".into(), carry: true, ..Default::default() }], false).unwrap();
         // 복사: 이월·공사 빼고 이름·예산만
         let y = s.copy_budget_year(2025, 2026).unwrap();
         assert_eq!(y.len(), 1);
@@ -993,6 +1003,7 @@ mod tests {
                     }],
                     ..Default::default()
                 }, BudgetImportProject { name: "마".into(), ..Default::default() }],
+                false,
             )
             .unwrap();
         assert_eq!(n, 1);
@@ -1015,7 +1026,7 @@ mod tests {
                 ..Default::default()
             }]
         };
-        let (_, u, a) = s.import_budget(2026, &file(vec![r("가", "관급", "대원", 100, ""), r("나", "공사", "영진", 200, "")], Some(1_000_000_000))).unwrap();
+        let (_, u, a) = s.import_budget(2026, &file(vec![r("가", "관급", "대원", 100, ""), r("나", "공사", "영진", 200, "")], Some(1_000_000_000)), false).unwrap();
         assert_eq!((u, a), (0, 2));
         // 앱에서 더한 공사·메모
         let y = s.budget_data(2026).unwrap();
@@ -1024,7 +1035,7 @@ mod tests {
         let ga = y[0].items[0].rows[0].id;
         s.set_budget_memo(BudgetLevel::Row, ga, "<p>앱 메모</p>").unwrap();
         // 다시 가져오기: 가는 값이 바뀌고(메모 그대로), 다는 새로, 나·앱에서 더함은 그대로, 예산 칸이 비면 그대로
-        let (y, u, a) = s.import_budget(2026, &file(vec![r("가", "공사", "한양", 300, ""), r("다", "용역", "", 400, "")], None)).unwrap();
+        let (y, u, a) = s.import_budget(2026, &file(vec![r("가", "공사", "한양", 300, ""), r("다", "용역", "", 400, "")], None), false).unwrap();
         assert_eq!((u, a), (1, 1));
         assert_eq!(y.len(), 1);
         assert_eq!(y[0].budget, Some(1_000_000_000));
@@ -1033,8 +1044,34 @@ mod tests {
         assert_eq!(rows, [("가", "공사", "한양", 300), ("나", "공사", "영진", 200), ("앱에서 더함", "공사", "", 50), ("다", "용역", "", 400)]);
         assert_eq!(y[0].items[0].rows[0].memo, "<p>앱 메모</p>");
         // 같은 이름이 둘이면 앞에서부터 하나씩 맞춰요
-        let (y, u, a) = s.import_budget(2026, &file(vec![r("나", "공사", "", 10, ""), r("나", "공사", "", 20, "")], None)).unwrap();
+        let (y, u, a) = s.import_budget(2026, &file(vec![r("나", "공사", "", 10, ""), r("나", "공사", "", 20, "")], None), false).unwrap();
         assert_eq!((u, a), (1, 1));
         assert_eq!(y[0].items[0].rows.iter().filter(|x| x.name == "나").map(|x| x.cmt).collect::<Vec<_>>(), [10, 20]);
+    }
+
+    /// 2026-10-30 사용자 ①1안: 대체하기는 그 해만 지우고 파일 내용만 남겨요(다른 해는 그대로).
+    #[test]
+    fn import_replace_clears_only_that_year() {
+        let (_d, mut s) = store();
+        let one = |p: &str, r: &str| {
+            vec![BudgetImportProject {
+                name: p.into(),
+                items: vec![BudgetImportItem { name: "시도".into(), rows: vec![BudgetImportRow { input: row(r, 100), memo: "".into() }], ..Default::default() }],
+                ..Default::default()
+            }]
+        };
+        s.import_budget(2025, &one("지난해", "옛 공사"), false).unwrap();
+        s.import_budget(2026, &one("도로포장", "가"), false).unwrap();
+        let it = s.budget_data(2026).unwrap()[0].items[0].id;
+        s.save_budget_row(it, None, &row("앱에서 더함", 50)).unwrap();
+        let (y, u, a) = s.import_budget(2026, &one("배수", "새 공사"), true).unwrap();
+        assert_eq!((u, a), (0, 1));
+        assert_eq!(y.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(), ["배수"]);
+        assert_eq!(y[0].items[0].rows.iter().map(|r| r.name.as_str()).collect::<Vec<_>>(), ["새 공사"]);
+        let prev = s.budget_data(2025).unwrap();
+        assert_eq!((prev.len(), prev[0].items[0].rows[0].name.as_str()), (1, "옛 공사"));
+        // 빈 파일로 대체하면 그 해가 비어요
+        let (y, _, _) = s.import_budget(2026, &[], true).unwrap();
+        assert!(y.is_empty());
     }
 }

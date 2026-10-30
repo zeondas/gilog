@@ -2,7 +2,7 @@
 import { api, errorText, inApp } from "../../api";
 import { BudgetProject, memoToText } from "../../budget";
 import { parseBudgetBook, planImport } from "../../budgetExcel";
-import { dirOf, DIR_KEY, joinPath, lastDir } from "../../ExcelMenu";
+import { dirOf, DIR_KEY, ImportMode, joinPath, lastDir } from "../../ExcelMenu";
 import { todayStr } from "../../journal";
 import type { useBudgetCore } from "./Screen";
 
@@ -63,12 +63,19 @@ export function useBudgetExcel(c: ReturnType<typeof useBudgetCore>) {
   };
 
   const askPlan = ask ? planImport(list, ask.projects) : { upd: 0, add: 0 };
-  const doImport = async () => {
+  // mode: 덮어쓰기(merge) · 대체하기(replace – 보고 있는 해만 지우고 파일 내용으로, 2026-10-30 ✔1)
+  const doImport = async (mode: ImportMode = "merge") => {
     if (!ask) return;
     try {
-      const [y, u, n] = await api.importBudget(year, ask.projects);
+      const [y, u, n] = await api.importBudget(year, ask.projects, mode === "replace");
       setData(y);
-      setToast(u ? `공사 ${u}건을 덮어쓰고 ${n}건을 더했어요` : `세부사업 ${ask.projects.length}개 · 공사 ${n}건을 가져왔어요`);
+      setToast(
+        mode === "replace"
+          ? `${year}년을 대체해 세부사업 ${ask.projects.length}개 · 공사 ${n}건을 가져왔어요`
+          : u
+            ? `공사 ${u}건을 덮어쓰고 ${n}건을 더했어요`
+            : `세부사업 ${ask.projects.length}개 · 공사 ${n}건을 가져왔어요`,
+      );
     } catch (e) {
       setToast(e === "invalid" ? "가져올 수 없는 줄이 있어요(금액·이름 확인)" : errorText(e));
     }

@@ -7,6 +7,7 @@
 //   구분·집행률·단계·메모는 고정 폭. 모든 줄이 같은 px 틀을 써요(세부사업 열을 1fr로 두면 긴 이름 줄만 넓어져 열이 밀려요).
 // - 금액 단위 원/천원(천원은 반올림한 정수만 보여요, 저장은 늘 원). 손대지 않은 금액 칸은 원래 원 값 그대로 저장해요.
 import { DialogX } from "../../DialogX";
+import { ImportMode, ImportSteps } from "../../ExcelMenu";
 import { MouseEvent as RMouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, ContactsData, errorText } from "../../api";
 import {
@@ -417,6 +418,12 @@ export default function BudgetScreen() {
   const c7 = useBudgetPop(c6);
   const c8 = useBudgetHead(c7);
   const { data, note, rootRef, cols, year, changeYear, shareOn, share, doRefresh, setGotOpen, view, setView, unit, setUnit, sel, startAdd, newProject, qInput, q, setQ, pop, setPop, bandShown, cfs, last, setBandOff, shareStyle, colStyle, csStyle, scroller, colh, head, openCf, pickCell, rowsOut, list, form, importExcel, copyPrev, cs, csN, csSum, won, csDiff, setCs, popRef, popPos, popBody, bsSend, bsSetups, saveBs, setBsSend, setToast, setData, ask, setAsk, askPlan, doImport, gotOpen, people, jumpGot, toast } = c8;
+  // 가져오기 창: 덮어쓰기/대체하기 고르기(2026-10-30 ✔1 – 민원대장 엑셀 창과 같은 단계). 파일을 새로 고르면 처음 단계로.
+  const [importStep, setImportStep] = useState<"pick" | ImportMode>("pick");
+  const [importBusy, setImportBusy] = useState(false);
+  useEffect(() => {
+    if (ask) setImportStep("pick");
+  }, [ask]);
 
   if (!data) {
     return (
@@ -663,37 +670,36 @@ export default function BudgetScreen() {
         <div className="overlay" onMouseDown={overlayDown(() => setAsk(null))}>
           <div className="dialog xl-ask" role="dialog" aria-modal="true" aria-label="엑셀 가져오기">
             <DialogX label="닫기(가져오지 않음)" onClick={() => setAsk(null)} />
-            <div className="xl-ask-body">
-              <h2 className="xl-ask-title">
-                {!ask.projects.length
-                  ? "가져올 줄이 없어요"
-                  : askPlan.upd
-                    ? `${year}년에 덮어쓰기 ${askPlan.upd}건 · 새로 더하기 ${askPlan.add}건`
-                    : `세부사업 ${ask.projects.length}개 · 공사 ${ask.rows}건을 ${year}년에 가져올까요?`}
-              </h2>
-              <div className="xl-ask-path">
-                {ask.path} · 시트 "{ask.sheet}" · 단위 {ask.unit === 1 ? "원" : "천원"}
-                {askPlan.upd > 0 && " · 같은 이름 공사는 파일 값으로 바꾸고, 파일에 없는 공사·메모는 그대로 둬요"}
-              </div>
-              {ask.checks.length > 0 && (
-                <ul className="bd-checks">
-                  {ask.checks.slice(0, 6).map((c) => (
-                    <li key={c}>{c}</li>
-                  ))}
-                  {ask.checks.length > 6 && <li>그 밖에 {ask.checks.length - 6}건</li>}
-                </ul>
-              )}
-            </div>
-            <div className="xl-ask-foot">
-              <button type="button" className="btn btn-ctrl btn-text" onClick={() => setAsk(null)}>
-                취소
-              </button>
-              {ask.projects.length > 0 && (
-                <button type="button" className="btn-primary btn-ctrl" autoFocus onClick={() => void doImport()}>
-                  가져오기
-                </button>
-              )}
-            </div>
+            <ImportSteps
+              title={`${year}년 집행현황`}
+              heading={`${year}년 집행현황 – ${ask.rows ? "공사" : "세부사업"} ${(ask.rows || ask.projects.length).toLocaleString()}건을 어떻게 가져올까요?`}
+              noun={ask.rows ? "공사" : "세부사업"}
+              n={ask.rows || ask.projects.length}
+              path={ask.path}
+              note={
+                <>
+                  시트 "{ask.sheet}" · 단위 {ask.unit === 1 ? "원" : "천원"}
+                  {ask.checks.length > 0 && (
+                    <ul className="bd-checks">
+                      {ask.checks.slice(0, 6).map((c) => (
+                        <li key={c}>{c}</li>
+                      ))}
+                      {ask.checks.length > 6 && <li>그 밖에 {ask.checks.length - 6}건</li>}
+                    </ul>
+                  )}
+                </>
+              }
+              step={importStep}
+              stats={ask.rows ? { same: askPlan.upd, total: list.reduce((a, p) => a + p.items.reduce((b, it) => b + it.rows.length, 0), 0) } : null}
+              busy={importBusy}
+              onStep={setImportStep}
+              onCancel={() => setAsk(null)}
+              onGo={() => {
+                setImportBusy(true);
+                void doImport(importStep === "replace" ? "replace" : "merge").finally(() => setImportBusy(false));
+              }}
+              warn={shareOn ? "팀 공유 중이에요 – 지운 줄은 다음 새로고침 때 공유 시트에도 지움 표시가 가요." : undefined}
+            />
           </div>
         </div>
       )}
