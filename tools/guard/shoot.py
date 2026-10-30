@@ -326,6 +326,24 @@ async def s_settings_calendar(p):
 
 
 
+async def s_settings_clear(p):
+    # 설정 맨 아래 "자료 지우기"(2026-10-30 설정 ✔1) – 스위치를 켠 모습
+    card = p.locator("section[aria-label='자료 지우기']").first
+    await card.locator("[role=switch]").click()
+    await p.wait_for_timeout(300)
+    await card.scroll_into_view_if_needed()
+    await p.evaluate("() => document.querySelector('.main').scrollTo(0, 99999)")
+    await p.wait_for_timeout(200)
+
+
+async def s_settings_clear_ask(p):
+    # 집행현황 줄의 "정말 지울까요?" 띠
+    await s_settings_clear(p)
+    await p.locator("[data-clear='budget'] .clr-btn").click()
+    await p.evaluate("() => document.querySelector('.main').scrollTo(0, 99999)")
+    await p.wait_for_timeout(200)
+
+
 # ---------- 매뉴얼 장면(2026-10-26 매뉴얼 세션 – 창이 열린 모습) ----------
 async def s_process_works(p):
     await p.locator("button", has_text="공사 관리").first.click()
@@ -439,6 +457,8 @@ SCENES.update({
     "files_viewmenu": ("탐색기", s_files_viewmenu),
     "settings_files": ("설정", s_settings_files),
     "settings_calendar": ("설정", s_settings_calendar),
+    "settings_clear": ("설정", s_settings_clear),
+    "settings_clear_ask": ("설정", s_settings_clear_ask),
 })
 
 

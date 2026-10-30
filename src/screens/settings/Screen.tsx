@@ -9,6 +9,7 @@ import { VERSION } from "../../version";
 import { setKeyMap } from "../../keys";
 import { ModulesCard, ModuleCard, KeysCard, GoogleRows, FilesRows, ListGroup, ListMerge, KindsGroup, PinRow, FolderRow, AutoBackupRow, BackupRow, AddressRows, ProcessRows } from "./Table";
 import { PasswordChange } from "./Dialogs";
+import { ClearCard } from "./Clear";
 import { Row, Toggle, X } from "./parts";
 
 /** 화면 크기 단계(2026-10-21 화면 배율, 사용자 ② 1안) – 값은 prefs.fontSize 그대로, 13 = 100% */
@@ -456,6 +457,8 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
           </div>
         </div>
       </section>
+      {/* 맨 아래 "자료 지우기"(2026-10-30 설정 ✔1) – 스위치는 저장하지 않아 설정을 나가면 꺼져요 */}
+      <ClearCard setNote={setNote} />
         {q.trim() && found === 0 && <p className="set-none">“{q.trim()}”에 맞는 설정이 없어요.</p>}
       </div>
       {scrolled && (

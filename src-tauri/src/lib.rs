@@ -484,6 +484,19 @@ fn clear_journal(state: State<AppState>) -> Result<usize, String> {
     with_store(&state, |s| s.clear_journal())
 }
 
+// ---------- 자료 지우기(설정 ✔1, 2026-10-30) ----------
+// 화면마다 지금 건수, 그리고 지우기(지우기 전 backup\gilog_날짜_before-clear.gilogbak을 남기고 한 트랜잭션).
+
+#[tauri::command]
+fn clear_counts(state: State<AppState>, year: i64) -> Result<gilog_core::ClearCounts, String> {
+    with_store(&state, |s| s.clear_counts(year))
+}
+
+#[tauri::command]
+fn clear_data(state: State<AppState>, what: String, year: Option<i64>) -> Result<gilog_core::Cleared, String> {
+    with_store(&state, |s| s.clear(gilog_core::ClearWhat::parse(&what, year)?))
+}
+
 #[tauri::command]
 fn set_journal_day(state: State<AppState>, day: DayInfo) -> Result<DayInfo, String> {
     with_store(&state, |s| s.set_day(&day))
@@ -812,6 +825,8 @@ pub fn run() {
             set_journal_day,
             delete_journal_day,
             clear_journal,
+            clear_counts,
+            clear_data,
             complaints,
             add_complaint,
             update_complaint,

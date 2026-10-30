@@ -49,6 +49,9 @@ pub const BROWSER: &[&str] = &[
     "set_journal_day",
     "delete_journal_day",
     "clear_journal",
+    // 자료 지우기(설정)
+    "clear_counts",
+    "clear_data",
     // 민원대장
     "complaints",
     "add_complaint",
@@ -281,6 +284,14 @@ pub(crate) fn browser(s: &mut Session, cmd: &str, a: &Args) -> Option<Result<Val
             with(s, |st| st.delete_day(&date))
         })(),
         "clear_journal" => with(s, |st| st.clear_journal()),
+        "clear_counts" => (|| {
+            let year = a.id("year")?;
+            with(s, |st| st.clear_counts(year))
+        })(),
+        "clear_data" => (|| {
+            let (what, year): (String, Option<i64>) = (a.s("what")?, a.get("year")?);
+            with(s, |st| st.clear(gilog_core::ClearWhat::parse(&what, year)?))
+        })(),
         "set_journal_day" => (|| {
             let day: DayInfo = a.get("day")?;
             with(s, |st| st.set_day(&day))
