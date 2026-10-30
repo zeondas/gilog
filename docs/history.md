@@ -5,6 +5,11 @@
 ## 버전별 — 들어간 것 · 시험 항목
 사용자 "통과"는 0.11.0~0.27.0 모두 기다려요(빌드 줄). 시험 항목은 윈도우에서만 볼 수 있는 것이에요.
 
+### 0.60.0(build-80) — 미리 보기 도구 옮기기(②-3 3차, 마지막)
+- 들어간 것: core-wasm 3차(fe108b3) – 품질 보완 ②-3 마지막: 부하 시험·align·예산현황 seed를 실제 명령으로, 옛 흉내 도구(align measure·run2) 삭제, `tools/guard/README.md` "미리 보기 = WASM core", loadtest.md "0.59.0 진짜 규칙" 줄, 지킴이 `complaints_edit_ask`를 연번과 상관없게 – 앱 소스·설치 파일 변화 없음
+- ②-3 전체 요약: 1차 0.58.0(rusqlite 0.41·`Store::memory`·자료 파일 고정 시험·엑셀 바이트) → 2차 0.59.0(미리 보기가 진짜 규칙 WASM, `api.ts` 흉내 삭제, 지킴이 연번 24장면 새 기준) → 3차 0.60.0(부하·정렬·seed 도구 옮기기). 윈도우 앱 동작은 세 번 모두 그대로
+- 시험: 설치 뒤 평소처럼 열리고 쓰이는지
+
 ### 0.59.0(build-79) — 미리 보기 진짜 규칙(②-3 2차)
 - 들어간 것: core-wasm 2차(8fe531c) – 품질 보완 ②-3 2차: 브라우저 미리 보기가 흉내 대신 진짜 Rust 규칙(WASM)을 씀 – 새 크레이트 `src-tauri/core-wasm`(명령 짝 표·자리 표시자·맞춤 시험), 엑셀 가짜 드라이브, `npm run build:wasm`(`src/wasm-pkg/`, 앱 빌드는 빈 자리 `src/previewCore.ts`), `api.ts` 흉내·`budgetFake.ts` 삭제, 지킴이 seed 실제 명령, check.yml·load.yml 갈래. 윈도우 앱 동작·설치 파일 변화 없음(9.5MB)
 - 지킴이 새 기준: 24장면(민원 연번 – 흉내는 입력 순, 진짜 규칙은 접수일 순 + 동작 `band_complaints_edit`)을 받아들임(사용자 10-30 01:39 1안). 그중 `journal_daymenu_ask`는 지울까요 문장도 달라짐 – 흉내 자료가 빈 머리 줄을 억지로 넣었던 것(진짜 규칙은 빈 머리 줄을 저장 안 함), 사용자 07:18 1안으로 받아들임
@@ -587,6 +592,7 @@ JournalCal1·JournalCal2·ComplaintFilter·BulletRule·JournalPdf·ProjectRename
 | 검사 속도 | main(`wip/check2` 지워도 됨) | 공통 결정 로그 10-27 09:26 ① 그대로 `check.yml`만(build.yml 안 건드림): 문서·매뉴얼(`docs/**`·`tools/manual/**`·`**.md`)만 바뀐 push 검사 안 함 · 같은 가지 다시 올리면 앞 검사 취소(concurrency) · main과의 갈림점에서 `src-tauri/**`·`Cargo.*`가 안 바뀌면 Rust 단계 9개(설치·nasm·캐시·Perl·시험 만들기·시험·앱 틀·빠른 찾기) 건너뜀, 직접 실행은 늘 전부 · 실패 댓글 그대로 | `24a0ee2`(main 합침) | **끝(main에 합침 – 10-27 10:40 사용자 "합쳐", `[skip ci]`·버전 안 올림·빌드 없음)** · 시간: check.yml만 바뀜 **58초**(Rust 9단계 건너뜀) · `src-tauri` 주석 시험 커밋 **20분 15초**(Rust 모두 돎 – 시험 만들기 8분·시험 9분·앱 틀 1분 반) · 되돌린 뒤 **51초**(건너뜀) – 모두 통과 · 이제 main 최신에서 만든 wip 가지는 이 check.yml을 써요 | – |
 
 ### 공통 결정 로그 보관(끝난·대체된 결정, 원문)
+- 2026-10-29 20:04 우두머리 세션(사용자 2안 "완벽함을 위해"): **품질 보완 ②-3 미리 보기 진짜 규칙** – 브라우저 미리 보기 흉내 코드(`api.ts` `fakeCall`)를 없애고 `src-tauri/core`를 WASM으로 빌드해 미리 보기가 실제 규칙을 써요(세션 `wip/core-wasm`, 세션 2~3개 분량). 윈도우 앱 동작은 바뀌지 않아요(앱은 흉내를 쓰지 않음) – 지킴이·부하 시험·매뉴얼 캡처가 실제 규칙으로 검사하게 하는 유지관리 수정. 암호화(SQLCipher)·파일 층은 브라우저에 없으니 메모리 저장소로 갈라요. ②-2(`wip/guardrails2`)가 합쳐진 뒤 코딩, ④ 배포는 그 뒤. (0.60.0에 1~3차 모두 들어가 끝남)
 - 2026-10-28 00:3x 우두머리 세션(사용자 ①1안): **정리 ⑥은 줄여서** – ① 표 열 폭 끌기·저장·배치최적화(민원대장 `complaints.colRatios`·민원처리 `process.colWidths5`·집행현황 `budget.cols`·예산현황 `bstatus.cols`)에서 **동작이 정말 같은 부분만** 공통 부품 하나(`src/ColGrip.tsx` 같은 이름 하나)로 – 저장 키·저장 모양·DOM·클래스는 그대로(자료 호환), 화면마다 다른 것(비율/px·고정 열·자동 열)은 그 화면에 남김 ② 안 쓰는 CSS 후보 15개 확인해 지우기, `late.css` 29규칙 중 원래 파일 끝으로 옮겨도 같은 것 옮기기(`!important` 16곳은 건드리지 않음). 세션 1개(`wip/dedupe`), **먼저 재서 표로 보고 → 사용자 1안/2안 → "코딩하자"** – 옮기기만이 아니라 동작을 하나로 합치는 일이라 규칙 9 그대로. 15:06 ⑥의 "집행현황·예산현황 표 전체 합치기·날짜 칸 통일·몸통 줄이기"는 하지 않아요(복사 코드 1.5%뿐). ④ kv→표·⑤ 규칙↔코드 표는 ⑥ 뒤에 필요한지 다시 봐요.
 - 2026-10-28 00:2x 우두머리 세션: **정리 ③ 큰 화면 쪼개기 끝**(0.46.0 build-66, 10화면 `src/screens/<화면>/` – 보기 표는 모두 [docs/qa/split.md](https://github.com/zeondas/gilog/blob/main/docs/qa/split.md), `split-<화면>.md`는 지움). 정리 ⑥ 앞서 잰 것: 똑같이 복사된 코드는 전체 3.7만 줄 중 572줄(1.5%)뿐, 안 쓰는 CSS 클래스는 1,318개 중 15개 후보, `late.css` 29규칙·`!important` 16곳. 겹침은 "복사"가 아니라 "비슷한 구조"(표 열 폭·끌기·배치최적화가 민원대장·민원처리·집행현황·예산현황 4곳, 날짜 칸 7곳, 바깥 닫기 27곳) – ⑥ 범위는 사용자 결정 기다림.
 - 2026-10-27 23:0x 우두머리 세션(사용자 "다음단계 진행"): **3묶음 업무연락처(`wip/split-contacts`) – 쪼개기 마지막 화면.** 다른 화면 11곳이 불러 쓰는 것(`parseMemo`·`memoText`·`projectColor`·`pjLabel`·`pjFull`·`pjStyle`·`copyText`·`Hl`)은 **`src/screens/contacts/parts.tsx`**에 두고 부르는 쪽 11곳의 경로만 `../../screens/contacts/parts`로 맞춰요(틀 2장 "그 화면이 쪼개질 때 옮기고 부르는 쪽 경로만" – 이 화면만의 예외로 parts를 다른 화면도 불러요, 새 공통 파일은 만들지 않음). `MemoEditor`(민원대장 메모 창이 씀)는 Dialogs에 두고 민원대장은 `../../screens/contacts/Dialogs`에서 불러요. 끝나면 0.46.0 빌드 → 쪼개기 ③ 끝 → split.md에 모으고 정리 ⑥ 프롬프트. 0.45.0 뒤 `split-calendar.md`·`split-journal.md`는 split.md로 모아 지웠어요.
