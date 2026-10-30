@@ -2,8 +2,9 @@
 
 python3 tools/load/measure.py <미리 보기 폴더> 결과.json [--runs 5] [--shots 캡처폴더]
 
-- 미리 보기 폴더 = `npx vite build -c tools/load/vite.config.ts --outDir <폴더>` 결과(앱 화면 그대로, 저장만 메모리 흉내).
-- seed.js가 3년치 흉내 자료(민원 1,500 · 연락처 800 · 할 일 6,000 · 업무일지·일정)를 채워요.
+- 미리 보기 폴더 = `npm run build:wasm` → `npx vite build -c tools/load/vite.config.ts --outDir <폴더>` 결과(앱 화면 그대로,
+  저장은 앱과 같은 Rust core를 브라우저용(WASM)으로 – 메모리 저장소).
+- seed.js가 실제 앱 명령으로 3년치 시험 자료(민원 1,500 · 연락처 800 · 할 일 6,000 · 업무일지·일정)를 채워요.
 - 잰 값: 화면 전환(누른 순간 → 화면이 마지막으로 바뀐 뒤 첫 프레임), 스크롤 fps(프레임마다 40px씩 3초),
   민원대장 "전체"로 거르기 풀기, 검색. 각 항목 --runs번 재서 중간값. 1600×900.
 - --shots: 민원대장·업무연락처·할 일을 밝게·어둡게, 100%·125%로 찍어요(고치기 전후 비교용).
@@ -71,12 +72,14 @@ def serve(folder: str) -> int:
     return srv.server_address[1]
 
 
-def open_page(browser, port, theme="light", scale=1.0, start="calendar"):
+def open_page(browser, port, theme="light", scale=1.0, start="calendar", extra=""):
     ctx = browser.new_context(viewport={"width": 1600, "height": 900}, device_scale_factor=scale, color_scheme=theme)
     page = ctx.new_page()
     page.add_init_script(f"window.__loadTheme = {json.dumps(theme)}; window.__loadStart = {json.dumps(start)};")
     page.add_init_script(SEED)
     page.add_init_script(HELPERS)
+    if extra:
+        page.add_init_script(extra)
     page.goto(f"http://127.0.0.1:{port}/")
     page.wait_for_selector("nav .side-item", timeout=30000)
     page.wait_for_timeout(1500)

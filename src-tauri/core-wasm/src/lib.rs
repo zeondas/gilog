@@ -175,7 +175,7 @@ mod tests {
     }
 
     #[test]
-    fn excel_goes_through_the_fake_drive() {
+    fn excel_goes_through_the_preview_drive() {
         let mut s = Session::new();
         run(&mut s, "create_store", json!({"password": "1234"})).unwrap();
         let data = json!({"rows": [["1", "홍길동", "도로관리과", "주무관", "010-1234-5678", "", "", "", "", "", "", ""]], "intake": [], "status": []});

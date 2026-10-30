@@ -5,20 +5,18 @@
 - 기준: 1920×1080, 배율 1(사용자 PC 100%). 글꼴은 사용자 PC와 같아야 해요 — Pretendard를 앱에 넣기 전에는 Noto Sans KR(구글 폰트 `NotoSansKR[wght].ttf`를 `~/.fonts`에 넣고 `fc-cache -f`).
 - 맞음 = 위 − 아래 가 0 또는 −1 (남는 1px은 아래, 사용자 1안).
 
-## 쓰는 법
-1. 브라우저 미리 보기의 흉내 자료를 채우려고 `src/api.ts`의 `fake` 선언 바로 아래에 **잠깐** `(window as any).__fake = fake;`를 넣고 `npx vite build --outDir <작업 폴더>/site`로 빌드한 뒤 되돌려요(올리지 않아요). `seed.js`가 이 자리에 예시 자료를 넣어요.
+## 쓰는 법 (2026-10-30 ②-3 3차 – 미리 보기 = WASM core)
+1. 미리 보기를 빌드해요: `npm run build:wasm`(또는 check.yml 산출물 `preview-wasm`을 `src/wasm-pkg/`에 풀기) → `npx vite build -c tools/guard/vite.config.ts --outDir <작업 폴더>/site`. 앱 코드는 고치지 않아요(옛 방식 – 앱 코드에 흉내 한 줄 넣고 빌드 – 은 없어졌어요).
 2. `<작업 폴더>/site`를 `python3 -m http.server 5175`로 띄워요.
-3. `python3 run2.py 결과.json [추가.css ...] [추가.js]` — 모든 화면과 창을 열어 재요. `.css`/`.js`를 주면 넣고 재요(시안 시험용, `proposal.css`·`snap.js`).
-4. `python3 verify.py 지금.json 시안.json` — 맞는 비율과 아직 어긋난 묶음을 보여 줘요.
+3. 도구가 `seed.js`(실제 앱 명령으로 예시 자료를 채우는 `window.__previewSeed`)를 페이지에 넣고 재요 – 아래 census.py·ruler.py·topbar*.py.
 
 `jtel`(업무일지 연락처 글줄)과 `cal-ev dot`(주 보기 여러 줄 일정)은 박스가 아니라 빼고 봐요. 괄호·숫자가 섞인 글은 글자 모양 때문에 1px 차이가 남아도 괜찮아요(사용자 확정).
 
-
 ## census.py · report.py (2026-10-18 UI 통일 세션 — 지금 쓰는 도구)
-`run2.py`·`measure.py`는 예전 1920×1080 도구라 돌아가지 않아요(`measure.py`에 `run()`이 없어요). 지금은 아래 둘을 써요.
+예전 1920×1080 도구(`run2.py`·`measure.py`)는 돌아가지 않아 2026-10-30에 지웠어요. 지금은 아래 둘을 써요.
 
 - 기준: **1600×900**, 배율 **1과 1.25** 둘 다(2026-10-18 결정), 밝게·어둡게. 맞음 = 물리 픽셀로 위 − 아래가 0 또는 −1. 숫자만 있는 칸은 +1 허용(사용자 확정).
-- 미리 보기 띄우기는 위 1~2번과 같아요(`__fake` 한 줄 넣고 빌드 → 되돌리기, 5175에 띄우기). `seed.js`는 프로젝트에 `alias: ""`를 넣었어요(`wip/contacts` 뒤 구조).
+- 미리 보기 띄우기는 위 1~2번과 같아요(WASM 미리 보기 빌드 → 5175에 띄우기).
 - `python3 census.py 결과.json [light|dark] [1|1.25] [filled]` — 사이드바의 모든 화면 + 분류 관리·프로젝트 관리·종류 관리·일정 상세·공사 관리·민원 메모·설정 스크롤 5장을 재요. `filled`면 빈 글 칸에 한글(날짜 칸은 숫자)을 넣고 재요 — 실제 쓰는 모양은 이쪽이에요. 뜨는 창이 있으면 창 안만 재요(뒤 흐린 요소 제외). 스크롤바를 켜고(`--hide-scrollbars` 끔) 찍어요.
 - `ALIGN_CSS=시험.css python3 census.py …` — CSS를 덧붙여 재요(고치기 전 시험).
 - `python3 report.py 결과.json …` — 맞는 비율과 어긋난 묶음(태그·첫 클래스·값)을 보여 줘요.
