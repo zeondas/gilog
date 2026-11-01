@@ -893,6 +893,7 @@ pub fn run() {
             budget::budget_share_clear,
             bstatus::bstatus_list,
             bstatus::bstatus_set,
+            bstatus::bstatus_set_many,
             bstatus::bstatus_excel_write,
             process::process_data,
             process::save_work,

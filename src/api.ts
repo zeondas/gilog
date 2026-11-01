@@ -505,6 +505,8 @@ export const api = {
   // 예산현황(13단계): 세부사업 설정 JSON(core 표 bstatus), 엑셀 쓰기(읽기는 budgetExcelRead)
   bstatusList: () => call<{ name: string; setup: string }[]>("bstatus_list", {}),
   bstatusSet: (name: string, setup: string) => call<null>("bstatus_set", { name, setup }),
+  /** 여러 설정을 한 트랜잭션으로 – clear면 표를 비우고 목록만 남겨요(엑셀 가져오기 대체하기, 2026-10-30 ✔1) */
+  bstatusSetMany: (list: { name: string; setup: string }[], clear: boolean) => call<null>("bstatus_set_many", { list, clear }),
   bstatusExcelWrite: (path: string, data: BStatusExport) => call<null>("bstatus_excel_write", { path, data }),
   saveWork: (id: number | null, work: WorkInput) => call<Work[]>("save_work", { id, work }),
   deleteWork: (id: number) => call<Work[]>("delete_work", { id }),

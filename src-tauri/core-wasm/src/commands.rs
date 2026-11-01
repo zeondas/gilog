@@ -8,7 +8,7 @@
 use gilog_core::budget_xlsx::{self, BudgetExport};
 use gilog_core::excel::{self, ExcelExport, SheetKind};
 use gilog_core::{
-    BStatusExport, BudgetImportProject, BudgetLevel, BudgetRowInput, BudgetShareOp, CasePatch, ComplaintImport, ComplaintInput, ContactImport,
+    BStatusExport, BStatusSetup, BudgetImportProject, BudgetLevel, BudgetRowInput, BudgetShareOp, CasePatch, ComplaintImport, ComplaintInput, ContactImport,
     ContactInput, DayInfo, EntryInput, EventInput, Holiday, OrderPatch, Store, TaskEdit, TaskInput, WorkInput,
 };
 use serde_json::Value;
@@ -111,6 +111,7 @@ pub const BROWSER: &[&str] = &[
     // 예산현황
     "bstatus_list",
     "bstatus_set",
+    "bstatus_set_many",
     "bstatus_excel_write",
     // 민원처리 저장
     "process_data",
@@ -506,6 +507,10 @@ pub(crate) fn browser(s: &mut Session, cmd: &str, a: &Args) -> Option<Result<Val
         "bstatus_set" => (|| {
             let (name, setup) = (a.s("name")?, a.s("setup")?);
             with(s, |st| st.bstatus_set(&name, &setup))
+        })(),
+        "bstatus_set_many" => (|| {
+            let (list, clear): (Vec<BStatusSetup>, bool) = (a.get("list")?, a.get("clear")?);
+            with(s, |st| st.bstatus_set_many(&list, clear))
         })(),
         "bstatus_excel_write" => (|| {
             let (path, data): (String, BStatusExport) = (a.s("path")?, a.get("data")?);

@@ -10,7 +10,7 @@ import { BudgetProject, fmt, okWon, parseWon, typing, Unit } from "../../budget"
 import { BStatusLine, compute, defaultSetup, Line, lineOf, linkedOf, Manual, parseBStatusSheet, projectNames, Setup } from "../../budgetStatus";
 import { BudgetStatusSend, SendTarget } from "../../BudgetStatusSend";
 import { parseV3, planV3, V3Plan } from "../../budgetStatusImport";
-import { dirOf, DIR_KEY, joinPath, lastDir } from "../../ExcelMenu";
+import { dirOf, DIR_KEY, ImportMode, ImportSteps, joinPath, lastDir } from "../../ExcelMenu";
 import { isEmptyMemo, MemoEditor, sanitize } from "../../RichMemo";
 import { memoToText } from "../../budget";
 import { todayStr } from "../../journal";
@@ -76,7 +76,10 @@ const DET_COLS: Col[] = [
 const EDIT_FIELDS: (keyof Manual)[] = ["cur", "a1", "a2", "a3", "a4", "pm", "ps", "en", "em", "es", "nm", "ns", "un"];
 
 type Pop = { t: "menu"; name: string; x: number; y: number } | { t: "memo"; name: string; x: number; y: number } | { t: "excel"; x: number; y: number };
-type Ask = { path: string; cells: { name: string; year: number; src: string; m: Manual }[]; skipped: number };
+/** 같은 모양 시트 가져오기 창 – step: 고르기 → 덮어쓰기/대체하기 확인(공통 ImportSteps, 2026-10-30 ✔1) */
+type Ask = { path: string; cells: { name: string; year: number; src: string; m: Manual }[]; skipped: number; step: "pick" | ImportMode };
+/** 계약현황 양식 가져오기 창 */
+type AskV3 = { path: string; plan: V3Plan; step: "pick" | ImportMode };
 type Form = { name: string; year: number; src: string; text: Record<string, string> };
 
 export default function BudgetStatusScreen() {
@@ -100,7 +103,8 @@ export default function BudgetStatusScreen() {
   const [popPos, setPopPos] = useState<{ left: number; top: number } | null>(null);
   const [toast, setToast] = useState("");
   const [ask, setAsk] = useState<Ask | null>(null);
-  const [askV3, setAskV3] = useState<V3Plan | null>(null);
+  const [askV3, setAskV3] = useState<AskV3 | null>(null);
+  const [busy, setBusy] = useState(false);
   /** 보내기/설정 창(집행현황 우클릭과 같은 창) */
   const [send, setSend] = useState<string | null>(null);
   const memoHtml = useRef("");
@@ -478,7 +482,7 @@ export default function BudgetStatusScreen() {
       const dir = await lastDir();
       const p = await open({ title: "열기", defaultPath: dir || undefined, multiple: false, directory: false, filters: [{ name: "Excel 통합 문서", extensions: ["xlsx", "xlsm", "xls"] }] });
       path = typeof p === "string" ? p : null;
-    } else path = joinPath(await lastDir(), `예산현황_${year}.xlsx`);
+    } else path = joinPath(await lastDir(), `예산현황_${year}_${todayStr()}.xlsx`); // 미리 보기: 방금 내보낸 파일
     if (!path) return;
     try {
       const sheets = await api.budgetExcelRead(path);
@@ -499,7 +503,7 @@ export default function BudgetStatusScreen() {
         if (!s || !s.sources.includes(c.src)) return false;
         return s.multi ? c.year >= s.from && c.year <= s.to : c.year === year;
       });
-      setAsk({ path, cells: ok, skipped: cells.length - ok.length });
+      setAsk({ path, cells: ok, skipped: cells.length - ok.length, step: "pick" });
     } catch (e) {
       setToast(e === "io" ? "파일을 열지 못했어요." : errorText(e));
     }
@@ -529,19 +533,21 @@ export default function BudgetStatusScreen() {
         setToast(plan);
         return;
       }
-      setAskV3(plan);
+      setAskV3({ path, plan, step: "pick" });
     } catch (e) {
       setToast(e === "io" ? "파일을 열지 못했어요." : errorText(e));
     }
   };
   const doImportV3 = async () => {
-    if (!askV3) return;
-    const { parsed, perYear, setup } = askV3;
+    if (!askV3 || busy) return;
+    const { parsed, perYear, setup } = askV3.plan;
+    const replace = askV3.step === "replace";
+    setBusy(true);
     try {
       const split: NonNullable<Setup["split"]> = {};
       const uids = new Set<string>();
       // 집행현황에 등록(사용자 1안) — 해마다 본사업·이월 사업과 공사 줄을 만들고, 만든 줄의 uid로 공사별 재원을 적어요
-      for (const y of askV3.years) {
+      for (const y of askV3.plan.years) {
         const { list, cells } = perYear[y];
         const [data] = await api.importBudget(y, list);
         for (const c of cells) {
@@ -552,11 +558,12 @@ export default function BudgetStatusScreen() {
         const main = data.find((p) => p.name === parsed.name);
         if (main) uids.add(main.uid);
       }
-      for (const y of askV3.skipped) {
+      for (const y of askV3.plan.skipped) {
         const main = (byYear[y] ?? []).find((p) => p.name === parsed.name);
         if (main) uids.add(main.uid);
       }
-      const prev = setups[parsed.name];
+      // 대체하기: 이 사업의 설정만 지우고 파일대로(①1안 – 다른 사업 설정은 그대로). 덮어쓰기: 있던 직접 적은 값·공사별 재원·메모 위에 파일 값을 덮어요.
+      const prev = replace ? undefined : setups[parsed.name];
       const next: Setup = {
         ...setup,
         rows: { ...(prev?.rows ?? {}), ...setup.rows },
@@ -566,15 +573,20 @@ export default function BudgetStatusScreen() {
       };
       await api.bstatusSet(parsed.name, JSON.stringify(next));
       setAskV3(null);
-      setToast(`"${parsed.name}" ${askV3.years.length}개 해를 가져왔어요${askV3.skipped.length ? ` · ${askV3.skipped.join("·")}년은 집행현황 자료가 있어 건너뛰었어요` : ""}`);
+      setToast(`"${parsed.name}" ${askV3.plan.years.length}개 해를 가져왔어요${askV3.plan.skipped.length ? ` · ${askV3.plan.skipped.join("·")}년은 집행현황 자료가 있어 건너뛰었어요` : ""}`);
       await load();
     } catch (e) {
       setToast(errorText(e));
+    } finally {
+      setBusy(false);
     }
   };
-  const doImport = () => {
-    if (!ask) return;
+  const doImport = async () => {
+    if (!ask || busy) return;
+    const replace = ask.step === "replace";
     const next = { ...setups };
+    // 대체하기: 모든 세부사업의 직접 적은 값을 비우고 파일 값만 넣어요. 설정 틀(기간·재원·이월·공사별 재원·메모)은 시트에서 알 수 없어 그대로예요(한 트랜잭션).
+    if (replace) for (const k of Object.keys(next)) next[k] = { ...next[k], rows: {} };
     for (const c of ask.cells) {
       const s = next[c.name];
       if (!s) continue;
@@ -583,10 +595,18 @@ export default function BudgetStatusScreen() {
       if (linkedOf(byYear[c.year] ?? [], c.name)) for (const k of s.sources.length === 1 ? lockOf(c.name) : ["en"]) delete m[k as keyof Manual];
       next[c.name] = { ...s, rows: { ...s.rows, [`${c.year}:${c.src}`]: { ...(s.rows[`${c.year}:${c.src}`] ?? {}), ...m } } };
     }
-    setSetups(next);
-    for (const c of new Set(ask.cells.map((c) => c.name))) api.bstatusSet(c, JSON.stringify(next[c])).catch(() => {});
-    setToast(`${ask.cells.length}줄을 가져왔어요`);
-    setAsk(null);
+    const names = replace ? Object.keys(next) : [...new Set(ask.cells.map((c) => c.name))];
+    setBusy(true);
+    try {
+      await api.bstatusSetMany(names.map((n) => ({ name: n, setup: JSON.stringify(next[n]) })), false);
+      setSetups(next);
+      setToast(replace ? `직접 적은 값을 모두 지우고 ${ask.cells.length}줄을 가져왔어요` : `${ask.cells.length}줄을 가져왔어요`);
+      setAsk(null);
+    } catch (e) {
+      setToast(errorText(e));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const mi = (t: string, onClick: (() => void) | null) => (
@@ -892,40 +912,69 @@ export default function BudgetStatusScreen() {
             }}
           >
             <DialogX label="닫기(가져오지 않음)" onClick={() => setAsk(null)} />
-            <div className="xl-ask-body">
-              <h2 className="xl-ask-title">{ask.cells.length ? `${ask.cells.length}줄의 직접 적는 값을 가져올까요?` : "가져올 줄이 없어요"}</h2>
-              <div className="xl-ask-path">
-                {ask.path}
-                {ask.skipped > 0 && ` · 앱에 없는 세부사업·재원·기간 밖의 해 ${ask.skipped}줄은 건너뛰어요`}
-                {" · 집행현황에서 오는 당해예산·집행액은 파일 값을 받지 않아요"}
-              </div>
-            </div>
-            <div className="xl-ask-foot">
-              <button type="button" className="btn btn-ctrl btn-text" onClick={() => setAsk(null)}>취소</button>
-              {ask.cells.length > 0 && (
-                <button type="button" className="btn-primary btn-ctrl" autoFocus onClick={doImport}>가져오기</button>
-              )}
-            </div>
+            {(() => {
+              const names = [...new Set(ask.cells.map((c) => c.name))];
+              const total = Object.keys(setups).length;
+              return (
+                <ImportSteps
+                  title="직접 적은 값"
+                  noun="세부사업"
+                  heading={`${ask.cells.length}줄의 직접 적는 값을 어떻게 가져올까요?`}
+                  n={names.length}
+                  path={ask.path}
+                  note={`${ask.skipped > 0 ? `앱에 없는 세부사업·재원·기간 밖의 해 ${ask.skipped}줄은 건너뛰어요 · ` : ""}집행현황 값은 그대로예요(당해예산·집행액은 파일 값을 받지 않아요)`}
+                  step={ask.step}
+                  stats={{ same: names.length, total }}
+                  band={`지금 세부사업 ${total.toLocaleString()}건의 직접 적은 값이 모두 지워져요.`}
+                  warn="집행현황 값은 그대로예요 – 기간·재원·이월·공사별 재원·메모 설정도 그대로예요"
+                  busy={busy}
+                  onStep={(step) => setAsk({ ...ask, step })}
+                  onCancel={() => setAsk(null)}
+                  onGo={() => void doImport()}
+                />
+              );
+            })()}
           </div>
         </div>
       )}
       {askV3 && (
         <div className="overlay" onMouseDown={overlayDown(() => setAskV3(null))}>
-          <div className="dialog xl-ask" role="dialog" aria-modal="true" aria-label="계약현황 양식 가져오기">
-            <div className="xl-ask-body">
-              <h2 className="xl-ask-title">"{askV3.parsed.name}"을(를) 가져올까요?</h2>
-              <div className="xl-ask-path">
-                {askV3.parsed.from === askV3.parsed.to ? `${askV3.parsed.from}년` : `${askV3.parsed.from}~${askV3.parsed.to}년`} · 재원 {askV3.parsed.sources.join("·")} · 계약 {askV3.parsed.contracts.length}건
-                {" – "}집행현황에 {askV3.years.join("·")}년의 공사 줄을 만들고 예산현황 설정을 채워요
-                {askV3.skipped.length > 0 && ` · ${askV3.skipped.join("·")}년은 집행현황 자료가 있어 건너뛰어요`}
-              </div>
-            </div>
-            <div className="xl-ask-foot">
-              <button type="button" className="btn btn-ctrl btn-text" onClick={() => setAskV3(null)}>취소</button>
-              {askV3.years.length > 0 && (
-                <button type="button" className="btn-primary btn-ctrl" autoFocus onClick={() => void doImportV3()}>가져오기</button>
-              )}
-            </div>
+          <div
+            className="dialog xl-ask"
+            role="dialog"
+            aria-modal="true"
+            aria-label="계약현황 양식 가져오기"
+            onKeyDown={(e) => {
+              if (e.key === "Escape" && !e.defaultPrevented && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                setAskV3(null);
+              }
+            }}
+          >
+            <DialogX label="닫기(가져오지 않음)" onClick={() => setAskV3(null)} />
+            {(() => {
+              const { parsed, years, skipped } = askV3.plan;
+              const period = parsed.from === parsed.to ? `${parsed.from}년` : `${parsed.from}~${parsed.to}년`;
+              const made = years.length ? `집행현황에 ${years.join("·")}년의 공사 줄을 만들고 예산현황 설정을 채워요` : "예산현황 설정만 채워요";
+              const skip = skipped.length ? ` · ${skipped.join("·")}년은 집행현황 자료가 있어 건너뛰어요` : "";
+              return (
+                <ImportSteps
+                  title={`${parsed.name} 설정`}
+                  noun="사업"
+                  heading={`"${parsed.name}"을(를) 어떻게 가져올까요?`}
+                  n={1}
+                  path={askV3.path}
+                  note={`${period} · 재원 ${parsed.sources.join("·")} · 계약 ${parsed.contracts.length}건 – ${made}${skip}`}
+                  step={askV3.step}
+                  stats={null}
+                  warn={`집행현황 값은 그대로예요 – 지우는 것은 이 사업의 예산현황 설정뿐이에요(${made}${skip})`}
+                  busy={busy}
+                  onStep={(step) => setAskV3({ ...askV3, step })}
+                  onCancel={() => setAskV3(null)}
+                  onGo={() => void doImportV3()}
+                />
+              );
+            })()}
           </div>
         </div>
       )}
