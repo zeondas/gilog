@@ -217,28 +217,14 @@ impl Store {
             i += 1;
         }
         self.export_backup(&path)?;
-        prune_before_clear(&folder);
+        prune_before_clear(&folder, &path);
         Ok(path)
     }
 }
 
-/// 지우기 전 백업은 만든 순서로 최근 `BEFORE_CLEAR_KEEP`개만 둬요.
-fn prune_before_clear(folder: &std::path::Path) {
-    let Ok(read) = fs::read_dir(folder) else {
-        return;
-    };
-    let mut list: Vec<(std::time::SystemTime, PathBuf)> = read
-        .flatten()
-        .filter(|e| {
-            let n = e.file_name().to_string_lossy().to_string();
-            n.starts_with("gilog_") && n.contains("_before-clear") && n.ends_with(".gilogbak")
-        })
-        .map(|e| (e.metadata().and_then(|m| m.modified()).unwrap_or(std::time::UNIX_EPOCH), e.path()))
-        .collect();
-    list.sort();
-    while list.len() > BEFORE_CLEAR_KEEP {
-        let _ = fs::remove_file(list.remove(0).1);
-    }
+/// 지우기 전 백업은 만든 순서로 최근 `BEFORE_CLEAR_KEEP`개만 둬요. 방금 만든 것은 늘 남겨요(버그 사냥 1).
+fn prune_before_clear(folder: &std::path::Path, made: &std::path::Path) {
+    crate::prune_by_mtime(folder, "_before-clear", BEFORE_CLEAR_KEEP, made);
 }
 
 #[cfg(test)]

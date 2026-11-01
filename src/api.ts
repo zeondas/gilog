@@ -81,6 +81,7 @@ export type ErrorCode =
   | "invalid"
   | "offline"
   | "corrupt"
+  | "bad_backup"
   | "too_new"
   | "prefs_bad"
   | "hello_unavailable"
@@ -614,6 +615,8 @@ export function errorText(e: unknown): string {
       return "인터넷에 연결하지 못했어요.";
     case "corrupt":
       return "자료 파일이 손상됐어요.";
+    case "bad_backup":
+      return "이 백업 파일이 손상됐어요.\n다른 백업 파일을 골라 주세요.";
     case "too_new":
       return "이 자료는 더 새 버전의 기록으로 만든 거예요.\n기록을 업데이트해 주세요.";
     case "prefs_bad":
