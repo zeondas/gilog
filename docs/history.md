@@ -5,6 +5,13 @@
 ## 버전별 — 들어간 것 · 시험 항목
 사용자 "통과"는 0.11.0~0.27.0 모두 기다려요(빌드 줄). 시험 항목은 윈도우에서만 볼 수 있는 것이에요.
 
+### 0.66.0(build-86) — 자료 안전(버그 사냥 1차)
+- 들어간 것: 자료 안전(bughunt 6c6c8b6, 대기 목록 "자료 안전" ✔1~✔5, [bughunt-storage.md](https://github.com/zeondas/gilog/blob/main/docs/qa/bughunt-storage.md) 표 1~16·18·19·21·22) – 백업 지우기에서 방금 만든 파일·미래 날짜 제외 · 0바이트 자료·열쇠는 손상으로 보고 되살리기 띠 · 빈 백업 되살리기 거부(안내 `bad_backup`) · 비밀번호 바꾸기 실패 때 되돌리기 · 자료 폴더 옮기기는 백업 하위 폴더까지·`key.new.json`·설정 먼저 바꾸고 옛 것 지우기·실패하면 치우기 · `write_atomic` 임시 파일 정리 · 손상본 이름 `-2` · `_before-import` 개수 제한 · `sync_all` · `m_cost` 한도. core `lib.rs`·`clear.rs`·앱 `lib.rs`·`src/api.ts`, 새 시험 `bughunt_tests.rs` 18개·`Gate.test.tsx`
+- 검사: check는 지킴이 0·2·3 실패(예산현황 가져오기 장면 1요소씩 흔들림 + `complaints_newrow_baddate`) · 충돌 0(합친 뒤 main 문서 커밋 함께) · npm build·npm test 351·core 151·core-wasm 5·앱 `cargo check` 통과(경고 `unused import: Manager` 하나 – 리눅스 쪽, 오류 아님) · 자료 형식 버전 1 그대로 · 긴 줄표 21·"기Log" 0 · 지킴이 101장면 모두 같음·동작 통과 · 사양서 "자동 백업" "(다음 빌드)" 지움
+- 시험(집 컴퓨터 시험 자료로): 설정 자료 지우기 뒤 backup 폴더에 before-clear 파일이 남는지 · 비밀번호 바꾼 뒤 새 비밀번호로만 열리는지 · 자료 폴더 옮기기 뒤 backup 하위 폴더가 따라오는지 · gilog.db를 0바이트로 만들고 열면 되살리기 띠가 뜨는지
+- 현황판 줄 원문:
+  - | 자료 안전 | `wip/bughunt`(main `2b9c352`에서) | 대기 "자료 안전" ✔1~✔5(버그 사냥 1차 고치기 + 시험 코드) | `6c6c8b6` | **끝(검사 도는 중)** – 사용자 21:44 "코딩하자"(①1안 ②1안) · 표 1~16·18·19·21·22 고침(core `lib.rs`·`clear.rs`, 앱 `move_data`·`backup_info`, 안내 `bad_backup`) · core 133→151(새 `bughunt_tests.rs` 18 – 고치기 전 17 실패) · npm test 351·build·cargo check 통과, 지킴이 사진 101 0점·동작 통과(계산 모양 3장면은 예산현황 알림 흔들림) · 규칙 structure.md 자료 안전 줄·사양서 자동 백업 항목 "(다음 빌드)" | 빌드 세션 합치기(0.66.0) |
+
 ### 0.65.0(build-85) — 예산현황 가져오기 대체하기
 - 들어간 것: 예산현황 엑셀 가져오기 덮어쓰기/대체하기(bstatus-import fa58e52, 공통 결정 로그 10-30 10:54 ②1안, 예산현황 대기 ✔1) – 같은 모양 시트·계약현황 양식 두 가져오기 창 모두 공통 `ImportSteps`, 같은 모양 시트 대체하기 = 직접 적은 값 전부 비우고 파일대로(core `bstatus_set_many` 한 트랜잭션, 설정 틀 그대로), 계약현황 양식 대체하기 = 그 사업 설정만 새로, 창에 "집행현황 값은 그대로예요" 한 줄
 - 검사: check는 지킴이 0만 실패(`journal_daymenu` 1픽셀 흔들림) · 충돌 0(합친 뒤 main 문서 커밋 3개 함께) · npm build·npm test 350·core 133(새 시험 1 – 프롬프트의 134는 셈 틀림, 실패 없음)·core-wasm 5 · 긴 줄표 21·"기Log" 0 · 지킴이 101장면: 다른 것은 새 장면 `budgetstatus_import`·`_merge`·`_replace`(guard-allow)뿐 · 사양서 "(다음 빌드)" 둘 지움
