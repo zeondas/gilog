@@ -352,6 +352,11 @@
 - **구글 캘린더 연동** (`main` · `999d9d8`): 앱 정보 설치 파일에 넣기·할 일 권한
   - 시험: 설정에 앱 정보 파일 줄 없이 로그인만 되는지, 다른 계정은 경고 없이 캘린더만 연결되는지, "구글 할 일로 보내기"를 켜면 권한 화면이 한 번 더 뜨는지
 
+## 지워도 되는 가지 목록(2026-11-01 옮김)
+현황판 규칙 8 괄호 안 원문 그대로예요. 새로 생긴 가지는 규칙 8에 적혀요.
+
+(2026-10-20 지워도 됨: `wip/process-mail`·`wip/check`·`wip/budget`·`wip/budgetstatus`·`wip/budget-share`·`wip/dash`·`wip/lock`·`wip/epeople`·`wip/sidebar`·`wip/journal`·`wip/settings`·`wip/complaints`·`wip/contacts`·`wip/calendar`·`wip/theme`·`wip/window`·`wip/todo`·`wip/explorer-icons`·`wip/toolbar`·`wip/ui`·`wip/process`·`wip/process-status`·`wip/explorer`·`wip/process-photo`·`wip/address-web`·`wip/complaints2`·`wip/budget2`·`wip/perf`·`wip/process-cols`·`wip/complaints3`·`wip/complaints4`·`wip/parts`·`wip/parts2`·`wip/parts3`·`wip/budget3`·`wip/fast-fetch`·`wip/complaints5`·`wip/scale`·`wip/process-works`(같은 고침이 `wip/fast-fetch2`에 들어가 안 합침)·`wip/share-twin`·`wip/complaints6`·`wip/contacts2`·`wip/journal2`·`wip/settings2`·`wip/fast-fetch2`·`wip/explorer2`·`wip/todo2`·`wip/calendar2`·`wip/installer`·`wip/complaints7`·`wip/complaints8`·`wip/explorer3`·`wip/calendar3`·`wip/calendar4`·`wip/parts4`·`wip/budget-link`·`wip/budget4`·`wip/parts5`·`wip/viewport`·`wip/journal3`·`wip/explorer4`·`wip/contacts3`·`wip/parts6`·`wip/complaints9`·`wip/explorer5`·`wip/budget5`·`wip/budget-link2`·`wip/tidy`·`wip/budget-link3`·`wip/explorer6`·`wip/check2`·`wip/split-tasks`·`wip/settings3`·`wip/split-files`·`wip/contacts4`·`wip/split-complaints`·`wip/split-process`·`wip/split-settings`·`wip/split-budget`·`wip/split-bstatus`·`wip/split-calendar`·`wip/split-journal`·`wip/split-contacts`·`wip/dedupe`·`wip/process-fix`·`wip/budget-calc`·`wip/complaints10`·`wip/explorer7`·`wip/calendar5`·`wip/journal4`·`wip/explorer8`·`wip/budget-calc2`·`wip/complaints11`·`wip/contacts5`·`wip/cols`·`wip/budget-calc2`·`wip/budget-backup-0.49`·`wip/budget-calc3`·`wip/cols2`·`wip/explorer9`·`wip/safety`·`wip/budget-calc4`·`wip/guardrails`·`wip/ci2`·`wip/guardrails2`·`wip/core-wasm`·`wip/core-wasm2`·`wip/core-wasm3`·`wip/complaints12`·`wip/perf2`·`wip/settings4`·`wip/budget-share2`·`wip/process-status2`·`wip/explorer-load`·`wip/tidy2`·`wip/settings5`·`wip/budget-import`·`wip/busy` — `wip/loadtest`는 도구라 두어도 됨)
+
 ## 끝난 검사·검토 세션 (현황판 줄 원문)
 | 세션 | 가지 | 하는 일 | 마지막 커밋 | 상태 | 기다리는 것 |
 | --- | --- | --- | --- | --- | --- |
