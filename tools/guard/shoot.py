@@ -319,6 +319,26 @@ async def s_complaints_import_replace(p):
     await p.locator(".xl-pk", has_text="대체하기").first.click()
 
 
+async def s_budgetstatus_import(p):
+    # 예산현황 엑셀 가져오기 – 방식 고르기 창(2026-10-30 ✔1, 공통 ImportSteps). 미리 보기는 먼저 내보낸 파일만 읽어서 내보내기부터 해요.
+    await p.locator(".xl-btn").first.click()
+    await p.locator(".bd-mi", has_text="내보내기").first.click()
+    await p.wait_for_timeout(300)
+    await p.locator(".xl-btn").first.click()
+    await p.locator(".bd-mi", has_text="가져오기").first.click()
+    await p.wait_for_timeout(400)
+
+
+async def s_budgetstatus_import_merge(p):
+    await s_budgetstatus_import(p)
+    await p.locator(".xl-pk", has_text="덮어쓰기").first.click()
+
+
+async def s_budgetstatus_import_replace(p):
+    await s_budgetstatus_import(p)
+    await p.locator(".xl-pk", has_text="대체하기").first.click()
+
+
 async def s_settings_calendar(p):
     # 설정 "캘린더" 카드 안 구글 연동 묶음(2026-10-25 공통 ✔3)
     await p.locator("section[aria-label='캘린더']").first.scroll_into_view_if_needed()
@@ -448,6 +468,9 @@ SCENES.update({
     "complaints_import_replace": ("민원대장", s_complaints_import_replace),
     "process_works": ("민원처리", s_process_works),
     "budgetstatus_settings": ("예산현황", s_budgetstatus_settings),
+    "budgetstatus_import": ("예산현황", s_budgetstatus_import),
+    "budgetstatus_import_merge": ("예산현황", s_budgetstatus_import_merge),
+    "budgetstatus_import_replace": ("예산현황", s_budgetstatus_import_replace),
     "calendar_event": ("캘린더", s_calendar_event),
     "calendar_new": ("캘린더", s_calendar_new),
     "calendar_notitle": ("캘린더", s_calendar_notitle),

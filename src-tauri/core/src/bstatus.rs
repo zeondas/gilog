@@ -48,6 +48,26 @@ impl Store {
         Ok(())
     }
 
+    /// 여러 세부사업의 설정을 한 트랜잭션으로 바꿔요(엑셀 가져오기 "대체하기", 2026-10-30 ✔1).
+    /// `clear`면 먼저 `bstatus` 표를 모두 비우고 `list`만 남겨요 — 하나라도 실패하면 아무것도 바뀌지 않아요.
+    pub fn bstatus_set_many(&mut self, list: &[BStatusSetup], clear: bool) -> Result<()> {
+        if list.iter().any(|x| x.name.trim().is_empty()) {
+            return Err(Error::Invalid("세부사업 이름이 비어 있어요".into()));
+        }
+        let tx = self.conn.transaction()?;
+        if clear {
+            tx.execute("DELETE FROM bstatus", [])?;
+        }
+        for x in list {
+            tx.execute(
+                "INSERT INTO bstatus (name, setup) VALUES (?1, ?2) ON CONFLICT(name) DO UPDATE SET setup = excluded.setup",
+                params![x.name, x.setup],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
     /// 세부사업 이름이 집행현황에서 바뀌었을 때(지금은 화면이 안 불러요 — 뒀어요)
     pub fn bstatus_rename(&self, from: &str, to: &str) -> Result<()> {
         self.conn.execute("UPDATE OR REPLACE bstatus SET name = ?2 WHERE name = ?1", params![from, to])?;
@@ -372,6 +392,26 @@ mod tests {
         assert!(s.bstatus_set("  ", "{}").is_err());
         s.bstatus_rename("도로포장", "도로포장 유지관리").unwrap();
         assert!(s.bstatus_list().unwrap().iter().any(|x| x.name == "도로포장 유지관리"));
+    }
+
+    #[test]
+    fn set_many_is_one_transaction() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut s = Store::create(dir.path(), "1234").unwrap();
+        s.bstatus_set("가", "{\"rows\":{\"2026:시비\":{\"un\":1}}}").unwrap();
+        s.bstatus_set("나", "{}").unwrap();
+        let mk = |n: &str, v: &str| BStatusSetup { name: n.into(), setup: v.into() };
+        // 덮어쓰기(clear 없음): 있는 것은 바꾸고 없는 것은 더해요
+        s.bstatus_set_many(&[mk("가", "{\"a\":1}"), mk("다", "{}")], false).unwrap();
+        let l = s.bstatus_list().unwrap();
+        assert_eq!(l.iter().map(|x| x.name.as_str()).collect::<Vec<_>>(), ["가", "나", "다"]);
+        assert_eq!(l[0].setup, "{\"a\":1}");
+        // 대체하기(clear): 표를 비우고 목록만 남아요
+        s.bstatus_set_many(&[mk("라", "{}")], true).unwrap();
+        assert_eq!(s.bstatus_list().unwrap().iter().map(|x| x.name.as_str()).collect::<Vec<_>>(), ["라"]);
+        // 빈 이름이 섞이면 아무것도 바뀌지 않아요(한 트랜잭션)
+        assert!(s.bstatus_set_many(&[mk("마", "{}"), mk(" ", "{}")], true).is_err());
+        assert_eq!(s.bstatus_list().unwrap().iter().map(|x| x.name.as_str()).collect::<Vec<_>>(), ["라"]);
     }
 
     #[test]
