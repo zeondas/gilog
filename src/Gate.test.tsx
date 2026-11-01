@@ -69,6 +69,18 @@ describe("Gate 손상 띠", () => {
     expect(screen.getByRole("alert").textContent).toContain("이 백업은 다른 비밀번호로 잠겨 있어요.");
   });
 
+  it("고른 백업이 상했으면 그 안내를 띠 안에 – 열지 않아요(버그 사냥 15)", async () => {
+    api.unlock.mockRejectedValue("corrupt");
+    api.backupInfo.mockResolvedValue({ latest: "2026-10-28", latestPath: "/b/x.gilogbak", folder: "/b" });
+    api.restoreAndOpen.mockRejectedValue("bad_backup");
+    await act(async () => void render(<Gate mode="unlock" folder="문서" onOpen={onOpen} />));
+    await unlockWith("abcd1234");
+    await act(async () => void fireEvent.click(screen.getByRole("button", { name: "10월 28일 백업으로 되살리기" })));
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert").textContent).toContain("bad_backup");
+    expect(screen.getByRole("button", { name: "다른 백업 고르기" })).toBeTruthy();
+  });
+
   it("백업이 없으면 파일 고르기 단추만", async () => {
     api.unlock.mockRejectedValue("corrupt");
     api.backupInfo.mockResolvedValue({ latest: null, latestPath: null, folder: "/b" });

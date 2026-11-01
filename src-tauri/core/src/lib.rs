@@ -50,6 +50,11 @@ pub const BACKUP_KEEP: usize = 7;
 /// 0 = 버전 번호를 두기 전 파일(0.53.0까지).
 pub const SCHEMA_VERSION: i32 = 1;
 
+/// 열쇠 정보(`key.json`·백업 첫 줄)에서 받는 값의 위 한도: 메모리 1GB(KiB 단위)·반복 10·병렬 16
+const META_MAX_M_COST: u32 = 1024 * 1024;
+const META_MAX_T_COST: u32 = 10;
+const META_MAX_P_COST: u32 = 16;
+
 /// 암호 최소 길이예요.
 pub const MIN_PASSWORD_LEN: usize = 4;
 
@@ -75,6 +80,8 @@ pub enum Error {
     Corrupt,
     #[error("더 새 버전의 기록으로 만든 자료예요")]
     TooNew,
+    #[error("이 백업 파일이 손상됐어요")]
+    BadBackup,
 }
 
 impl Error {
@@ -91,6 +98,7 @@ impl Error {
             Error::Invalid(_) => "invalid",
             Error::Corrupt => "corrupt",
             Error::TooNew => "too_new",
+            Error::BadBackup => "bad_backup",
         }
     }
 }
@@ -122,6 +130,18 @@ fn key_check(key: &[u8; 32]) -> String {
     hex::encode(out)
 }
 
+/// 시험에서 "여기서 실패한 척"을 고르는 자리(버그 사냥 1차 – 디스크 꽉 참·열쇠 파일 잠김)
+#[cfg(test)]
+pub(crate) mod hooks {
+    use std::cell::Cell;
+    thread_local! {
+        /// `write_atomic`이 반쯤 쓰고 "디스크 꽉 참"으로 실패
+        pub static FAIL_WRITE: Cell<bool> = const { Cell::new(false) };
+        /// 비밀번호 바꾸기 마지막 이름 바꾸기(`key.new.json` → `key.json`)가 실패
+        pub static FAIL_META_RENAME: Cell<bool> = const { Cell::new(false) };
+    }
+}
+
 /// 파일을 바로 덮어쓰지 않고 옆 임시 파일에 다 쓴 뒤 한 번에 바꿔치기해요.
 /// 쓰다가 꺼져도 옛 파일이나 새 파일 둘 중 하나는 온전히 남아요.
 /// 임시 이름은 `<이름>.tmp-<프로세스 번호>`라 두 번째 기록(--profile B)과 겹치지 않아요. 바꿔치기가 잠김(백신·색인)으로
@@ -131,16 +151,40 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     let mut tmp = path.as_os_str().to_owned();
     tmp.push(format!(".tmp-{}", std::process::id()));
     let tmp = PathBuf::from(tmp);
-    {
+    // 쓰다가 실패해도(디스크 꽉 참·USB 빠짐) 반쪽 임시 파일을 남기지 않아요(버그 사냥 12)
+    let r = (|| {
         let mut f = fs::File::create(&tmp)?;
+        #[cfg(test)]
+        if hooks::FAIL_WRITE.with(|c| c.get()) {
+            f.write_all(&bytes[..bytes.len() / 2])?;
+            return Err(std::io::Error::other("disk full (test)"));
+        }
         f.write_all(bytes)?;
         f.sync_all()?;
-    }
-    let r = rename_retry(&tmp, path);
+        drop(f);
+        rename_retry(&tmp, path)
+    })();
     if r.is_err() {
         let _ = fs::remove_file(&tmp);
     }
     r
+}
+
+/// 다 쓰고 디스크에 내려쓴 뒤 닫아요(되살리기 임시 파일 – 버그 사냥 19)
+fn write_synced(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut f = fs::File::create(path)?;
+    f.write_all(bytes)?;
+    f.sync_all()
+}
+
+/// 비밀번호 바꾸기의 마지막 이름 바꾸기(시험에서 실패한 척할 수 있어요)
+fn meta_rename(from: &Path, to: &Path) -> std::io::Result<()> {
+    #[cfg(test)]
+    if hooks::FAIL_META_RENAME.with(|c| c.get()) {
+        return Err(std::io::Error::other("locked (test)"));
+    }
+    rename_retry(from, to)
 }
 
 /// 이름 바꾸기 – 실패하면 50·100·150ms 쉬고 다시(모두 4번)
@@ -174,6 +218,10 @@ impl Meta {
     }
 
     fn derive(&self, password: &str) -> Result<[u8; 32]> {
+        // 깨진 값으로 메모리를 크게 잡아 앱이 꺼지지 않게 위 한도를 둬요(버그 사냥 22) – 지금 쓰는 값은 64MB·3·1
+        if !(1..=META_MAX_M_COST).contains(&self.m_cost) || !(1..=META_MAX_T_COST).contains(&self.t_cost) || !(1..=META_MAX_P_COST).contains(&self.p_cost) {
+            return Err(Error::Meta("열쇠 정보 값이 맞지 않아요".into()));
+        }
         let salt = hex::decode(&self.salt).map_err(|e| Error::Meta(e.to_string()))?;
         let params = Params::new(self.m_cost, self.t_cost, self.p_cost, Some(32))
             .map_err(|e| Error::Meta(e.to_string()))?;
@@ -211,18 +259,23 @@ fn old_of(dir: &Path, name: &str) -> PathBuf {
 /// 되살리기(`restore_backup`)는 옛 두 파일을 `.old`로 비켜 두고 새 두 파일을 넣은 뒤 `.old`를 지워요(②-2 ✔5).
 /// 그 사이에 꺼졌으면: 새 두 파일이 다 있으면 바꿔치기는 끝난 것이라 `.old`만 지우고,
 /// 하나라도 없으면 `.old` 짝으로 되돌려요 – 늘 옛 짝이나 새 짝 하나가 온전히 남아요.
+/// 자료 파일 옆 쓰다 만 기록 – 되살리기 때 두 파일과 함께 `.old`로 비켜요(버그 사냥 21)
+const SIDE_FILES: [&str; 3] = ["gilog.db-journal", "gilog.db-wal", "gilog.db-shm"];
+
 pub fn recover_swap(dir: &Path) {
     let names = [DB_FILE, META_FILE];
-    if !names.iter().any(|n| old_of(dir, n).is_file()) {
+    if !names.iter().chain(SIDE_FILES.iter()).any(|n| old_of(dir, n).is_file()) {
         return;
     }
     if names.iter().all(|n| dir.join(n).is_file()) {
-        for n in names {
+        // 새 짝이 다 들어갔어요 – 옛 것만 치워요(쓰다 만 기록 먼저)
+        for n in SIDE_FILES.iter().chain(names.iter()) {
             let _ = fs::remove_file(old_of(dir, n));
         }
         return;
     }
-    for n in names {
+    // 옛 짝으로 되돌려요 – 쓰다 만 기록도 함께
+    for n in names.iter().chain(SIDE_FILES.iter()) {
         let old = old_of(dir, n);
         if old.is_file() {
             let _ = rename_retry(&old, &dir.join(n));
@@ -243,7 +296,8 @@ pub struct Store {
 /// - 검사 값이 다르면 암호 틀림
 /// - 검사 값이 맞는데 못 읽거나 손상 검사에 걸리면 손상
 /// - 검사 값이 없으면(옛 파일) 첫 읽기 실패는 암호 틀림, 그 뒤 손상 검사에 걸리면 손상
-fn open_with_key(dir: &Path, key: &[u8; 32], check: Option<&str>) -> Result<Connection> {
+/// `fresh`는 막 만드는 새 파일(표가 아직 없어도 돼요). 그 밖에 표가 하나도 없으면(0바이트 파일 등) 손상이에요(버그 사냥 2).
+fn open_with_key(dir: &Path, key: &[u8; 32], check: Option<&str>, fresh: bool) -> Result<Connection> {
     let known = match check {
         Some(c) if c != key_check(key) => return Err(Error::WrongPassword),
         Some(_) => true,
@@ -252,8 +306,12 @@ fn open_with_key(dir: &Path, key: &[u8; 32], check: Option<&str>) -> Result<Conn
     let conn = Connection::open(dir.join(DB_FILE)).map_err(|_| if known { Error::Corrupt } else { Error::WrongPassword })?;
     conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex::encode(key)))?;
     // 열쇠가 틀리면(또는 첫 장이 깨지면) 첫 읽기에서 실패해요.
-    if conn.query_row("SELECT count(*) FROM sqlite_master", [], |r| r.get::<_, i64>(0)).is_err() {
-        return Err(if known { Error::Corrupt } else { Error::WrongPassword });
+    let tables = match conn.query_row("SELECT count(*) FROM sqlite_master", [], |r| r.get::<_, i64>(0)) {
+        Ok(n) => n,
+        Err(_) => return Err(if known { Error::Corrupt } else { Error::WrongPassword }),
+    };
+    if tables == 0 && !fresh {
+        return Err(Error::Corrupt);
     }
     // 열쇠는 맞아요. 이제 파일이 온전한지 빠르게 봐요(모든 장을 한 번 읽어요).
     match conn.query_row("PRAGMA quick_check", [], |r| r.get::<_, String>(0)) {
@@ -281,7 +339,7 @@ impl Store {
         let key = meta.derive(password)?;
         meta.check = Some(key_check(&key));
         meta.write(&dir.join(META_FILE))?;
-        let conn = open_with_key(dir, &key, None)?;
+        let conn = open_with_key(dir, &key, None, true)?;
         let store = Store { conn, dir: dir.to_path_buf(), key, mem: None };
         store.migrate(false)?;
         Ok(store)
@@ -321,16 +379,21 @@ impl Store {
         // 암호를 바꾸던 중에 꺼졌다면 새 열쇠 정보가 남아 있을 수 있어서 둘 다 시도해요.
         // 그때는 어느 열쇠 정보가 자료 파일과 맞는지 모르니 열쇠 검사 값을 믿지 않아요(옛 방식).
         let interrupted = dir.join(META_NEW_FILE).is_file();
-        let mut last = Error::NotFound;
+        // 열쇠 정보가 없거나 깨졌으면(0바이트·반쪽·이상한 값) 손상 – 잠금 화면이 되살리기 띠를 띄워요(버그 사냥 14)
+        let mut last = Error::Corrupt;
         for (name, is_new) in [(META_FILE, false), (META_NEW_FILE, true)] {
             let path = dir.join(name);
             if !path.is_file() {
                 continue;
             }
-            let mut meta = Meta::read(&path)?;
-            let key = meta.derive(password)?;
+            let mut meta = match Meta::read(&path) {
+                Ok(m) => m,
+                Err(Error::Meta(_)) => continue,
+                Err(e) => return Err(e),
+            };
+            let Ok(key) = meta.derive(password) else { continue };
             let check = if interrupted { None } else { meta.check.as_deref() };
-            match open_with_key(dir, &key, check) {
+            match open_with_key(dir, &key, check, false) {
                 Ok(conn) => {
                     if meta.check.as_deref() != Some(key_check(&key).as_str()) {
                         // 옛 파일이면 이번에 열쇠 검사 값을 적어 둬요.
@@ -362,14 +425,15 @@ impl Store {
             return Err(Error::TooNew);
         }
         if version < SCHEMA_VERSION && snapshot {
+            // 백업을 못 남겨도(디스크 꽉 참·backup이 폴더가 아님) 여는 것은 막지 않아요(버그 사냥 11)
             let name = format!("gilog_{}_before-v{}.gilogbak", today(), SCHEMA_VERSION);
             let folder = self.dir.join(BACKUP_DIR);
-            fs::create_dir_all(&folder)?;
             let path = folder.join(name);
-            if !path.exists() {
-                self.export_backup(&path)?;
+            let made = fs::create_dir_all(&folder).map_err(Error::from).and_then(|_| if path.exists() { Ok(()) } else { self.export_backup(&path) });
+            match made {
+                Ok(()) => prune_before_v(&self.dir, Some(&path)),
+                Err(e) => eprintln!("before-v backup: {e}"),
             }
-            prune_before_v(&self.dir);
         }
         self.migrate_tables()?;
         if version < SCHEMA_VERSION {
@@ -440,7 +504,17 @@ impl Store {
         meta.write(&new_path)?;
         self.conn
             .execute_batch(&format!("PRAGMA rekey = \"x'{}'\";", hex::encode(key)))?;
-        fs::rename(&new_path, self.dir.join(META_FILE))?;
+        if let Err(e) = meta_rename(&new_path, &self.dir.join(META_FILE)) {
+            // 열쇠 정보를 못 바꿨으면 자료도 옛 열쇠로 되돌려 "실패 = 옛 비밀번호 그대로"가 되게 해요(버그 사냥 4)
+            match self.conn.execute_batch(&format!("PRAGMA rekey = \"x'{}'\";", hex::encode(self.key))) {
+                Ok(()) => {
+                    let _ = fs::remove_file(&new_path);
+                }
+                // 되돌리기도 못 하면 자료는 새 열쇠 – key.new.json을 남겨 다음에 열 때 새 비밀번호로 열려요
+                Err(_) => self.key = key,
+            }
+            return Err(e.into());
+        }
         self.key = key;
         Ok(())
     }
@@ -482,7 +556,7 @@ impl Store {
         } else {
             Meta::read(&dir.join(META_FILE)).ok().and_then(|m| m.check)
         };
-        let conn = open_with_key(dir, &key, check.as_deref())?;
+        let conn = open_with_key(dir, &key, check.as_deref(), false)?;
         let store = Store { conn, dir: dir.to_path_buf(), key, mem: None };
         store.migrate(true)?;
         Ok(store)
@@ -519,11 +593,7 @@ impl Store {
             return Ok(None);
         }
         self.export_backup(&path)?;
-        let mut daily = daily_backups(&self.dir);
-        while daily.len() > BACKUP_KEEP {
-            let (_, old) = daily.remove(0);
-            let _ = fs::remove_file(old);
-        }
+        prune_daily(&self.dir, day, &path);
         Ok(Some(path))
     }
 }
@@ -555,9 +625,39 @@ pub fn daily_backups(dir: &Path) -> Vec<(String, PathBuf)> {
     out
 }
 
+/// 자동 백업 정리(버그 사냥 7): 오늘(`day`) 이전 이름만 세어 `BACKUP_KEEP`개를 넘으면 오래된 것부터 지워요.
+/// 방금 만든 것은 지우지 않고, 오늘보다 뒤 날짜 이름(시계가 앞섰던 때)은 세지도 지우지도 않아요 – 지금 시계가 틀렸을 수도 있어서.
+fn prune_daily(dir: &Path, day: &str, made: &Path) {
+    let mut past: Vec<(String, PathBuf)> = daily_backups(dir).into_iter().filter(|(d, _)| d.as_str() <= day).collect();
+    while past.len() > BACKUP_KEEP {
+        let Some(i) = past.iter().position(|(_, p)| p != made) else { break };
+        let (_, old) = past.remove(i);
+        let _ = fs::remove_file(old);
+    }
+}
+
+/// 잠금 화면·설정이 권하는 "최근" 자동 백업
+pub fn latest_backup(dir: &Path) -> Option<(String, PathBuf)> {
+    latest_backup_on(dir, &today())
+}
+
+/// `latest_backup`의 오늘을 정해 부르는 쪽(시험용). 이름 날짜가 오늘이거나 그 전인 것 중 가장 늦은 것,
+/// 그런 게 없으면(시계가 크게 뒤로 감) 전체에서 가장 늦은 것(버그 사냥 8, 사용자 ①1안).
+pub fn latest_backup_on(dir: &Path, day: &str) -> Option<(String, PathBuf)> {
+    let list = daily_backups(dir);
+    list.iter().filter(|(d, _)| d.as_str() <= day).last().cloned().or_else(|| list.last().cloned())
+}
+
 /// 손상된 자료 파일을 지우지 않고 옆에 `gilog_손상_YYYY-MM-DD.db`로 복사해 둬요(되살리기 전에).
+/// 같은 날 또 손상되면 `-2`·`-3`…을 붙여 앞 손상본을 덮지 않아요(버그 사냥 10).
 pub fn keep_corrupt(dir: &Path) -> Result<PathBuf> {
-    let to = dir.join(format!("gilog_손상_{}.db", today()));
+    let day = today();
+    let mut to = dir.join(format!("gilog_손상_{day}.db"));
+    let mut i = 2;
+    while to.exists() {
+        to = dir.join(format!("gilog_손상_{day}-{i}.db"));
+        i += 1;
+    }
     fs::copy(dir.join(DB_FILE), &to)?;
     Ok(to)
 }
@@ -575,31 +675,49 @@ pub fn restore_backup(dir: &Path, from: &Path, password: &str) -> Result<()> {
     let nl = rest
         .iter()
         .position(|b| *b == b'\n')
-        .ok_or_else(|| Error::Meta("백업 파일이 깨졌어요".into()))?;
+        .ok_or(Error::BadBackup)?;
     let meta = &rest[..nl];
     let db = &rest[nl + 1..];
+    // 자료 부분이 비었으면(잘린 파일) 빈 자료로 바꾸지 않아요(버그 사냥 3)
+    if db.is_empty() {
+        return Err(Error::BadBackup);
+    }
 
-    // 먼저 임시 폴더에 풀어 암호가 맞는지 확인해요.
-    let tmp = dir.join(".restore-tmp");
-    let _ = fs::remove_dir_all(&tmp);
-    fs::create_dir_all(&tmp)?;
-    fs::write(tmp.join(META_FILE), meta)?;
-    fs::write(tmp.join(DB_FILE), db)?;
+    // 먼저 임시 폴더에 풀어 암호가 맞는지 확인해요. 백업 쪽이 상했으면 "이 백업 파일이 손상됐어요"(버그 사냥 15).
+    let tmp = stage_parts(dir, meta, db)?;
     match Store::open(&tmp, password) {
         Ok(s) => drop(s),
         Err(e) => {
             let _ = fs::remove_dir_all(&tmp);
-            return Err(e);
+            return Err(match e {
+                Error::Corrupt | Error::Meta(_) => Error::BadBackup,
+                e => e,
+            });
         }
     }
-    // 맞으면 지금 파일을 바꿔요. 옛 파일의 쓰다 만 기록(-journal·-wal·-shm)이 새 파일에 덧씌워지지 않게 먼저 치워요.
+    // 맞으면 지금 파일을 바꿔요. 옛 파일의 쓰다 만 기록(-journal·-wal·-shm)은 바꿔치기가 두 파일과 함께 비켜 둬요.
     let _ = fs::remove_file(dir.join(META_NEW_FILE));
-    for tail in ["-journal", "-wal", "-shm"] {
-        let _ = fs::remove_file(dir.join(format!("{DB_FILE}{tail}")));
-    }
     swap_in(dir, &tmp, None)?;
     let _ = fs::remove_dir_all(&tmp);
     Ok(())
+}
+
+/// 백업 파일을 자료 폴더 안 임시 폴더(`.restore-tmp`)에 두 파일로 펼쳐요(시험도 써요)
+#[cfg(test)]
+fn stage_backup(dir: &Path, from: &Path) -> Result<PathBuf> {
+    let bytes = fs::read(from)?;
+    let rest = &bytes[BACKUP_MAGIC.len()..];
+    let nl = rest.iter().position(|b| *b == b'\n').ok_or(Error::BadBackup)?;
+    stage_parts(dir, &rest[..nl], &rest[nl + 1..])
+}
+
+fn stage_parts(dir: &Path, meta: &[u8], db: &[u8]) -> Result<PathBuf> {
+    let tmp = dir.join(".restore-tmp");
+    let _ = fs::remove_dir_all(&tmp);
+    fs::create_dir_all(&tmp)?;
+    write_synced(&tmp.join(META_FILE), meta)?;
+    write_synced(&tmp.join(DB_FILE), db)?;
+    Ok(tmp)
 }
 
 /// 임시 폴더의 새 두 파일로 바꿔요: 옛 둘 → `.old` · 새 둘 → 제자리 · `.old` 지움.
@@ -611,11 +729,23 @@ fn swap_in(dir: &Path, tmp: &Path, stop_after: Option<u8>) -> Result<()> {
     let stop = |step: u8| stop_after == Some(step);
     for n in names {
         if dir.join(n).is_file() {
-            rename_retry(&dir.join(n), &old_of(dir, n))?;
+            if let Err(e) = rename_retry(&dir.join(n), &old_of(dir, n)) {
+                recover_swap(dir);
+                return Err(e.into());
+            }
         }
         step += 1;
         if stop(step) {
             return Ok(());
+        }
+    }
+    // 옛 자료의 쓰다 만 기록도 함께 비켜 둬요 – 새 자료 옆에 남으면 새 자료가 상하고, 끊기면 옛 짝과 함께 돌아와야 해서(버그 사냥 21)
+    for n in SIDE_FILES {
+        if dir.join(n).is_file() {
+            if let Err(e) = rename_retry(&dir.join(n), &old_of(dir, n)) {
+                recover_swap(dir);
+                return Err(e.into());
+            }
         }
     }
     for n in names {
@@ -630,7 +760,7 @@ fn swap_in(dir: &Path, tmp: &Path, stop_after: Option<u8>) -> Result<()> {
             return Ok(());
         }
     }
-    for n in names {
+    for n in SIDE_FILES.iter().chain(names.iter()) {
         let _ = fs::remove_file(old_of(dir, n));
     }
     Ok(())
@@ -659,13 +789,38 @@ pub fn snapshot_before_import(dir: &Path) -> Result<Option<PathBuf>> {
         i += 1;
     }
     write_atomic(&path, &out)?;
+    prune_by_mtime(&folder, "_before-import", BEFORE_IMPORT_KEEP, &path);
     Ok(Some(path))
+}
+
+/// `gilog_…<tag>….gilogbak` 백업을 만든 순서(수정 시각)로 최근 `keep`개만 둬요. 방금 만든 `made`는 늘 남겨요 –
+/// 시계가 뒤로 갔으면 방금 만든 것이 가장 "오래돼" 보이기 때문이에요(버그 사냥 1·18).
+pub(crate) fn prune_by_mtime(folder: &Path, tag: &str, keep: usize, made: &Path) {
+    let Ok(read) = fs::read_dir(folder) else {
+        return;
+    };
+    let mut list: Vec<(std::time::SystemTime, PathBuf)> = read
+        .flatten()
+        .filter(|e| {
+            let n = e.file_name().to_string_lossy().to_string();
+            n.starts_with("gilog_") && n.contains(tag) && n.ends_with(".gilogbak")
+        })
+        .map(|e| (e.metadata().and_then(|m| m.modified()).unwrap_or(std::time::UNIX_EPOCH), e.path()))
+        .collect();
+    list.sort();
+    while list.len() > keep {
+        let Some(i) = list.iter().position(|(_, p)| p != made) else { break };
+        let _ = fs::remove_file(list.remove(i).1);
+    }
 }
 
 /// 형식 버전 올리기 전 백업(`_before-vN`)은 최근 `BEFORE_V_KEEP`개만 둬요(이름 순 = 날짜 순).
 pub const BEFORE_V_KEEP: usize = 3;
+/// 백업 불러오기 전 백업(`_before-import`)은 최근 몇 개까지
+pub const BEFORE_IMPORT_KEEP: usize = 5;
 
-pub fn prune_before_v(dir: &Path) {
+/// `made`(방금 만든 것)는 늘 남겨요(버그 사냥 9).
+pub fn prune_before_v(dir: &Path, made: Option<&Path>) {
     let Ok(read) = fs::read_dir(dir.join(BACKUP_DIR)) else {
         return;
     };
@@ -679,7 +834,8 @@ pub fn prune_before_v(dir: &Path) {
         .collect();
     list.sort();
     while list.len() > BEFORE_V_KEEP {
-        let _ = fs::remove_file(list.remove(0));
+        let Some(i) = list.iter().position(|p| Some(p.as_path()) != made) else { break };
+        let _ = fs::remove_file(list.remove(i));
     }
 }
 
@@ -692,38 +848,102 @@ fn copy_checked(src: &Path, dst: &Path) -> Result<()> {
     Ok(())
 }
 
-/// 자료 폴더를 통째로 옮겨요. 열려 있는 Store가 없을 때 불러야 해요.
+/// 자료 폴더를 통째로 옮겨요(`copy_data` → `remove_moved`). 열려 있는 Store가 없을 때 불러야 해요.
 pub fn move_data(from: &Path, to: &Path) -> Result<()> {
+    copy_data(from, to)?;
+    remove_moved(from);
+    Ok(())
+}
+
+/// 옮기기 1단계: 옮길 곳에 복사하고 크기를 확인해요. 옛 자리는 그대로예요.
+/// 비밀번호 바꾸다 남은 `key.new.json`도 함께(버그 사냥 5), 백업 폴더는 하위 폴더까지(버그 사냥 6) 옮겨요.
+/// 중간에 실패하면 옮길 곳에 이번에 만든 파일·폴더를 치워 다시 옮길 수 있게 해요(버그 사냥 13).
+pub fn copy_data(from: &Path, to: &Path) -> Result<()> {
+    recover_swap(from);
     if exists(to) {
         return Err(Error::AlreadyExists);
     }
-    fs::create_dir_all(to)?;
-    for name in [DB_FILE, META_FILE] {
-        let src = from.join(name);
-        if src.is_file() {
-            copy_checked(&src, &to.join(name))?;
-        }
-    }
-    // 자동 백업 폴더도 함께 옮겨요. 모두 복사하고 크기를 확인한 뒤에만 원래 백업 폴더를 지워요(②-2 ✔5).
-    let bak = from.join(BACKUP_DIR);
-    if bak.is_dir() {
-        let dest = to.join(BACKUP_DIR);
-        fs::create_dir_all(&dest)?;
-        for e in fs::read_dir(&bak)?.flatten() {
-            if e.path().is_file() {
-                copy_checked(&e.path(), &dest.join(e.file_name()))?;
+    let mut made: Vec<PathBuf> = Vec::new();
+    let r = copy_all(from, to, &mut made);
+    if r.is_err() {
+        for p in made.iter().rev() {
+            if p.is_dir() {
+                let _ = fs::remove_dir(p);
+            } else {
+                let _ = fs::remove_file(p);
             }
         }
-        let _ = fs::remove_dir_all(&bak);
     }
+    r
+}
+
+fn copy_all(from: &Path, to: &Path, made: &mut Vec<PathBuf>) -> Result<()> {
+    make_dirs(to, made)?;
     for name in [DB_FILE, META_FILE, META_NEW_FILE] {
-        let _ = fs::remove_file(from.join(name));
+        let src = from.join(name);
+        if src.is_file() {
+            let dst = to.join(name);
+            made.push(dst.clone());
+            copy_checked(&src, &dst)?;
+        }
+    }
+    let bak = from.join(BACKUP_DIR);
+    if bak.is_dir() {
+        copy_tree(&bak, &to.join(BACKUP_DIR), made)?;
     }
     Ok(())
 }
 
+/// 없는 폴더를 위에서부터 만들고, 만든 것을 적어 둬요(실패하면 치우려고)
+fn make_dirs(p: &Path, made: &mut Vec<PathBuf>) -> Result<()> {
+    let mut missing = Vec::new();
+    let mut cur = p;
+    while !cur.exists() {
+        missing.push(cur.to_path_buf());
+        match cur.parent() {
+            Some(par) if !par.as_os_str().is_empty() => cur = par,
+            _ => break,
+        }
+    }
+    for d in missing.into_iter().rev() {
+        fs::create_dir(&d)?;
+        made.push(d);
+    }
+    Ok(())
+}
+
+/// 폴더를 하위 폴더까지 복사하고 파일마다 크기를 확인해요
+fn copy_tree(src: &Path, dst: &Path, made: &mut Vec<PathBuf>) -> Result<()> {
+    make_dirs(dst, made)?;
+    for e in fs::read_dir(src)? {
+        let e = e?;
+        let p = e.path();
+        let d = dst.join(e.file_name());
+        if p.is_dir() {
+            copy_tree(&p, &d, made)?;
+        } else if p.is_file() {
+            if !d.exists() {
+                made.push(d.clone());
+            }
+            copy_checked(&p, &d)?;
+        }
+    }
+    Ok(())
+}
+
+/// 옮기기 2단계: 옛 자리의 자료·백업 폴더를 지워요(새 자리를 설정에 적은 뒤에).
+pub fn remove_moved(from: &Path) {
+    let _ = fs::remove_dir_all(from.join(BACKUP_DIR));
+    for name in [DB_FILE, META_FILE, META_NEW_FILE] {
+        let _ = fs::remove_file(from.join(name));
+    }
+}
+
 #[cfg(test)]
 mod migrate_tests;
+
+#[cfg(test)]
+mod bughunt_tests;
 
 #[cfg(test)]
 mod tests {
@@ -1140,7 +1360,7 @@ mod tests {
         }
         fs::write(folder.join("gilog_2026-01-01.gilogbak"), b"x").unwrap();
         fs::write(folder.join("gilog_2026-01-01_before-import.gilogbak"), b"x").unwrap();
-        prune_before_v(tmp.path());
+        prune_before_v(tmp.path(), None);
         let mut left: Vec<String> = fs::read_dir(&folder).unwrap().flatten().map(|e| e.file_name().to_string_lossy().to_string()).collect();
         left.sort();
         assert_eq!(

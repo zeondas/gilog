@@ -670,12 +670,13 @@ struct BackupInfo {
 fn backup_info(app: AppHandle) -> Result<BackupInfo, String> {
     let dir = data_dir(&app)?;
     let list = gilog_core::daily_backups(&dir);
-    let last = list.last();
+    // "최근"은 이름 날짜가 오늘이거나 그 전인 것 중 가장 늦은 것(시계가 앞섰던 때의 미래 날짜 파일은 빼요 – 버그 사냥 8)
+    let last = gilog_core::latest_backup(&dir);
     Ok(BackupInfo {
         folder: dir.join(gilog_core::BACKUP_DIR).to_string_lossy().to_string(),
         count: list.len(),
-        latest: last.map(|(d, _)| d.clone()),
-        latest_path: last.map(|(_, p)| p.to_string_lossy().to_string()),
+        latest: last.as_ref().map(|(d, _)| d.clone()),
+        latest_path: last.as_ref().map(|(_, p)| p.to_string_lossy().to_string()),
     })
 }
 
@@ -721,10 +722,13 @@ fn move_data(app: AppHandle, state: State<AppState>, folder: String) -> Result<(
     guard::export_to(&folder, &guard::protected(&app))?;
     let mut guard = state.store.lock().map_err(io)?;
     *guard = None;
-    gilog_core::move_data(&from, &to).map_err(code)?;
+    // 복사 → 설정에 새 자리 적기 → 옛 자리 지우기 순서예요. 그 사이 꺼져도 설정이 가리키는 쪽에 자료가 온전히 있어요(버그 사냥 16).
+    gilog_core::copy_data(&from, &to).map_err(code)?;
     let mut prefs = read_prefs(&app)?;
     prefs.data_dir = folder;
-    write_prefs(&app, &prefs)
+    write_prefs(&app, &prefs)?;
+    gilog_core::remove_moved(&from);
+    Ok(())
 }
 
 /// 이번 실행이 시험용 두 번째 기록이면 그 이름("B"), 아니면 null
