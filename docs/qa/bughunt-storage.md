@@ -3,7 +3,7 @@
 - 근거: 공통 결정 로그 2026-11-01 20:49 · 기준 main `429452a`(읽은 뒤 `4efe99a`까지 앱 소스 바뀜 없음)
 - 본 곳: `src-tauri/core/src/lib.rs`(열기·quick_check·migrate·auto_backup·daily_backups·export/restore·write_atomic·rename_retry·prune_before_v·recover_swap·move_data) · `core/src/clear.rs` · `core/src/migrate_tests.rs` · `src-tauri/src/lib.rs`(prefs·열쇠 맡기기·import_backup·restore_and_open·move_data) · `src-tauri/src/guard.rs` · `src-tauri/src/hello.rs` · `src/Gate.tsx` · `src/api.ts`(errorText) · `src/screens/settings/Table.tsx`·`Dialogs.tsx`
 - 찔러 본 방법: core 크레이트를 저장소 밖 `/tmp/bh/st/core`에 복사하고, 그 복사본에만 시험 파일 하나(`bughunt_probe.rs`, 14개)를 붙여 돌렸어요. **저장소 안 앱 소스·시험은 한 줄도 안 고쳤어요(규칙 9).** 시험 코드는 "코딩하자" 뒤 `wip/bughunt`에 넣을 몫이에요.
-- 기준: 지금 core 시험 132개 – 복사본에서 127 통과 + 5개(도로명주소 표 `../../data` 경로가 복사본에서 안 맞아서)는 경로를 맞추자 통과. 기존 시험은 모두 그대로 통과예요.
+- 기준: 지금 core 시험 132개 모두 통과(복사본에서 도로명주소 표 `../../data` 경로를 맞춘 뒤, 299초).
 - 확실도: **재현됨** = 위 복사본에서 실제로 돌려 그 결과가 나옴 · **의심** = 읽기로는 그런데 재현 못 함(앱 창·윈도우 잠김·전원 꺼짐이 필요). 의심은 ✔ 후보로 올리지 않아요.
 
 ## 발견 표 (영향 "자료 손실"이 맨 위)
