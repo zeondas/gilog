@@ -48,7 +48,7 @@
 | 준비 안내서 | `wip/setup-guide`(문서만 – `docs/setup/`) | 설치만으로 안 되는 세 기능의 준비 안내: 민원처리(Claude Code·크롬 확장·신문고 로그인)·구글 캘린더 연동(구글 쪽 설정·테스트 사용자)·집행현황 팀 공유(계정·동의 화면) – 앱 소스 안 건드림 | `b2b53ae` | **초안 – 사용자 확인 기다림** – 사용자 "제안대로"(①2안 `docs/setup/` · ②1안 한글, 매뉴얼과 합치기는 나중에) · `docs/setup/기록-준비-안내서.hwpx`(매뉴얼 한글 양식 그대로, 4장: 개요·민원처리·구글 캘린더·팀 공유, 그림 틀 10개 비움) + 원고 `준비안내서.txt`·`make_hwpx.py` · 구글 수치 100명·7일 10-29 확인 · 【확인 필요】 회사 망·claude.exe 건네기·앱 정보 들었는지 | 사용자 확인 · 【확인 필요】 답 · 캡처 11장 |
 | 매뉴얼 | `wip/manual` | 매뉴얼 – 문서·생성기만(`docs/manual/`·`tools/manual/`, 앱 소스 안 건드림). 10-29 사용자 한글 원고(탐색기 앞부분) 양식 그대로 나머지 9장 글 채움 + 그림 틀 33개 모두 앱 화면(3배)으로 채움(`tools/manual/hwpx_fill.py`·`hwpx_pics.py`, 번호 자리 `docs/manual/hangul/map/`) | `2f65080` | **매뉴얼 v31 보냄** – 0.61~0.62 반영 10곳(남은 근무일·할 일 배지·챙길 일 7근무일·민원처리 답변도 "완료 N건" 아래·팀 공유 × 호스트만·팀 공유 준비 04 라. 공유에서 나가기·끝내기 새 절(뜨는 글 마. 6)·7))·설정 03 자.·04 자. 자료 지우기 새 절(그림 1)·집행현황 카드 한 줄), 쪽: 설정 2·7쪽 끝 빈 줄 써서 맞춤, 자. 새 쪽 – 목차 안 바뀜 · `tools/manual/hwpx_v31.py` | 사용자 한글 확인(쪽·팀 공유 마지막 쪽) · 다음 빌드에서 자료 지우기 카드 자리 바뀌면 그림 다시 찍기 |
 | QC 목록 | main(문서만 – `docs/qa/qc.md`) | 화면별 QC 확인 항목 목록(결정 로그 10-30 23:55 ①) – 앱 소스 안 건드림 | – | **쓰는 중(11-01 19:0x)** – 0절 시험 준비(자료 넣기 양식·외부 계정·도구) 초안 있음, 화면별 절 쓰기 시작 | 사용자 확인 |
-| 지침 정리 | main(문서만 – CLAUDE.md·`docs/rules/`) | 지침 다이어트 3차(결정 로그 11-01 14:44) – 앱 소스 안 건드림 | `2c710e3`+ | ① 맨 위 상자(꼭 지킬 것 10 + 목차) 넣음 · ② 옮기기 진행 중 | ② 끝내기 |
+| 지침 정리 | main(문서만 – CLAUDE.md·`docs/rules/`) | 지침 다이어트 3차(결정 로그 11-01 14:44) – 앱 소스 안 건드림 | `dd3bbf5`+ | ② 구조·공통 입력·Enter·사용자 규칙·작업 방법·빌드·시안·기준 문서를 `docs/rules/` 셋으로 옮김(원문 대조: 빠진 줄 0) · ④⑤ 남음 | ④ build-prompt·규칙 7 한 줄 → ⑤ 링크 고치기 |
 | 공유 시험 | main(문서만) | 집행현황 팀 공유 두(세) 계정 시험 – 결과 [docs/qa/share-test.md](https://github.com/zeondas/gilog/blob/main/docs/qa/share-test.md), 안 된 것은 그 화면 대기 목록 ✔ | `b819cb5` | 시험 중 – 1·2 됨, 3 기다림 · "받은 것" 창 결정(1안 시안·①2안) → 집행현황 대기 ✔1로 전달 | 사용자 시험 결과(3번부터) |
 **공통 결정 로그** (나중 날짜가 이겨요 — 활성 결정만, **끝난·대체된 결정 원문은 [docs/history.md](https://github.com/zeondas/gilog/blob/main/docs/history.md) "공통 결정 로그 보관"**, 정리 ③ 쪼개기 틀은 [docs/qa/split.md](https://github.com/zeondas/gilog/blob/main/docs/qa/split.md), 정리 ⑥은 [docs/qa/dedupe.md](https://github.com/zeondas/gilog/blob/main/docs/qa/dedupe.md))
 - 2026-11-01 14:44 우두머리 세션(사용자 1안): **지침 다이어트 3차** – CLAUDE.md 맨 위 30줄 안에 "꼭 지킬 것 10개 + 목차" 상자, 긴 절(구조·공통 입력 규칙·Enter 규칙·사용자가 정한 규칙·캘린더·탐색기 세부)은 `docs/rules/*.md`로 옮기고 CLAUDE.md엔 한 줄 요약 + 링크만(88KB → 30KB 안팎). 옮긴 글은 한 글자도 바꾸지 않아요. 세션 프롬프트 틀·build-prompt.md에 "자기 화면 규칙 파일 읽기" 줄을 더해요. CLAUDE.md는 전체가 들어가지만 가운데가 흐려지고 매 답마다 비용이라서. "지침 정리" 세션(문서만).
@@ -89,12 +89,7 @@
 - 한 단계가 끝나면 (1) 들어간 것, (2) 제가 확인한 것, (3) 윈도우에서만 확인할 수 있어 사용자가 시험해야 할 것을 번호로 적어요.
 - 사용자가 "통과"라고 하기 전에는 다음 단계를 시작하지 않아요.
 
-## 빌드 규칙 (2026-10-17 사용자가 정함 — 가장 먼저 지켜요)
-- **(2026-10-27 11:32 바뀜 – 공통 결정 로그: 빌드 세션은 빌드 프롬프트를 받으면 허가를 따로 묻지 않고 스스로 판단해 올려요. 아래는 빌드 세션이 아닌 세션에 적용.)** **사용자 허가 없이 빌드하지 않아요.** `main`에 코드를 올리면 바로 빌드되니, 코드 커밋을 `main`에 올리는 것도 허가를 받은 뒤에만 해요. `gh workflow run`으로 직접 돌리는 것도 마찬가지예요.
-- 빌드가 필요하면 Claude가 먼저 제안해요: 무엇을 고쳤는지, 왜 지금 빌드가 필요한지 한두 줄로 말하고 "빌드할까요?"라고 물어요. 사용자가 허가하면 그때 올려요.
-- 허가 전에는 고친 것을 작업 공간에만 두고(또는 대기 목록에 적고), 화면 확인은 브라우저 미리 보기로 해요.
-- 문서만 고친 커밋은 `[skip ci]`를 붙여 빌드 없이 올려도 돼요.
-- (계기: 2026-10-17 할 일 입력란 수정을 묻지 않고 0.9.5로 빌드했어요. 다른 세션들이 같은 보관소에서 빌드하던 중이었어요.)
+## 빌드 규칙 → [docs/rules/workflow.md](https://github.com/zeondas/gilog/blob/main/docs/rules/workflow.md) – 빌드 세션이 아닌 세션은 사용자 허가 없이 main에 코드를 올리거나 빌드하지 않아요. 빌드가 필요해 보일 때 읽어요.
 
 ## 세션 규칙 (2026-10-16 사용자가 정함)
 - **"코딩하자" 전에는 코딩하지 않아요**(현황판 규칙 9). 검토·시안·결정·✔ 적기까지만. 코딩을 시작할 때는 첫 줄에 "사용자 ○○:○○ "코딩하자"를 받아 시작해요"라고 적어 근거를 남겨요.
@@ -104,138 +99,17 @@
 - 여러 화면에 걸친 공통 규칙(한글 입력, 머릿기호, Enter 등)은 공통 규칙 칸에 적고, 각 기능 세션이 자기 화면에 적용해요.
 - 세션을 시작하면: 이 파일 → 진행 상태 표 → 대기 목록의 내 기능 칸 순서로 읽어요.
 
-## 기준 문서 (이 순서로 우선해요)
-1. 개발 사양서: https://claude.ai/code/artifact/8a776f73-e26c-4e2c-9735-3dc7cd0885f4 (동작·저장·연동) — 2026-10-17 지금 결정에 맞게 전체를 고쳤어요(확정했지만 앱에 없는 것은 "(다음 빌드)" 표시). **동작을 새로 정하거나 바꾸면 이 파일과 함께 사양서도 고쳐요**, 빌드에 들어가면 그 항목의 "(다음 빌드)"를 지워요.
-2. 화면 시안(Claude Design 캔버스): https://claude.ai/artifact/JyghMiCyKE5BRDq2C8SmJm — 파일 `project/*.dc.html` (배치·칸 순서·문구)
-3. 디자인 시스템: https://claude.ai/artifact/GjMv4QEBfeZmmBLqoM7ASZ — `src/tokens.css`에 옮겨져 있어요. 화면 코드에 색 값을 직접 쓰지 않고 토큰만 써요.
-- **이름·로고·색은 `docs/brand.md`가 위 세 문서보다 우선해요**(2026-10-16 확정: 기Log, 각진 ㄱL 심볼, 보라 강조색 — 시안·디자인 시스템도 보라로 고쳤어요).
+## 기준 문서 → [docs/rules/workflow.md](https://github.com/zeondas/gilog/blob/main/docs/rules/workflow.md) – 사양서 → 화면 시안 캔버스 → 디자인 시스템 순, 이름·로고·색은 docs/brand.md. 동작을 정하거나 바꿀 때 읽어요.
 
-## 시안 두는 곳 (2026-10-17 사용자 1안)
-- **새 시안은 모두 화면 시안 캔버스 https://claude.ai/artifact/JyghMiCyKE5BRDq2C8SmJm 에 판(`이름.dc.html`)으로 더해요.** 따로 아티팩트를 만들지 않아요. 사용자가 찾기 힘들어했어요. 캔버스는 사이드바에 고정해 뒀어요(이름 "giLog 시안").
-- 시안을 말할 때는 늘 캔버스 주소와 판 이름을 함께 적어요.
-- **시안을 올리기 전 확인(2026-10-17 사용자 지적 — 인쇄 기간 시안에서 날짜 칸이 `261012`를 2000년대로 읽지 못했어요)**: 시안에 입력칸·머릿기호·Enter·한글 등 공통 규칙이 닿는 곳이 있으면, 아래 "공통 입력 규칙"을 칸마다 대어 보고, 규칙을 흉내 낼 때는 **새로 짜지 말고 앱의 함수를 그대로 옮겨** 와요(날짜 `journal.ts`의 `parseDate`, 머릿기호 `bullets.ts`·`BulletRule.dc.html`의 `layout`). 옮긴 뒤 규칙에 적힌 보기 값(`261015`, `26-10-15`, `1015`, `10/15`, `20261015` 등)을 한 번 돌려 봐요. 뜨는 창의 "바깥을 누르면 닫기"도 앱처럼 **누르기 시작한 곳이 바깥일 때만**(`onMouseDown` + `e.target === e.currentTarget`) 닫아요 — 시안을 `onClick`으로 만들었더니 날짜 칸 글자를 끌어 고르다 창 밖에서 떼면 닫혔어요(2026-10-17 사용자 신고, 앱은 이미 바른 방식).
-- **캔버스 판은 화면당 기준판 하나(2026-10-20 21:53 사용자 1안 — 69판 → 16판으로 정리)**: Main(민원대장)·Todo·Contacts·Journal·Calendar·Settings·Files(탐색기)·Process(민원처리)·Budget(집행현황)·BudgetStatus(예산현황)·Theme·Lock + 결정 기다림 ProcessStatus(진행 막대)·BudgetShare·ProcessMail·AddressWeb(주소 변환 웹)·PartsLook(공통 부품 메뉴·지울까요 모양)·Installer(설치·제거 창 – 3안 보라 띠 확정)·BudgetLink(집행·예산 연동 – 이월 재원 나눔 지금/고친 뒤, 결정되면 BudgetStatus에 반영하고 지움)·RuleFix(공통 부품 ✔8 지금/고친 뒤, 코딩 뒤 지움). **규칙**: 비교·고르기 판(1안/2안, 지금/고친 뒤)은 결정되면 그 화면 기준판에 반영하고 지워요 — 새 판을 더하면 여기에 이름을, 지운 판은 [docs/history.md](https://github.com/zeondas/gilog/blob/main/docs/history.md) "시안 판 목록"에 적어요(판마다 정한 것은 그 절·공통 결정 로그에 남아 있고, 캔버스 이전 판본으로 되살릴 수 있어요).
-- 예전에 따로 만든 시안(새로 더하지 않아요): 종류 칸 https://claude.ai/artifact/EUZJjsJEZqPnCy9sv5y4qS · 글자 가운데 맞춤 비교 https://claude.ai/artifact/6f6FBiSo7unEMt8qJzE5SQ · 관리 창 https://claude.ai/artifact/ALMvrTHi4RGFHvBikN9srq · 쉬는 날 음영 https://claude.ai/artifact/ND2V6G1gFkb3TWnuC8GyTD
+## 시안 두는 곳 → [docs/rules/workflow.md](https://github.com/zeondas/gilog/blob/main/docs/rules/workflow.md) – 새 시안은 화면 시안 캔버스 판으로, 화면당 기준판 하나, 올리기 전 공통 규칙 확인. 시안을 만들 때 읽어요.
 
-## 구조
-- 화면: React + TypeScript (`src/`). `src/api.ts`가 Rust를 부르고, 브라우저 미리 보기는 WASM으로 빌드한 core를 써요(`src/wasm-pkg/`, 앱 빌드는 빈 자리).
-- 모양(CSS): `src/tokens.css`(색·토큰) → `src/styles/index.css`가 불러오는 순서 base(공통·사이드바·잠금·단추·입력칸·머릿기호) · dialogs(창·묻는 띠·떠 있는 메뉴·엑셀 창·휴지통) · settings · contacts(사업 관리 창) · journal(메모 편집기·인쇄) · complaints · tasks · calendar · process · files · budget · bstatus · **late**(다른 파일을 같은 무게로 덮어 꼭 맨 뒤여야 하는 것만 – 한 줄 칸 규칙·떠 있는 메뉴 한 모양·창 닫기 ×·창 크기·✔8). 새 규칙은 그 화면 파일 끝에. 어느 절이 어디로 갔는지는 [tools/tidy/css-map.json](https://github.com/zeondas/gilog/blob/main/tools/tidy/css-map.json)(2026-10-26 정리 2차, 옛 `app.css`).
-- 앱 틀: Tauri 2 (`src-tauri/`). 저장·암호화는 `src-tauri/core/` 크레이트에 두고 `cargo test`로 시험해요.
-- 자료: 한 파일 `문서\giLog\gilog.db`(암호화). 지금은 `kv` 표에 JSON으로 저장해요. 새 화면은 `core`에 표를 만들고 `migrate()`에 추가해요.
-  - 자료 안전(`wip/safety` `543c2f0`, 10-29): 잠금 풀 때 하루 한 번 자동 백업 `backup\gilog_YYYY-MM-DD.gilogbak`(최근 7개, `auto_backup`·`daily_backups`) · 자료 형식 버전 `user_version` = `SCHEMA_VERSION`(지금 1) – 표·칸을 바꾸면 하나 올리고, 올리기 전 `_before-vN` 백업이 저절로 남아요, 앱보다 높으면 `too_new` · key.json의 열쇠 검사 값 `check`로 `corrupt`와 `wrong_password`를 나눠요(열 때 `quick_check`) · prefs.json·key.json·백업은 `write_atomic`, prefs를 못 읽으면 `prefs_bad`. **②-2(`wip/guardrails2`, 합친 뒤부터)**: 되살리기는 옛 둘 `.old` → 새 둘 → `.old` 지움(끊기면 `exists`/열 때 `recover_swap`이 온전한 짝으로), 불러오기 전 `backup\gilog_날짜_before-import.gilogbak`, `write_atomic` 임시 `.tmp-<pid>`·바꿔치기 3번 재시도(`rename_retry`), `_before-vN` 최근 3개(`prune_before_v`), `move_data`는 크기 확인 뒤에만 옛 백업 폴더 삭제, 앱 Rust 시험(guard·process·prefs)은 check.yml 윈도우 검사에. 잠금 화면 손상 띠는 `Gate.tsx`의 `restoreAndOpen`.
-- 앱 설정(암호 없이 읽는 것)은 AppData의 `prefs.json`, 내용 설정(상태 목록, 구분 등)은 암호화 파일 안 `settings` 키예요. `src/settingsStore.ts` 참고.
-- 업무연락처: `core/src/contacts.rs`(표 `contacts`, `projects`(정식 이름 `name`·줄인 이름 `alias`·색 — `wip/contacts`), `contact_projects`), 화면 `src/screens/contacts/`(Screen 몸통 · Table 왼쪽 사업 목록·보기 카드 · Dialogs 신규 줄·사업 칸·고치는 카드·메모 창 `MemoEditor`(민원대장도 씀)·사업 관리 창 · Menu 사업 줄 우클릭·작은 우클릭 · parts `parseMemo`·`memoText`·`projectColor`·`pjLabel`·`pjFull`·`pjStyle`·`Hl`·`copyText`(다른 화면 11곳이 씀)·사업 묶음 – `wip/split-contacts`, 전엔 `src/ContactsScreen.tsx`). 바꾸는 명령은 바뀐 뒤 전체 자료(`ContactsData`)를 돌려줘요. 업무일지는 `api.contactsData()`로 연락처를 읽어요.
-- 업무일지: `core/src/journal.rs`(표 `journal_days` 머리 줄, `journal_entries` 기록 — 대화 줄은 `lines` 칸에 JSON), 화면 `src/screens/journal/`(Screen 몸통·챙길 일 · Table 월 달력·머리 줄·기록 카드·검색 결과 · Dialogs 상대 칸·신규/고치는 카드·인쇄 창 · Menu 날짜 우클릭·사업 고르기 · keys 말 줄 키 · parts `Ctx`·`CardCols`·`badgeStyle` – `wip/split-journal`, 전엔 `src/JournalScreen.tsx`·`src/JournalPrint.tsx`), 규칙 함수 `src/journal.ts`. 처음에 전체를 읽고(검색이 모든 날짜를 봐요) 바꾸는 명령은 바뀐 기록 하나만 돌려줘요. 기록의 상대·연락처는 그때 글자를 복사해 둬요. 프로젝트는 등록할 때 상대 연락처의 첫 프로젝트가 붙고, 프로젝트를 지우면 기록에서 빠져요.
-- 말 줄의 "나"는 `me: true`로 저장해요(설정의 내 이름이 바뀌어도 "나"로 보여요). 상대 말 배지 색은 이름마다 정해진 `--pj-*` 색이에요.
-- 민원대장: `core/src/complaints.rs`(표 `complaints`, 연번 `no`는 등록할 때 가장 큰 연번+1, 지워도 다시 매기지 않음), 화면 `src/screens/complaints/`(Screen 몸통·열 폭 · Table 열 제목·칩 줄·신규/고치는/보기 줄 · Dialogs 날짜 칸·메모·분류 관리 창 · Menu 우클릭·거르기 상자 · parts – `wip/split-complaints`, 전엔 `src/ComplaintsScreen.tsx`), 규칙 함수 `src/complaints.ts`(남은 날·검색·열 정의·초성 펼치기). 처음에 전체를 읽고 바꾸는 명령은 바뀐 민원 하나만 돌려줘요. 내용·조치내용은 줄바꿈으로 나눈 글자, 메모는 업무연락처와 같은 JSON 줄 모양. `set_complaint_status`는 7단계(할 일 체크 → 완료)용으로 미리 만들어 뒀어요. 열 너비는 암호화 파일의 `complaints.colWidths` 키. 상태 "완료"는 `settingsStore.ts`의 `DONE_STATUS`.
-- 민원처리(10단계): core `process.rs`(공사 works·민원 건 cases), 명령 `src-tauri/src/process/`(mod 자료 명령 · inbox 받은 민원 읽기 · order 지시부·JPG·보내기 · open 열기 · claude Claude 실행·로그·경로 검사 · pick 사진 고르기 · tests·guard_tests – `wip/tidy2`, 전엔 `process.rs` 한 파일; 10-29 경로 검사: Claude 실행 파일·작업 폴더는 화면 값이 아니라 저장된 `settings.process`와 같아야 하고 이름이 claude(.exe)여야 해요 – `checked_exe`·`checked_dirs`, 허용 도구 `Read,Write,Glob`+크롬, 사진 폴더는 `allow_case_photos`로 미리 보기 허용), 답변·완료·불가 민원 줄은 표 아래 "완료 N건" 띠 아래로(`isHiddenStatus` – 흐리게·고치기 막기는 완료·불가 `isDone`만, 0.62.0), 화면 `src/screens/process/`(Screen 틀·상태 `useProcessCore` · fetch 민원 불러오기 · cases 민원 줄·지시부 다루기 · Table 열 제목·위치·고려사항 칸·사진 줄·진행 게이지·열 폭 `useProcessCols`·줄 그리기 `useProcessRows` · Dialogs 공사 관리 창·메일 창 · Menu 떠 있는 상자 `Floating` · parts 열 정의·글자 폭·공통 그림 – `wip/split-process`, 전엔 `src/ProcessScreen.tsx`), 규칙 함수 `src/process.ts`.
-- 설정: 화면 `src/screens/settings/`(Screen 몸통·설정 찾기 `applyFind` · Table 카드·줄 부품 – 모듈·키 카드, 구글·탐색기·민원처리·주소 줄, 목록 묶음 `ListGroup`(민원대장 분류 관리 창도 씀)·`KindsGroup`, PIN·저장 위치·백업 줄 · Dialogs 비밀번호 바꾸기 `PasswordChange` · parts `Row`·`Toggle`·`X`·`PIN_CHANGED` – `wip/split-settings`, 전엔 `src/SettingsScreen.tsx`), 저장 `src/settingsStore.ts`.
-- 업무일지 "챙길 일"은 마감 7일 안(지난 것 포함)이고 완료가 아닌 민원과 할 일(하위 항목 포함)을 마감순으로 보여 줘요. 민원을 누르면 민원대장의 그 줄로(App의 `openComplaint`), 할 일을 누르면 할 일 목록의 그 항목으로 가서(App의 `openTask`, 숨긴 목록이면 다시 보이게) 잠깐 칠해요.
-- 할 일 목록: `core/src/tasks.rs`(표 `task_lists` — `builtin`이 처음부터 있는 "민원" 목록, `tasks` — `parent`로 하위 항목 한 단계), 화면 `src/screens/tasks/`(Screen·Table·Dialogs·Menu·parts – `wip/split-tasks`, 전엔 `src/TasksScreen.tsx`), 규칙 함수 `src/tasks.ts`(항목 묶기·정렬·검색·마감 배지·챙길 일). 처음 열면 "민원"과 "행정업무" 목록을 만들어요. 처음에 전체를 읽고 바꾸는 명령은 바뀐 것만 돌려줘요(`set_task_done`은 함께 바뀐 위·하위 항목까지). 민원은 할 일로 저장하지 않고 화면이 민원대장을 그대로 읽어 "민원" 카드에 넣어요(`complaintItems`).
-  - 민원 항목: 제목은 "접수유형(지역 위치)", 마감일(법정 답변기한)이 있는 민원만. 체크 = `set_complaint_status(답변)`(`wip/todo` — 그 전엔 완료), 답변 끝난 민원(`isAnswered`)은 체크됨, 체크 풀기 = 그 전 상태(이번에 체크한 것만 기억, 모르면 상태 목록의 답변 전 첫 값). 답변 끝난 민원은 마감이 30일 안쪽인 것만 "완료됨"에 남아요(`DONE_COMPLAINT_DAYS`). 두 번 누르면 민원대장의 그 줄로 가요.
-  - 위 항목 완료 → 하위 항목도 완료(먼저 완료한 하위의 완료한 날은 그대로). 위 항목 되돌리기 → 하위도 되돌림. 하위 되돌리기 → 위 항목도 되돌림.
-  - 체크 움직임(2026-10-25 할 일 ①~④ 1안, `wip/todo2`): 체크 전 상자에 올리면 연한 체크(`.td-tick` 40%), 누르면 `.pop`(차오르기·선 그리기·1.15배, `CHECK_MS` 400). 방금 누른 항목은 `justDone`(key 하나)으로 `split(…, hold)`가 남은 일 자리에 두고(위 항목이면 하위도 함께), 저장이 돌아오고 400ms 뒤 지워 완료됨으로. 저장은 누르는 순간. 되돌리기·함께 완료되는 하위·`prefers-reduced-motion`은 움직임 없음.
-  - 목록 우클릭: 이름 바꾸기·위로/아래로 옮기기·목록 지우기(딸린 할 일 수를 알려 주고 물어요). "민원"은 옮기기만 돼요. 카드 제목 줄 우클릭은 "목록 지우기"만(같은 묻는 띠, `ListMenu`의 `deleteOnly` — `wip/todo`).
-  - 신규 입력: 제목 → Tab 세부정보(머릿기호, Shift+Enter 새 줄) → Tab 날짜. 아무 칸에서 Enter, 날짜 칸에서 Tab이면 등록(시안). Esc 닫기. **바깥을 누르면 저장하고 접혀요**(0.9.5, 사용자 지적 — 공통 규칙 "바깥을 누르면 저장"을 신규 입력란에도). 제목이 비어 있으면 등록하지 않고 접기만, 날짜를 읽을 수 없으면 등록하지 않고 빨간 테두리로 남아요. 하위 항목 입력도 같아요. 날짜 칸 옆 달력 단추로 작은 달력. 마감 배지: 오늘 파랑, 임박 기준(설정) 안·지남 빨강(`--urgent-bg`), 하루 더 주황.
-- 캘린더(8단계): `core/src/calendar.rs`(표 `cal_kinds` — `system`이 "complaint"·"task"·"holiday"면 앱이 만든 종류(지울 수 없고 색·보이기만), `events` — 반복 규칙 `repeat`(""·daily·weekdays·weekly·biweekly·monthly·yearly)과 종료일 `until`(반복이면 필수), 알림 `remind`(-1 없음·0·10·30·60·1440분 전), `holidays`), 명령은 `src-tauri/src/calendar.rs`, 화면 `src/screens/calendar/`(Screen 몸통 · Table 일정 칩·주간 보기·주 배치 · Dialogs 빠른 입력·상세 창·알림 고르기·종류 관리·알림 확인 창·구글 상태 상자 · Menu 종류 고르기 `KindPicker`·색 단추 – `wip/split-calendar`, 전엔 `src/CalendarScreen.tsx`), 규칙 함수 `src/calendar.ts`(색·반복 펼치기 `expand`·주 배치 `layoutWeek`·알림 계산 `reminders`), 앱 전체 동작 `src/reminders.ts`.
-  - 민원·할 일 마감은 저장하지 않고 `expand`가 민원대장·할 일을 읽어 종일 일정으로 그려요(완료한 것은 흐리게 가운데 줄). 누르면 원래 화면의 그 항목으로(App의 `openComplaint`·`openTask`). 민원 제목은 할 일 목록과 같은 `complaintTitle`.
-  - 일정의 종류는 이름으로 보내요. 없는 이름이면 core가 새 종류를 만들어요. 종류 색은 구글 24색 번호(`--gc-N`, `--gc-N-fg` 토큰), null이면 자동(내 종류 순서로 `AUTO` 표). 앱이 만든 종류의 "처음 색"은 민원 1(분홍)·할 일 12(민트)·공휴일 3(다홍).
-  - 종류를 지우면 그 종류의 일정도 함께 지워져요(할 일 목록과 같게, 개수를 알려 주고 물어요). 내 종류는 하나 이상 남아요.
-  - 반복 일정을 고치거나 지우면 모든 회차가 함께예요(이 회차만 바꾸기는 없어요).
-  - 공휴일: 앱에 2024~2027년 목록(`BUILTIN_HOLIDAYS`, holidays-kr 자료)을 넣어 두고, `https://holidays.hyunbin.page/basic.json`(우주항공청 월력요항, 대체·임시공휴일 포함, 인증키 없음)에서 앱을 열 때와 하루에 한 번 새로 받아요(`refresh_holidays`, 받은 해만 바꿈, 실패는 "offline"이고 한 시간 동안 다시 안 해요). 받는 것은 Rust(reqwest, 윈도우 인증서·프록시 설정 사용)예요.
-  - 지금 동작 요약(0.8.0~0.8.3에 바뀐 내력은 [docs/history.md](https://github.com/zeondas/gilog/blob/main/docs/history.md) "구조에서 옮긴 버전 이야기"): 월·주 보기(주는 0~24시, 오전 8시로 내려감, 지금 시각 빨간 줄, 고른 보기 `calendar.view`) · 달 이동은 **세로 휠**(주 보기는 머리 줄·종일 줄 위에서만) · 종류는 배지 고르기 `KindPicker`(새 종류는 "관리"에서만), 종류 칸 모양 `● 이름 ▾` · 할 일·민원 마감은 동그라미 체크 · 일정 한 번 누르기 고르기·두 번 고치기 · 알림 7일 전·한 달 전·직접 설정(62일까지 `REMIND_MAX`), 종일 알림 시각 `remind_time` · "알림 확인" 창(관리 창 아래 왼쪽, PowerShell 이름 시험 `calendar.notifyPowershell`, 켤 때 앱 이름 등록) · **공휴일은 화면 쪽 `fetch`로 받아요**(회사 망에서 앱 직접은 막힘 — `updateHolidays`: hyunbin → jsDelivr → 앱 직접 `refresh_holidays`).
-  - 일정마다 따로 색 고르기는 하지 않아요 — **2안(종류 색만) 확정**(2026-10-17 사용자).
-  - **쉬는 날 붉은 음영**(2026-10-17 사용자, 시안 https://claude.ai/artifact/ND2V6G1gFkb3TWnuC8GyTD — 설정 "화면" 카드 스위치 = `settings`의 `restShade`, 공휴일 종류를 숨겨도 칠해요, 주 보기 오늘 테두리 `.cal-wk-today`): 토·일요일과 공휴일 칸을 연한 빨강(새 토큰 `--rest-wash`, 주 보기 머리 줄 `--rest-band`)으로 칠해요(토요일도 — 2안). 켜고 끄는 스위치는 **설정 화면**(2안). 오늘이 쉬는 날이면 붉은 바탕은 두고 보라 테두리 2px(칸 둘레, 주 보기는 그 날 세로 열 전체) + 보라 날짜 동그라미(2안, 2026-10-17 확정). 쉬는 날이 아닌 오늘은 지금처럼(연보라 바탕 + 위 띠). 월 보기 토요일 숫자는 파랑 그대로, 지난달·다음달 칸은 음영을 연하게, 처음 값은 켜짐.
-  - 알림: 화면이 앞으로 7일 알림을 계산해 `set_reminders`로 보내고(일정을 바꿀 때·잠금 풀 때·30분마다), Rust가 15초마다 보고 윈도우 알림(`tauri-winrt-notification`, 앱 이름 = identifier)을 띄워요. 10분까지 늦은 것은 울리고 같은 것은 한 번만. 종일 일정은 오전 9시 기준(정시 = 그날 9시, 1일 전 = 전날 9시). 누르면 창을 꺼내고 "reminder-open" → App이 캘린더로 가서 그 일정을 열어요.
-  - 창의 X는 트레이로 숨기기예요(처음 한 번 알림으로 알려 줘요). 트레이 아이콘 왼쪽 클릭 = 열기, 우클릭 메뉴 "giLog 열기"·"끝내기". 트레이에 있는 동안 한 번 더 켜면 새로 열지 않고 그 창을 보여요(`tauri-plugin-single-instance` — 자료 파일을 두 곳에서 열지 않게).
-  - 빠른 입력: 날짜 → 시작 → 종료 → 일정 → 종류(ChoiceInput, 없는 이름도 받음). 아무 칸 Enter, 종류 칸 Tab(목록이 열려 있으면 Tab 확정 후 한 번 더 Tab)이면 등록. 등록 뒤 커서는 날짜 칸(사양서 "첫 칸"). 시각은 `14`·`930`·`1400`·`9:30`을 받아요(`parseTime`). "상세 입력"은 적던 것을 상세 창으로 옮겨요.
-  - 상세 창: Enter 저장, Shift+Enter는 설명의 새 줄, Esc 취소, 바깥을 누르면 저장(고친 게 없으면 닫기). 설명은 머릿기호 규칙(`BulletEditor`).
-  - 달력 칸: 한 번 누르면 고르기(빠른 입력 날짜가 따라가요), 두 번 누르면 그 날 상세 입력. "+N개"를 누르면 그 날 일정 전체 창.
-- 구글 연동(9단계): 모든 규칙은 화면 쪽 `src/google.ts`(보낼 모양 `desired`·`eventBody`, 맞추기 `syncGoogle`, 로그인 `connectGoogle`, 끊기 `disconnectGoogle`). 앱(Rust)은 `src-tauri/src/google.rs`에서 로그인 결과 받을 주소 열기(`google_listen`·`google_wait`, 127.0.0.1 임의 번호, 5분), 기본 브라우저로 로그인 창 열기(`open_google_login`, accounts.google.com만), 화면 요청이 막힐 때 대신 보내기(`google_http`, oauth2·www.googleapis.com만)만 해요.
-  - 저장은 kv: `google.client`(사용자가 고른 파일의 id·secret), `google.token`, `google.state`(캘린더 id, 우리 이름 `e12`·`c5`·`t3` → 구글 id·내용 지문, 마지막 성공·실패, full), `google.opts`(세 가지 켜고 끄기, 처음엔 모두 켬).
-  - 맞추기: 바뀐 것만 보내요(지문 비교). `api.ts`의 `changeHooks`가 일정·민원·할 일을 바꾼 명령을 알려 주면 2초 모아서 보내요. 실패하면 이유를 남기고 10분마다 다시. "지금 내보내기"·처음 연결은 full — 구글 캘린더의 일정을 다 읽어 모르는 것은 지우고 전부 다시 보내요(구글에서 고친 것 덮어쓰기). 구글에서 giLog 캘린더를 지웠으면 새로 만들어요.
-  - 보내는 모양: 내 일정(제목·일시·반복 RRULE·장소·설명 글자·알림·색), 민원 마감 = 기Log 캘린더와 같은 제목 `complaintTitle` "접수유형(지역 위치)" 종일(0.9.1 사용자: 기Log와 구글에 보이는 내용이 같아야 해요, 완료한 민원은 빼요), 할 일 마감 = 제목 종일(완료한 것은 빼요). 마감은 바쁨 표시 안 함·알림 없음. 색은 24색 → 구글 일정 색 11가지 **짝 표**(`GC_TO_EVENT`, `eventColorId`)를 늘 써요 — 구글 `/colors`의 값은 실제 화면 색과 달라 "가까운 색" 계산이 16색을 엉뚱하게 골라서 없앴어요(2026-10-25 사용자 ③2안, `wip/calendar2`). 구글은 일정 색이 11가지뿐이라 비슷하지만 같지는 않아요. 종일 일정 알림은 구글이 그날 0시 기준이라 알림 시각만큼 빼고, 4주(40320분)까지만 돼요.
-  - 지금 동작 요약(0.9.2~0.9.3·다른 사람도 쓰게의 자세한 내력은 [docs/history.md](https://github.com/zeondas/gilog/blob/main/docs/history.md) "구조에서 옮긴 버전 이야기"): 기본 로그인은 **캘린더 권한만**. 설정 "구글 할 일로 보내기"(`GOpts.gtasks`, 처음 꺼짐)를 켠 사람만 할 일 권한을 더 받아(`include_granted_scopes`) 할 일·민원 마감을 **같은 이름의 구글 할 일 목록**으로 보내요(하위 항목도 하위, 민원은 제목만, 체크는 양방향 `titems[k].done`·`REMOTE_CHANGE`, 사용자가 구글에서 만든 할 일은 건드리지 않음). 끄면 캘린더 종일 일정(`allDayBody`). 앱 정보는 GitHub 비밀 값 `GILOG_GOOGLE_CLIENT` → `build.yml`의 `VITE_GOOGLE_CLIENT` → `google.ts` `BUILTIN_CLIENT`(사용자가 직접 넣음, 없으면 설정에서 파일 고르기).
-  - 연결 끊기: "일정도 지우기"는 giLog 캘린더를 통째로 지워요. "일정은 두기"는 캘린더 id를 남겨 다시 연결하면 같은 캘린더를 다시 맞춰요.
-  - 화면: 설정 "구글 캘린더 연동" 카드(시안 Settings.dc.html — 연결 전엔 앱 정보 파일·구글 로그인 줄), 캘린더 왼쪽 맨 아래 상태 상자(연결됐을 때만 — 0.9.1 사용자: 종류 목록이 더 중요하고 관리 단추가 잘 안 보여서 아래로, 0.9.2: 상자 아래 끝을 달력 맨 아래 선에 맞춤 — 사용자 시안 확인).
-- 앱 창(시작 창): `src-tauri/src/window.rs` — `tauri.conf.json`의 창 설정(1600×900 가운데, `create: false`)으로 setup에서 숨긴 채 만들고, 화면이 첫 그림 뒤 `window_ready`(App.tsx)를 부르면 보여요(4초 안전장치). 자리·크기·최대화는 AppData `window.json`, 창 바탕색은 `--surface`와 같은 값(테마 따라감). 트레이·알림·한 번 더 켜기는 `calendar.rs`의 `show_main`. 닫기(X)는 prefs `closeAction`대로(2026-10-18 앱 창 세션): minimize 최소화 · tray 숨기기(처음 한 번 알림) · quit 화면 `CloseAsk.tsx`의 "기Log를 끝낼까요?" → `quit_app`(창 모양 저장 뒤 끝냄). 트레이 "끝내기"는 묻지 않아요.
-- 탐색기(11단계, `wip/explorer`): 파일 명령 `src-tauri/src/files/`(mod 공통 모양 · list 목록·드라이브·홈·감시 · archive zip · names 이름 · transfer 같은 이름·복사·옮기기·클립보드 · undo 되돌리기·지우기 · shell 열기·아이콘·우클릭·끌기 · find 찾기 · tests – `wip/tidy2`, 전엔 `files.rs` 한 파일; 목록·트리·드라이브·만들기·이름 바꾸기·일괄 바꾸기(임시 이름 거쳐, 실패하면 되돌림)·같은 이름 미리 보기 `fs_conflicts`·복사/옮기기 `fs_transfer`(진행 "fs-progress", 취소 `fs_cancel`, 같은 드라이브 옮기기는 이름만 바꿈)·지우기(`trash` 휴지통/완전)·열기·윈도우 탐색기에서 보기·찾기 `fs_find`(5000개까지)·폴더 감시 "fs-changed"(`notify`)), 글 내용 찾기 `files_text.rs`(txt UTF-8/16·EUC-KR, docx·xlsx·pptx·hwpx, hwp, pdf), 윈도우 전용 `files_win.rs`(드라이브·ShellExecute·아이콘 PNG·셸 우클릭 메뉴 — "이름 바꾸기"는 화면의 F2로). 화면 `src/screens/files/`(Screen 틀·그리기 · state 상태·폴더 읽기·이동 `useFilesCore` · ops 되돌리기·복사·클립보드·지우기·이름 · shell 셸 메뉴 · find 찾기 · Tree 트리 · Top 머리 줄·폭 맞추기 · drag 끌어다 놓기 · columns 열 폭 · Table 창 하나 그리기 · keys 키 · Dialogs 창들 · Menu · parts – `wip/split-files`, 전엔 `src/FilesScreen.tsx`·`src/FilesDialogs.tsx`), 아이콘 `src/FileIcon.tsx`(확장자마다 한 번 받아 둠), 규칙 `src/files.ts`(이름 정렬은 윈도우처럼 숫자 순·`.`이 `_`보다 앞, 일괄 이름 바꾸기 엔진), 부르기 `src/filesApi.ts`(브라우저 미리 보기는 가짜 폴더). 창 상태는 kv `files.state`, 설정은 `settings.files`(날짜 모양·숨긴 드라이브·숨김 파일·새 탭 폴더·지울 때 묻기). 사진 미리 보기는 asset 프로토콜(처음엔 아무 곳도 허용 안 함 – `fs_list`·`fs_find`가 보여 주는 폴더만 그때그때 `guard::allow_preview_dir`, 10-29 ✔4). **경로 검사(`src-tauri/src/guard.rs`, `wip/guardrails` 10-29)**: 지우기·옮기기·이름 바꾸기·되돌리기·새 폴더·바로 가기·압축 풀기·열기는 `plain`(`..`·장치 경로)·`removable`(드라이브·공유 맨 위·Windows·Program Files·Users\이름·AppData 앱 폴더·자료 폴더)·`writable`을 거쳐 `path_denied`, 실행 파일은 `fs_open`이 `need_confirm` → 화면 `RunAsk`("실행할까요?") 뒤 `run: true`(filesApi `setRunAsker`). 명령 허용은 `build.rs`가 `generate_handler!`를 읽어 `app-commands`·`app-risky` 두 묶음으로(새 위험 명령은 `RISKY`에), CSP는 `tauri.conf.json`. **②-2(`wip/guardrails2` `f638473`, 합친 뒤부터)**: 경로는 절대 경로만(`C:foo`·상대 거부), 비교 키는 `key_of`/`norm` 하나(없는 경로는 있는 부모로, `\\localhost\c$`는 `c:`로 – 민원처리 `same_path`도 이것), 쓰기 명령(엑셀 3·`export_backup`·`send_order`·`move_data`)은 `export_to`(자료·AppData·윈도우 폴더 금지), 실행은 `fs_open`이 `need_confirm:<번호>`(그 경로·60초·한 번) → `RunAsk` 뒤 `ticket`으로, 압축 풀기 항목은 `safe_rel`, Claude 실행 파일 자리는 `set_value("settings")`로 못 바꾸고 `set_process_exe`(RISKY)로만(`settingsStore.saveSettings`가 알아서 불러요). 날짜 모양 1번(`10-16 17:40`)은 올해가 아닌 파일만 `2025-10-16`처럼 연도를 붙여요(2026-10-18 사용자 1안, 사양서에도 적음).
-- 잠금(2026-10-18 잠금 세션, `wip/lock`): 잠금 화면 `src/Gate.tsx`(로고 → 44px → 비밀번호 칸 → 12px → 열기 → "PIN으로 풀기", PIN 풀기가 켜져 있으면 창이 앞에 있을 때 Hello를 한 번 저절로 띄움 — 아니면 창 `focus` 때, 경고는 카드 밖 `.gate-note` 띠 — 붉은 띠·PIN 취소는 회색 `.info`), 윈도우 PIN 풀기 `src-tauri/src/hello.rs`(명령 `pin_status`·`pin_enable`·`pin_disable`·`pin_unlock`·`pin_rekey`, Hello는 `IUserConsentVerifierInterop::RequestVerificationForWindowAsync`(창 손잡이), 보관은 DPAPI `CryptProtectData` → AppData `pin.bin`, 켜짐은 `prefs.json`의 `pinUnlock` — `set_prefs`는 이 값을 바꾸지 않아요). 설정 줄은 `src/screens/settings/Table.tsx`의 `PinRow`, 비밀번호를 바꾸면 `PasswordChange`(`Dialogs.tsx`)가 `pin_rekey`(취소하면 꺼요). 실패 이름 hello_unavailable·hello_canceled·hello_failed·pin_stale(보관 비밀번호로 못 염 → 꺼요)·pin_off. 브라우저 미리 보기는 Hello 대신 확인 창. 시안 캔버스 `Lock.dc.html`.
-- 집행현황(12단계): 화면 `src/screens/budget/`(Screen 틀·상태 `useBudgetCore` · parts 열·타입·돈 모양 · excel 엑셀 · Table 칸·줄·열 제목 · pick 숫자 칸 고르기 · share 팀 공유 그리기 · Menu 우클릭·지우기 · Dialogs 받은 것 창 `BudgetGot`·사업명 고르기 칸 `SuggestInput`·메모·단계 뜨는 창 – `wip/tidy2` – `wip/split-budget`, 전엔 `src/BudgetScreen.tsx`·`BudgetGot.tsx`·`BudgetSuggest.tsx`), 예산현황으로 보내기 `src/BudgetStatusSend.tsx`(두 화면이 씀), 규칙 함수 `src/budget.ts`·`budgetExcel.ts`·`budgetShare.ts`.
-- 예산현황(13단계, `wip/budgetstatus`): core `bstatus.rs`(표 `bstatus` 세부사업 이름 → 설정 JSON — multi·from·to·sources·carry·carrySrc·rows{"연도:재원": 직접 적은 값}·memo, 엑셀 쓰기 `write_bstatus_xlsx`), 명령 `src-tauri/src/bstatus.rs`, 화면 `src/screens/bstatus/Screen.tsx`(집행현황 표 부품 그대로 — 사업기간·사업명·숫자 열·메모, ◀ 년 ▶ 보는 해, ⚙ 설정 상자, 우클릭 메뉴, 배치최적화·열 폭 kv `bstatus.cols`, 순서 kv `bstatus.order`, 단위·보기·해 kv), 규칙 `src/budgetStatus.ts`(`compute` — 재원 하나면 집행현황 값이 그 줄, 여럿이면 부기사업 매칭(`match`)으로 재원 줄이 오고 합계는 집행현황 값, 다음연도 이월(명시·사고)·불용은 직접 적고 다년도는 그 값이 다음 해 전년도 이월로, 이월 사업 잇기(잇지 않은 이월 세부사업은 자기 줄로); 엑셀 줄 `lineOf`·가져오기 `parseBStatusSheet`). 세부사업 목록은 `api.budgetData(해)`를 올해 −3~+2해 읽어 이름으로 모아요. 엑셀 읽기는 집행현황의 `budgetExcelRead`(칸 글자 그대로)를 같이 써요.
-- 표 머리 줄 열 폭(헤더 열 조정 통일, `wip/cols` – 정리 ⑥의 `ColGrip.tsx`를 합침): 공통 부품 `src/ColHead.tsx`(`useColHead` – 손잡이 `.colh-grip`·끌기·두 번 누르기 맞춤·우클릭 "내용에 맞춤(모든 열)"·"처음 폭으로"·끈 열만 px 저장, 저장값을 읽기 전엔 끌기 안 됨, 끄는 동안은 `live`가 있으면 화면을 다시 그리지 않고 열 폭만 직접 칠함(`committed` = 손 뗀 뒤 값), `startColDrag`·`contentWidth`·`widestOf`·`textPx`(캔버스 하나)·`padX`는 창 가장자리 끌기·재기에도 써요, 시험 `ColHead.test.ts`) + 규칙 `src/cols.ts`(가장 좁게·맞춤 여유 하나 `FIT_GAP` 4·글자 열 16(`roomy`) – 화면의 재기는 칸 여백까지만 주고 여유를 더하지 않아요·옛 값 버리기·요약/자세히 칸, 시험 `cols.test.ts`, cols 최적화 `wip/cols2` 10-29). 민원대장·민원처리·집행현황·예산현황·탐색기·사업 관리 창·예산현황으로 보내기 창이 써요. 화면은 열 목록(처음 폭·고정·글자 열)·저장 이름 `<화면>.cols`·내용 폭 재기·고유 메뉴만 줘요. 민원대장 `layoutCols`·민원처리 `AUTO_COLS`는 처음 값 계산만.
-- 프로젝트 배지 8색은 `tokens.css`의 `--pj-0`~`--pj-7`(두 테마 같은 색). 자동 색은 (번호-1)%8이에요.
-- 파일 이름은 대소문자만 다른 것을 만들지 않아요 (윈도우에서 충돌해요).
+## 구조 → [docs/rules/structure.md](https://github.com/zeondas/gilog/blob/main/docs/rules/structure.md) – 화면·core·CSS 파일 자리, 화면마다 한 줄. 코드를 만지기 전에 자기 화면 줄을 읽어요.
 
-## 작업 방법
-- 작업 공간이 리눅스라 윈도우 설치 파일은 GitHub Actions가 만들어요. `main`에 올리면 자동으로 Releases에 `giLog_<버전>_x64-setup.exe`가 올라와요. **그래서 코드를 `main`에 올리기 전에 꼭 사용자 허가를 받아요(위 "빌드 규칙").**
-- 올리기 전에: `npm test`(규칙 함수 시험 – `src/*.test.ts`, 지금 동작을 고정한 값이라 규칙을 일부러 바꿀 때만 시험 값도 고쳐요, check.yml에도 있어요), `npm run build`(TS 검사 포함), `cargo test --manifest-path src-tauri/core/Cargo.toml`, 가능하면 `cargo check --manifest-path src-tauri/Cargo.toml`(리눅스는 libwebkit2gtk-4.1-dev 필요).
-- 화면 확인은 `dist/`를 로컬 서버로 띄워 Playwright로 1920×1080 스크린샷을 찍어 봐요.
-- **검사 자동화(2026-10-29 `wip/ci2`, 합친 뒤부터)**: wip push마다 check.yml이 윈도우 검사와 함께 모양 지킴이(사진·계산 모양·동작) 4갈래를 리눅스에서 돌려요(화면 쪽을 바꾼 가지만, 약 4분). 결정 로그 10-27 09:26 ③ "끝낼 때 전체 한 번"은 그대로 하고 CI가 다시 확인해요. 일부러 바꾼 장면은 커밋 메시지에 `guard-allow: 장면 …` 줄(`tools/guard/README.md`). `npm test`에 화면 부품 시험(`src/*.test.tsx`)이, core 시험에 자료 올리기 시험(`migrate_tests.rs` – `SCHEMA_VERSION`을 올리면 `OLD_FORMATS`에 직전 형식을 더해요)이 있어요. 부하 시험은 `load.yml`(주 1회 월요일 아침·직접 실행, 숫자만).
-- 단계마다 `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`의 버전을 0.N.0으로 올려요.
-- 빌드가 실패하면 오류가 커밋 댓글로 남아요: `gh api repos/zeondas/gilog/commits/<sha>/comments`.
-- `[skip ci]`를 커밋 메시지에 넣으면 빌드를 건너뛰어요 (문서만 고칠 때). 메시지 본문 어디에 있어도 건너뛰니, 빌드할 커밋에는 이 글자를 설명으로도 쓰지 않아요. 건너뛰었으면 `gh workflow run build.yml -R zeondas/gilog --ref main`으로 직접 돌려요.
+## 작업 방법 → [docs/rules/workflow.md](https://github.com/zeondas/gilog/blob/main/docs/rules/workflow.md) – 올리기 전 검사(npm test·build·cargo)·검사 자동화·버전 올리기·[skip ci]. 코딩한 뒤 올리기 전에 읽어요.
 
-## 공통 입력 규칙 (2026-10-16 사용자가 정함, 0.6.1에 들어감 — 모든 화면·새 칸에 적용, 사양서 "공통 규칙"에도 적음)
+## 공통 입력 규칙 → [docs/rules/input.md](https://github.com/zeondas/gilog/blob/main/docs/rules/input.md) – 한글 기본·자동입력 끄기·날짜 칸·머릿기호·민원대장 지역·위치(법정동)·도로명주소 변환. 입력 칸을 만들거나 고칠 때, 수정 사항 공통 규칙 검토 ②에서 읽어요.
 
-어디에 있나: 머릿기호 `src/bullets.ts`(규칙·저장·복사·크기 재기) + `src/BulletParts.tsx`(Mark·BulletView·BulletEditor), 저장 쪽 `complaints.rs`의 `lines()`가 줄 목록 JSON을 정리해요. 법정동 `src/paju.ts`(표) + `src/PlaceInputs.tsx`(지역·위치 칸). 자동입력 `src/autofill.ts` + `tauri.conf.json`의 `generalAutofillEnabled: false`. 한글 `src/ime.ts`(첫 글자 지키기) + `src-tauri/src/ime.rs`(앞 창 확인·재시도·키 다시 보내기). 날짜 `journal.ts`의 `parseDate`.
-
-### 한글 기본 규칙
-- 모든 입력 칸의 기본은 한글이에요. 영어가 기본이어야 하는 칸(이메일, 암호, `data-ime="en"`)만 영어예요.
-- 다른 앱에 갔다가 돌아와도 한글이어야 해요. 0.6.0에서는 돌아오는 순간 한 번만 바꿔서, 윈도우가 창 전환을 끝내기 전이면 빗나가 영어로 입력됐어요(사용자 신고: 민원유형 "dsf", 지역 "asdfasdf"). 고칠 것: 기록앱 창이 실제로 앞에 온 것을 확인하고 바꾸기, 조금 뒤 몇 번 더 맞추기, 그래도 한글 칸에 영문 글자가 처음 들어오면 그 자리에서 한글로 바꾸고 친 글자를 두벌식 자모로 고쳐 넣기.
-
-### 자동입력 끄기
-- 윈도우(WebView2) 자동입력 정보가 뜨지 않게 해요. 모든 칸에 자동입력 끄기를 붙이고(새 칸에도 저절로), WebView2 설정의 자동입력·암호 저장 제안도 꺼요.
-
-### 날짜 칸
-- 연도 앞 두 자리를 빼도 돼요: `261015`, `26-10-15`, `26.10.15`, `26/10/15` → 2026-10-15 (두 자리 연도는 2000년대). 기존 `1015`(올해), `10/15`, `2026-10-15`, `20261015`도 그대로 받아요. `journal.ts`의 `parseDate` 하나를 고치면 모든 날짜 칸에 적용돼요.
-- **칸을 떠날 때 8자리로 바꿔 써요(2026-10-17 사용자)**: `261012`·`1012`·`26.10.12` 등을 치고 칸을 떠나면(다른 곳 누르기·Tab·Enter) 칸 글자가 `2026-10-12`로 바뀌어요. 치는 도중에는 바꾸지 않아요(`20261012`를 치다 `201210`에서 2020년으로 바뀌는 일이 없게). 읽을 수 없으면 친 그대로 두고 빨간 테두리. 모든 날짜 칸에 적용 — 각 기능 세션이 자기 화면에 넣어요(업무일지 인쇄 기간 창은 엑셀·인쇄 세션이 넣어요, 시안 `JournalPrint.dc.html`).
-
-### 머릿기호 규칙
-여러 줄 칸(민원대장 내용·조치내용, 업무연락처·민원 메모 창, 7단계 할 일 세부정보)에 적용해요. 업무일지 메모 편집기는 글머리 목록에만 적용해요(0.6.2). **0.6.2부터 기본값은 □이고 기호와 글 사이는 6px예요(아래 1·4·5번의 "점 기본"·"5px"는 0.6.1 기준).**
-
-**다음 빌드에 바꿔요 — next에 넣음(2026-10-17 민원대장 세션: `bullets.ts`의 `layout`, 메모 편집기 글머리 목록은 ② 업무일지 몫) (2026-10-17 사용자 확정 — 시험 시안 캔버스 `BulletRule.dc.html` "머릿기호 규칙 시험"을 직접 쳐 보고 "이 정도면 됐다", 민원대장 빌드가 함께 넣어요 — `bullets.ts`·`BulletParts.tsx`가 공통 부품이라 모든 여러 줄 칸에 한 번에 적용):**
-- **기본 머릿기호를 ●(채운 점)로** 바꿔요(사용자: □는 가독성이 떨어져요). `] `는 □, `) `는 ●, `- `는 작대기 그대로예요. 위계 순서는 □ → ● → -.
-- 이미 저장된 기본 줄(k 없음)은 모두 ●로 읽어요(권한 1안 — 기본 □와 일부러 친 □를 가려낼 수 없어요).
-- **들여쓰기는 기호 모양이 아니라 위계로** 정해요: 위로 거슬러 올라가며 자기보다 높은 위계 기호가 있을 때만 그만큼 들여써요(개요 방식 — 같은 위계 이상이 나오면 거기서 멈춤). `) `·`- `를 쳐도 위에 상위 기호가 없으면 들여쓰지 않아요. 예: `● 가 / - 나 / - 다` → 가 0, 나·다 1단계. `- 만 있는 줄` → 0. `□ / ● / -` → 0·1·2.
-- **빈 줄이 묶음을 나눠요**(사용자 1안): 빈 줄 위는 위계를 따지지 않아요. 지금은 저장할 때 빈 줄을 지우니(`stringifyLines`, `complaints.rs`의 `lines()`) 묶음 사이 빈 줄은 남기도록 바꿔요(맨 앞·맨 끝 빈 줄과 겹친 빈 줄은 정리). 기호 없는 줄(none)은 바로 윗줄의 들여쓰기를 따라 글 시작 위치를 맞춰요. 복사할 때 띄어쓰기도 새 들여쓰기대로.
-- **위계 순서 □ → ● → -는 절대 바꾸지 않아요**(사용자: 공무원 문서 규정). ●를 기본으로 하는 것은 간단한 메모는 3단계까지 갈 일이 드물고 ●가 잘 읽혀서예요.
-- 업무일지 메모 편집기 글머리 목록도 같은 규칙: 새 목록은 ●, 줄 맨 앞 `] `면 □. Tab으로 한 칸 들이면 윗 위계의 다음 기호(□ 아래 ●, ● 아래 -). 그래서 ● 목록에서 Tab → -, □ 목록에서 Tab → ● → -. 지금처럼 깊이만으로 기호를 정하지 않아요(CSS 대신 줄마다 기호 종류를 저장). Tab·Shift+Tab과 기호 치기(`] ` `) ` `- `) 둘 다 돼요(Tab은 메모 편집기에만, 다른 여러 줄 칸은 기호 치기만). Shift+Tab은 한 위계 위로. 동작은 시안의 스크립트(`layout`·`onKey`)를 기준으로 해요.
-- 빈 줄은 줄 맨 앞 Backspace로 기호를 지워서 만들어요(2026-10-17 엔터규칙 때 사용자 2안).
-1. 줄마다 맨 앞에 머릿기호가 처음부터 보여요. 빈 칸도 "• 민원 내용을 입력하고 Enter"처럼 보이고, 커서가 들어가면 기호 뒤에 글이 써져요.
-2. 줄 맨 앞에서 Backspace → 그 줄의 머릿기호만 지워져요(머릿기호 없이 쓰기). 기호 없는 줄 맨 앞에서 한 번 더 → 윗줄과 합쳐져요. 한글 조합 중 Backspace는 글자 지우기예요.
-3. 새 줄(Shift+Enter, Ctrl+Enter)은 윗줄과 같은 머릿기호·단계로 시작해요.
-4. 입력 규칙: 줄 맨 앞에서 기호 + 스페이스를 쳤을 때만 바뀌어요(줄 가운데, 또는 스페이스 없이 이어지면 그대로 — "1)", "-3%" 등).
-   - `] ` → □ 네모(1단계, 들여쓰기 없음)
-   - `) ` → 동그라미 = 지금의 채운 점(2단계, 띄어쓰기 두 칸 들여쓰기)
-   - `- ` → 작대기(3단계, 띄어쓰기 네 칸 들여쓰기)
-   - 기본 줄은 같은 채운 점, 들여쓰기 없음. 이미 머릿기호가 있는 줄에서 치면 그 기호로 바뀌어요.
-5. 모양(사용자가 시안으로 정함, 윈도우 글자 □○는 쓰지 않고 앱이 그려요, 색은 `--muted`):
-   - 네모: 7px, 속이 빈 테두리 1.4px, 모서리 1px
-   - 점: 4px 채운 원
-   - 작대기: 5px × 1.5px
-   - 기호와 글자 사이 5px. 기호 칸 폭은 네모 폭에 맞춰요.
-6. 위치: 기호는 한글 글자 높이의 정중앙에 둬요(줄 높이 가운데가 아님 — 한글 글꼴은 0.5~1px 위로 떠 보여요). 그 PC 글꼴로 한글 글자 높이를 재서 맞추고, 글꼴·글자 크기가 바뀌어도 따라가요.
-7. 들여쓰기: 단계마다 그 PC 글꼴의 "띄어쓰기 두 칸" 폭(13px에서 약 6.5px)으로 재서 맞춰요. 고정 px(16px)로 하면 의도보다 두 배 넘게 띄어져요.
-8. 긴 글이 다음 줄로 넘어가면 기호 뒤 글 시작 위치에 맞춰요. 보기 화면과 입력 칸이 같은 모양이에요.
-9. 복사하면 □ ○ - 글자와 띄어쓰기로 나가요(한글·엑셀에 붙여도 위계 유지). □·○·-·•로 시작하는 글을 붙여 넣으면 단계를 알아보고, 원래 글의 "•" "-" "·"는 겹치지 않게 떼요.
-10. 저장: 줄마다 머릿기호 종류(없음·점·네모·동그라미·작대기)를 함께 저장해요. 예전 글자만 있는 기록은 모든 줄이 점인 것으로 읽어요. 메모 창 위의 머릿기호 단추는 누를 때마다 점 → 네모 → 동그라미 → 작대기 → 없음.
-
-### 민원대장 지역·위치 (법정동 기준)
-- 사용자 지시: 담당자들이 법정동 기준으로 지번을 검색하니 법정동 기준. 지역 칸은 읍면동(통계용, 2안 — 지역과 위치를 나눔), 위치 칸은 법정리·법정동 + 지번(예: "봉일천리 113 일원", "동패동 1234").
-- 목록은 사용자가 준 파주시 표(읍면동 23개, 법정리·동 128개)를 앱에 고정해요. 리 이름은 읍면 사이에 겹치지 않아요.
-- 위치 칸 맨 앞에 리·동 초성을 치면 후보가 떠요. 리를 고르면 지역에 읍면이 자동으로 채워져요(다른 읍면이 적혀 있으면 바꿔요). 동은 행정동이 하나면 자동, 여러 행정동에 걸친 10개(당하·다율·동패·문발·신촌·연다산·야당·아동·금촌·금릉동)는 후보에서 골라요.
-- (0.6.2까지) 지역 칸도 읍면동 초성을 받았어요. **다음 빌드부터 지역 칸은 위치에서 자동으로만 채워요(대기 목록 "민원대장").**
-- 겹치면(2안): 첫 후보가 골라진 목록, ↑↓로 바꾸고 Tab으로 확정. 지역 칸은 확정하면 다음 칸으로, 위치 칸은 "봉일천리 "까지 채우고 커서가 남아 지번을 이어 써요(다음 Tab이 다음 칸). 목록이 열려 있을 때 Enter는 확정이고 한 번 더 Enter가 등록이에요. 초성 겹침 묶음은 30개(리 글자 빼면 32개).
-- 목록에 없는 값(다른 시 주소)도 그대로 받아요.
-- **도로명주소 → 지번(다음 빌드, `wip/address-web`)**: 웹(주소정보누리집 검색 API) 먼저, 안 되면 내장 표(`data/paju_roadaddr.txt`, 설정에서 파일로 바꾸면 AppData `roadaddr.txt`). 규칙 [docs/qa/address-web.md](https://github.com/zeondas/gilog/blob/main/docs/qa/address-web.md) 8절, 코드 `src/addressWeb.ts`·`src-tauri/src/address_web.rs`. 승인키는 설정 칸(kv `address.web`)에만 — 저장소에 적지 않아요.
-
-## Enter 규칙 (사용자가 정함 — 0.10.0에 들어감, 키는 `src/keys.ts`, 설정 "키 설정"에서 바꿀 수 있음)
-- 여러 줄 칸: Enter = 같은 위계 다음 줄 · 왼쪽 Alt+Enter = 항목 안 줄 바꿈(기호 없이 글 시작에 맞춤 — 오른쪽 Alt는 한/영 키라 안 써요) · Shift+Enter = 한 위계 아래 새 줄(□→●→-, 맨 아래 -는 그대로) · Ctrl+Enter = 한 위계 위 새 줄(맨 위 □는 그대로) · Tab = 다음 칸으로 가며 저장(마지막 칸이면 등록·저장) · Shift+Tab = 앞 칸 · Esc = 취소. 한글 조합 중이면 글자를 마친 뒤 움직여요.
-- 한 줄 칸: Enter도 Tab과 같아요(다음 칸, 마지막 칸이면 등록). 후보 목록(초성 고르기)이 열려 있으면 Enter·Tab은 먼저 후보 확정.
-- 업무일지 말 줄: Enter = 다음 말(화자 교대) · Shift+Enter = 같은 사람이 이어서 · Alt+Enter = 한 말 안 줄 바꿈 · Ctrl+Enter 안 씀 · Tab = 등록. 업무일지·메모 편집기에서 Tab의 예전 기능(다음 말·들여쓰기·표 다음 칸)은 없어요.
-- 메모 편집기 표(엑셀처럼): Enter = 다음 칸(줄 끝이면 다음 줄, 마지막 칸이면 줄 추가) · Alt+Enter = 칸 안 줄 바꿈 · Shift+Enter·Ctrl+Enter = 아래 칸·위 칸 · Tab = 저장. 보통 문단: Enter = 다음 문단 · Shift+Enter = ● 목록 시작 · Ctrl+Enter 무시.
-- 다음 칸이 없는 곳(메모 창·캘린더 상세 설명)은 Tab = 저장하고 닫기. 빈 줄은 줄 맨 앞 Backspace로 기호를 지워서만 만들어요(글 없는 기호 줄 Enter는 기호 줄 하나 더). 원문은 [docs/history.md](https://github.com/zeondas/gilog/blob/main/docs/history.md) "엔터규칙".
+## Enter 규칙 → [docs/rules/input.md](https://github.com/zeondas/gilog/blob/main/docs/rules/input.md) – 여러 줄 칸·한 줄 칸·업무일지 말 줄·메모 편집기 표의 Enter·Tab·Esc. 키를 건드릴 때, 공통 규칙 검토 ③에서 읽어요.
 
 ## 기능별 대기 목록 (다른 세션이 할 일 — 그 기능 세션이 처리하고 지워요)
 
@@ -275,19 +149,4 @@
 ### 공통 ([docs/qa/common.md](https://github.com/zeondas/gilog/blob/main/docs/qa/common.md))
 - (매뉴얼 세션에 전달 – 0.52.0 헤더 열 조정 통일) `docs/manual/complaints.md`·`budget.md`·`bstatus.md`의 [배치최적화] 줄(`button.cm-tool`·`button.bd-tool`)은 단추가 없어져 못 찾아요 – 빼고 "머리 줄 우클릭 내용에 맞춤(모든 열)·처음 폭으로"로.
 
-## 사용자가 정한 규칙 (바꾸지 않아요)
-- 신규 입력란은 항상 켜져 있어요. Tab·Enter로 다음 칸, 마지막 칸에서 Tab·Enter로 등록해요(엔터규칙, next).
-- 기록을 누르면 그 자리에서 고치고, 바깥을 누르면 저장해요.
-- 업무일지 말 줄(엔터규칙, next): Enter=다음 말(화자 교대), Shift+Enter=같은 사람, 왼쪽 Alt+Enter=한 말 안 줄 바꿈, Tab=등록, Esc=취소(0.9.x까지는 Tab=다음 말·Shift+Tab=같은 사람·Enter=등록). 카드는 시간 기둥형. 구분은 초성 단축키. 한글 조합 중 Tab·두 번 들어온 Tab은 `keys.ts`가 다뤄요.
-- 업무일지 신규 카드는 화면을 열면 구분 칸에 커서가 가요(시간은 지금 시각이 채워져 있고, 직접 고치지 않으면 지금 시각을 따라가요). 등록 뒤에도 구분 칸으로 돌아가요.
-- 삭제는 모든 화면에서 "지울까요?"를 묻는 방식이에요(2026-10-15 사용자가 1안으로 정함, 사양서의 5초 되돌리기는 쓰지 않아요). 휴지통은 저장·취소 버튼과 떨어뜨려요. 묻는 띠는 카드 바깥(다른 카드, 빈 곳)을 누르거나 Esc를 누르면 지우지 않고 접혀요. 업무일지는 고치는 카드 안에서 묻고, 바깥을 누르면 띠가 접히면서 고친 것은 저장돼요.
-- 업무일지 날짜 고르기(2026-10-17 사용자, next에 넣음 — 다음 빌드): 왼쪽 열 월 달력의 날짜를 눌러요(기록 없는 날도 열리고 그 날로 등록돼요). 머리 "2026년 10월 ▾"는 12달 고르기, 날짜 우클릭은 이 날 열기·이 날 일지 지우기. 오늘이 아니면 제목 옆에 "오늘" 단추가 보여요. 날짜로 가기 칸은 없어졌어요.
-- 구분 "메모"는 고정 구분이에요(설정에서 지울 수 없고, 없으면 다시 넣어요 — `settingsStore.ts`의 `MEMO_KIND`). 메모를 고르면 말 줄 대신 편집기(`src/RichMemo.tsx`)로 적고, 메모 카드는 머리글(상대·프로젝트) 없이 본문만 보여요. 저장은 `journal_entries.body`(정리한 HTML). 편집기: 본문·제목·인용, 글머리·번호 목록, 들여쓰기, 굵게·기울임·밑줄·취소선, 표(8×8까지, 줄·칸 더하기/지우기, 첫 줄은 머리줄 모양). 키(엔터규칙, next): Tab 등록·저장, Esc 취소, 보통 문단 Enter 다음 문단·Shift+Enter ● 목록 시작, 글머리 목록은 여러 줄 칸 규칙, 표 Enter 다음 칸(마지막 칸이면 줄 추가)·Shift+Enter 아래 칸·Ctrl+Enter 위 칸·Alt+Enter 칸 안 줄 바꿈(0.9.x까지는 Enter 등록·표/목록 Tab). 붙여 넣은 글(엑셀 표 포함)은 정해진 태그만 남겨요.
-- 한글 입력이 기본이에요: 칸에 들어가면 윈도우 입력기를 한글로 바꿔요(`src/ime.ts` → `set_ime` → `src-tauri/src/ime.rs`). 메일 칸(name="email", type=email)과 암호 칸만 영문이고, 칸에 `data-ime="en"`을 붙이면 영문이에요. 업무일지 연락처 칸은 구분에 "메일"이 들어가면 영문이에요.
-- 이름 찾기는 초성도 받아요(`journal.ts`의 `koIndex`): 업무일지 상대 칸("ㅂㅈㅎ", "박ㅈ"), 업무연락처 검색. 상대 칸에 초성만 치고 떠나면 초성이 똑같은 사람이 한 명일 때 채워요(두 명 이상이면 목록에서 골라요).
-- 초성을 치는 칸에서는 입력기가 자음을 묶지 않게 해요: 겹자음(ㄳ)은 늘 풀고, Shift 없이 친 된소리(ㅅ+ㅅ→ㅆ)도 풀어요. Shift+자음으로 친 된소리는 그대로예요(`src/koInput.ts`).
-- 전화번호 칸(`src/PhoneInput.tsx`, 규칙은 `src/phone.ts`): 숫자·하이픈만 치면 하이픈 자리와 상관없이 한국 번호 규칙대로 다시 붙여요(010-1234-5678, 031-940-1234, 02-123-4567, 1588-1234 – `010-72805715`도 `010-7280-5715`로, 2026-10-28 사용자 1안). 칸을 떠날 때 자리 수가 모자라면(`12345`, `0101234`) 숫자만 남겨요(10-28 1안). 네 자리 이하는 내선번호라 그대로. 괄호·띄어쓰기·글자를 섞어 치면 친 그대로 둬요. 업무일지·업무연락처 번호 칸이 모두 이것을 써요.
-- 메모 창(업무연락처, 민원대장 모두, 엔터규칙 next): 여러 줄 칸 규칙(Enter 같은 위계 새 줄 · Shift+Enter 아래 · Ctrl+Enter 위 · 왼쪽 Alt+Enter 항목 안 줄 바꿈), Tab=저장하고 닫기, Esc 취소(0.9.x까지는 Enter=저장).
-- 업무연락처의 "이 연락처를 지울까요?"는 그 줄 바깥(다른 카드, 빈 곳)을 누르거나 Esc를 누르면 접혀요.
-- 민원인 이름·연락처는 어떤 경우에도 구글로 내보내지 않아요.
-- 기준 화면은 24인치 FHD(1920×1080), 배율 100%에서 **1600×900 창**이에요(2026-10-17 사용자 1안 — 전에는 전체 화면). **이 크기(화면 크기 13) 이상에서는 가로 스크롤이 없어야 해요.** 화면마다 정한 최소 폭보다 본문이 좁으면(작은 창·화면 크기 15·17) 칸을 줄이지 않고 본문만 가로 스크롤해요(2026-10-26 16:44 창 크기 세션). 화면 확인·글자 맞춤 재기도 이 크기로 해요.
+## 사용자가 정한 규칙 (바꾸지 않아요) → [docs/rules/input.md](https://github.com/zeondas/gilog/blob/main/docs/rules/input.md) – 신규 입력란 항상 켜짐·바깥 누르면 저장·삭제는 묻기·한글 기본·초성·전화번호 칸·민원인 정보 구글 금지·1600×900 창 크기. 공통 규칙 검토 ④⑤에서 읽어요.
