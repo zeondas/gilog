@@ -49,7 +49,7 @@
 | QC | main(문서만 – `docs/qa/qc.md`·`qc-result-*.md`) | QC 목록 + 집 컴퓨터 실행(결정 로그 10-30 23:55) | `253b6f0` | **1차 끝(0.65.0, 195/288 – 통과 175·실패 14·보류 6)** → 실패는 각 화면 ✔로 옮김 · 결과 [qc-result-0.65.0.md](https://github.com/zeondas/gilog/blob/main/docs/qa/qc-result-0.65.0.md) | 2회차(0.66.0 – 못 한 93 + 자료 안전 항목) 프롬프트 |
 | 버그 사냥 | main(문서만 – `docs/qa/bughunt-*.md`) | 예상 못 한 버그 찾기(결정 로그 11-01 20:49) – 1차 자료 저장(끝·0.66.0에 고침) · 2차 엑셀 가져오기(끝·✔로 옮김) | `ca18e22` | **2차 끝** · [bughunt-excel.md](https://github.com/zeondas/gilog/blob/main/docs/qa/bughunt-excel.md) 25건 · 3차 묶음은 날짜 규칙 추천 | 3차 프롬프트(엑셀 고침 빌드 뒤) |
 | 매뉴얼 | `wip/manual`·`wip/setup-guide`(문서만) | 매뉴얼(`docs/manual/`·`tools/manual/`) + 준비 안내서(`docs/setup/`) | `2f65080` / `b2b53ae` | **매뉴얼 v31 보냄** · 준비 안내서 초안(hwpx 4장, 그림 틀 10개 비움, 【확인 필요】 3) – 내력 [history.md 매뉴얼](https://github.com/zeondas/gilog/blob/main/docs/history.md#매뉴얼-현황판-줄-상태-칸-원문) | 사용자 한글 확인 · 안내서 【확인 필요】 답·캡처 11장 · 0.66.0 자료 안전 반영 |
-| 공통 | (코딩 때 `wip/excel-fix`) | core·공통 부품(자료 안전·엑셀 공통·ExcelMenu·ColHead 등 한 화면에 안 속하는 것) – 전엔 "자료 안전"·"버그수정" 세션 | `6c6c8b6`(0.66.0에 들어감) | 자료 안전 ✔1~✔5 끝(0.66.0) · **다음: 대기 "공통" 칸 ✔1~✔8(엑셀 가져오기)** | "코딩하자" |
+| 공통 | `wip/excel-fix` | core·공통 부품(자료 안전·엑셀 공통·ExcelMenu·ColHead 등 한 화면에 안 속하는 것) – 전엔 "자료 안전"·"버그수정" 세션 | `0303090` | **끝(검사 도는 중)** – 대기 "공통" ✔1~✔8 엑셀 가져오기 코딩(core 161·npm 383 통과) · 남은 물음 ①②③은 "공통" 칸 | 빌드 합치기 · 사용자 ①②③ 답 |
 | 민원대장 | `wip/complaints13` | 민원대장 화면 | `b1c5e3a` | **끝(합치기 기다림)** – ✔1 CM-03 등록 뒤 접수일 오늘·CM-34 메모 머리 위치 표기·추가-01 0건 위치 열 바닥 폭 · ✔2 CM-07 민원유형 자유 입력 + 설정 목록에 더하기·CM-17 조치완료일 적으면 어느 길로 저장해도 완료 · npm test 356·지킴이 민원대장 19장면 0·동작 통과·check 통과(지킴이 실패는 다른 가지와 같은 예산현황 가져오기 띠·`complaints_newrow_baddate` 4장면 – 이 가지와 무관) | 빌드 합치기 |
 | 민원처리 | `wip/process-fix2` | 민원처리 화면 | `669b0d7` | **끝(합치기 기다림)** – ✔1 PR-04 공사 관리 신규 줄 Enter·Tab = 다음 칸, 마지막 칸 = 등록(공통 `rowKeys`), 후보 목록 Enter는 확정만 · npm test 351·지킴이 민원처리 4장면 0·check 통과(지킴이 실패는 다른 가지도 같은 예산현황 가져오기 띠·`complaints_newrow_baddate` 4장면 – 이 가지와 무관) | 빌드 합치기 |
 | 업무연락처 | – | 업무연락처 화면 | – | 대기 비어 있음(QC 실패 0) | – |
@@ -119,14 +119,7 @@
 번호 표기: **E-n** = [bughunt-excel.md](https://github.com/zeondas/gilog/blob/main/docs/qa/bughunt-excel.md) 표 n번 · **S-n** = [bughunt-storage.md](https://github.com/zeondas/gilog/blob/main/docs/qa/bughunt-storage.md) 표 n번 · **CM-03** 등 = [qc-result-0.65.0.md](https://github.com/zeondas/gilog/blob/main/docs/qa/qc-result-0.65.0.md) 실패 항목. 공통 규칙 검토(우두머리 11-02): 아래 ✔는 모두 걸리는 것 없음(CM-07·CM-17은 11-02 10:23 1안·1안으로 결정).
 
 ### 공통 (`src/excel.ts`·`ExcelMenu.tsx`·core `excel.rs`·`complaints.rs`·`contacts.rs`·`journal.rs` 가져오기 – `wip/excel-fix`)
-- ✔1. 대체하기(모든 화면) 전에 `_before-replace` 백업 – 자료 지우기 백업과 같은 방식·정리 규칙 – E-6.
-- ✔2. 같은 열쇠 짝짓기: 파일 순서대로 하나씩, 이번에 더한 것은 짝 대상에서 빼기(민원대장 E-1·E-2, 업무일지 E-3) · 덮어쓰기 때 민원인 칸이 "이름 + 연락처"와 같으면 그대로(E-22) · 메모 글자가 같으면 건드리지 않기(E-4).
-- ✔3. 업무일지 가져오기를 core 한 트랜잭션 명령으로(지금은 지우고 한 건씩) + 말 없는 줄은 못 읽은 줄로 세기 – E-5·E-24.
-- ✔4. 대체하기 때 딸린 참조 정리: 민원대장은 민원처리 건의 `complaint` 비우기(E-7), 업무연락처는 공사 `contact`·`project` 비우기(E-8) – 자료 지우기와 같게.
-- ✔5. core `excel.rs` 읽기: 시간 칸(1보다 작은 수)은 "HH:MM", 날짜+시간은 날짜만(E-12) · 병합 칸은 위 칸 값(E-14) · 숫자 전화번호 9~10자리는 앞 0 + `phone.ts` 모양(E-15) · 숨긴 줄 N건 안내(E-23).
-- ✔6. 가져오기 날짜 읽기 넓히기(점·공백·"년월일"·전각·뒤 시각·5자리 일련번호) + 못 읽은 줄 수 안내 – E-13.
-- ✔7. 머릿기호·말 줄 왕복: 기호 줄도 앞 띄어쓰기로 단계(E-20), 말한 사람은 숫자로 시작하지 않을 때만·빈 줄 이어 붙이기·"상대"는 who ""(E-21).
-- ✔8. 민원대장 덮어쓰기 짝짓기 색인(10만 건 39초 → 수 초) – E-19 · 엑셀 내보낼 때 `Theme color '10'` 경고(rust_xlsxwriter)도 함께.
+- (✔1~✔8 코딩함 – `wip/excel-fix` `0303090`, 합치기 기다림) 사용자에게 물은 것: ① 대체하기 붉은 띠 "되돌릴 수 없어요" → "지우기 전에 백업을 남겨요"로 바꿀지 ② E-20 "기호 줄도 앞 띄어쓰기로 단계"는 input.md "들여쓰기는 위계로" 규칙과 부딪혀 안 넣음(앱에서 만든 줄 왕복은 시험으로 고정) ③ E-8 연락처 대체하기는 공사 `contact`만 비우고 `project`(사업 표는 남음)는 그대로 둠.
 - (매뉴얼 세션에 전달 – 0.52.0) `docs/manual/complaints.md`·`budget.md`·`bstatus.md`의 [배치최적화] 줄은 단추가 없어져 못 찾아요 – "머리 줄 우클릭 내용에 맞춤(모든 열)·처음 폭으로"로.
 
 ### 집행현황 (`src/budgetExcel.ts`·`budgetStatusImport.ts`·`budgetStatus.ts`·core `budget.rs`·`bstatus.rs` – `wip/budget-excel`, 예산현황 가져오기도 여기서)
