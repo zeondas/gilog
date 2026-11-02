@@ -212,6 +212,36 @@ export function loadLayers(url: string): Promise<Layers> {
   return cache;
 }
 
+/** 테두리를 그리기 대상에 옮겨 적어요. `close`는 선으로 긋는 층(읍면동 경계)만 – 칠하는 층에서 고리마다 closePath를 부르면
+ *  Chromium이 고리 수의 제곱으로 느려져요(48,848고리 20초 넘게, 0.68.0 멈춤). 칠하기는 닫지 않아도 저절로 닫혀요. */
+export function tracePath(
+  p: { moveTo(x: number, y: number): void; lineTo(x: number, y: number): void; closePath(): void },
+  feats: Feature[],
+  ox: number,
+  oy: number,
+  close: boolean,
+) {
+  for (const f of feats)
+    for (const r of f.rings) {
+      if (r.length < 4) continue;
+      p.moveTo(r[0] - ox, r[1] - oy);
+      for (let k = 2; k < r.length; k += 2) p.lineTo(r[k] - ox, r[k + 1] - oy);
+      if (close) p.closePath();
+    }
+}
+
+type Tracer = { moveTo(x: number, y: number): void; lineTo(x: number, y: number): void; closePath(): void };
+/** 배경 네 층의 그리기 모양 – 칠하는 셋은 닫지 않고, 선으로 긋는 읍면동 경계만 닫아요. */
+export function layerPaths<T extends Tracer>(L: Layers, make: () => T) {
+  const [ox, oy] = L.bounds;
+  const one = (f: Feature[], close: boolean) => {
+    const p = make();
+    tracePath(p, f, ox, oy, close);
+    return p;
+  };
+  return { ox, oy, road: one(L.road, false), plan: one(L.plan, false), zone: one(L.zone, false), emd: one(L.emd, true) };
+}
+
 /** 경계 모양들의 테두리 상자 */
 export function boundsOf(feats: Feature[]): [number, number, number, number] {
   const b: [number, number, number, number] = [Infinity, Infinity, -Infinity, -Infinity];

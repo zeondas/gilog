@@ -530,13 +530,14 @@ fn complaints(state: State<AppState>) -> Result<Vec<Complaint>, String> {
 }
 
 // 민원 지도(2026-11-02): 위치·지역·유형·상태·날짜·좌표만 – 이름·연락처·내용은 돌려주지 않아요.
+// async라 창을 그리는 줄(메인 스레드)이 아니라 뒤에서 돌아요 – 필지 표 풀기·좌표 맞추기 동안 창이 멈추지 않게(0.68.0 멈춤 ③).
 #[tauri::command]
-fn complaints_map(state: State<AppState>) -> Result<Vec<gilog_core::MapComplaint>, String> {
+async fn complaints_map(state: State<'_, AppState>) -> Result<Vec<gilog_core::MapComplaint>, String> {
     with_store(&state, |s| s.complaints_map())
 }
 
 #[tauri::command]
-fn map_parcel_stats() -> (usize, usize) {
+async fn map_parcel_stats() -> (usize, usize) {
     gilog_core::parcel_stats()
 }
 
