@@ -4,7 +4,7 @@ import { KeyboardEvent, ReactNode, useCallback, useEffect, useRef, useState } fr
 import { DelGlyph, DelMark } from "../../Icons";
 import { DialogX } from "../../DialogX";
 import { overlayDown } from "../../useOutsideClose";
-import { isKey, keyAction, rowKeys } from "../../keys";
+import { isKey, keyAction, moveField, rowKeys } from "../../keys";
 import { api, CalEvent, CalKind, CalendarData, EventInput, NotifyStatus, Repeat } from "../../api";
 import { BLine, parseLines, stringifyLines } from "../../bullets";
 import { BulletEditor } from "../../BulletParts";
@@ -135,9 +135,9 @@ export function QuickRow({
   const [bad, setBad] = useState<"date" | "time" | "endTime" | "">("");
   const row = useRef<HTMLDivElement>(null);
   const focus = (n: string) => {
-    const el = row.current?.querySelector<HTMLInputElement>(`[name="${n}"]`);
+    const el = row.current?.querySelector<HTMLElement>(`[name="${n}"]`);
     el?.focus();
-    el?.select();
+    if (el instanceof HTMLInputElement) el.select();
   };
 
   // 달력에서 날을 고르면 날짜 칸이 따라가요.
@@ -197,9 +197,31 @@ export function QuickRow({
     focus("date");
   }
 
-  // 엔터규칙(keys.ts): Enter·Tab 다음 칸, 마지막 칸(종류)이면 등록
+  // 엔터규칙(keys.ts): Enter·Tab 다음 칸, 마지막 칸(종류)이면 등록, 등록 뒤 커서는 날짜 칸.
+  // 종류 칸(KindPicker)은 단추라 rowKeys의 칸 목록에 안 들어가요(QC CA-03 – 제목에서 Tab이 바로 등록이었어요).
+  // 그래서 제목 Tab → 종류 단추로, 종류 단추의 Tab·Enter → 등록(목록이 열려 있으면 KindPicker가 먼저 확정하고 한 번 더),
+  // Shift+Tab → 제목으로 여기서 다뤄요. 목록 열기는 Space·↓.
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
-    rowKeys(e, row.current, () => void submit());
+    const kindBtn = row.current?.querySelector<HTMLElement>('button[name="kind"]') ?? null;
+    if (kindBtn && e.target === kindBtn) {
+      if (e.defaultPrevented) return;
+      const a = keyAction(e, "single");
+      if (a === "common.next" || a === "single.next") {
+        e.preventDefault();
+        void submit();
+      } else if (a === "common.prev") {
+        e.preventDefault();
+        focus("title");
+      }
+      return;
+    }
+    rowKeys(e, row.current, () => void submit(), (dir) => {
+      if (dir === 1 && kindBtn && e.target instanceof HTMLInputElement && e.target.name === "title") {
+        kindBtn.focus();
+        return true;
+      }
+      return row.current ? moveField(row.current, e.target as Element, dir) : false;
+    });
   }
 
   const fix = (v: string, set: (s: string) => void) => {
