@@ -2,10 +2,10 @@
 import { FormEvent, Fragment, Ref, useEffect, useRef, useState } from "react";
 import { ChoiceInput } from "../../PlaceInputs";
 import { PATH_NAME, setWebKey, testWeb, webKey, webStatus, WebStatus } from "../../addressWeb";
-import { api, BackupInfo, errorText, inApp, RoadTableInfo } from "../../api";
+import { api, BackupInfo, errorText, inApp, NOT_CLAUDE_TEXT, RoadTableInfo } from "../../api";
 import { splitJamo } from "../../journal";
 import { DEFAULT_MAIL_BODY, DEFAULT_MAIL_SUBJECT, MAIL_FIELDS, Kind, MEMO_KIND, ProcessSettings, FilesSettings, STATUS_COLORS } from "../../settingsStore";
-import { aiGuide, phoneGuide } from "../../process";
+import { aiGuide, isClaudeName, phoneGuide } from "../../process";
 import { isOn, MODULE_DESC, ModuleId, Modules, onScreens, SCREENS } from "../../screens";
 import { NavIcon, NavIconName } from "../../Icons";
 import { DATE_FORMATS, FsDrive, HOME, PC } from "../../files";
@@ -33,6 +33,7 @@ import {
   needsTasksLogin,
 } from "../../google";
 import { Row, Toggle, PIN_CHANGED, X } from "./parts";
+import type { GateNote } from "../../Gate";
 
 // ---------- 모듈 켜고 끄기 (2026-10-18 설정 세션, 시안 Settings) ----------
 
@@ -874,16 +875,25 @@ async function pickFolder(): Promise<string | null> {
   return typeof r === "string" ? r : null;
 }
 
-export function FolderRow({ folder, onLocked, setNote }: { folder: string; onLocked: () => void; setNote: (s: string) => void }) {
+/** 옮기기·불러오기가 실패했을 때: Rust가 이미 잠갔으면(잠근 뒤 실패) 화면도 잠금 화면으로 가서 그 까닭을 띠로,
+ *  아직 열려 있으면(잠그기 전 확인에서 걸림 – 비밀번호 틀림 등) 이 자리에 알려요(버그 사냥 17). */
+async function failNote(e: unknown, show: (s: string) => void, onLocked: (n?: GateNote) => void) {
+  const text = errorText(e);
+  const st = await api.status().catch(() => null);
+  if (st && !st.unlocked) onLocked({ text, tone: "error" });
+  else show(text);
+}
+
+export function FolderRow({ folder, onLocked, setNote }: { folder: string; onLocked: (n?: GateNote) => void; setNote: (s: string) => void }) {
   async function change() {
     const dir = await pickFolder();
     if (!dir) return;
     try {
       await api.moveData(dir);
-      setNote("자료를 옮겼어요. 다시 열어 주세요.");
-      onLocked();
+      // 설정 화면은 곧 사라지니 안내는 잠금 화면 띠로 넘겨요
+      onLocked({ text: "자료를 옮겼어요. 다시 열어 주세요.", tone: "info" });
     } catch (e) {
-      setNote(errorText(e));
+      await failNote(e, setNote, onLocked);
     }
   }
   return (
@@ -911,7 +921,7 @@ export function AutoBackupRow({ setNote }: { setNote: (s: string) => void }) {
   );
 }
 
-export function BackupRow({ onLocked, setNote }: { onLocked: () => void; setNote: (s: string) => void }) {
+export function BackupRow({ onLocked, setNote }: { onLocked: (n?: GateNote) => void; setNote: (s: string) => void }) {
   const [importPath, setImportPath] = useState("");
   const [pw, setPw] = useState("");
   const [msg, setMsg] = useState("");
@@ -950,10 +960,9 @@ export function BackupRow({ onLocked, setNote }: { onLocked: () => void; setNote
       await api.importBackup(importPath, pw);
       setImportPath("");
       setPw("");
-      setNote("백업을 불러왔어요. 그 백업의 비밀번호로 다시 열어 주세요.");
-      onLocked();
+      onLocked({ text: "백업을 불러왔어요. 그 백업의 비밀번호로 다시 열어 주세요.", tone: "info" });
     } catch (err) {
-      setMsg(errorText(err));
+      await failNote(err, setMsg, onLocked);
     }
   }
 
@@ -1124,6 +1133,7 @@ export function AddressRows() {
 
 export function ProcessRows({ p, onChange }: { p: ProcessSettings; onChange: (p: ProcessSettings) => void }) {
   const [copied, setCopied] = useState<"ai" | "phone" | null>(null);
+  const [exeBad, setExeBad] = useState(false);
   async function copyGuide(which: "ai" | "phone") {
     const text = which === "ai" ? aiGuide(p, (await api.processData()).works) : phoneGuide(p);
     await navigator.clipboard.writeText(text);
@@ -1222,15 +1232,33 @@ export function ProcessRows({ p, onChange }: { p: ProcessSettings; onChange: (p:
           </span>
         </Row>
       ))}
-      <Row label="Claude 실행 파일" desc="[민원 불러오기]가 실행하는 Claude Code예요. 보통 그대로 두면 돼요.">
+      <Row
+        label="Claude 실행 파일"
+        desc={
+          exeBad ? (
+            <span className="gate-error" role="alert">
+              {NOT_CLAUDE_TEXT}
+            </span>
+          ) : (
+            "[민원 불러오기]가 실행하는 Claude Code예요. 보통 그대로 두면 돼요."
+          )
+        }
+      >
         <span className="proc-dir">
           <input
             key={p.claude}
-            className="input"
+            className={exeBad ? "input invalid" : "input"}
             aria-label="Claude 실행 파일"
+            aria-invalid={exeBad || undefined}
             data-ime="en"
             defaultValue={p.claude}
-            onBlur={(e) => text("claude", e.target.value || "claude")}
+            onChange={() => exeBad && setExeBad(false)}
+            onBlur={(e) => {
+              // 이름이 claude(.exe)가 아니면 저장하지 않고 그 자리에서 알려요 – 칸 글자는 그대로 두어 고칠 수 있게(QC ST-19)
+              if (!isClaudeName(e.target.value)) return setExeBad(true);
+              setExeBad(false);
+              text("claude", e.target.value || "claude");
+            }}
             onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
           />
         </span>

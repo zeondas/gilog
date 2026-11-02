@@ -9,7 +9,9 @@ import ProcessScreen from "./screens/process/Screen";
 import BudgetScreen from "./screens/budget/Screen";
 import BudgetStatusScreen from "./screens/bstatus/Screen";
 import FilesScreen from "./screens/files/Screen";
-import Gate from "./Gate";
+import Gate, { GateNote } from "./Gate";
+import { backupWarnText } from "./backupWarn";
+import { X } from "./screens/settings/parts";
 import Logo, { AppIcon } from "./Logo";
 import { NavIcon, NavIconName } from "./Icons";
 import { VERSION } from "./version";
@@ -159,6 +161,31 @@ export default function App() {
   // 자동 잠금: 마우스나 키보드 입력이 없으면 잠가요.
   const unlocked = status?.unlocked ?? false;
 
+  // 설정에서 자료 옮기기·백업 불러오기로 잠겼을 때 잠금 화면 띠에 보일 안내(버그 사냥 17). 열리면 비워요.
+  const [lockNote, setLockNote] = useState<GateNote | null>(null);
+  const lockedFromSettings = useCallback(
+    (note?: GateNote) => {
+      setLockNote(note ?? null);
+      refresh();
+    },
+    [refresh],
+  );
+  // 잠금을 풀 때 자동 백업이 2일 넘게 안 되고 있으면 앱 위 띠 한 줄(버그 사냥 20). ×로 닫으면 다음 잠금 풀기까지 안 떠요.
+  const [backupWarn, setBackupWarn] = useState("");
+  useEffect(() => {
+    if (!unlocked) return;
+    setLockNote(null);
+    let alive = true;
+    api.backupInfo().then(
+      (info) => alive && setBackupWarn(backupWarnText(info)),
+      () => {},
+    );
+    return () => {
+      alive = false;
+      setBackupWarn("");
+    };
+  }, [unlocked]);
+
   // 열려 있는 동안: 일정 알림 목록을 앱에 보내고(30분마다 다시), 공휴일을 하루에 한 번 받아요.
   useEffect(() => {
     if (!unlocked) return;
@@ -249,7 +276,7 @@ export default function App() {
   if (fatal) return <div className="gate"><p className="gate-error">{fatal}</p></div>;
   if (!status || current === null) return <div className="gate" />;
   if (!status.unlocked) {
-    return <Gate mode={status.exists ? "unlock" : "setup"} folder={status.folder} onOpen={refresh} />;
+    return <Gate mode={status.exists ? "unlock" : "setup"} folder={status.folder} onOpen={refresh} note={lockNote} />;
   }
 
   const screen = [...SCREENS, SETTINGS].find((s) => s.id === current) ?? SCREENS[0];
@@ -293,7 +320,7 @@ export default function App() {
         style={minWidthOf(current) ? ({ "--vp-min": `${minWidthOf(current)}px` } as CSSProperties) : undefined}
       >
         {current === SETTINGS.id ? (
-          <SettingsScreen prefs={prefs} onPrefs={savePrefs} status={status} onLocked={refresh} onModules={changeModules} onClose={closeSettings} />
+          <SettingsScreen prefs={prefs} onPrefs={savePrefs} status={status} onLocked={lockedFromSettings} onModules={changeModules} onClose={closeSettings} />
         ) : current === "explorer" ? (
           <FilesScreen />
         ) : current === "contacts" ? (
@@ -324,6 +351,14 @@ export default function App() {
           </>
         )}
       </main>
+      {backupWarn && (
+        <div className="backup-warn" role="alert">
+          <span>{backupWarn}</span>
+          <button type="button" className="backup-warn-x" aria-label="닫기" title="닫기" onClick={() => setBackupWarn("")}>
+            <X />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

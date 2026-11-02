@@ -31,6 +31,8 @@ use tauri::{AppHandle, Manager, State};
 /// 열려 있는 자료 파일을 들고 있어요. None이면 잠긴 상태예요.
 pub(crate) struct AppState {
     pub(crate) store: Mutex<Option<Store>>,
+    /// 마지막 자동 백업이 실패했으면 그 까닭(잠금 풀 때 띠 – 버그 사냥 20). 성공하면 비워요.
+    pub(crate) backup_fail: Mutex<Option<String>>,
 }
 
 pub(crate) fn code(e: gilog_core::Error) -> String {
@@ -248,7 +250,7 @@ fn auto_unlock(app: AppHandle, state: State<AppState>) -> Result<bool, String> {
     let dir = data_dir(&app)?;
     match Store::open_with_key_hex(&dir, &key) {
         Ok(store) => {
-            daily_backup(&store);
+            daily_backup(&store, &state);
             *state.store.lock().map_err(io)? = Some(store);
             Ok(true)
         }
@@ -268,15 +270,20 @@ fn create_store(app: AppHandle, state: State<AppState>, password: String) -> Res
 fn unlock(app: AppHandle, state: State<AppState>, password: String) -> Result<(), String> {
     let dir = data_dir(&app)?;
     let store = Store::open(&dir, &password).map_err(code)?;
-    daily_backup(&store);
+    daily_backup(&store, &state);
     *state.store.lock().map_err(io)? = Some(store);
     Ok(())
 }
 
-/// 잠금을 풀 때 그날 첫 자동 백업을 해요. 실패해도 여는 것은 막지 않아요.
-pub(crate) fn daily_backup(store: &Store) {
-    if let Err(e) = store.auto_backup() {
+/// 잠금을 풀 때 그날 첫 자동 백업을 해요. 실패해도 여는 것은 막지 않고, 실패한 까닭을 `backup_fail`에 기억해요
+/// (`backup_info`가 화면에 알려요 – 버그 사냥 20).
+pub(crate) fn daily_backup(store: &Store, state: &AppState) {
+    let r = store.auto_backup();
+    if let Err(e) = &r {
         eprintln!("auto backup: {e}");
+    }
+    if let Ok(mut f) = state.backup_fail.lock() {
+        *f = r.err().map(|e| e.code().to_string());
     }
 }
 
@@ -653,6 +660,8 @@ fn import_backup(app: AppHandle, state: State<AppState>, path: String, password:
     guard::plain(&path)?;
     let dir = data_dir(&app)?;
     let mut guard = state.store.lock().map_err(io)?;
+    // 잠그기 전에 백업 파일이 온전하고 비밀번호가 맞는지 먼저 봐요 – 틀리면 앱이 열린 채로 알려요(버그 사냥 17).
+    gilog_core::check_backup(&dir, &PathBuf::from(&path), &password).map_err(code)?;
     *guard = None;
     // 불러오기 전에 지금 자료를 backup\…_before-import로 남겨요(②-2 ✔5)
     gilog_core::snapshot_before_import(&dir).map_err(code)?;
@@ -666,7 +675,9 @@ fn import_backup(app: AppHandle, state: State<AppState>, path: String, password:
     hello::turn_off(&app)
 }
 
+/// 화면의 `BackupInfo`(api.ts)와 같은 이름이어야 해요 – `latestPath`(QC LK-09: `latest_path`로 보내서 되살리기 단추가 늘 숨었어요).
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct BackupInfo {
     /// 자동 백업 폴더
     folder: String,
@@ -675,20 +686,27 @@ struct BackupInfo {
     /// 가장 최근 것의 날짜(YYYY-MM-DD)와 경로
     latest: Option<String>,
     latest_path: Option<String>,
+    /// 오늘 날짜(YYYY-MM-DD, 이 PC 시각) – 화면이 "며칠째"를 셀 때 써요
+    today: String,
+    /// 이번에 잠금을 풀 때 자동 백업이 실패했으면 그 오류 이름(버그 사냥 20)
+    fail: Option<String>,
 }
 
-/// 자동 백업 상태 – 잠겨 있어도 읽어요(잠금 화면 "백업으로 되살리기", 설정 줄).
+/// 자동 백업 상태 – 잠겨 있어도 읽어요(잠금 화면 "백업으로 되살리기", 설정 줄, 잠금 푼 뒤 백업 실패 띠).
 #[tauri::command]
-fn backup_info(app: AppHandle) -> Result<BackupInfo, String> {
+fn backup_info(app: AppHandle, state: State<AppState>) -> Result<BackupInfo, String> {
     let dir = data_dir(&app)?;
     let list = gilog_core::daily_backups(&dir);
     // "최근"은 이름 날짜가 오늘이거나 그 전인 것 중 가장 늦은 것(시계가 앞섰던 때의 미래 날짜 파일은 빼요 – 버그 사냥 8)
     let last = gilog_core::latest_backup(&dir);
+    let fail = state.backup_fail.lock().map_err(io)?.clone();
     Ok(BackupInfo {
         folder: dir.join(gilog_core::BACKUP_DIR).to_string_lossy().to_string(),
         count: list.len(),
         latest: last.as_ref().map(|(d, _)| d.clone()),
         latest_path: last.as_ref().map(|(_, p)| p.to_string_lossy().to_string()),
+        today: gilog_core::today_local(),
+        fail,
     })
 }
 
@@ -732,6 +750,11 @@ fn move_data(app: AppHandle, state: State<AppState>, folder: String) -> Result<(
     }
     // 옮길 곳이 지금 자료 폴더 안·앱 설정 폴더·윈도우 폴더면 막아요(②-2 ✔1)
     guard::export_to(&folder, &guard::protected(&app))?;
+    // 옮길 곳에 이미 자료가 있으면 잠그기 전에 알려요 – 앱이 열린 채로 남아요(버그 사냥 17).
+    // 잠근 뒤 복사가 실패하면 화면이 잠금 화면으로 가서 그 까닭을 띠로 보여요(settings `FolderRow`).
+    if gilog_core::exists(&to) {
+        return Err(code(gilog_core::Error::AlreadyExists));
+    }
     let mut guard = state.store.lock().map_err(io)?;
     *guard = None;
     // 복사 → 설정에 새 자리 적기 → 옛 자리 지우기 순서예요. 그 사이 꺼져도 설정이 가리키는 쪽에 자료가 온전히 있어요(버그 사냥 16).
@@ -771,7 +794,7 @@ pub fn run() {
     builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::Builder::new().app_name(autostart::NAME).args([autostart::ARG]).build())
-        .manage(AppState { store: Mutex::new(None) })
+        .manage(AppState { store: Mutex::new(None), backup_fail: Mutex::new(None) })
         .manage(calendar::Reminders::default())
         .manage(files::Watch::default())
         .manage(process::ClaudeRun::default())

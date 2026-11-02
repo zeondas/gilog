@@ -1342,3 +1342,39 @@ mark {
     animation: none;
   }
 }
+
+/* 자동 백업 실패 띠(버그 사냥 20, 설정 세션) – 앱 위에 떠서 화면 배치는 그대로예요. 잠금 화면 붉은 띠(.gate-note)와 같은 모양. */
+.backup-warn {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100% - 32px);
+  padding: 8px 8px 8px 14px;
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+  border-radius: var(--radius-md);
+  background: var(--danger-wash);
+  color: var(--danger);
+  box-shadow: var(--shadow-pop);
+  transform: translateX(-50%);
+}
+
+.backup-warn-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+}
+
+.backup-warn-x:hover {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
