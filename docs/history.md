@@ -5,6 +5,14 @@
 ## 버전별 — 들어간 것 · 시험 항목
 사용자 "통과"는 0.11.0~0.27.0 모두 기다려요(빌드 줄). 시험 항목은 윈도우에서만 볼 수 있는 것이에요.
 
+### 0.68.0(build-88) — 민원 지도
+- 들어간 것: 민원 지도 모듈(map eb4e9e7, 민원 지도 ✔1~✔6, [map.md](https://github.com/zeondas/gilog/blob/main/docs/qa/map.md)) – 사이드바 "민원대장" 아래 "민원 지도" · 자료 형식 v2(좌표 칸 4개, 첫 실행 때 `_before-v2` 백업을 저절로 남기고 올림) · 지번 → 좌표는 앱 안 필지 표(오프라인) · 캔버스 지도 · 설정 "민원 지도" 카드·모듈 줄 · 자료 `data/map` 3.4MB + 원본 `tools/map/source`
+- 검사: check 7갈래 모두 통과 · 충돌 0 · npm build·npm test 411·core 169(자료 올리기 시험 4 – `v1_tables`·`v1_file_gets_map_columns` 포함)·core-wasm 5·앱 `cargo check` 통과 · 긴 줄표 21·"기Log" 0 · 지킴이 105장면: 새 장면 4(map*) + 사이드바 칸이 늘어난 차이(예정, guard-allow 101장면), 사이드바 밖은 설정 모듈 목록에 "민원 지도" 줄이 생긴 설정 장면뿐 · 흔들림 둘(`complaints_newrow_baddate`·`files_find_baddate`)은 다시 찍으니 사이드바만 · 동작 통과 · 허용 목록 사본에 새 명령 둘(`complaints_map`·`map_parcel_stats`)을 build.rs 결과대로 맞춤 · 사양서 "민원 지도" 절 "(다음 빌드)" → "0.68.0"
+- 시험: 설치 뒤 처음 열 때 자료가 그대로 열리는지(형식 2로 올리기, `backup\gilog_*_before-v2.gilogbak` 생김), 사이드바 "민원 지도", 지번 있는 민원이 지도에 찍히는지, 설정 "민원 지도" 카드
+- 현황판 줄·대기 원문:
+  - | 민원 지도 | `wip/map` | 민원 지도 화면 – 민원대장과 별도 모듈, 민원대장 자료(위치·유형·상태·날짜만)를 읽어 지도에 점으로(결정 로그 11-02 14:25·16:11) | `eb4e9e7` | **끝(합치기 기다림)** · check.yml 통과(윈도우·지킴이 4갈래·core-wasm) – ✔1~✔6 코딩(자료 형식 v2·지번→좌표 오프라인·캔버스 지도·설정 카드) · 지도 원본 `tools/map/source/`·앱 자료 `data/map/` · 내력 [map.md §7-30](https://github.com/zeondas/gilog/blob/main/docs/qa/map.md#7-30-코딩한-1-6-원문-2026-11-02-1733-코딩시작해) | 빌드 합치기(모든 지킴이 장면에 사이드바 새 칸 – guard-allow 적음)
+  - - ✔1~✔6은 `wip/map` `eb4e9e7`에 코딩함(11-02 17:33 사용자 "코딩시작해") – 원문은 [map.md §7-30](https://github.com/zeondas/gilog/blob/main/docs/qa/map.md#7-30-코딩한-1-6-원문-2026-11-02-1733-코딩시작해). 바뀐 점 둘: 좌표 칸 이름 `lng`·`lat` → `geo_x`·`geo_y`(모든 자료가 EPSG:5181 m라서), 행정동(운정1~6·금촌1~3·교하동) 테두리는 원본에 없어 `paju.ts` 표의 법정동을 모아 그림.
+
 ### 0.67.0(build-87) — 엑셀 가져오기 고침 + QC 1차 고침
 - 들어간 것(가지 8): ① 공통 excel-fix 0303090 – 엑셀 가져오기 ✔1~✔8(대체하기 전 백업·짝짓기·업무일지 한 번에 넣기·참조 정리·날짜/시간/전화 읽기·머릿기호 왕복·색인, [bughunt-excel.md](https://github.com/zeondas/gilog/blob/main/docs/qa/bughunt-excel.md)) ② 집행현황 budget-excel 83b4c11 – 엑셀 ✔1~✔4(uid 이어받기·건너뛴 해 재원·파일의 해·금액 읽기/반올림) ③ 민원대장 complaints13 b1c5e3a – ✔1·✔2(CM-03·34·추가-01·CM-07 자유 입력·CM-17 완료) ④ 민원처리 process-fix2 669b0d7 – ✔1(PR-04 공사 관리 신규 줄 Enter) ⑤ 업무일지 journal5 b29c64c – ✔1(JN-01 머리 줄 다시 그림·JN-17 달력 잘림) ⑥ 캘린더 calendar6 2e47d13 – ✔1(CA-03 빠른 입력 Tab·커서) ⑦ 탐색기 explorer10 ff011a3 – ✔1(FX-22 새 탭 폴더) ⑧ 설정 settings6 91743ba – ✔1(LK-09 되살리기 단추·ST-19·S-17·S-20)
 - 합칠 때: `journal/Screen.tsx` – excel-fix의 `importJournal` 한 번 + journal5의 `setImported` 한 줄 · `app-sets.toml` – 세 허용(import-journal·backup-before-replace·bstatus-set-many)을 다 넣고, cargo check로 다시 만든 목록에 `allow-import-budget-many`(budget-excel 새 명령, 저장소 사본에 빠졌던 것)도 들어가 그대로 올림
