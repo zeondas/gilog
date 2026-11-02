@@ -44,13 +44,13 @@
 
 | 세션 | 가지 | 하는 일 | 마지막 커밋 | 상태 | 기다리는 것 |
 | --- | --- | --- | --- | --- | --- |
-| 우두머리 | main(문서만) | 기획·공통 결정·현황판·세션 프롬프트 – 승인된 수정은 대기 목록 ✔로 쌓고 "코딩하자"로 한 번에 코딩 → 빌드 묶음(결정 로그 10-21 10:07), 결정은 표로. 답 끝 "코딩 완료" 칸은 기능 세션이 붙여요 | `35a8dfb` | **11-02 10:3x 세션 이름 규칙(규칙 10)·현황판 새로 짬** – 고정 6 + 화면 10 · QC 1차·버그 사냥 2차 ✔ 정리 끝 · 0.66.0 나옴 | 사용자 ①②(CM-07·CM-17) 답 · 각 세션 "코딩하자" |
+| 우두머리 | main(문서만) | 기획·공통 결정·현황판·세션 프롬프트 – 승인된 수정은 대기 목록 ✔로 쌓고 "코딩하자"로 한 번에 코딩 → 빌드 묶음(결정 로그 10-21 10:07), 결정은 표로. 답 끝 "코딩 완료" 칸은 기능 세션이 붙여요 | `d1ac26e` | **11-02 10:3x 세션 이름 규칙(규칙 10)·현황판 16줄로 새로 짬** · CM-07·17 결정 받음(1안·1안) · 세션 8개 프롬프트 보냄(공통·집행현황·민원대장·민원처리·업무일지·캘린더·탐색기·설정) | 각 세션 "코딩하자" → 빌드 0.67.0 → QC 2회차 프롬프트
 | 빌드 | main | wip/* 합치기·버전·빌드·설치 파일 | `8039611` 0.66.0(build-86) | **빌드 0.66.0(build-86) · main `8039611`(버전 `db9cfd6`) · 넣은 것 1: 자료 안전 – 버그 사냥 1차 고침(`wip/bughunt`)** · npm 351·core 151·core-wasm 5·앱 cargo check 통과, 지킴이 101장면 같음·동작 통과 · 내일 QC 2회차는 이 설치 파일로 – 내력 [history.md 0.66.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0660build-86--자료-안전-버그-사냥-1차) | 사용자 윈도우 시험·QC 2회차 |
 | QC | main(문서만 – `docs/qa/qc.md`·`qc-result-*.md`) | QC 목록 + 집 컴퓨터 실행(결정 로그 10-30 23:55) | `253b6f0` | **1차 끝(0.65.0, 195/288 – 통과 175·실패 14·보류 6)** → 실패는 각 화면 ✔로 옮김 · 결과 [qc-result-0.65.0.md](https://github.com/zeondas/gilog/blob/main/docs/qa/qc-result-0.65.0.md) | 2회차(0.66.0 – 못 한 93 + 자료 안전 항목) 프롬프트 |
 | 버그 사냥 | main(문서만 – `docs/qa/bughunt-*.md`) | 예상 못 한 버그 찾기(결정 로그 11-01 20:49) – 1차 자료 저장(끝·0.66.0에 고침) · 2차 엑셀 가져오기(끝·✔로 옮김) | `ca18e22` | **2차 끝** · [bughunt-excel.md](https://github.com/zeondas/gilog/blob/main/docs/qa/bughunt-excel.md) 25건 · 3차 묶음은 날짜 규칙 추천 | 3차 프롬프트(엑셀 고침 빌드 뒤) |
 | 매뉴얼 | `wip/manual`·`wip/setup-guide`(문서만) | 매뉴얼(`docs/manual/`·`tools/manual/`) + 준비 안내서(`docs/setup/`) | `2f65080` / `b2b53ae` | **매뉴얼 v31 보냄** · 준비 안내서 초안(hwpx 4장, 그림 틀 10개 비움, 【확인 필요】 3) – 내력 [history.md 매뉴얼](https://github.com/zeondas/gilog/blob/main/docs/history.md#매뉴얼-현황판-줄-상태-칸-원문) | 사용자 한글 확인 · 안내서 【확인 필요】 답·캡처 11장 · 0.66.0 자료 안전 반영 |
 | 공통 | (코딩 때 `wip/excel-fix`) | core·공통 부품(자료 안전·엑셀 공통·ExcelMenu·ColHead 등 한 화면에 안 속하는 것) – 전엔 "자료 안전"·"버그수정" 세션 | `6c6c8b6`(0.66.0에 들어감) | 자료 안전 ✔1~✔5 끝(0.66.0) · **다음: 대기 "공통" 칸 ✔1~✔8(엑셀 가져오기)** | "코딩하자" |
-| 민원대장 | (코딩 때 `wip/complaints13`) | 민원대장 화면 | – | 대기 "민원대장" ✔1(QC CM-03·34·추가-01) + ①② 결정 뒤 CM-07·17 | 사용자 ①② 답 · "코딩하자" |
+| 민원대장 | (코딩 때 `wip/complaints13`) | 민원대장 화면 | – | 대기 "민원대장" ✔1·✔2(QC CM-03·34·추가-01·07·17) | "코딩하자" |
 | 민원처리 | (코딩 때 `wip/process-fix2`) | 민원처리 화면 | – | 대기 "민원처리" ✔1(QC PR-04) | "코딩하자" |
 | 업무연락처 | – | 업무연락처 화면 | – | 대기 비어 있음(QC 실패 0) | – |
 | 업무일지 | (코딩 때 `wip/journal5`) | 업무일지 화면 | – | 대기 "업무일지" ✔1(QC JN-01·17) | "코딩하자" |
@@ -116,7 +116,7 @@
 
 비어 있음: 업무연락처·할 일·예산현황(엑셀은 집행현황 칸)·공통 부품(✔1~✔8 0.35.0에 들어감)
 
-번호 표기: **E-n** = [bughunt-excel.md](https://github.com/zeondas/gilog/blob/main/docs/qa/bughunt-excel.md) 표 n번 · **S-n** = [bughunt-storage.md](https://github.com/zeondas/gilog/blob/main/docs/qa/bughunt-storage.md) 표 n번 · **CM-03** 등 = [qc-result-0.65.0.md](https://github.com/zeondas/gilog/blob/main/docs/qa/qc-result-0.65.0.md) 실패 항목. 공통 규칙 검토(우두머리 11-02): 아래 ✔는 모두 걸리는 것 없음 – CM-07·CM-17만 결정 필요(①②).
+번호 표기: **E-n** = [bughunt-excel.md](https://github.com/zeondas/gilog/blob/main/docs/qa/bughunt-excel.md) 표 n번 · **S-n** = [bughunt-storage.md](https://github.com/zeondas/gilog/blob/main/docs/qa/bughunt-storage.md) 표 n번 · **CM-03** 등 = [qc-result-0.65.0.md](https://github.com/zeondas/gilog/blob/main/docs/qa/qc-result-0.65.0.md) 실패 항목. 공통 규칙 검토(우두머리 11-02): 아래 ✔는 모두 걸리는 것 없음(CM-07·CM-17은 11-02 10:23 1안·1안으로 결정).
 
 ### 공통 (`src/excel.ts`·`ExcelMenu.tsx`·core `excel.rs`·`complaints.rs`·`contacts.rs`·`journal.rs` 가져오기 – `wip/excel-fix`)
 - ✔1. 대체하기(모든 화면) 전에 `_before-replace` 백업 – 자료 지우기 백업과 같은 방식·정리 규칙 – E-6.
@@ -137,7 +137,7 @@
 
 ### 민원대장 (`wip/complaints13`)
 - ✔1. CM-03 등록 뒤 신규 줄 접수일을 오늘로 · CM-34 메모 머리도 "위치 표기" 설정(법정동/행정동) 따르기 · 추가-01 0건일 때도 열 처음 폭은 건 있을 때와 같게(위치 칸 "리·동 지번" 안 잘리게).
-- (①② 결정 뒤) CM-07 민원유형 목록이 비었을 때 · CM-17 조치완료일을 치면 상태를 어떻게.
+- ✔2. (11-02 10:23 사용자 1안·1안) CM-07 민원유형 목록이 비어 있어도 등록을 막지 않고, 목록에 없는 값은 그대로 받아 설정 목록에 자동으로 더하기 · CM-17 조치완료일을 적으면 어느 길(Enter·바깥 누르기·Tab)로 저장하든 상태를 "완료"로.
 
 ### 민원처리 (`wip/process-fix2`)
 - ✔1. PR-04 공사 관리 신규 줄 Enter = 다음 칸, 마지막 칸 = 등록(Enter 규칙).
