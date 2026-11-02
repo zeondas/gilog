@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { MapComplaint } from "../../api";
 import { statusColor } from "../../settingsStore";
-import { cardPlace, type Feature, type Layers } from "./mapData";
+import { cardPlace, layerPaths, tracePath, type Feature, type Layers } from "./mapData";
 
 export type MapPoint = { c: MapComplaint; x: number; y: number; color: string };
 type View = { cx: number; cy: number; s: number };
@@ -25,17 +25,48 @@ function fit(b: [number, number, number, number], w: number, h: number, pad = 28
 
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
-function pathOf(feats: Feature[], ox: number, oy: number): Path2D {
+/** 칠하는 층은 closePath 없이(칠하기는 저절로 닫혀요) – 고리마다 closePath를 부르면 Chromium이 고리 수의 제곱으로 느려져
+ *  48,848고리에서 20초 넘게 멈췄어요(0.68.0 멈춤 ①). 선으로 긋는 경계만 닫아요. */
+function pathOf(feats: Feature[], ox: number, oy: number, close = false): Path2D {
   const p = new Path2D();
-  for (const f of feats)
-    for (const r of f.rings) {
-      if (r.length < 4) continue;
-      p.moveTo(r[0] - ox, r[1] - oy);
-      for (let k = 2; k < r.length; k += 2) p.lineTo(r[k] - ox, r[k + 1] - oy);
-      p.closePath();
-    }
+  tracePath(p, feats, ox, oy, close);
   return p;
 }
+
+/** 전체 보기(확대 배율이 이보다 작을 때)에는 도시계획도로를 빼고 그려요 – 그 크기에선 어차피 안 보여요(0.68.0 멈춤 ②). */
+const PLAN_MIN_SCALE = 0.06;
+/** 배경 그림 한 장: 그 그림을 그린 보기(view)와 크기(CSS px) */
+type Snap = { cv: HTMLCanvasElement; v: View; w: number; h: number; dpr: number; key: Layers };
+type Paths = { key: Layers; ox: number; oy: number; road: Path2D; plan: Path2D; zone: Path2D; emd: Path2D };
+
+function renderBg(ctx: CanvasRenderingContext2D, P: Paths, v: View, w: number, h: number, dpr: number, tint: string) {
+  const { ox, oy } = P;
+  const s = v.s;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  ctx.setTransform(s * dpr, 0, 0, -s * dpr, (w / 2 - (v.cx - ox) * s) * dpr, (h / 2 + (v.cy - oy) * s) * dpr);
+  ctx.fillStyle = C_ROAD;
+  ctx.fill(P.road);
+  if (s >= PLAN_MIN_SCALE) {
+    ctx.fillStyle = tint;
+    ctx.fill(P.plan);
+  }
+  ctx.fillStyle = C_ZONE;
+  ctx.fill(P.zone);
+  ctx.strokeStyle = C_LINE;
+  ctx.lineWidth = 0.9 / s;
+  ctx.stroke(P.emd);
+}
+
+/** 그려 둔 배경 그림을 지금 보기에 맞춰 늘리고 옮겨 붙여요(움직이는 동안 – 한 장면 몇 ms). */
+function blit(ctx: CanvasRenderingContext2D, snap: Snap, v: View, w: number, h: number) {
+  const k = v.s / snap.v.s;
+  const left = w / 2 - (snap.w / 2) * k + (snap.v.cx - v.cx) * v.s;
+  const top = h / 2 - (snap.h / 2) * k + (v.cy - snap.v.cy) * v.s;
+  ctx.drawImage(snap.cv, left, top, snap.w * k, snap.h * k);
+}
+
+const sameView = (a: View, b: View) => a.cx === b.cx && a.cy === b.cy && a.s === b.s;
 
 type Props = {
   layers: Layers | null;
@@ -68,41 +99,90 @@ export default function MapCanvas({ layers, points, region, regionFeats, focusBo
   const state = useRef({ points, region, regionFeats, selectedId });
   state.current = { points, region, regionFeats, selectedId };
 
-  const draw = useCallback(() => {
+  const viewSnap = useRef<Snap | null>(null);
+  const fullSnap = useRef<Snap | null>(null);
+  const regionPath = useRef<{ key: Feature[]; p: Path2D } | null>(null);
+  const settleT = useRef<number | null>(null);
+  const fullT = useRef<number | null>(null);
+
+  const pathsOf = (L: Layers): Paths => {
+    let P = paths.current;
+    if (!P || P.key !== L) {
+      P = { key: L, ...layerPaths(L, () => new Path2D()) };
+      paths.current = P;
+    }
+    return P;
+  };
+
+  /** 파주시 전체를 두 배 또렷하게 한 장 – 움직이는 동안 화면 밖까지 비지 않게 밑에 깔아요. 쉴 때 한 번 만들어요. */
+  const buildFull = useCallback(() => {
+    if (!layers) return;
+    const { w, h, dpr } = size.current;
+    if (!w) return;
+    const base = fit(layers.bounds, w, h);
+    const s = base.s * 2;
+    const bw = (layers.bounds[2] - layers.bounds[0]) * s + 64;
+    const bh = (layers.bounds[3] - layers.bounds[1]) * s + 64;
+    const k = Math.min(1, 4096 / (Math.max(bw, bh) * dpr)); // 한 변 4096점 안
+    const cw = bw * k;
+    const ch = bh * k;
+    const cv = document.createElement("canvas");
+    cv.width = Math.round(cw * dpr);
+    cv.height = Math.round(ch * dpr);
+    const ctx = cv.getContext("2d");
+    if (!ctx) return;
+    const v = { cx: base.cx, cy: base.cy, s: s * k };
+    const tint = getComputedStyle(canvasRef.current ?? document.body).getPropertyValue("--accent-tint").trim() || "#ECE9FB";
+    renderBg(ctx, pathsOf(layers), v, cw, ch, dpr, tint);
+    fullSnap.current = { cv, v, w: cw, h: ch, dpr, key: layers };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layers]);
+
+  /** fast = 움직이는 중(그려 둔 그림을 늘려 붙임) · 아니면 지금 보기로 또렷하게(같은 보기면 그려 둔 것을 그대로) */
+  const draw = useCallback((fast = false) => {
     const cv = canvasRef.current;
     const v = view.current;
     if (!cv || !v) return;
     const { w, h, dpr } = size.current;
     const ctx = cv.getContext("2d");
     if (!ctx) return;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, w, h);
     const css = getComputedStyle(cv);
     const accent = css.getPropertyValue("--accent").trim() || "#4F3CC9";
     const tint = css.getPropertyValue("--accent-tint").trim() || "#ECE9FB";
     const bg = css.getPropertyValue("--surface").trim() || "#fff";
     if (layers) {
-      let P = paths.current;
-      if (!P || P.key !== layers) {
-        const [ox, oy] = layers.bounds;
-        P = { key: layers, ox, oy, road: pathOf(layers.road, ox, oy), plan: pathOf(layers.plan, ox, oy), zone: pathOf(layers.zone, ox, oy), emd: pathOf(layers.emd, ox, oy) };
-        paths.current = P;
+      const P = pathsOf(layers);
+      let snap = viewSnap.current;
+      if (!fast && (!snap || snap.key !== layers || snap.w !== w || snap.h !== h || snap.dpr !== dpr || !sameView(snap.v, v))) {
+        const sc = snap && snap.w === w && snap.h === h && snap.dpr === dpr ? snap.cv : document.createElement("canvas");
+        sc.width = Math.round(w * dpr);
+        sc.height = Math.round(h * dpr);
+        const sctx = sc.getContext("2d");
+        if (sctx) {
+          renderBg(sctx, P, v, w, h, dpr, tint);
+          snap = { cv: sc, v: { ...v }, w, h, dpr, key: layers };
+          viewSnap.current = snap;
+        }
+        if (!fullSnap.current || fullSnap.current.key !== layers) {
+          if (fullT.current) clearTimeout(fullT.current);
+          fullT.current = window.setTimeout(buildFull, 120);
+        }
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      const full = fullSnap.current;
+      if (snap && sameView(snap.v, v) && snap.w === w && snap.h === h) ctx.drawImage(snap.cv, 0, 0, w, h);
+      else {
+        if (full && full.key === layers) blit(ctx, full, v, w, h);
+        if (snap && snap.key === layers) blit(ctx, snap, v, w, h); // 마지막으로 또렷하게 그린 그림을 위에 – 밖으로 남는 곳은 밑의 전체 그림이 채워요
       }
       const { ox, oy } = P;
       const s = v.s;
-      ctx.setTransform(s * dpr, 0, 0, -s * dpr, (w / 2 - (v.cx - ox) * s) * dpr, (h / 2 + (v.cy - oy) * s) * dpr);
-      ctx.fillStyle = C_ROAD;
-      ctx.fill(P.road);
-      ctx.fillStyle = tint;
-      ctx.fill(P.plan);
-      ctx.fillStyle = C_ZONE;
-      ctx.fill(P.zone);
-      ctx.strokeStyle = C_LINE;
-      ctx.lineWidth = 0.9 / s;
-      ctx.stroke(P.emd);
       const rf = state.current.regionFeats;
       if (rf.length && dim.current > 0) {
-        const rp = pathOf(rf, ox, oy);
+        if (regionPath.current?.key !== rf) regionPath.current = { key: rf, p: pathOf(rf, ox, oy, true) };
+        const rp = regionPath.current.p;
+        ctx.setTransform(s * dpr, 0, 0, -s * dpr, (w / 2 - (v.cx - ox) * s) * dpr, (h / 2 + (v.cy - oy) * s) * dpr);
         // 바깥 흐림: 화면 전체 − 그 읍면
         const outside = new Path2D();
         const [x0, y0] = [v.cx - ox - w / 2 / s, v.cy - oy - h / 2 / s];
@@ -117,6 +197,9 @@ export default function MapCanvas({ layers, points, region, regionFeats, focusBo
         ctx.stroke(rp);
         ctx.globalAlpha = 1;
       }
+    } else {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
     }
     // 점: 화면 자리로 바꿔 같은 자리(9px 안)는 숫자 동그라미로 묶어요.
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -175,7 +258,21 @@ export default function MapCanvas({ layers, points, region, regionFeats, focusBo
         ctx.stroke();
       }
     }
-  }, [layers]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layers, buildFull]);
+
+  /** 움직임이 멈추면 조금 뒤 또렷하게 다시 */
+  const settle = useCallback(() => {
+    if (settleT.current) clearTimeout(settleT.current);
+    settleT.current = window.setTimeout(() => {
+      settleT.current = null;
+      draw();
+    }, 140);
+  }, [draw]);
+  useEffect(() => () => {
+    if (settleT.current) clearTimeout(settleT.current);
+    if (fullT.current) clearTimeout(fullT.current);
+  }, []);
 
   const animateTo = useCallback(
     (to: View, toDim: number, ms = ANIM_MS) => {
@@ -199,7 +296,7 @@ export default function MapCanvas({ layers, points, region, regionFeats, focusBo
           s: Math.exp(Math.log(from.s) + (Math.log(to.s) - Math.log(from.s)) * k),
         };
         dim.current = fromDim + (toDim - fromDim) * k;
-        draw();
+        draw(k < 1); // 움직이는 동안은 그려 둔 그림을 늘려 붙이고, 끝 장면만 또렷하게
         anim.current = k < 1 ? requestAnimationFrame(step) : null;
       };
       anim.current = requestAnimationFrame(step);
@@ -292,11 +389,12 @@ export default function MapCanvas({ layers, points, region, regionFeats, focusBo
       view.current = { s, cx: wx - (mx - w / 2) / s, cy: wy + (my - h / 2) / s };
       setHover(null);
       setPinned(null);
-      draw();
+      draw(true);
+      settle();
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [draw, layers]);
+  }, [draw, settle, layers]);
 
   // 끌기 = 이동 · 누르기 = 민원대장 그 줄(여러 건이면 카드를 붙잡아요)
   const drag = useRef<{ x: number; y: number; cx: number; cy: number; moved: boolean; btn: number } | null>(null);
@@ -341,7 +439,8 @@ export default function MapCanvas({ layers, points, region, regionFeats, focusBo
       view.current = { ...v, cx: d.cx - dx / v.s, cy: d.cy + dy / v.s };
       if (hover) setHover(null);
       if (pinned) setPinned(null);
-      draw();
+      draw(true);
+      settle();
       return;
     }
     if ((e.target as HTMLElement).closest(".mp-btns, .mp-card, .mp-legend")) return;

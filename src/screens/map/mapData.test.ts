@@ -10,6 +10,7 @@ import {
   groupByType,
   legalPartsOf,
   parseLayers,
+  layerPaths,
   passes,
   periodLabel,
   regionOf,
@@ -101,5 +102,21 @@ describe("민원 지도 규칙", () => {
     // 파주시 범위(5181 m)
     expect(l.bounds[0]).toBeGreaterThan(150000);
     expect(l.bounds[3]).toBeLessThan(520000);
+  });
+
+  it("배경 모양 만들기: 칠하는 층은 closePath 0번, 전체 자료 1초 안(0.68.0 멈춤 재발 방지)", () => {
+    // 고리마다 closePath를 부르면 Chromium(WebView2)이 고리 수의 제곱으로 느려져 48,848고리에서 20초 넘게 멈췄어요.
+    const raw = gunzipSync(readFileSync("data/map/paju_layers.bin.gz"));
+    const l = parseLayers(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength));
+    const make = () => ({ moves: 0, lines: 0, closes: 0, moveTo() { this.moves++; }, lineTo() { this.lines++; }, closePath() { this.closes++; } });
+    const t = performance.now();
+    const P = layerPaths(l, make);
+    const ms = performance.now() - t;
+    expect(P.road.closes).toBe(0);
+    expect(P.plan.closes).toBe(0);
+    expect(P.zone.closes).toBe(0);
+    expect(P.emd.closes).toBe(35); // 선으로 긋는 경계만
+    expect(P.road.moves).toBeGreaterThan(40000);
+    expect(ms).toBeLessThan(1000);
   });
 });
