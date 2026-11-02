@@ -1,7 +1,7 @@
 // 민원대장 규칙 시험 – 지금 동작을 고정해요(정리 2차 2026-10-26): 남은 날·걸린 날·검색(초성·번호)·유형 초성·필터.
 import { describe, expect, test } from "vitest";
 import type { Complaint } from "./api";
-import { COLUMNS, layoutCols, daysBetween, daysLeft, daysTaken, ddayText, dueSoon, expandType, filterValues, isUrgent, matches, NO_FILTERS, passes, readStatusFilter, shortDate, shortIntake, takenText } from "./complaints";
+import { addedType, COLUMNS, layoutCols, statusOnSave, daysBetween, daysLeft, daysTaken, ddayText, dueSoon, expandType, filterValues, isUrgent, matches, NO_FILTERS, passes, readStatusFilter, shortDate, shortIntake, takenText } from "./complaints";
 
 const C = (o: Partial<Complaint>): Complaint => ({
   id: 1, no: 1, intake: "국민신문고", received: "2026-10-10", ctype: "포트홀", area: "조리읍", place: "봉일천리 113 일원",
@@ -135,5 +135,32 @@ describe("layoutCols – 끈 열의 줄인 모양(2026-10-28 사용자 1안)", (
     expect(Math.abs(sum - avail)).toBeLessThanOrEqual(1);
     expect(b.init.body).toBe(a.init.body);
     expect(b.init.intake).toBe(a.init.intake);
+  });
+});
+
+// QC CM-17(2026-11-02 사용자 1안): 조치완료일을 적으면 어느 길로 저장하든 완료
+describe("statusOnSave", () => {
+  test("조치완료일을 손으로 적었으면 완료", () => {
+    expect(statusOnSave("접수", "2026-11-02", true)).toBe("완료");
+    expect(statusOnSave("진행", "2026-11-02", true)).toBe("완료");
+  });
+  test("적지 않았거나 비웠으면 그대로", () => {
+    expect(statusOnSave("접수", "2026-11-02", false)).toBe("접수");
+    expect(statusOnSave("접수", "", true)).toBe("접수");
+    expect(statusOnSave("진행", "  ", true)).toBe("진행");
+  });
+});
+
+// QC CM-07(2026-11-02 사용자 1안): 목록에 없는 민원유형은 설정 목록 끝에 더해요
+describe("addedType", () => {
+  test("빈 목록에도 더해요", () => {
+    expect(addedType([], "포트홀")).toEqual(["포트홀"]);
+  });
+  test("없는 값은 끝에, 앞뒤 빈칸은 떼요", () => {
+    expect(addedType(["포트홀"], " 가로등 ")).toEqual(["포트홀", "가로등"]);
+  });
+  test("이미 있거나 비었으면 null", () => {
+    expect(addedType(["포트홀"], "포트홀")).toBeNull();
+    expect(addedType(["포트홀"], "  ")).toBeNull();
   });
 });

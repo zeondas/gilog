@@ -281,8 +281,8 @@ function Cells({
       )}
       {cell(
         "ctype",
-        // 민원유형도 접수유형처럼 목록에서 골라요(2026-10-25 사용자 ④1안 – 분류 관리에서 더하기).
-        <ChoiceInput name="ctype" label="민원유형" value={d.ctype} options={lists.ctype} allow={orig?.ctype} invalid={bad.ctype} onChange={(ctype) => set({ ctype })} />,
+        // 민원유형은 목록에서 고르거나 새로 쳐요 – 목록에 없는 값은 등록할 때 설정 목록에 저절로 더해요(QC CM-07, 2026-11-02 사용자 1안).
+        <ChoiceInput name="ctype" label="민원유형" value={d.ctype} options={lists.ctype} allow={orig?.ctype} invalid={bad.ctype} free onChange={(ctype) => set({ ctype })} />,
       )}
       {cell("place", <PlaceInput value={d.place} area={d.area} road={d.road} onChange={(place) => set({ place })} onArea={(area) => set({ area })} onRoad={(road) => set({ road })} />)}
       {cell(
@@ -349,8 +349,8 @@ export function NewRow({ lists, short, onAdd }: { lists: Lists; short: Set<ColKe
     const { input, first } = f.check(lists);
     if (!input) return focusField(rowRef.current, first!);
     if (await onAdd(input)) {
-      // 접수일은 그대로 두어 같은 날 여러 건을 잇달아 적기 쉽게 해요.
-      f.setD({ ...emptyDraft(lists), received: input.received });
+      // 등록하면 신규 줄을 처음 모양으로 – 접수일도 오늘로(QC CM-03, 사양 "접수일은 오늘로 채워져 있어요").
+      f.setD(emptyDraft(lists));
       firstRef.current?.focus();
     }
   }

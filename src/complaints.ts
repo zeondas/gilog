@@ -3,8 +3,26 @@ import type { Complaint } from "./api";
 import { plainOf } from "./bullets";
 import { parseMemo } from "./screens/contacts/parts";
 import { initials, isChosung, koIndex, splitJamo } from "./journal";
-import { isAnswered } from "./settingsStore";
+import { DONE_STATUS, isAnswered } from "./settingsStore";
 import { workDaysBetween } from "./workdays";
+
+/**
+ * 저장할 상태(QC CM-17, 2026-11-02 사용자 1안): 조치완료일을 손으로 적었으면 어느 길(Enter·Tab·바깥 누르기·[저장])로
+ * 저장하든 "완료"예요. 칸을 떠날 때만 바꾸면 Tab·Enter 저장이 그보다 먼저 일어나 "접수"로 남았어요.
+ */
+export function statusOnSave(status: string, done: string, doneTyped: boolean): string {
+  return doneTyped && done.trim() ? DONE_STATUS : status;
+}
+
+/**
+ * 민원유형 목록에 없는 값이면 끝에 더한 새 목록, 이미 있거나 비었으면 null(QC CM-07, 2026-11-02 사용자 1안 –
+ * 목록이 비어 있어도 등록을 막지 않고 친 값을 설정 목록에 저절로 더해요).
+ */
+export function addedType(list: string[], ctype: string): string[] | null {
+  const v = ctype.trim();
+  if (!v || list.includes(v)) return null;
+  return [...list, v];
+}
 
 /** 2026-10-15 두 날짜 사이의 날 수 (to - from) */
 export function daysBetween(from: string, to: string): number {
@@ -108,6 +126,12 @@ export const COLUMNS: { key: ColKey; label: string; fixed?: boolean }[] = [
   { key: "done", label: "조치완료일" },
   { key: "memo", label: "메모" },
 ];
+
+/**
+ * 위치 열 처음 폭의 바닥 – 흔한 위치 하나(설정 "위치 표기" 설명의 보기와 같아요). 민원이 0건이거나 짧은 위치뿐이어도
+ * 이만큼은 받아 신규 줄 "리·동 지번"이 잘리지 않아요(QC 추가-01, 2026-11-02).
+ */
+export const PLACE_SAMPLE = { full: "운정3동 동패동 1234", short: "동패동 1234" };
 
 /** 표 폭을 아직 모를 때 내용·조치내용 처음 폭 */
 export const FLEX_MIN = 140;
