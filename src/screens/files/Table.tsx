@@ -548,7 +548,7 @@ export function renderPane(pane: number, c: PaneCtx) {
             )}
           </button>
         ))}
-        <button type="button" className="fx-tab fx-tab-add" title="새 탭 (Ctrl+T)" onClick={() => newTab(pane, t.find ? home : t.path)}>
+        <button type="button" className="fx-tab fx-tab-add" title="새 탭 (Ctrl+T)" onClick={() => newTab(pane, home)}>
           ＋
         </button>
       </div>

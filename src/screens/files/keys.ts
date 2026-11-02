@@ -207,7 +207,8 @@ export function handleKey(e: KeyboardEvent, c: KeyCtx) {
     return handled();
   }
   if (ctrl && e.code === "KeyR") return handled(), refreshAll();
-  if (ctrl && e.code === "KeyT") return handled(), newTab(pane, activeTab(st.panes[pane]).find ? home : activeTab(st.panes[pane]).path);
+  // Ctrl+T·탭 줄 ＋: 설정 "새 탭이 여는 폴더"(없으면 문서)로 – QC FX-22
+  if (ctrl && e.code === "KeyT") return handled(), newTab(pane, home);
   if (ctrl && e.code === "KeyW") return handled(), closeTab(pane, st.panes[pane].active);
   if (ctrl && e.code === "KeyA") return handled(), setSel(pane, { paths: new Set(rows.map((r) => r.path)), cursor: s.cursor, anchor: s.anchor });
   if (k === " " && ctrl) {
