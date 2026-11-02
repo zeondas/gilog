@@ -256,6 +256,18 @@ export const lineOf = (level: BStatusLine["level"], period: string, name: string
  *  줄 알아보기: 사업기간 칸이 "단년도"·"NNNN~NNNN년"이면 세부사업 줄, "NNNN년"이면 연도 줄, 그 밖은 재원 줄. */
 export type ImportCell = { name: string; year: number; src: string; m: Manual };
 const XL_TO_MANUAL: Partial<Record<(typeof XL_FIELDS)[number], keyof Manual>> = { cur: "cur", a1: "a1", a2: "a2", a3: "a3", a4: "a4", pm: "pm", ps: "ps", en: "en", em: "em", es: "es", nm: "nm", ns: "ns", un: "un" };
+/** 예산현황 시트 1행 제목("2025년 예산현황")의 해(E-11). 머리 줄 위에서 찾고, 없으면 null. */
+export function sheetYear(rows: string[][]): number | null {
+  const hi = rows.findIndex((r) => r[0]?.trim() === "사업기간" && r[1]?.trim() === "사업명");
+  for (const r of rows.slice(0, hi < 0 ? 3 : hi)) {
+    for (const c of r) {
+      const m = /(\d{4})\s*년/.exec(c ?? "");
+      if (m && +m[1] >= 1990 && +m[1] <= 2100) return +m[1];
+    }
+  }
+  return null;
+}
+
 export function parseBStatusSheet(rows: string[][], year: number, setups: Record<string, Setup>): ImportCell[] | null {
   const hi = rows.findIndex((r) => r[0]?.trim() === "사업기간" && r[1]?.trim() === "사업명");
   if (hi < 0) return null;

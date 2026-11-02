@@ -1,7 +1,7 @@
 //! 집행현황(12단계) 명령. 저장 규칙은 core의 budget, 엑셀은 core의 budget_xlsx에 있어요.
 
 use gilog_core::budget_xlsx::{BudgetExport, GridSheet};
-use gilog_core::{BudgetShareOp, BudgetImportProject, BudgetLevel, BudgetProject, BudgetRowInput};
+use gilog_core::{BudgetShareOp, BudgetImportProject, BudgetImportYear, BudgetLevel, BudgetProject, BudgetRowInput};
 use tauri::State;
 
 use crate::{code, with_store, AppState};
@@ -73,6 +73,12 @@ pub fn copy_budget_year(state: State<AppState>, from: i64, to: i64) -> Result<Ye
 #[tauri::command]
 pub fn import_budget(state: State<AppState>, year: i64, projects: Vec<BudgetImportProject>, replace: Option<bool>) -> Result<(Year, usize, usize), String> {
     with_store(&state, |s| s.import_budget(year, &projects, replace.unwrap_or(false)))
+}
+
+/// 여러 해를 한 트랜잭션으로(계약현황 양식, E-18) – 해마다 (해, 그 해 전체)
+#[tauri::command]
+pub fn import_budget_many(state: State<AppState>, years: Vec<BudgetImportYear>) -> Result<Vec<(i64, Year)>, String> {
+    with_store(&state, |s| s.import_budget_many(&years))
 }
 
 #[tauri::command]

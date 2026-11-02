@@ -2,7 +2,7 @@
 // 자료는 브라우저 미리 보기 흉내(tools/bstatus/seed.js)의 시도57호선 값을 줄여 썼어요.
 import { describe, expect, test } from "vitest";
 import type { BudgetProject } from "./budget";
-import { carryPair, compute, defaultSetup, lineOf, parseBStatusSheet, projectNames, rowShares, Setup, XL_FIELDS } from "./budgetStatus";
+import { carryPair, compute, defaultSetup, lineOf, parseBStatusSheet, projectNames, rowShares, Setup, sheetYear, XL_FIELDS } from "./budgetStatus";
 
 let uid = 0;
 const P = (year: number, name: string, budget: number | null, rows: [string, number, number][], carry = false): BudgetProject => ({
@@ -269,4 +269,11 @@ test("parseBStatusSheet – 세부사업·연도·재원 줄 알아보기", () =
     ]
   `);
   expect(parseBStatusSheet([["다른 표"]], 2026, setups)).toBeNull();
+});
+
+// 버그 사냥 2차 E-11(집행현황 ✔3): 1행 제목의 해를 읽어요 – 보는 해와 다르면 화면이 물어요
+test("sheetYear – 1행 제목 \"NNNN년 예산현황\"", () => {
+  expect(sheetYear([["2025년 예산현황"], ["사업기간", "사업명"]])).toBe(2025);
+  expect(sheetYear([["예산현황"], ["사업기간", "사업명"]])).toBeNull();
+  expect(sheetYear([["예산현황"], ["사업기간", "사업명"], ["2024년", ""]])).toBeNull();
 });

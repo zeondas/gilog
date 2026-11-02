@@ -28,7 +28,7 @@ mod process;
 mod tasks;
 pub use address::{extract_paju, reset_road_table, road_table_count, road_to_jibun, set_road_table, RoadHit, RoadLookup};
 pub use bstatus::{BStatusExport, BStatusLine, BStatusSetup};
-pub use budget::{BudgetShareOp, BudgetImportItem, BudgetImportProject, BudgetImportRow, BudgetItem, BudgetLevel, BudgetProject, BudgetRow, BudgetRowInput, BUDGET_KINDS, BUDGET_STAGES};
+pub use budget::{BudgetShareOp, BudgetImportItem, BudgetImportProject, BudgetImportYear, BudgetImportRow, BudgetItem, BudgetLevel, BudgetProject, BudgetRow, BudgetRowInput, BUDGET_KINDS, BUDGET_STAGES};
 pub use clear::{ClearCounts, ClearWhat, Cleared, BEFORE_CLEAR_KEEP};
 pub use calendar::{CalKind, CalendarData, Event, EventInput, Holiday, BUILTIN_HOLIDAYS, KIND_COLORS, REMIND_MAX, SYSTEM_KINDS};
 pub use complaints::{Complaint, ComplaintImport, ComplaintInput, DEFAULT_STATUS};

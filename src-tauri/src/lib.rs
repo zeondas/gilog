@@ -889,6 +889,7 @@ pub fn run() {
             budget::delete_budget,
             budget::copy_budget_year,
             budget::import_budget,
+            budget::import_budget_many,
             budget::budget_excel_write,
             budget::budget_excel_read,
             budget::budget_years,

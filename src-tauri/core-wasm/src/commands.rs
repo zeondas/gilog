@@ -8,7 +8,7 @@
 use gilog_core::budget_xlsx::{self, BudgetExport};
 use gilog_core::excel::{self, ExcelExport, SheetKind};
 use gilog_core::{
-    BStatusExport, BStatusSetup, BudgetImportProject, BudgetLevel, BudgetRowInput, BudgetShareOp, CasePatch, ComplaintImport, ComplaintInput, ContactImport,
+    BStatusExport, BStatusSetup, BudgetImportProject, BudgetImportYear, BudgetLevel, BudgetRowInput, BudgetShareOp, CasePatch, ComplaintImport, ComplaintInput, ContactImport,
     ContactInput, DayInfo, EntryInput, EventInput, Holiday, OrderPatch, Store, TaskEdit, TaskInput, WorkInput,
 };
 use serde_json::Value;
@@ -102,6 +102,7 @@ pub const BROWSER: &[&str] = &[
     "delete_budget",
     "copy_budget_year",
     "import_budget",
+    "import_budget_many",
     "budget_excel_write",
     "budget_excel_read",
     "budget_years",
@@ -476,6 +477,10 @@ pub(crate) fn browser(s: &mut Session, cmd: &str, a: &Args) -> Option<Result<Val
         "import_budget" => (|| {
             let (year, projects, replace): (i64, Vec<BudgetImportProject>, bool) = (a.id("year")?, a.get("projects")?, a.get::<Option<bool>>("replace")?.unwrap_or(false));
             with(s, |st| st.import_budget(year, &projects, replace))
+        })(),
+        "import_budget_many" => (|| {
+            let years: Vec<BudgetImportYear> = a.get("years")?;
+            with(s, |st| st.import_budget_many(&years))
         })(),
         "budget_excel_write" => (|| {
             let (path, data): (String, BudgetExport) = (a.s("path")?, a.get("data")?);
