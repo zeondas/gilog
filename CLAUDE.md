@@ -59,7 +59,7 @@
 | 탐색기 | `wip/explorer10` | 탐색기 화면 | `ff011a3` | **끝(합치기 기다림)** – ✔1 FX-22 탭 ＋·Ctrl+T가 설정 "새 탭이 여는 폴더"로 · npm 351 통과·지킴이 101장면 같음·동작 통과 · check: 검사 통과, 지킴이 3갈래 실패는 `budgetstatus_import*` 알림 계산 모양 – 기준끼리도 같은 차이(원래 흔들림, 이 가지와 무관) · B 11개·"파일" 단추는 그대로 | 빌드 합치기 |
 | 집행현황 | (코딩 때 `wip/budget-excel`) | 집행현황 화면 + 팀 공유(공유 시험 [share-test.md](https://github.com/zeondas/gilog/blob/main/docs/qa/share-test.md) 1·2 됨, 3 기다림) | `8fc7700` | 대기 "집행현황" ✔1~✔4(엑셀 E-9~11·16~18·25 – 예산현황 가져오기 포함) | "코딩하자" · 공유 시험 3번부터 |
 | 예산현황 | – | 예산현황 화면 | `fa58e52`(0.65.0에 들어감) | ✔1 대체하기 끝(0.65.0) · 엑셀 고침은 집행현황 세션이 함께 · 세션 안 열림 | – |
-| 설정 | `wip/settings6`(main `d1ac26e`에서 땀, 아직 코드 없음) | 설정·잠금 화면 – 전엔 "자료 삭제" 세션 | `5794229`(0.63.0에 들어감) | **11-02 10:5x 검토 끝** · LK-09는 0.66.0에 안 들어감 – 원인은 `backup_info`의 `latest_path`(Rust) ↔ `latestPath`(화면) 이름 어긋남이라 단추가 늘 숨음 · ST-19·S-17·S-20 고치는 방법 보고함 | "코딩하자" |
+| 설정 | `wip/settings6` | 설정·잠금 화면 – 전엔 "자료 삭제" 세션 | `91743ba` | **끝(합치기 기다림)** · ✔1 코딩: LK-09(되살리기 단추 – `backup_info` 이름 맞춤)·ST-19(claude 실행 파일 안내)·S-17(불러오기·옮기기 실패 때 잠금 정리)·S-20(자동 백업 실패 띠) · check: 윈도우 통과, 지킴이 3갈래 실패는 main에도 있는 흔들림(`budgetstatus_import`·`_merge`·`_replace` 알림 시점 – 기준끼리도 다름, 오늘 다른 가지도 같음 → 공통 세션에 전달) | 빌드 |
 **공통 결정 로그** (나중 날짜가 이겨요 — 활성 결정만, **끝난·대체된 결정 원문은 [docs/history.md](https://github.com/zeondas/gilog/blob/main/docs/history.md) "공통 결정 로그 보관"**, 정리 ③ 쪼개기 틀은 [docs/qa/split.md](https://github.com/zeondas/gilog/blob/main/docs/qa/split.md), 정리 ⑥은 [docs/qa/dedupe.md](https://github.com/zeondas/gilog/blob/main/docs/qa/dedupe.md))
 - 2026-11-01 20:49 우두머리 세션(사용자): **"버그 사냥" 세션** – QC(아는 것 확인)와 따로, 아무도 예상 못 한 버그를 코드 읽기 + 찔러 보기(이상한 입력·끊김·동시 쓰기)로 찾아요. 묶음 하나씩: 1차 자료 저장·백업·되살리기, 다음은 QC 결과 보고 정함(날짜 규칙·엑셀 가져오기·구글/시트·규칙 함수·경로 검사). 결과는 `docs/qa/bughunt-<묶음>.md`에 "재현 · 영향 · 고치는 안" 표 → 그 화면 대기 목록 ✔ 후보, 시험 코드·고치기는 "코딩하자" 뒤. QC가 도는 동안 빌드는 안 올려요.
 - 2026-11-01 19:35 우두머리 세션(사용자 확인): **지침 새 모양은 앞으로의 기본**(정리 한 번이 아님) – ① 화면·core·CSS 자리가 바뀌면 `docs/rules/structure.md` 그 화면 줄을, 입력·키·삭제·창 크기 규칙이 바뀌면 `docs/rules/input.md`를, 검사·빌드·시안 방법이 바뀌면 `docs/rules/workflow.md`를 고쳐요(원문 그대로 더하기, CLAUDE.md에는 새로 안 적음) ② 여러 화면에 걸친 새 결정은 지금처럼 CLAUDE.md 공통 결정 로그에 한 줄 → 그 결정이 빌드에 들어가면 우두머리가 history.md "보관"으로 옮기고 색인 한 줄만 남겨요(빌드 뒤 하루 안) ③ 현황판 상태 칸은 3줄 요약(규칙 2) ④ "꼭 지킬 것" 10줄·목차는 규칙이 바뀔 때만 우두머리가 고쳐요 ⑤ CLAUDE.md는 35KB를 넘기지 않는 것을 목표로, 넘으면 우두머리가 ②를 돌려요.
@@ -119,6 +119,7 @@
 번호 표기: **E-n** = [bughunt-excel.md](https://github.com/zeondas/gilog/blob/main/docs/qa/bughunt-excel.md) 표 n번 · **S-n** = [bughunt-storage.md](https://github.com/zeondas/gilog/blob/main/docs/qa/bughunt-storage.md) 표 n번 · **CM-03** 등 = [qc-result-0.65.0.md](https://github.com/zeondas/gilog/blob/main/docs/qa/qc-result-0.65.0.md) 실패 항목. 공통 규칙 검토(우두머리 11-02): 아래 ✔는 모두 걸리는 것 없음(CM-07·CM-17은 11-02 10:23 1안·1안으로 결정).
 
 ### 공통 (`src/excel.ts`·`ExcelMenu.tsx`·core `excel.rs`·`complaints.rs`·`contacts.rs`·`journal.rs` 가져오기 – `wip/excel-fix`)
+- (설정 세션에서 전달, 11-02) 모양 지킴이 `budgetstatus_import`·`_merge`·`_replace`가 계산 모양 1요소(`.bd-toast` – 내보내기 "저장했어요" 알림이 2.2초 뒤 사라지는 시점)로 흔들려요 – main 빌드끼리도 달라서 오늘 wip 가지 check가 모두 실패해요. 장면에서 알림이 사라진 뒤 찍게(또는 `TOLERANCE`) 고쳐야 해요.
 - (✔1~✔8 코딩함 – `wip/excel-fix` `0303090`, 합치기 기다림) 사용자에게 물은 것: ① 대체하기 붉은 띠 "되돌릴 수 없어요" → "지우기 전에 백업을 남겨요"로 바꿀지 ② E-20 "기호 줄도 앞 띄어쓰기로 단계"는 input.md "들여쓰기는 위계로" 규칙과 부딪혀 안 넣음(앱에서 만든 줄 왕복은 시험으로 고정) ③ E-8 연락처 대체하기는 공사 `contact`만 비우고 `project`(사업 표는 남음)는 그대로 둠.
 - (매뉴얼 세션에 전달 – 0.52.0) `docs/manual/complaints.md`·`budget.md`·`bstatus.md`의 [배치최적화] 줄은 단추가 없어져 못 찾아요 – "머리 줄 우클릭 내용에 맞춤(모든 열)·처음 폭으로"로.
 
@@ -142,7 +143,7 @@
 - (민원처리에서 옮김, 10-30) 민원처리 줄의 "파일" 단추가 탐색기를 열고 빠른 필터에 그 파일 이름을 넣게 – `FilesScreen`이 "이 폴더 + 이 글로 열기" 값을 받게.
 
 ### 설정 (설정·잠금 – `wip/settings6`)
-- ✔1. ST-19 Claude 실행 파일 고를 때 이름이 claude(.exe)가 아니면 그 자리에서 "claude 실행 파일이 아니에요" + [민원 불러오기] 실패 안내도 같은 문구 · LK-09 자료 손상 띠에 "[○월 ○일 백업으로 되살리기]"(최근 백업) 단추 – 0.66.0 자료 안전(S-8 "최근 고르기")에 들어갔는지 먼저 확인, 없으면 넣기 · S-17(가져오기·옮기기 실패 때 화면도 잠금)·S-20(자동 백업 2일 넘게 실패하면 잠금 풀 때 띠).
+- (✔1 코딩 끝 `91743ba`, 합치기 기다림)
 - 125% 배율(CM-37·WN-05 가로 막대): 결정 로그 10-21 14:36 "모양 기준은 100% 하나"라 고치지 않아요.
 
 ## 사용자가 정한 규칙 (바꾸지 않아요) → [docs/rules/input.md](https://github.com/zeondas/gilog/blob/main/docs/rules/input.md) – 신규 입력란 항상 켜짐·바깥 누르면 저장·삭제는 묻기·한글 기본·초성·전화번호 칸·민원인 정보 구글 금지·1600×900 창 크기. 공통 규칙 검토 ④⑤에서 읽어요.
