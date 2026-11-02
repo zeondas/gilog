@@ -37,7 +37,7 @@
 5. 사양서는 자기 절만, 시안 캔버스는 자기 판만 고쳐요(올리기 전에 canvas.json을 새로 읽어요).
 6. **빌드는 "빌드" 세션만** 해요. 기능 세션은 끝나면 상태를 "끝(합치기 기다림)"으로 바꾸고 멈춰요. 빌드 세션이 wip/* 가지를 main에 합치고 버전을 올려 빌드하고 설치 파일을 보내요. 사용자의 "통과"는 빌드 세션이 받아요. **빌드는 하루 2번 묶음(점심·퇴근 전), 기능 세션은 끝낼 때 자기 가지의 `check.yml`(검사만, wip/* push 때 저절로 돌아요) 통과를 확인한 뒤 "끝"으로 바꿔요**(공통 결정 로그 2026-10-20 21:18) — 확인: `gh run list -R zeondas/gilog --workflow check.yml --branch wip/<기능> -L 1`. 실패하면 커밋 댓글에 오류가 남아요. 빌드 세션 프롬프트 틀은 [docs/build-prompt.md](https://github.com/zeondas/gilog/blob/main/docs/build-prompt.md).
 7. 새 세션 인수인계 프롬프트 첫 줄은 "가지 이름 + 마지막 커밋 7자리 + 현황판 읽기"예요. **프롬프트 마지막 줄에 "답은 전부 한국어·해요체"를 꼭 넣어요**(10-28 사용자). **첫 답 전에 자기 화면 규칙 파일도 읽어요 – [docs/rules/structure.md](https://github.com/zeondas/gilog/blob/main/docs/rules/structure.md)의 그 화면 줄 · [docs/rules/input.md](https://github.com/zeondas/gilog/blob/main/docs/rules/input.md) · [docs/rules/workflow.md](https://github.com/zeondas/gilog/blob/main/docs/rules/workflow.md)**(11-01 지침 정리, 결정 로그 11-01 14:44).
-8. 작업 공간에서는 GitHub 가지를 지울 수 없어요(프록시가 막음). 다 쓴 가지는 현황판에 "지워도 됨"으로 적고 사용자가 https://github.com/zeondas/gilog/branches 에서 지워요. 지워도 됨 목록은 [history.md](https://github.com/zeondas/gilog/blob/main/docs/history.md) "지워도 되는 가지 목록(2026-11-01 옮김)", 아래는 마지막 옮김 뒤 새로 생긴 것만: `wip/bstatus-import`·`wip/bughunt`
+8. 작업 공간에서는 GitHub 가지를 지울 수 없어요(프록시가 막음). 다 쓴 가지는 현황판에 "지워도 됨"으로 적고 사용자가 https://github.com/zeondas/gilog/branches 에서 지워요. 지워도 됨 목록은 [history.md](https://github.com/zeondas/gilog/blob/main/docs/history.md) "지워도 되는 가지 목록(2026-11-01 옮김)", 아래는 마지막 옮김 뒤 새로 생긴 것만: `wip/bstatus-import`·`wip/bughunt`·`wip/excel-fix`·`wip/budget-excel`·`wip/complaints13`·`wip/process-fix2`·`wip/journal5`·`wip/calendar6`·`wip/explorer10`·`wip/settings6`
 
 9. **사용자가 "코딩하자"(또는 "코딩 시작"·"고쳐")라고 하기 전에는 코드를 한 줄도 고치지 않아요**(2026-10-25 23:39 사용자 — 지시 없이 코딩에 들어간 세션이 있었어요). 승인·결정·시안·분석은 코딩이 아니에요. 승인된 건은 대기 목록에 "✔ N."로 적는 것까지가 끝이고, 그 답은 **"✔로 적었어요. "코딩하자"라고 하시면 시작해요."** 한 줄로 끝내요. 사용자 신고(버그) 수정도 같아요 — 원인·안을 보고하고 멈춰요. 스스로 "작아서 바로 해도 되겠다"고 판단하지 않아요. 이 규칙을 어기고 만든 커밋은 사용자가 되돌리라고 하면 가지째 버려요.
 10. **세션 이름은 역할 또는 화면 이름 하나로**(2026-11-02 10:19 사용자) – 고정 6(우두머리·빌드·QC·버그 사냥·매뉴얼·공통) + 화면 10(민원대장·민원처리·업무연락처·업무일지·할 일·캘린더·탐색기·집행현황·예산현황·설정). 작업 이름(자료 삭제·버그수정·지침 정리)으로 세션을 만들지 않아요. 사이드바 이름 = 현황판 "세션" 열 글자 그대로. 새 세션 프롬프트 첫 줄은 "이것은 ○○ 세션이에요"로 시작하고 사용자가 그 이름으로 바꿔요. 대화가 길어지면 같은 이름으로 새로 열고 옛 것은 "(옛)". 작업이 바뀌어도 세션은 그대로, 가지 이름과 "하는 일" 칸만 바뀌어요. 끝난 작업 줄은 두지 않고 세션 16줄만 둬요.
@@ -45,21 +45,21 @@
 | 세션 | 가지 | 하는 일 | 마지막 커밋 | 상태 | 기다리는 것 |
 | --- | --- | --- | --- | --- | --- |
 | 우두머리 | main(문서만) | 기획·공통 결정·현황판·세션 프롬프트 – 승인된 수정은 대기 목록 ✔로 쌓고 "코딩하자"로 한 번에 코딩 → 빌드 묶음(결정 로그 10-21 10:07), 결정은 표로. 답 끝 "코딩 완료" 칸은 기능 세션이 붙여요 | `3200b98` | **11-02 12:5x 빌드 0.67.0 프롬프트 보냄** – 가지 8개 모두 끝, 모의 합치기: 충돌 2곳(업무일지 Screen.tsx·app-sets.toml) 풀이 지시 포함, 지킴이 ❌는 모두 알려진 흔들림 · 긴 줄표 21·기Log 0 | 빌드 0.67.0 나오면 → QC 2회차·버그 사냥 3차 프롬프트
-| 빌드 | main | wip/* 합치기·버전·빌드·설치 파일 | `8039611` 0.66.0(build-86) | **빌드 0.66.0(build-86) · main `8039611`(버전 `db9cfd6`) · 넣은 것 1: 자료 안전 – 버그 사냥 1차 고침(`wip/bughunt`)** · npm 351·core 151·core-wasm 5·앱 cargo check 통과, 지킴이 101장면 같음·동작 통과 · 내일 QC 2회차는 이 설치 파일로 – 내력 [history.md 0.66.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0660build-86--자료-안전-버그-사냥-1차) | 사용자 윈도우 시험·QC 2회차 |
+| 빌드 | main | wip/* 합치기·버전·빌드·설치 파일 | `919601f` 0.67.0(build-87) | **빌드 0.67.0(build-87) · main `919601f` · 넣은 것 8: 엑셀 가져오기 고침(공통·집행현황) + QC 1차 고침(민원대장·민원처리·업무일지·캘린더·탐색기·설정)** · npm 402·core 164·core-wasm 5·앱 cargo check 통과, 지킴이 101장면 같음·동작 통과 · 충돌 2곳 프롬프트대로 – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험·QC 2회차 |
 | QC | main(문서만 – `docs/qa/qc.md`·`qc-result-*.md`) | QC 목록 + 집 컴퓨터 실행(결정 로그 10-30 23:55) | `253b6f0` | **1차 끝(0.65.0, 195/288 – 통과 175·실패 14·보류 6)** → 실패는 각 화면 ✔로 옮김 · 결과 [qc-result-0.65.0.md](https://github.com/zeondas/gilog/blob/main/docs/qa/qc-result-0.65.0.md) | 2회차(0.66.0 – 못 한 93 + 자료 안전 항목) 프롬프트 |
 | 버그 사냥 | main(문서만 – `docs/qa/bughunt-*.md`) | 예상 못 한 버그 찾기(결정 로그 11-01 20:49) – 1차 자료 저장(끝·0.66.0에 고침) · 2차 엑셀 가져오기(끝·✔로 옮김) | `ca18e22` | **2차 끝** · [bughunt-excel.md](https://github.com/zeondas/gilog/blob/main/docs/qa/bughunt-excel.md) 25건 · 3차 묶음은 날짜 규칙 추천 | 3차 프롬프트(엑셀 고침 빌드 뒤) |
 | 매뉴얼 | `wip/manual`·`wip/setup-guide`(문서만) | 매뉴얼(`docs/manual/`·`tools/manual/`) + 준비 안내서(`docs/setup/`) | `2f65080` / `b2b53ae` | **매뉴얼 v31 보냄** · 준비 안내서 초안(hwpx 4장, 그림 틀 10개 비움, 【확인 필요】 3) – 내력 [history.md 매뉴얼](https://github.com/zeondas/gilog/blob/main/docs/history.md#매뉴얼-현황판-줄-상태-칸-원문) | 사용자 한글 확인 · 안내서 【확인 필요】 답·캡처 11장 · 0.66.0 자료 안전 반영 |
-| 공통 | `wip/excel-fix` | core·공통 부품(자료 안전·엑셀 공통·ExcelMenu·ColHead 등 한 화면에 안 속하는 것) – 전엔 "자료 안전"·"버그수정" 세션 | `0303090` | **끝(합치기 기다림)** – 대기 "공통" ✔1~✔8 엑셀 가져오기(core 161·npm 383, check.yml 윈도우 검사 통과) · 지킴이 ❌는 예산현황 가져오기 알림 띠 장면 – 다른 가지도 같음(main 기준 사진 몫) · 남은 물음 ①②③은 "공통" 칸 | 빌드 합치기 · 사용자 ①②③ 답 |
-| 민원대장 | `wip/complaints13` | 민원대장 화면 | `b1c5e3a` | **끝(합치기 기다림)** – ✔1 CM-03 등록 뒤 접수일 오늘·CM-34 메모 머리 위치 표기·추가-01 0건 위치 열 바닥 폭 · ✔2 CM-07 민원유형 자유 입력 + 설정 목록에 더하기·CM-17 조치완료일 적으면 어느 길로 저장해도 완료 · npm test 356·지킴이 민원대장 19장면 0·동작 통과·check 통과(지킴이 실패는 다른 가지와 같은 예산현황 가져오기 띠·`complaints_newrow_baddate` 4장면 – 이 가지와 무관) | 빌드 합치기 |
-| 민원처리 | `wip/process-fix2` | 민원처리 화면 | `669b0d7` | **끝(합치기 기다림)** – ✔1 PR-04 공사 관리 신규 줄 Enter·Tab = 다음 칸, 마지막 칸 = 등록(공통 `rowKeys`), 후보 목록 Enter는 확정만 · npm test 351·지킴이 민원처리 4장면 0·check 통과(지킴이 실패는 다른 가지도 같은 예산현황 가져오기 띠·`complaints_newrow_baddate` 4장면 – 이 가지와 무관) | 빌드 합치기 |
+| 공통 | `wip/excel-fix` | core·공통 부품(자료 안전·엑셀 공통·ExcelMenu·ColHead 등 한 화면에 안 속하는 것) – 전엔 "자료 안전"·"버그수정" 세션 | `0303090` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
+| 민원대장 | `wip/complaints13` | 민원대장 화면 | `b1c5e3a` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
+| 민원처리 | `wip/process-fix2` | 민원처리 화면 | `669b0d7` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
 | 업무연락처 | – | 업무연락처 화면 | – | 대기 비어 있음(QC 실패 0) | – |
-| 업무일지 | `wip/journal5` | 업무일지 화면 | `b29c64c` | **끝(합치기 기다림)** · ✔1 QC JN-01(가져온 뒤 머리 줄 다시 그림)·JN-17(달력·챙길 일 `flex: none`, 넘치면 오른쪽 열 스크롤) · check: 윈도우·사진·동작 통과, 계산 모양 ❌는 예산현황 `budgetstatus_import*`·`complaints_newrow_baddate`만 – main끼리도 달라지는 원래 문제(다른 가지 같음), guard-allow 업무일지 9장면 | 빌드 묶음 |
+| 업무일지 | `wip/journal5` | 업무일지 화면 | `b29c64c` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
 | 할 일 | – | 할 일 화면 | – | 대기 비어 있음(QC 실패 0) · 세션 안 열림 | – |
-| 캘린더 | `wip/calendar6` | 캘린더·구글 연동 화면 | `2e47d13` | **끝(합치기 기다림)** – ✔1 CA-03 빠른 입력: 제목 Tab → 종류 칸, 종류 칸 Tab·Enter = 등록(목록 열려 있으면 확정 뒤 한 번 더), 등록 뒤 커서 날짜 칸(`QuickRow`만, `keys.ts` 안 건드림, `QuickRow.test.tsx` 4개) · npm test 355·지킴이 캘린더 9장면 0·동작 8개 통과 · check: npm·지킴이1 통과, 지킴이 0·2·3 실패는 민원처리와 같은 예산현황 가져오기 띠·`complaints_newrow_baddate`(이 가지와 무관) | 빌드 합치기 |
-| 탐색기 | `wip/explorer10` | 탐색기 화면 | `ff011a3` | **끝(합치기 기다림)** – ✔1 FX-22 탭 ＋·Ctrl+T가 설정 "새 탭이 여는 폴더"로 · npm 351 통과·지킴이 101장면 같음·동작 통과 · check: 검사 통과, 지킴이 3갈래 실패는 `budgetstatus_import*` 알림 계산 모양 – 기준끼리도 같은 차이(원래 흔들림, 이 가지와 무관) · B 11개·"파일" 단추는 그대로 | 빌드 합치기 |
-| 집행현황 | `wip/budget-excel` | 집행현황 화면 + 팀 공유(공유 시험 [share-test.md](https://github.com/zeondas/gilog/blob/main/docs/qa/share-test.md) 1·2 됨, 3 기다림) | `83b4c11` | **끝(합치기 기다림)** · ✔1~✔4 엑셀 고침(E-9·25 대체하기 uid 이어받기 · E-10 건너뛴 해 재원 · E-11 파일의 해 고르기 · E-16~18 금액 읽기·반올림 안내·여러 해 한 트랜잭션, core `import_budget_many` 새 명령) · npm 355·core 153 통과 · check 전부 통과(지킴이 `budgetstatus_import*` 흔들림도 장면에서 고침) | 빌드 묶음 · 공유 시험 3번부터 |
+| 캘린더 | `wip/calendar6` | 캘린더·구글 연동 화면 | `2e47d13` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
+| 탐색기 | `wip/explorer10` | 탐색기 화면 | `ff011a3` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
+| 집행현황 | `wip/budget-excel` | 집행현황 화면 + 팀 공유(공유 시험 [share-test.md](https://github.com/zeondas/gilog/blob/main/docs/qa/share-test.md) 1·2 됨, 3 기다림) | `83b4c11` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
 | 예산현황 | – | 예산현황 화면 | `fa58e52`(0.65.0에 들어감) | ✔1 대체하기 끝(0.65.0) · 엑셀 고침은 집행현황 세션이 함께 · 세션 안 열림 | – |
-| 설정 | `wip/settings6` | 설정·잠금 화면 – 전엔 "자료 삭제" 세션 | `91743ba` | **끝(합치기 기다림)** · ✔1 코딩: LK-09(되살리기 단추 – `backup_info` 이름 맞춤)·ST-19(claude 실행 파일 안내)·S-17(불러오기·옮기기 실패 때 잠금 정리)·S-20(자동 백업 실패 띠) · check: 윈도우 통과, 지킴이 3갈래 실패는 main에도 있는 흔들림(`budgetstatus_import`·`_merge`·`_replace` 알림 시점 – 기준끼리도 다름, 오늘 다른 가지도 같음 → 공통 세션에 전달) | 빌드 |
+| 설정 | `wip/settings6` | 설정·잠금 화면 – 전엔 "자료 삭제" 세션 | `91743ba` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
 **공통 결정 로그** (나중 날짜가 이겨요 — 활성 결정만, **끝난·대체된 결정 원문은 [docs/history.md](https://github.com/zeondas/gilog/blob/main/docs/history.md) "공통 결정 로그 보관"**, 정리 ③ 쪼개기 틀은 [docs/qa/split.md](https://github.com/zeondas/gilog/blob/main/docs/qa/split.md), 정리 ⑥은 [docs/qa/dedupe.md](https://github.com/zeondas/gilog/blob/main/docs/qa/dedupe.md))
 - 2026-11-01 20:49 우두머리 세션(사용자): **"버그 사냥" 세션** – QC(아는 것 확인)와 따로, 아무도 예상 못 한 버그를 코드 읽기 + 찔러 보기(이상한 입력·끊김·동시 쓰기)로 찾아요. 묶음 하나씩: 1차 자료 저장·백업·되살리기, 다음은 QC 결과 보고 정함(날짜 규칙·엑셀 가져오기·구글/시트·규칙 함수·경로 검사). 결과는 `docs/qa/bughunt-<묶음>.md`에 "재현 · 영향 · 고치는 안" 표 → 그 화면 대기 목록 ✔ 후보, 시험 코드·고치기는 "코딩하자" 뒤. QC가 도는 동안 빌드는 안 올려요.
 - 2026-11-01 19:35 우두머리 세션(사용자 확인): **지침 새 모양은 앞으로의 기본**(정리 한 번이 아님) – ① 화면·core·CSS 자리가 바뀌면 `docs/rules/structure.md` 그 화면 줄을, 입력·키·삭제·창 크기 규칙이 바뀌면 `docs/rules/input.md`를, 검사·빌드·시안 방법이 바뀌면 `docs/rules/workflow.md`를 고쳐요(원문 그대로 더하기, CLAUDE.md에는 새로 안 적음) ② 여러 화면에 걸친 새 결정은 지금처럼 CLAUDE.md 공통 결정 로그에 한 줄 → 그 결정이 빌드에 들어가면 우두머리가 history.md "보관"으로 옮기고 색인 한 줄만 남겨요(빌드 뒤 하루 안) ③ 현황판 상태 칸은 3줄 요약(규칙 2) ④ "꼭 지킬 것" 10줄·목차는 규칙이 바뀔 때만 우두머리가 고쳐요 ⑤ CLAUDE.md는 35KB를 넘기지 않는 것을 목표로, 넘으면 우두머리가 ②를 돌려요.
@@ -114,33 +114,28 @@
 
 ## 기능별 대기 목록 (세션 이름 = 칸 이름. 그 세션이 처리하고 지워요)
 
-비어 있음: 업무연락처·업무일지(✔1 `wip/journal5` 코딩 끝)·할 일·예산현황(엑셀은 집행현황 칸)·공통 부품(✔1~✔8 0.35.0에 들어감)
+비어 있음: 업무연락처·업무일지(✔1 0.67.0에 들어감)·민원처리·캘린더(✔ 0.67.0에 들어감)·할 일·예산현황(엑셀은 집행현황 칸)·공통 부품(✔1~✔8 0.35.0에 들어감)
 
 번호 표기: **E-n** = [bughunt-excel.md](https://github.com/zeondas/gilog/blob/main/docs/qa/bughunt-excel.md) 표 n번 · **S-n** = [bughunt-storage.md](https://github.com/zeondas/gilog/blob/main/docs/qa/bughunt-storage.md) 표 n번 · **CM-03** 등 = [qc-result-0.65.0.md](https://github.com/zeondas/gilog/blob/main/docs/qa/qc-result-0.65.0.md) 실패 항목. 공통 규칙 검토(우두머리 11-02): 아래 ✔는 모두 걸리는 것 없음(CM-07·CM-17은 11-02 10:23 1안·1안으로 결정).
 
 ### 공통 (`src/excel.ts`·`ExcelMenu.tsx`·core `excel.rs`·`complaints.rs`·`contacts.rs`·`journal.rs` 가져오기 – `wip/excel-fix`)
 - (설정 세션에서 전달, 11-02) 모양 지킴이 `budgetstatus_import`·`_merge`·`_replace`가 계산 모양 1요소(`.bd-toast` – 내보내기 "저장했어요" 알림이 2.2초 뒤 사라지는 시점)로 흔들려요 – main 빌드끼리도 달라서 오늘 wip 가지 check가 모두 실패해요. 장면에서 알림이 사라진 뒤 찍게(또는 `TOLERANCE`) 고쳐야 해요. → **집행현황 세션이 고침**(`wip/budget-excel` `83b4c11` – 장면이 알림 띠가 사라질 때까지 기다려요, 합치면 끝)
-- (✔1~✔8 코딩함 – `wip/excel-fix` `0303090`, 합치기 기다림) 사용자에게 물은 것: ① 대체하기 붉은 띠 "되돌릴 수 없어요" → "지우기 전에 백업을 남겨요"로 바꿀지 ② E-20 "기호 줄도 앞 띄어쓰기로 단계"는 input.md "들여쓰기는 위계로" 규칙과 부딪혀 안 넣음(앱에서 만든 줄 왕복은 시험으로 고정) ③ E-8 연락처 대체하기는 공사 `contact`만 비우고 `project`(사업 표는 남음)는 그대로 둠.
+- (✔1~✔8은 0.67.0에 들어감) 사용자에게 물은 것: ① 대체하기 붉은 띠 "되돌릴 수 없어요" → "지우기 전에 백업을 남겨요"로 바꿀지 ② E-20 "기호 줄도 앞 띄어쓰기로 단계"는 input.md "들여쓰기는 위계로" 규칙과 부딪혀 안 넣음(앱에서 만든 줄 왕복은 시험으로 고정) ③ E-8 연락처 대체하기는 공사 `contact`만 비우고 `project`(사업 표는 남음)는 그대로 둠.
 - (매뉴얼 세션에 전달 – 0.52.0) `docs/manual/complaints.md`·`budget.md`·`bstatus.md`의 [배치최적화] 줄은 단추가 없어져 못 찾아요 – "머리 줄 우클릭 내용에 맞춤(모든 열)·처음 폭으로"로.
 
 ### 집행현황 (`src/budgetExcel.ts`·`budgetStatusImport.ts`·`budgetStatus.ts`·core `budget.rs`·`bstatus.rs` – `wip/budget-excel`, 예산현황 가져오기도 여기서)
-- (✔1~✔4 코딩함 – `wip/budget-excel` `83b4c11`, 합치기 기다림)
 
 ### 민원대장 (`wip/complaints13`)
-- (✔1·✔2 CM-03·34·추가-01·07·17은 `wip/complaints13` `b1c5e3a`에 코딩함 – 합치기 기다림)
 
 ### 민원처리 (`wip/process-fix2`)
-- (✔1 PR-04는 `wip/process-fix2` `669b0d7`에 코딩함 – 합치기 기다림)
 
 ### 캘린더 (`wip/calendar6`)
-- (비어 있음 – ✔1 CA-03은 `wip/calendar6` `2e47d13`에 코딩함, 합치기 기다림)
 
 ### 탐색기 (`wip/explorer10`)
 - **B 큰 것·보통 11개 — 사용자가 고르면**([explorer-compat.md](https://github.com/zeondas/gilog/blob/main/docs/qa/explorer-compat.md)): Ctrl+휠 아이콘 크기·오른쪽 끌기 메뉴·열 고르기·빵부스러기 › 하위 목록·여러 폴더 우클릭·빈 곳 메뉴 보기/정렬·드라이브 우클릭·zip 들어가기·미리 보기 창 문서·주소 자동 완성·\\서버 주소.
 - (민원처리에서 옮김, 10-30) 민원처리 줄의 "파일" 단추가 탐색기를 열고 빠른 필터에 그 파일 이름을 넣게 – `FilesScreen`이 "이 폴더 + 이 글로 열기" 값을 받게.
 
 ### 설정 (설정·잠금 – `wip/settings6`)
-- (✔1 코딩 끝 `91743ba`, 합치기 기다림)
 - 125% 배율(CM-37·WN-05 가로 막대): 결정 로그 10-21 14:36 "모양 기준은 100% 하나"라 고치지 않아요.
 
 ## 사용자가 정한 규칙 (바꾸지 않아요) → [docs/rules/input.md](https://github.com/zeondas/gilog/blob/main/docs/rules/input.md) – 신규 입력란 항상 켜짐·바깥 누르면 저장·삭제는 묻기·한글 기본·초성·전화번호 칸·민원인 정보 구글 금지·1600×900 창 크기. 공통 규칙 검토 ④⑤에서 읽어요.

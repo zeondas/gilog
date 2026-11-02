@@ -5,6 +5,27 @@
 ## 버전별 — 들어간 것 · 시험 항목
 사용자 "통과"는 0.11.0~0.27.0 모두 기다려요(빌드 줄). 시험 항목은 윈도우에서만 볼 수 있는 것이에요.
 
+### 0.67.0(build-87) — 엑셀 가져오기 고침 + QC 1차 고침
+- 들어간 것(가지 8): ① 공통 excel-fix 0303090 – 엑셀 가져오기 ✔1~✔8(대체하기 전 백업·짝짓기·업무일지 한 번에 넣기·참조 정리·날짜/시간/전화 읽기·머릿기호 왕복·색인, [bughunt-excel.md](https://github.com/zeondas/gilog/blob/main/docs/qa/bughunt-excel.md)) ② 집행현황 budget-excel 83b4c11 – 엑셀 ✔1~✔4(uid 이어받기·건너뛴 해 재원·파일의 해·금액 읽기/반올림) ③ 민원대장 complaints13 b1c5e3a – ✔1·✔2(CM-03·34·추가-01·CM-07 자유 입력·CM-17 완료) ④ 민원처리 process-fix2 669b0d7 – ✔1(PR-04 공사 관리 신규 줄 Enter) ⑤ 업무일지 journal5 b29c64c – ✔1(JN-01 머리 줄 다시 그림·JN-17 달력 잘림) ⑥ 캘린더 calendar6 2e47d13 – ✔1(CA-03 빠른 입력 Tab·커서) ⑦ 탐색기 explorer10 ff011a3 – ✔1(FX-22 새 탭 폴더) ⑧ 설정 settings6 91743ba – ✔1(LK-09 되살리기 단추·ST-19·S-17·S-20)
+- 합칠 때: `journal/Screen.tsx` – excel-fix의 `importJournal` 한 번 + journal5의 `setImported` 한 줄 · `app-sets.toml` – 세 허용(import-journal·backup-before-replace·bstatus-set-many)을 다 넣고, cargo check로 다시 만든 목록에 `allow-import-budget-many`(budget-excel 새 명령, 저장소 사본에 빠졌던 것)도 들어가 그대로 올림
+- 검사: 윈도우 check 8가지 모두 통과(지킴이 ❌는 알려진 흔들림) · npm build·npm test 402·core 164·core-wasm 5·앱 cargo check 통과 · 긴 줄표 21·"기Log" 0 · 지킴이 101장면 모두 같음·동작 통과 · 사양서 "(다음 빌드)" 지울 것 없음
+- 시험: 각 가지 QC 항목(CM-03·07·17·34·PR-04·JN-01·17·CA-03·FX-22·LK-09·ST-19) + 엑셀 대체하기 전 백업이 남는지 – QC 2회차
+- 현황판 줄·대기 목록 원문:
+  - | 공통 | `wip/excel-fix` | core·공통 부품(자료 안전·엑셀 공통·ExcelMenu·ColHead 등 한 화면에 안 속하는 것) – 전엔 "자료 안전"·"버그수정" 세션 | `0303090` | **끝(합치기 기다림)** – 대기 "공통" ✔1~✔8 엑셀 가져오기(core 161·npm 383, check.yml 윈도우 검사 통과) · 지킴이 ❌는 예산현황 가져오기 알림 띠 장면 – 다른 가지도 같음(main 기준 사진 몫) · 남은 물음 ①②③은 "공통" 칸 | 빌드 합치기 · 사용자 ①②③ 답 |
+  - | 민원대장 | `wip/complaints13` | 민원대장 화면 | `b1c5e3a` | **끝(합치기 기다림)** – ✔1 CM-03 등록 뒤 접수일 오늘·CM-34 메모 머리 위치 표기·추가-01 0건 위치 열 바닥 폭 · ✔2 CM-07 민원유형 자유 입력 + 설정 목록에 더하기·CM-17 조치완료일 적으면 어느 길로 저장해도 완료 · npm test 356·지킴이 민원대장 19장면 0·동작 통과·check 통과(지킴이 실패는 다른 가지와 같은 예산현황 가져오기 띠·`complaints_newrow_baddate` 4장면 – 이 가지와 무관) | 빌드 합치기 |
+  - | 민원처리 | `wip/process-fix2` | 민원처리 화면 | `669b0d7` | **끝(합치기 기다림)** – ✔1 PR-04 공사 관리 신규 줄 Enter·Tab = 다음 칸, 마지막 칸 = 등록(공통 `rowKeys`), 후보 목록 Enter는 확정만 · npm test 351·지킴이 민원처리 4장면 0·check 통과(지킴이 실패는 다른 가지도 같은 예산현황 가져오기 띠·`complaints_newrow_baddate` 4장면 – 이 가지와 무관) | 빌드 합치기 |
+  - | 업무일지 | `wip/journal5` | 업무일지 화면 | `b29c64c` | **끝(합치기 기다림)** · ✔1 QC JN-01(가져온 뒤 머리 줄 다시 그림)·JN-17(달력·챙길 일 `flex: none`, 넘치면 오른쪽 열 스크롤) · check: 윈도우·사진·동작 통과, 계산 모양 ❌는 예산현황 `budgetstatus_import*`·`complaints_newrow_baddate`만 – main끼리도 달라지는 원래 문제(다른 가지 같음), guard-allow 업무일지 9장면 | 빌드 묶음 |
+  - | 캘린더 | `wip/calendar6` | 캘린더·구글 연동 화면 | `2e47d13` | **끝(합치기 기다림)** – ✔1 CA-03 빠른 입력: 제목 Tab → 종류 칸, 종류 칸 Tab·Enter = 등록(목록 열려 있으면 확정 뒤 한 번 더), 등록 뒤 커서 날짜 칸(`QuickRow`만, `keys.ts` 안 건드림, `QuickRow.test.tsx` 4개) · npm test 355·지킴이 캘린더 9장면 0·동작 8개 통과 · check: npm·지킴이1 통과, 지킴이 0·2·3 실패는 민원처리와 같은 예산현황 가져오기 띠·`complaints_newrow_baddate`(이 가지와 무관) | 빌드 합치기 |
+  - | 탐색기 | `wip/explorer10` | 탐색기 화면 | `ff011a3` | **끝(합치기 기다림)** – ✔1 FX-22 탭 ＋·Ctrl+T가 설정 "새 탭이 여는 폴더"로 · npm 351 통과·지킴이 101장면 같음·동작 통과 · check: 검사 통과, 지킴이 3갈래 실패는 `budgetstatus_import*` 알림 계산 모양 – 기준끼리도 같은 차이(원래 흔들림, 이 가지와 무관) · B 11개·"파일" 단추는 그대로 | 빌드 합치기 |
+  - | 집행현황 | `wip/budget-excel` | 집행현황 화면 + 팀 공유(공유 시험 [share-test.md](https://github.com/zeondas/gilog/blob/main/docs/qa/share-test.md) 1·2 됨, 3 기다림) | `83b4c11` | **끝(합치기 기다림)** · ✔1~✔4 엑셀 고침(E-9·25 대체하기 uid 이어받기 · E-10 건너뛴 해 재원 · E-11 파일의 해 고르기 · E-16~18 금액 읽기·반올림 안내·여러 해 한 트랜잭션, core `import_budget_many` 새 명령) · npm 355·core 153 통과 · check 전부 통과(지킴이 `budgetstatus_import*` 흔들림도 장면에서 고침) | 빌드 묶음 · 공유 시험 3번부터 |
+  - | 설정 | `wip/settings6` | 설정·잠금 화면 – 전엔 "자료 삭제" 세션 | `91743ba` | **끝(합치기 기다림)** · ✔1 코딩: LK-09(되살리기 단추 – `backup_info` 이름 맞춤)·ST-19(claude 실행 파일 안내)·S-17(불러오기·옮기기 실패 때 잠금 정리)·S-20(자동 백업 실패 띠) · check: 윈도우 통과, 지킴이 3갈래 실패는 main에도 있는 흔들림(`budgetstatus_import`·`_merge`·`_replace` 알림 시점 – 기준끼리도 다름, 오늘 다른 가지도 같음 → 공통 세션에 전달) | 빌드 |
+  - - (✔1~✔8 코딩함 – `wip/excel-fix` `0303090`, 합치기 기다림) 사용자에게 물은 것: ① 대체하기 붉은 띠 "되돌릴 수 없어요" → "지우기 전에 백업을 남겨요"로 바꿀지 ② E-20 "기호 줄도 앞 띄어쓰기로 단계"는 input.md "들여쓰기는 위계로" 규칙과 부딪혀 안 넣음(앱에서 만든 줄 왕복은 시험으로 고정) ③ E-8 연락처 대체하기는 공사 `contact`만 비우고 `project`(사업 표는 남음)는 그대로 둠.
+  - - (✔1~✔4 코딩함 – `wip/budget-excel` `83b4c11`, 합치기 기다림)
+  - - (✔1·✔2 CM-03·34·추가-01·07·17은 `wip/complaints13` `b1c5e3a`에 코딩함 – 합치기 기다림)
+  - - (✔1 PR-04는 `wip/process-fix2` `669b0d7`에 코딩함 – 합치기 기다림)
+  - - (비어 있음 – ✔1 CA-03은 `wip/calendar6` `2e47d13`에 코딩함, 합치기 기다림)
+  - - (✔1 코딩 끝 `91743ba`, 합치기 기다림)
+
 ### 0.66.0(build-86) — 자료 안전(버그 사냥 1차)
 - 들어간 것: 자료 안전(bughunt 6c6c8b6, 대기 목록 "자료 안전" ✔1~✔5, [bughunt-storage.md](https://github.com/zeondas/gilog/blob/main/docs/qa/bughunt-storage.md) 표 1~16·18·19·21·22) – 백업 지우기에서 방금 만든 파일·미래 날짜 제외 · 0바이트 자료·열쇠는 손상으로 보고 되살리기 띠 · 빈 백업 되살리기 거부(안내 `bad_backup`) · 비밀번호 바꾸기 실패 때 되돌리기 · 자료 폴더 옮기기는 백업 하위 폴더까지·`key.new.json`·설정 먼저 바꾸고 옛 것 지우기·실패하면 치우기 · `write_atomic` 임시 파일 정리 · 손상본 이름 `-2` · `_before-import` 개수 제한 · `sync_all` · `m_cost` 한도. core `lib.rs`·`clear.rs`·앱 `lib.rs`·`src/api.ts`, 새 시험 `bughunt_tests.rs` 18개·`Gate.test.tsx`
 - 검사: check는 지킴이 0·2·3 실패(예산현황 가져오기 장면 1요소씩 흔들림 + `complaints_newrow_baddate`) · 충돌 0(합친 뒤 main 문서 커밋 함께) · npm build·npm test 351·core 151·core-wasm 5·앱 `cargo check` 통과(경고 `unused import: Manager` 하나 – 리눅스 쪽, 오류 아님) · 자료 형식 버전 1 그대로 · 긴 줄표 21·"기Log" 0 · 지킴이 101장면 모두 같음·동작 통과 · 사양서 "자동 백업" "(다음 빌드)" 지움
