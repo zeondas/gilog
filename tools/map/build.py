@@ -3,11 +3,13 @@
 넣는 것(모두 tools/map/source/):
   paju_parcels_v<날짜>.csv.gz   연속지적도에서 파주시만 뽑은 표(extract.py가 만듦)
   paju_roadparcels_2m.bin.gz    지목 '도' 필지 테두리(roads.py가 만듦, EPSG:5181 정수 m)
-  kras_paju_road_<날짜>.dxf.gz  KRAS 연속주제도 DXF(옛 Bessel 중부원점 EPSG:5174)
+  kras_paju_road_<날짜>.dxf.gz  KRAS 연속주제도 DXF – 도로(옛 Bessel 중부원점 EPSG:5174)
+  kras_paju_river_<날짜>.dxf.gz KRAS 연속주제도 DXF – 하천구역·소하천구역(5174)
+  kras_paju_park_<날짜>.dxf.gz  KRAS 연속주제도 DXF – 공간시설(공원, 5174)
 
 만드는 것(data/map/, 앱에 들어가요):
   paju_parcels.bin.gz  지번 → 좌표 표(core가 읽음)
-  paju_layers.bin.gz   배경 네 층(화면이 읽음)
+  paju_layers.bin.gz   배경 여덟 층(화면이 읽음) – 도로 넷 + 국가하천·지방하천·소하천·공원
 
 좌표는 모두 EPSG:5181(중부원점 GRS80, m). DXF만 5174 → 5181로 바꿔요(§7-24, 300m 비낌).
 
@@ -95,10 +97,10 @@ def simplify_ring(ring, tol):
     return dp(ring, tol)
 
 
-def read_dxf():
+def read_dxf(pat="kras_paju_road_*.dxf.gz"):
     from pyproj import Transformer
 
-    path = newest("kras_paju_road_*.dxf.gz")
+    path = newest(pat)
     L = gzip.open(path, "rt", encoding="utf-8", errors="replace").read().split("\n")
     i = L.index("ENTITIES") + 1
     ents, cur = [], None
@@ -161,6 +163,99 @@ def put_ring(buf, ring):
         px, py = x, y
 
 
+# 국가하천 고르기(사용자 11-02 23:23·23:28): 한강·임진강 전 구간 + 공릉천 전체 + 문산천 광탄면 경계 아래.
+# 자료에 등급 표시가 없어 조각 모양으로 골라요 – 평균 폭(넓이×2 ÷ 둘레)이 이보다 넓은 하천구역 조각이 국가하천이에요.
+# 2026-11-02 자료: 국가 조각 중 가장 좁은 것 96m(임진강 적성면 위쪽) · 지방 조각 중 가장 넓은 것 88m(문산천 광탄면 안).
+NATIONAL_MIN_WIDTH = 92.0
+
+
+def river_layers():
+    from shapely.geometry import Polygon
+
+    ents = read_dxf("kras_paju_river_*.dxf.gz")
+    nat, loc, small = [], [], []
+    for e in ents:
+        if len(e["pts"]) < 4:
+            continue
+        if e["layer"] == "연속주제_하천_용도구역":
+            poly = Polygon(e["pts"]).buffer(0)
+            width = 2 * poly.area / max(poly.length, 1e-9)
+            (nat if width > NATIONAL_MIN_WIDTH else loc).append(e["pts"])
+        elif e["layer"] == "연속주제_소하천_소하천구역":
+            small.append(e["pts"])
+    assert 10 <= len(nat) <= 40, f"국가하천 조각 {len(nat)} – 자료가 바뀌었으면 NATIONAL_MIN_WIDTH를 다시 봐요"
+    print(f"하천: 국가 {len(nat)} · 지방 {len(loc)} · 소하천 {len(small)}")
+    return [[("", [simplify_ring(r, 2.0)]) for r in rs] for rs in (nat, loc, small)]
+
+
+def park_layer():
+    # 공원·녹지는 나누지 않아요(사용자 11-02 23:23) – 공간시설 층 전부(색 3·1·7)를 공원 한 층으로.
+    ents = read_dxf("kras_paju_park_*.dxf.gz")
+    rs = [e["pts"] for e in ents if e["layer"] == "연속주제_국토계획_공간시설" and len(e["pts"]) >= 4]
+    print(f"공원: {len(rs)}")
+    return [("", [simplify_ring(r, 2.0)]) for r in rs]
+
+
+# 도로 세 층 위계(✔5, 사용자 11-02 23:54): 도로구역 > 도시계획도로 > 지목 '도'.
+# 위층이 있는 곳은 아래층에서 잘라내요 – 자료끼리 1~3m 어긋나 위층 가장자리 밖으로 아래층이 하얗게 삐져나오던 것(어둡게에서 특히)을 없애요.
+# 자르기 전에 모두 1m 격자에 맞춰(앱 자료가 m 정수라) 잘린 가장자리가 위층 가장자리와 꼭 맞아요 – 틈이 안 생겨요.
+# 잘린 조각 중 평균 폭(넓이×2 ÷ 둘레) 3m 아래 띠나 40m² 아래 부스러기는 지워요(위층에 거의 덮인 어긋남 띠).
+SLIVER_WIDTH = 3.0
+SLIVER_AREA = 40.0
+
+
+def road_hierarchy(zone_rings, plan_rings, road_rings):
+    import shapely
+    from shapely.geometry import Polygon
+    from shapely.geometry.polygon import orient
+    from shapely.ops import unary_union
+    from shapely.strtree import STRtree
+
+    def poly(ring, tol):
+        g = Polygon(simplify_ring(ring, tol) if tol else ring).buffer(0)
+        return shapely.set_precision(g, 1.0)
+
+    def parts(g):
+        return [x for x in getattr(g, "geoms", [g]) if x.geom_type == "Polygon" and not x.is_empty]
+
+    def keep(x):
+        return x.area >= SLIVER_AREA and 2 * x.area / max(x.length, 1e-9) >= SLIVER_WIDTH
+
+    def feat(polys):
+        out = []
+        for x in polys:
+            x = orient(x, 1.0)  # 바깥 고리와 구멍 고리의 방향을 반대로 – 칠하기(nonzero)에서 구멍이 비어요
+            rings = [list(x.exterior.coords)] + [list(h.coords) for h in x.interiors]
+            out.append(("", rings))
+        return out
+
+    def cut(polys, cutters, label):
+        tree = STRtree(cutters)
+        out, cutn = [], 0
+        for p in polys:
+            idx = tree.query(p, predicate="intersects")
+            if len(idx) == 0:
+                out += parts(p)
+                continue
+            cutn += 1
+            rest = shapely.set_precision(p.difference(unary_union([cutters[i] for i in idx])), 1.0)
+            out += [x for x in parts(rest) if keep(x)]
+        print(f"{label}: 잘린 조각 {cutn:,} · 남은 면 {len(out):,}")
+        return out
+
+    zone = [z for r in zone_rings if len(r) >= 4 for z in parts(poly(r, 3.0))]
+    plan = [z for r in plan_rings if len(r) >= 4 for z in parts(poly(r, 3.0))]
+    road = [z for r in road_rings if len(r) >= 4 for z in parts(poly(r, 0))]
+    plan_cut = cut(plan, zone, "도시계획도로 − 도로구역")
+    road_cut = cut(road, zone + plan, "지목 도 − (도로구역 ∪ 도시계획도로)")
+    # 겹침이 남지 않았는지 재요(1m 격자 맞춤에서 생기는 부스러기만 – 거의 0이어야 해요)
+    Z = unary_union(zone)
+    left = unary_union(plan_cut).intersection(Z).area + unary_union(road_cut).intersection(unary_union([Z] + plan_cut)).area
+    print(f"남은 겹침 {left:,.0f}m²")
+    assert left < 2000, "위층 밑에 아래층이 남았어요"
+    return feat(zone), feat(plan_cut), feat(road_cut)
+
+
 def build_layers(recs, names):
     from shapely.geometry import Point, Polygon
     from shapely.strtree import STRtree
@@ -182,12 +277,15 @@ def build_layers(recs, names):
         feats.append((emd or name, simplify_ring(ring, 3.0)))
     print("경계", len(feats), "곳:", " ".join(sorted(f[0] for f in feats)))
 
+    zone, plan, road = road_hierarchy(by("연속주제_도로_용도구역"), by("연속주제_국토계획_교통시설"), read_roadparcels())
     layers = [
-        (1, "지목 도", [("", [r]) for r in read_roadparcels()]),
-        (2, "도시계획도로", [("", [simplify_ring(r, 3.0)]) for r in by("연속주제_국토계획_교통시설")]),
-        (3, "도로구역", [("", [simplify_ring(r, 3.0)]) for r in by("연속주제_도로_용도구역")]),
+        (1, "지목 도", road),
+        (2, "도시계획도로", plan),
+        (3, "도로구역", zone),
         (4, "읍면동 경계", [(n, [r]) for n, r in feats]),
     ]
+    nat, loc, small = river_layers()
+    layers += [(5, "국가하천", nat), (6, "지방하천", loc), (7, "소하천", small), (8, "공원", park_layer())]
     buf = io.BytesIO()
     buf.write(b"PJL1")
     buf.write(struct.pack("<B", len(layers)))

@@ -75,9 +75,9 @@ export function chipOf(from: string, to: string, today: Date): Period["chip"] {
   return "";
 }
 
-/** 단추 글자: "올해 (1-01 ~ 11-02)" · "2026-03-01 ~ 10-31" · "전체" */
+/** 단추 글자: "올해 (01-01 ~ 11-02)" · "2026-03-01 ~ 10-31" · "전체" */
 export function periodLabel(p: Period): string {
-  const md = (s: string) => s.slice(5).replace(/^0/, "");
+  const md = (s: string) => s.slice(5); // 사용자 11-02 23:30: "1-01"이 아니라 "01-01"
   const name = { year: "올해", last: "작년", y1: "최근 1년", all: "전체", "": "" }[p.chip];
   if (p.chip === "all" || (!p.from && !p.to)) return "전체";
   const sameYear = p.from.slice(0, 4) === p.to.slice(0, 4);
@@ -131,7 +131,18 @@ export function cardPlace(px: number, py: number, w: number, h: number, mapW: nu
 // ---------- 배경 자료 ----------
 export type Ring = Int32Array; // [x0, y0, x1, y1, …] (m)
 export type Feature = { name: string; rings: Ring[] };
-export type Layers = { road: Feature[]; plan: Feature[]; zone: Feature[]; emd: Feature[]; bounds: [number, number, number, number] };
+export type Layers = {
+  road: Feature[];
+  plan: Feature[];
+  zone: Feature[];
+  emd: Feature[];
+  /** 하천(✔3, KRAS 하천구역 – 국가·지방은 build.py가 조각 폭으로 나눔) · 소하천구역 · 공원(공간시설 – 공원·녹지 한 층) */
+  nat: Feature[];
+  loc: Feature[];
+  small: Feature[];
+  park: Feature[];
+  bounds: [number, number, number, number];
+};
 
 export function parseLayers(buf: ArrayBuffer): Layers {
   const v = new DataView(buf);
@@ -139,7 +150,7 @@ export function parseLayers(buf: ArrayBuffer): Layers {
   if (dec.decode(new Uint8Array(buf, 0, 4)) !== "PJL1") throw new Error("지도 자료 모양이 달라요");
   let o = 4;
   const n = v.getUint8(o++);
-  const out: Layers = { road: [], plan: [], zone: [], emd: [], bounds: [Infinity, Infinity, -Infinity, -Infinity] };
+  const out: Layers = { road: [], plan: [], zone: [], emd: [], nat: [], loc: [], small: [], park: [], bounds: [Infinity, Infinity, -Infinity, -Infinity] };
   const b = out.bounds;
   for (let li = 0; li < n; li++) {
     const id = v.getUint8(o);
@@ -184,6 +195,10 @@ export function parseLayers(buf: ArrayBuffer): Layers {
     else if (id === 2) out.plan = feats;
     else if (id === 3) out.zone = feats;
     else if (id === 4) out.emd = feats;
+    else if (id === 5) out.nat = feats;
+    else if (id === 6) out.loc = feats;
+    else if (id === 7) out.small = feats;
+    else if (id === 8) out.park = feats;
   }
   return out;
 }
@@ -231,15 +246,105 @@ export function tracePath(
 }
 
 type Tracer = { moveTo(x: number, y: number): void; lineTo(x: number, y: number): void; closePath(): void };
-/** 배경 네 층의 그리기 모양 – 칠하는 셋은 닫지 않고, 선으로 긋는 읍면동 경계만 닫아요. */
-export function layerPaths<T extends Tracer>(L: Layers, make: () => T) {
+
+// ---------- 분야(✔3, 사용자 11-02 22:19 – 설정에서 고름) ----------
+export type Field = "road" | "river" | "park";
+export const FIELDS: { key: Field; name: string }[] = [
+  { key: "road", name: "도로" },
+  { key: "river", name: "하천" },
+  { key: "park", name: "공원" },
+];
+export const fieldOf = (v: string | null | undefined): Field => (v === "river" || v === "park" ? v : "road");
+
+/** 하천 등급(✔3 23:28 – 국가 = 한강·임진강 전 구간·공릉천 전체·문산천 광탄면 경계 아래). 등급 색(토큰)은 하천 표시 설정 상자에서만 보여요. */
+export type Grade = "nat" | "loc" | "small";
+export const GRADES: { key: Grade; name: string; color: string }[] = [
+  { key: "nat", name: "국가하천", color: "--map-nat" },
+  { key: "loc", name: "지방하천", color: "--map-loc" },
+  { key: "small", name: "소하천", color: "--map-small" },
+];
+export const RIVER_OUT = "하천 밖";
+/** 민원 ↔ 하천(✔3 23:09 1안): 위치에서 가장 가까운 하천, 이 거리(m) 안에 없으면 "하천 밖" */
+export const RIVER_NEAR_M = 100;
+export const PARK_COLOR = "--map-park";
+
+export type FillLayer = { id: string; feats: Feature[]; color: string; minScale?: number };
+/** 분야마다 칠하는 층(아래부터). color는 색 토큰 이름(map.css `.mp` – 밝게/어둡게, ✔6). */
+export function fillLayers(L: Layers, field: Field): FillLayer[] {
+  if (field === "river") return [...GRADES].reverse().map((g) => ({ id: g.key, feats: L[g.key], color: g.color }));
+  if (field === "park") return [{ id: "park", feats: L.park, color: PARK_COLOR }];
+  return [
+    { id: "road", feats: L.road, color: "--map-road" },
+    { id: "plan", feats: L.plan, color: "--map-plan", minScale: 0.06 },
+    { id: "zone", feats: L.zone, color: "--map-zone" },
+  ];
+}
+
+/** 그 분야 배경의 그리기 모양 – 칠하는 층은 닫지 않고, 선으로 긋는 읍면동 경계만 닫아요. */
+export function layerPaths<T extends Tracer>(L: Layers, make: () => T, field: Field = "road") {
   const [ox, oy] = L.bounds;
   const one = (f: Feature[], close: boolean) => {
     const p = make();
     tracePath(p, f, ox, oy, close);
     return p;
   };
-  return { ox, oy, road: one(L.road, false), plan: one(L.plan, false), zone: one(L.zone, false), emd: one(L.emd, true) };
+  return { ox, oy, fills: fillLayers(L, field).map((l) => ({ id: l.id, color: l.color, minScale: l.minScale, p: one(l.feats, false) })), emd: one(L.emd, true) };
+}
+
+// ---------- 민원 → 가장 가까운 하천 ----------
+type RiverRing = { g: Grade; r: Ring; bb: [number, number, number, number] };
+const riverIdx = new WeakMap<Layers, RiverRing[]>();
+function riverRings(L: Layers): RiverRing[] {
+  let a = riverIdx.get(L);
+  if (a) return a;
+  a = [];
+  for (const g of GRADES)
+    for (const f of L[g.key])
+      for (const r of f.rings) {
+        const bb: [number, number, number, number] = [Infinity, Infinity, -Infinity, -Infinity];
+        for (let k = 0; k < r.length; k += 2) {
+          if (r[k] < bb[0]) bb[0] = r[k];
+          if (r[k + 1] < bb[1]) bb[1] = r[k + 1];
+          if (r[k] > bb[2]) bb[2] = r[k];
+          if (r[k + 1] > bb[3]) bb[3] = r[k + 1];
+        }
+        a.push({ g: g.key, r, bb });
+      }
+  riverIdx.set(L, a);
+  return a;
+}
+
+/** 점에서 고리까지 거리(m) – 안이면 0 */
+export function ringDist(r: Ring, x: number, y: number): number {
+  let inside = false;
+  let best = Infinity;
+  const n = r.length / 2;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const xi = r[i * 2], yi = r[i * 2 + 1], xj = r[j * 2], yj = r[j * 2 + 1];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+    const dx = xj - xi, dy = yj - yi;
+    const L2 = dx * dx + dy * dy;
+    const t = L2 ? Math.max(0, Math.min(1, ((x - xi) * dx + (y - yi) * dy) / L2)) : 0;
+    const d = Math.hypot(x - (xi + t * dx), y - (yi + t * dy));
+    if (d < best) best = d;
+  }
+  return inside ? 0 : best;
+}
+
+/** 위치(좌표)에서 RIVER_NEAR_M 안 가장 가까운 하천의 등급, 없으면 null(하천 밖) */
+export function riverGradeOf(L: Layers, x: number, y: number, near = RIVER_NEAR_M): Grade | null {
+  let best: Grade | null = null;
+  let bd = near;
+  for (const q of riverRings(L)) {
+    if (x < q.bb[0] - bd || x > q.bb[2] + bd || y < q.bb[1] - bd || y > q.bb[3] + bd) continue;
+    const d = ringDist(q.r, x, y);
+    if (d <= bd) {
+      bd = d;
+      best = q.g;
+      if (d === 0) break;
+    }
+  }
+  return best;
 }
 
 /** 경계 모양들의 테두리 상자 */

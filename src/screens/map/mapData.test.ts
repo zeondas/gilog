@@ -11,6 +11,9 @@ import {
   legalPartsOf,
   parseLayers,
   layerPaths,
+  riverGradeOf,
+  ringDist,
+  fieldOf,
   passes,
   periodLabel,
   regionOf,
@@ -60,7 +63,7 @@ describe("민원 지도 규칙", () => {
     expect(chipRange("y1", t)).toEqual({ from: "2025-11-03", to: "2026-11-02", chip: "y1" });
     expect(chipOf("2026-01-01", "2026-11-02", t)).toBe("year");
     expect(chipOf("2026-03-01", "2026-10-31", t)).toBe("");
-    expect(periodLabel(chipRange("year", t))).toBe("올해 (1-01 ~ 11-02)");
+    expect(periodLabel(chipRange("year", t))).toBe("올해 (01-01 ~ 11-02)");
     expect(periodLabel({ from: "2026-03-01", to: "2026-10-31", chip: "" })).toBe("2026-03-01 ~ 10-31");
     expect(periodLabel(chipRange("all", t))).toBe("전체");
   });
@@ -91,12 +94,12 @@ describe("민원 지도 규칙", () => {
     expect(c.top).toBeGreaterThanOrEqual(8);
   });
 
-  it("앱에 넣은 배경 자료를 읽어요(네 층, 경계 35곳)", () => {
+  it("앱에 넣은 배경 자료를 읽어요(도로 세 층·경계 35곳)", () => {
     const raw = gunzipSync(readFileSync("data/map/paju_layers.bin.gz"));
     const l = parseLayers(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength));
     expect(l.emd).toHaveLength(35);
-    expect(l.road.length).toBeGreaterThan(40000);
-    expect(l.zone.length).toBe(700);
+    expect(l.road.length).toBeGreaterThan(20000); // ✔5: 위층 밑을 잘라내 48,848 → 2만 8천쯤
+    expect(l.zone.length).toBeGreaterThan(690);
     const names = new Set(l.emd.map((e) => e.name));
     for (const r of REGIONS) for (const p of legalPartsOf(r)) expect(names.has(p), `${r} → ${p}`).toBe(true);
     // 파주시 범위(5181 m)
@@ -104,19 +107,50 @@ describe("민원 지도 규칙", () => {
     expect(l.bounds[3]).toBeLessThan(520000);
   });
 
-  it("배경 모양 만들기: 칠하는 층은 closePath 0번, 전체 자료 1초 안(0.68.0 멈춤 재발 방지)", () => {
+  it("배경 모양 만들기: 칠하는 층은 closePath 0번, 전체 자료 1초 안(0.68.0 멈춤 재발 방지) – 세 분야 모두", () => {
     // 고리마다 closePath를 부르면 Chromium(WebView2)이 고리 수의 제곱으로 느려져 48,848고리에서 20초 넘게 멈췄어요.
     const raw = gunzipSync(readFileSync("data/map/paju_layers.bin.gz"));
     const l = parseLayers(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength));
     const make = () => ({ moves: 0, lines: 0, closes: 0, moveTo() { this.moves++; }, lineTo() { this.lines++; }, closePath() { this.closes++; } });
-    const t = performance.now();
-    const P = layerPaths(l, make);
-    const ms = performance.now() - t;
-    expect(P.road.closes).toBe(0);
-    expect(P.plan.closes).toBe(0);
-    expect(P.zone.closes).toBe(0);
-    expect(P.emd.closes).toBe(35); // 선으로 긋는 경계만
-    expect(P.road.moves).toBeGreaterThan(40000);
-    expect(ms).toBeLessThan(1000);
+    for (const field of ["road", "river", "park"] as const) {
+      const t = performance.now();
+      const P = layerPaths(l, make, field);
+      const ms = performance.now() - t;
+      for (const f of P.fills) expect(f.p.closes, `${field}/${f.id}`).toBe(0);
+      expect(P.emd.closes).toBe(35); // 선으로 긋는 경계만
+      expect(ms).toBeLessThan(1000);
+    }
+    expect(layerPaths(l, make, "road").fills.map((f) => f.id)).toEqual(["road", "plan", "zone"]);
+    expect(layerPaths(l, make, "road").fills[0].p.moves).toBeGreaterThan(20000); // ✔5: 위층 밑을 잘라내 48,848 → 2만 8천쯤
+    expect(layerPaths(l, make, "river").fills.map((f) => f.id)).toEqual(["small", "loc", "nat"]); // 국가하천이 맨 위
+    expect(layerPaths(l, make, "park").fills.map((f) => f.id)).toEqual(["park"]);
+  });
+
+  it("하천·공원 자료(✔3): 국가 17 · 지방 541 · 소하천 252 · 공원 1,272", () => {
+    const raw = gunzipSync(readFileSync("data/map/paju_layers.bin.gz"));
+    const l = parseLayers(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength));
+    expect(l.nat).toHaveLength(17);
+    expect(l.loc).toHaveLength(541);
+    expect(l.small).toHaveLength(252);
+    expect(l.park).toHaveLength(1272);
+    // 문산천: 광탄면 경계 아래(월롱면 쪽)는 국가, 광탄면 안은 지방(사용자 11-02 23:23)
+    expect(riverGradeOf(l, 183000, 477350, 400)).toBe("nat");
+  });
+
+  it("가장 가까운 하천: 안이면 0, 100m 넘으면 하천 밖", () => {
+    const sq = new Int32Array([0, 0, 100, 0, 100, 100, 0, 100, 0, 0]);
+    expect(ringDist(sq, 50, 50)).toBe(0);
+    expect(ringDist(sq, 150, 50)).toBeCloseTo(50);
+    const L = { road: [], plan: [], zone: [], emd: [], nat: [], loc: [{ name: "", rings: [sq] }], small: [], park: [], bounds: [0, 0, 100, 100] as [number, number, number, number] };
+    expect(riverGradeOf(L, 50, 50)).toBe("loc");
+    expect(riverGradeOf(L, 190, 50)).toBe("loc"); // 90m
+    expect(riverGradeOf(L, 210, 50)).toBeNull(); // 110m – 하천 밖
+  });
+
+  it("분야 값: 모르는 값은 도로", () => {
+    expect(fieldOf("river")).toBe("river");
+    expect(fieldOf("park")).toBe("park");
+    expect(fieldOf(null)).toBe("road");
+    expect(fieldOf("x")).toBe("road");
   });
 });

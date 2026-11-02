@@ -13,7 +13,11 @@ import MapCanvas, { type MapPoint } from "./MapCanvas";
 import {
   DONGS,
   EUPS,
+  GRADES,
+  RIVER_OUT,
   REGIONS,
+  fieldOf,
+  riverGradeOf,
   boundsOf,
   chipOf,
   chipRange,
@@ -27,18 +31,22 @@ import {
   regionOf,
   typeColors,
   typeOf,
+  type Field,
   type Filters,
+  type Grade,
   type Layers,
   type Period,
 } from "./mapData";
 
 const KV_LIST_W = "map.listW";
 const KV_HIDDEN = "map.hidden";
+const KV_FIELD = "map.field"; // 분야(✔3) – 설정 › 민원 지도에서 고름
+const KV_RIVER_OFF = "map.riverOff"; // 하천 표시 설정에서 끈 등급
 const LIST_MIN = 280;
 const LIST_MAX = 420;
 const WIDE = 360; // 이 폭부터 행에 접수유형 열
 
-type Pop = "type" | "status" | "period" | "regions" | null;
+type Pop = "type" | "status" | "period" | "regions" | "rivers" | null;
 
 function Chevron({ open }: { open: boolean }) {
   return (
@@ -109,6 +117,8 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
   const qGuard = useJamoGuard(setQ);
   const [pop, setPop] = useState<Pop>(null);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const [field, setField] = useState<Field>("road");
+  const [riverOff, setRiverOff] = useState<Set<string>>(new Set());
   const [listW, setListW] = useState(LIST_MIN);
   const [region, setRegion] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
@@ -132,6 +142,15 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
       const n = Number(v);
       if (alive && n >= LIST_MIN && n <= LIST_MAX) setListW(n);
     }).catch(() => {});
+    api.get(KV_FIELD).then((v) => alive && setField(fieldOf(v))).catch(() => {});
+    api.get(KV_RIVER_OFF).then((v) => {
+      try {
+        const a = v ? (JSON.parse(v) as string[]) : [];
+        if (alive && Array.isArray(a)) setRiverOff(new Set(a.filter((x) => GRADES.some((g) => g.key === x))));
+      } catch {
+        /* 처음 값 */
+      }
+    }).catch(() => {});
     api.get(KV_HIDDEN).then((v) => {
       try {
         const a = v ? (JSON.parse(v) as string[]) : [];
@@ -148,17 +167,29 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
   useEffect(() => setF((o) => ({ ...o, q })), [q]);
   const closePop = useCallback(() => setPop(null), []);
   usePopClose(pop === "type" || pop === "status" || pop === "period", closePop, popRef);
-  usePopClose(pop === "regions", closePop, regionPopRef);
+  usePopClose(pop === "regions" || pop === "rivers", closePop, regionPopRef);
+  const river = field === "river";
 
   const all = list ?? [];
   const colors = useMemo(() => typeColors(all), [all]);
   const colorOf = useCallback((t: string) => colors.get(t) ?? "#6B7280", [colors]);
   const regionMap = useMemo(() => new Map(all.map((c) => [c.id, regionOf(c)])), [all]);
   const shownRegions = REGIONS.filter((r) => !hidden.has(r));
+  // 하천 분야: 민원마다 위치에서 100m 안 가장 가까운 하천 등급(없으면 하천 밖) – ✔3 23:09 1안
+  const gradeMap = useMemo(() => {
+    const m = new Map<number, Grade | null>();
+    if (!river || !layers) return m;
+    for (const c of all) m.set(c.id, c.x != null && c.y != null ? riverGradeOf(layers, c.x, c.y) : null);
+    return m;
+  }, [river, layers, all]);
   const inView = useCallback((c: MapComplaint) => {
+    if (river) {
+      const g = gradeMap.get(c.id);
+      return g ? !riverOff.has(g) : true;
+    }
     const r = regionMap.get(c.id) ?? "";
     return r ? !hidden.has(r) : hidden.size === 0;
-  }, [regionMap, hidden]);
+  }, [river, gradeMap, riverOff, regionMap, hidden]);
   const passed = useMemo(() => all.filter((c) => passes(c, f) && inView(c)), [all, f, inView]);
   const byRegion = useMemo(() => {
     const m = new Map<string, MapComplaint[]>();
@@ -186,17 +217,28 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
   const points: MapPoint[] = useMemo(
     () =>
       passed
-        .filter((c) => c.x != null && c.y != null && (!region || regionMap.get(c.id) === region))
+        .filter((c) => c.x != null && c.y != null && (river || !region || regionMap.get(c.id) === region))
         .map((c) => ({ c, x: c.x!, y: c.y!, color: colorOf(typeOf(c)) })),
-    [passed, region, regionMap, colorOf],
+    [passed, region, regionMap, colorOf, river],
   );
   const legend = useMemo(() => {
     const seen = new Set(points.map((p) => typeOf(p.c)));
     return [...colors.entries()].filter(([t]) => seen.has(t)).map(([type, color]) => ({ type, color }));
   }, [points, colors]);
 
+  const byGrade = useMemo(() => {
+    const m = new Map<string, MapComplaint[]>();
+    if (!river) return m;
+    for (const c of passed) {
+      const g = gradeMap.get(c.id) ?? RIVER_OUT;
+      if (!m.has(g)) m.set(g, []);
+      m.get(g)!.push(c);
+    }
+    return m;
+  }, [river, passed, gradeMap]);
+
   const regionFeats = useMemo(() => {
-    if (!layers || !region) return [];
+    if (!layers || !region || river) return [];
     const parts = legalPartsOf(region);
     return layers.emd.filter((e) => parts.includes(e.name));
   }, [layers, region]);
@@ -216,6 +258,14 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
     dragW.current = null;
     api.set(KV_LIST_W, String(listW)).catch(() => {});
   };
+
+  const saveRiverOff = (s: Set<string>) => {
+    setRiverOff(s);
+    api.set(KV_RIVER_OFF, JSON.stringify([...s])).catch(() => {});
+    if (open && s.has(open)) setOpen(null);
+  };
+  const shownGrades = GRADES.filter((g) => !riverOff.has(g.key));
+  const riverOffBg = useMemo(() => (river ? riverOff : new Set<string>()), [river, riverOff]);
 
   const saveHidden = (s: Set<string>) => {
     setHidden(s);
@@ -245,7 +295,84 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
   const typeLabel = !f.types || f.types.size === colors.size ? "전체" : f.types.size === 0 ? "없음" : [...f.types].slice(0, 2).join(" · ") + (f.types.size > 2 ? ` 외 ${f.types.size - 2}` : "");
   const stOn = statusItems.filter((s) => f.statuses.has(s.name)).map((s) => s.name);
   const statusLabel = stOn.length === statusItems.length ? "전체" : stOn.length === 0 ? "없음" : stOn.slice(0, 3).join(" · ") + (stOn.length > 3 ? ` 외 ${stOn.length - 3}` : "");
+  const riverTotal = passed.length;
   const total = shownRegions.reduce((n, r) => n + (byRegion.get(r)?.length ?? 0), 0) + (hidden.size === 0 ? byRegion.get("")?.length ?? 0 : 0);
+
+  const itemRow = (c: MapComplaint, last: boolean) => (
+    <div
+      key={c.id}
+      role="treeitem"
+      aria-selected={selId === c.id}
+      className={"mp-row mp-item" + (selId === c.id ? " mp-sel" : "") + (c.x == null ? " mp-nogeo" : "")}
+      onClick={() => setSelId(c.id)}
+      onDoubleClick={() => onOpenComplaint(c.id)}
+      title={c.x == null ? "좌표를 찾지 못해 지도에 안 그려요 · 두 번 누르면 민원대장 그 줄" : "두 번 누르면 민원대장 그 줄"}
+    >
+      <span className="mp-tg mp-tg-line" />
+      <span className={"mp-tg mp-tg-line" + (last ? " mp-tg-end" : "")} />
+      <span className="mp-place">{c.place || "(위치 없음)"}</span>
+      {wide && <span className="mp-intake">{c.intake}</span>}
+      <span className="mp-st">{c.status}</span>
+      <span className="mp-date">{monthDay(c.received)}</span>
+    </div>
+  );
+
+  // 하천 분야 목록(✔3): 하천 전체 › 등급(국가·지방·소하천·하천 밖) › 읍면동 › 민원 – 자료에 하천 이름이 없어서 읍면동으로 묶어요.
+  const gradeRow = (key: string, name: string) => {
+    const items = byGrade.get(key) ?? [];
+    const isOpen = open === key;
+    const groups = new Map<string, MapComplaint[]>();
+    for (const c of items) {
+      const r = regionMap.get(c.id) || "읍면동 모름";
+      if (!groups.has(r)) groups.set(r, []);
+      groups.get(r)!.push(c);
+    }
+    const order = [...groups.keys()].sort((a, b) => (REGIONS.indexOf(a) + 1 || 99) - (REGIONS.indexOf(b) + 1 || 99));
+    return (
+      <Fragment key={key}>
+        <div role="treeitem" aria-expanded={isOpen} className="mp-row mp-reg" onClick={() => setOpen(isOpen ? null : key)}>
+          <span className="mp-tg"><Chevron open={isOpen} /></span>
+          <span className="mp-name">{name}</span>
+          <span className="mp-n">{items.length}</span>
+        </div>
+        {isOpen && wide && items.length > 0 && (
+          <div className="mp-cols" aria-hidden="true">
+            <span>위치</span>
+            <span>접수유형</span>
+            <span>상태</span>
+            <span>접수일</span>
+          </div>
+        )}
+        {isOpen &&
+          order.map((r) => {
+            const gk = `${key}|${r}`;
+            const gOpen = !folded.has(gk);
+            const list = groups.get(r)!.sort((a, b) => b.received.localeCompare(a.received) || b.id - a.id);
+            return (
+              <Fragment key={gk}>
+                <div
+                  className="mp-row mp-grp"
+                  role="treeitem"
+                  aria-expanded={gOpen}
+                  onClick={() => {
+                    const s = new Set(folded);
+                    if (s.has(gk)) s.delete(gk);
+                    else s.add(gk);
+                    setFolded(s);
+                  }}
+                >
+                  <span className="mp-tg mp-tg-line" />
+                  <span className="mp-tg"><Chevron open={gOpen} /></span>
+                  <span className="mp-gname">{r}</span>
+                  <span className="mp-gn">{list.length}</span>
+                </div>
+                {gOpen && list.map((c, i) => itemRow(c, i === list.length - 1))}
+              </Fragment>
+            );
+          })}
+      </Fragment>
+    );
+  };
 
   const regionRow = (r: string) => {
     const items = byRegion.get(r) ?? [];
@@ -299,25 +426,7 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
                   <span className="mp-gname">{g.type}</span>
                   <span className="mp-gn">{g.items.length}</span>
                 </div>
-                {gOpen &&
-                  g.items.map((c, i) => (
-                    <div
-                      key={c.id}
-                      role="treeitem"
-                      aria-selected={selId === c.id}
-                      className={"mp-row mp-item" + (selId === c.id ? " mp-sel" : "") + (c.x == null ? " mp-nogeo" : "")}
-                      onClick={() => setSelId(c.id)}
-                      onDoubleClick={() => onOpenComplaint(c.id)}
-                      title={c.x == null ? "좌표를 찾지 못해 지도에 안 그려요 · 두 번 누르면 민원대장 그 줄" : "두 번 누르면 민원대장 그 줄"}
-                    >
-                      <span className="mp-tg mp-tg-line" />
-                      <span className={"mp-tg mp-tg-line" + (i === g.items.length - 1 ? " mp-tg-end" : "")} />
-                      <span className="mp-place">{c.place || "(위치 없음)"}</span>
-                      {wide && <span className="mp-intake">{c.intake}</span>}
-                      <span className="mp-st">{c.status}</span>
-                      <span className="mp-date">{monthDay(c.received)}</span>
-                    </div>
-                  ))}
+                {gOpen && g.items.map((c, i) => itemRow(c, i === g.items.length - 1))}
               </Fragment>
             );
           })}
@@ -395,59 +504,114 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
       <div className="mp-body">
         <div className="mp-list" role="tree" aria-label="읍면동">
           <div className="mp-list-head" ref={regionPopRef}>
-            <span>읍면동</span>
-            <button type="button" className="btn btn-ctrl btn-xs mp-regbtn" aria-expanded={pop === "regions"} onClick={() => setPop(pop === "regions" ? null : "regions")}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M9 4v4M15 10v4M7 16v4" /></svg>
-              지역 표시 설정
-            </button>
-            {pop === "regions" && (
-              <div className="mp-pop mp-regpop" role="dialog" aria-label="지역 표시 설정">
-                <div className="mp-regpop-head">
-                  <span>
-                    지역 표시 <b>{shownRegions.length}</b> / {REGIONS.length}
-                  </span>
-                  <button type="button" className="btn btn-ctrl btn-xs" onClick={() => saveHidden(new Set())}>모두 켜기</button>
-                  <button type="button" className="btn btn-ctrl btn-xs" onClick={() => saveHidden(new Set(REGIONS))}>모두 끄기</button>
-                </div>
-                <div className="mp-regpop-cols">
-                  {[EUPS, DONGS].map((col, i) => (
-                    <div key={i} className="mp-regpop-col">
-                      <span className="mp-regpop-cap">{i === 0 ? "읍·면" : "동"}</span>
-                      {col.map((r) => (
-                        <label key={r} className="mp-check">
+            {river ? (
+              <>
+                <span>하천</span>
+                <button type="button" className="btn btn-ctrl btn-xs mp-regbtn" aria-expanded={pop === "rivers"} onClick={() => setPop(pop === "rivers" ? null : "rivers")}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M9 4v4M15 10v4M7 16v4" /></svg>
+                  하천 표시 설정
+                </button>
+                {pop === "rivers" && (
+                  <div className="mp-pop mp-regpop mp-rivpop" role="dialog" aria-label="하천 표시 설정">
+                    <div className="mp-regpop-head">
+                      <span>
+                        하천 표시 <b>{shownGrades.length}</b> / {GRADES.length}
+                      </span>
+                      <button type="button" className="btn btn-ctrl btn-xs" onClick={() => saveRiverOff(new Set())}>모두 켜기</button>
+                      <button type="button" className="btn btn-ctrl btn-xs" onClick={() => saveRiverOff(new Set(GRADES.map((g) => g.key)))}>모두 끄기</button>
+                    </div>
+                    <div className="mp-rivpop-list">
+                      {GRADES.map((g) => (
+                        <label key={g.key} className="mp-check">
                           <input
                             type="checkbox"
-                            checked={!hidden.has(r)}
+                            checked={!riverOff.has(g.key)}
                             onChange={() => {
-                              const s = new Set(hidden);
-                              if (s.has(r)) s.delete(r);
-                              else s.add(r);
-                              saveHidden(s);
+                              const s = new Set(riverOff);
+                              if (s.has(g.key)) s.delete(g.key);
+                              else s.add(g.key);
+                              saveRiverOff(s);
                             }}
                           />
-                          <span className="mp-check-name">{r}</span>
+                          <i className="mp-swatch" style={{ background: `var(${g.color})` }} />
+                          <span className="mp-check-name">{g.name}</span>
+                          <span className="mp-check-n">{layers ? `${layers[g.key].length.toLocaleString()}구역` : ""}</span>
                         </label>
                       ))}
                     </div>
-                  ))}
-                </div>
-              </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <span>읍면동</span>
+                <button type="button" className="btn btn-ctrl btn-xs mp-regbtn" aria-expanded={pop === "regions"} onClick={() => setPop(pop === "regions" ? null : "regions")}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M9 4v4M15 10v4M7 16v4" /></svg>
+                  지역 표시 설정
+                </button>
+                {pop === "regions" && (
+                  <div className="mp-pop mp-regpop" role="dialog" aria-label="지역 표시 설정">
+                    <div className="mp-regpop-head">
+                      <span>
+                        지역 표시 <b>{shownRegions.length}</b> / {REGIONS.length}
+                      </span>
+                      <button type="button" className="btn btn-ctrl btn-xs" onClick={() => saveHidden(new Set())}>모두 켜기</button>
+                      <button type="button" className="btn btn-ctrl btn-xs" onClick={() => saveHidden(new Set(REGIONS))}>모두 끄기</button>
+                    </div>
+                    <div className="mp-regpop-cols">
+                      {[EUPS, DONGS].map((col, i) => (
+                        <div key={i} className="mp-regpop-col">
+                          <span className="mp-regpop-cap">{i === 0 ? "읍·면" : "동"}</span>
+                          {col.map((r) => (
+                            <label key={r} className="mp-check">
+                              <input
+                                type="checkbox"
+                                checked={!hidden.has(r)}
+                                onChange={() => {
+                                  const s = new Set(hidden);
+                                  if (s.has(r)) s.delete(r);
+                                  else s.add(r);
+                                  saveHidden(s);
+                                }}
+                              />
+                              <span className="mp-check-name">{r}</span>
+                            </label>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
-          <div className="mp-list-body">
-            <div className={"mp-row mp-reg mp-all" + (region === null ? " mp-on" : "")} role="treeitem" aria-selected={region === null} onClick={() => setRegion(null)}>
-              <span className="mp-name">{hidden.size ? "관할 전체" : "파주시 전체"}</span>
-              <span className="mp-n">{total}</span>
+          {river ? (
+            <div className="mp-list-body">
+              <div className="mp-row mp-reg mp-all mp-on" role="treeitem" aria-selected>
+                <span className="mp-name">하천 전체</span>
+                <span className="mp-n">{riverTotal}</span>
+              </div>
+              {shownGrades.map((g) => gradeRow(g.key, g.name))}
+              {gradeRow(RIVER_OUT, RIVER_OUT)}
             </div>
-            {shownRegions.map(regionRow)}
-            {shownRegions.length === 0 && <p className="mp-empty">지역 표시 설정에서 읍면동을 켜 주세요.</p>}
-          </div>
+          ) : (
+            <div className="mp-list-body">
+              <div className={"mp-row mp-reg mp-all" + (region === null ? " mp-on" : "")} role="treeitem" aria-selected={region === null} onClick={() => setRegion(null)}>
+                <span className="mp-name">{hidden.size ? "관할 전체" : "파주시 전체"}</span>
+                <span className="mp-n">{total}</span>
+              </div>
+              {shownRegions.map(regionRow)}
+              {shownRegions.length === 0 && <p className="mp-empty">지역 표시 설정에서 읍면동을 켜 주세요.</p>}
+            </div>
+          )}
         </div>
         <div className="mp-grip" role="separator" aria-orientation="vertical" aria-label="목록 폭" onPointerDown={onGrip} onPointerMove={onGripMove} onPointerUp={onGripUp} />
         <MapCanvas
           layers={layers}
+          field={field}
+          off={riverOffBg}
           points={points}
-          region={region}
+          region={river ? null : region}
           regionFeats={regionFeats}
           focusBounds={focusBounds}
           selectedId={selId}
