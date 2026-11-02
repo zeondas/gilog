@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-complaints-map"
+description = "Enables the complaints_map command without any pre-configured scope."
+commands.allow = ["complaints_map"]
+
+[[permission]]
+identifier = "deny-complaints-map"
+description = "Denies the complaints_map command without any pre-configured scope."
+commands.deny = ["complaints_map"]
