@@ -324,6 +324,8 @@ async def s_budgetstatus_import(p):
     await p.locator(".xl-btn").first.click()
     await p.locator(".bd-mi", has_text="내보내기").first.click()
     await p.wait_for_timeout(300)
+    # 내보내기 알림 띠(2.2초)가 사라진 뒤 가져와요 – 기준·내 가지를 차례로 여는 styles.py에서 띠가 한쪽에만 남아 흔들렸어요(2026-11-02 집행현황 세션)
+    await p.locator(".bd-toast").wait_for(state="detached", timeout=4000)
     await p.locator(".xl-btn").first.click()
     await p.locator(".bd-mi", has_text="가져오기").first.click()
     await p.wait_for_timeout(400)
