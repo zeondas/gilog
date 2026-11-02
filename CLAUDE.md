@@ -51,7 +51,7 @@
 | 매뉴얼 | `wip/manual`·`wip/setup-guide`(문서만) | 매뉴얼(`docs/manual/`·`tools/manual/`) + 준비 안내서(`docs/setup/`) | `2f65080` / `b2b53ae` | **매뉴얼 v31 보냄** · 준비 안내서 초안(hwpx 4장, 그림 틀 10개 비움, 【확인 필요】 3) – 내력 [history.md 매뉴얼](https://github.com/zeondas/gilog/blob/main/docs/history.md#매뉴얼-현황판-줄-상태-칸-원문) | 사용자 한글 확인 · 안내서 【확인 필요】 답·캡처 11장 · 0.66.0 자료 안전 반영 |
 | 공통 | `wip/excel-fix` | core·공통 부품(자료 안전·엑셀 공통·ExcelMenu·ColHead 등 한 화면에 안 속하는 것) – 전엔 "자료 안전"·"버그수정" 세션 | `0303090` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
 | 민원대장 | `wip/complaints13` | 민원대장 화면 · **11-02 14:13 민원 지도 검토 다시 엶**(사용자 – DXF 자료로, [map.md](https://github.com/zeondas/gilog/blob/main/docs/qa/map.md) 6절 이어서, 코드 없음) | `b1c5e3a` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) · **11-02 14:2x QC 1차 못 한 CM-11·21·33을 미리 보기(0.67.0)로 확인 – 모두 통과**(CM-33은 앱 다시 켠 뒤 폭 남는지만 윈도우로) · CM-39 보류는 버그 아님: 10-26 창 크기 규칙(민원대장 최소 폭 1364 → 좁으면 본문 가로 스크롤)으로 qc.md 기대가 옛것 – QC 2회차 때 목록 고치기 | 빌드 합치기
-| 민원 지도 | `wip/map` | 민원 지도 화면 – 민원대장과 별도 모듈, 민원대장 자료(위치·유형·상태·날짜만)를 읽어 지도에 점으로(결정 로그 11-02 14:25·16:11) | `eb4e9e7` | **0.68.0(build-88)에 들어감** – 내력 [history.md 0.68.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0680build-88--민원-지도) | 사용자 윈도우 시험 · QC |
+| 민원 지도 | `wip/map` | 민원 지도 화면 – 민원대장과 별도 모듈, 민원대장 자료(위치·유형·상태·날짜만)를 읽어 지도에 점으로(결정 로그 11-02 14:25·16:11) | `eb4e9e7` | **0.68.0 멈춤 신고 측정 끝(11-02 20:2x)** – 원인 = 배경 만들기 `pathOf`의 `closePath`(고리 수 제곱으로 느려짐) · Rust·자료 읽기는 0.5초 안 · 안 표 보냄 | 사용자 ①②③ 답 → "코딩하자" → `wip/map2` |
 | 민원처리 | `wip/process-fix2` | 민원처리 화면 | `669b0d7` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
 | 업무연락처 | – | 업무연락처 화면 | – | 대기 비어 있음(QC 실패 0) | – |
 | 업무일지 | `wip/journal5` | 업무일지 화면 | `b29c64c` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
@@ -133,6 +133,7 @@
 
 ### 민원 지도 (`wip/map`)
 - (우두머리 전달, 11-02 19:5x 사용자 신고) **0.68.0 민원 지도에 들어가면 프로그램 전체가 2~3초 멈춰요.** 우두머리가 코드만 읽은 후보: ① `complaints_map` 명령이 동기(`fn`)라 메인 스레드에서 필지 표 풀기(2MB)+좌표 맞추기를 하는 동안 창 전체가 멈춤 → `async`/`spawn_blocking` + 필지 표는 잠금 풀 때 뒤에서 미리 읽기 ② 화면 쪽 `loadLayers`(1.3MB 풀기·2.5MB 파싱) + `pathOf` Path2D(수십만 꼭짓점)를 진입 때 UI 스레드에서 → 미리·Worker ③ 매 프레임 전체 Path2D를 다시 stroke(사무실 PC WebView2는 GPU 없이 느릴 수 있음) → 배경을 비트맵으로 한 번 그려 두고 복사 + 확대 수준별 간추리기(전체 보기 땐 도시계획도로 생략). 먼저 세 군데에 시간을 재서(performance.now·Rust Instant) 어디가 큰지 보고한 뒤 안을 내요. 코딩은 "코딩하자" 뒤.
+- (민원 지도 세션 측정 11-02 20:2x, 코드 안 고침) **멈춤의 거의 전부는 화면의 `pathOf`예요** – 배경 고리마다 `closePath()`를 부르면 Chromium이 고리 수의 제곱으로 느려져(6천 고리 0.3초 · 2만4천 고리 5.7초) 지목 도 48,848고리에서 미리 보기 23초(사무실 PC 2~3초). `closePath` 없이 만들면 2만4천 고리 6ms. 그 밖: Rust `complaints_map` 필지 표 풀기 24ms + 좌표 맞추기 3천 건 9ms · 배경 풀기 0.1초 · 파싱 0.1~0.4초 · 확대 움직임 한 장면 그리기 78~103ms(가속 없음). 안 표는 대화에, 사용자 답 기다림.
 - (✔1~✔6은 0.68.0에 들어감) 원문은 [map.md §7-30](https://github.com/zeondas/gilog/blob/main/docs/qa/map.md#7-30-코딩한-1-6-원문)
 
 ### 민원처리 (`wip/process-fix2`)
