@@ -51,7 +51,7 @@
 | 매뉴얼 | `wip/manual`·`wip/setup-guide`(문서만) | 매뉴얼(`docs/manual/`·`tools/manual/`) + 준비 안내서(`docs/setup/`) | `2f65080` / `b2b53ae` | **매뉴얼 v31 보냄** · 준비 안내서 초안(hwpx 4장, 그림 틀 10개 비움, 【확인 필요】 3) – 내력 [history.md 매뉴얼](https://github.com/zeondas/gilog/blob/main/docs/history.md#매뉴얼-현황판-줄-상태-칸-원문) | 사용자 한글 확인 · 안내서 【확인 필요】 답·캡처 11장 · 0.66.0 자료 안전 반영 |
 | 공통 | `wip/excel-fix` | core·공통 부품(자료 안전·엑셀 공통·ExcelMenu·ColHead 등 한 화면에 안 속하는 것) – 전엔 "자료 안전"·"버그수정" 세션 | `0303090` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
 | 민원대장 | `wip/complaints13` | 민원대장 화면 · **11-02 14:13 민원 지도 검토 다시 엶**(사용자 – DXF 자료로, [map.md](https://github.com/zeondas/gilog/blob/main/docs/qa/map.md) 6절 이어서, 코드 없음) | `b1c5e3a` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) · **11-02 14:2x QC 1차 못 한 CM-11·21·33을 미리 보기(0.67.0)로 확인 – 모두 통과**(CM-33은 앱 다시 켠 뒤 폭 남는지만 윈도우로) · CM-39 보류는 버그 아님: 10-26 창 크기 규칙(민원대장 최소 폭 1364 → 좁으면 본문 가로 스크롤)으로 qc.md 기대가 옛것 – QC 2회차 때 목록 고치기 | 빌드 합치기
-| 민원 지도 | `wip/map2` | 민원 지도 화면 – 민원대장과 별도 모듈, 민원대장 자료(위치·유형·상태·날짜만)를 읽어 지도에 점으로(결정 로그 11-02 14:25·16:11) | `88a35f2` | **0.69.0(build-89)에 들어감** – 0.68.0 멈춤 고침 – 내력 [history.md 0.69.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0690build-89--민원-지도-멈춤-고침) | 사용자 사무실 PC 체감 · QC 2회차 |
+| 민원 지도 | `wip/map2` | 민원 지도 화면 – 민원대장과 별도 모듈, 민원대장 자료(위치·유형·상태·날짜만)를 읽어 지도에 점으로(결정 로그 11-02 14:25·16:11) | `88a35f2` | **0.69.0(build-89)에 들어감** – 0.68.0 멈춤 고침 – 내력 [history.md 0.69.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0690build-89--민원-지도-멈춤-고침) | 사용자 사무실 PC 체감 · 닷카드 시안 1안/2안 답(22:19 요청 ②~⑦ 검토 중) |
 | 민원처리 | `wip/process-fix2` | 민원처리 화면 | `669b0d7` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
 | 업무연락처 | – | 업무연락처 화면 | – | 대기 비어 있음(QC 실패 0) | – |
 | 업무일지 | `wip/journal5` | 업무일지 화면 | `b29c64c` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
@@ -132,6 +132,7 @@
 ### 민원대장 (`wip/complaints13`)
 
 ### 민원 지도 (`wip/map`)
+- (사용자 11-02 22:19, 검토 중 – 아직 ✔ 아님) 이름: 민원 점 = **닷**, 닷을 누르면 나오는 카드 = **닷카드**. ② 닷 한 번 누르기 = 닷카드 열기, **두 번 누르기 = 민원대장 그 줄**(지금은 한 번에 이동) ③ 닷카드에서 민원유형이 가장 중요한데 상태 배지가 더 눈에 띔 → 시안 [MapDotCard](https://claude.ai/artifact/JyghMiCyKE5BRDq2C8SmJm) 지금/1안/2안 ④ 작업 폴더 `D:\민원지도`(하천·공원 연속주제도 – 아직 못 읽음, 컴퓨터 연결 필요) ⑤ 분야 하천을 고르면 목록 머리 "지역 표시 설정" → **"하천 표시 설정"**(국가하천·지방하천·소하천 구분), "파주시 전체" → **"하천 전체"** ⑥ 공원은 도로처럼 지역 표시 설정 그대로 ⑦ 설정 카드 "밖으로 나가는 것" 줄 지우기.
 - (멈춤 고침 – 측정·고친 내용은 0.69.0에 들어감, 원문은 [history.md 0.69.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0690build-89--민원-지도-멈춤-고침)) · ✔1~✔6은 0.68.0에 들어감, 원문은 [map.md §7-30](https://github.com/zeondas/gilog/blob/main/docs/qa/map.md#7-30-코딩한-1-6-원문)
 
 ### 민원처리 (`wip/process-fix2`)
