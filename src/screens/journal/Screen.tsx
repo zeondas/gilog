@@ -58,6 +58,8 @@ export default function JournalScreen({
   const [tasks, setTasks] = useState<TasksData>({ lists: [], tasks: [] });
   /** 기록을 등록·고치기·지울 때마다 하나씩 늘어요 – 카드 두 단을 다시 나누는 신호 */
   const [tick, setTick] = useState(0);
+  /** 엑셀 가져오기가 끝날 때마다 하나씩 늘어요 – 보고 있는 날 머리 줄을 다시 그리는 신호(QC JN-01) */
+  const [imported, setImported] = useState(0);
   /** 공휴일(캘린더가 받아 둔 것) – 달력의 빨간 날 */
   const [holidays, setHolidays] = useState<Set<string>>(new Set());
   /** 인쇄 기간 창 */
@@ -251,6 +253,8 @@ export default function JournalScreen({
               const rows = r.entries.map((e, i) => ({ ...e, same: merge ? r.same[i] : null, keep: merge && r.keep[i] }));
               const [u, a, k] = await api.importJournal(rows, r.days, !merge);
               setData(await api.journalData());
+              // 보고 있는 날 머리 줄은 날짜가 바뀔 때만 새로 그려서, 가져온 값이 안 보였어요(QC JN-01).
+              setImported((x) => x + 1);
               return k ? { n: u + a + k, note: `글자가 같은 메모 ${k}건은 그대로 뒀어요` } : u + a;
             }}
           />
@@ -276,7 +280,7 @@ export default function JournalScreen({
           />
         )}
 
-        <DayHead key={day} info={info} onSave={saveDay} />
+        <DayHead key={`${day}|${imported}`} info={info} onSave={saveDay} />
 
         {note && <p className="note" role="status">{note}</p>}
 
