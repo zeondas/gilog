@@ -57,7 +57,7 @@
 | 할 일 | – | 할 일 화면 | – | 대기 비어 있음(QC 실패 0) · 세션 안 열림 | – |
 | 캘린더 | `wip/calendar6` | 캘린더·구글 연동 화면 | `2e47d13` | **끝(합치기 기다림)** – ✔1 CA-03 빠른 입력: 제목 Tab → 종류 칸, 종류 칸 Tab·Enter = 등록(목록 열려 있으면 확정 뒤 한 번 더), 등록 뒤 커서 날짜 칸(`QuickRow`만, `keys.ts` 안 건드림, `QuickRow.test.tsx` 4개) · npm test 355·지킴이 캘린더 9장면 0·동작 8개 통과 · check: npm·지킴이1 통과, 지킴이 0·2·3 실패는 민원처리와 같은 예산현황 가져오기 띠·`complaints_newrow_baddate`(이 가지와 무관) | 빌드 합치기 |
 | 탐색기 | `wip/explorer10` | 탐색기 화면 | `ff011a3` | **끝(합치기 기다림)** – ✔1 FX-22 탭 ＋·Ctrl+T가 설정 "새 탭이 여는 폴더"로 · npm 351 통과·지킴이 101장면 같음·동작 통과 · check: 검사 통과, 지킴이 3갈래 실패는 `budgetstatus_import*` 알림 계산 모양 – 기준끼리도 같은 차이(원래 흔들림, 이 가지와 무관) · B 11개·"파일" 단추는 그대로 | 빌드 합치기 |
-| 집행현황 | (코딩 때 `wip/budget-excel`) | 집행현황 화면 + 팀 공유(공유 시험 [share-test.md](https://github.com/zeondas/gilog/blob/main/docs/qa/share-test.md) 1·2 됨, 3 기다림) | `8fc7700` | 대기 "집행현황" ✔1~✔4(엑셀 E-9~11·16~18·25 – 예산현황 가져오기 포함) | "코딩하자" · 공유 시험 3번부터 |
+| 집행현황 | `wip/budget-excel` | 집행현황 화면 + 팀 공유(공유 시험 [share-test.md](https://github.com/zeondas/gilog/blob/main/docs/qa/share-test.md) 1·2 됨, 3 기다림) | `83b4c11` | **끝(합치기 기다림)** · ✔1~✔4 엑셀 고침(E-9·25 대체하기 uid 이어받기 · E-10 건너뛴 해 재원 · E-11 파일의 해 고르기 · E-16~18 금액 읽기·반올림 안내·여러 해 한 트랜잭션, core `import_budget_many` 새 명령) · npm 355·core 153 통과 · check 전부 통과(지킴이 `budgetstatus_import*` 흔들림도 장면에서 고침) | 빌드 묶음 · 공유 시험 3번부터 |
 | 예산현황 | – | 예산현황 화면 | `fa58e52`(0.65.0에 들어감) | ✔1 대체하기 끝(0.65.0) · 엑셀 고침은 집행현황 세션이 함께 · 세션 안 열림 | – |
 | 설정 | `wip/settings6` | 설정·잠금 화면 – 전엔 "자료 삭제" 세션 | `91743ba` | **끝(합치기 기다림)** · ✔1 코딩: LK-09(되살리기 단추 – `backup_info` 이름 맞춤)·ST-19(claude 실행 파일 안내)·S-17(불러오기·옮기기 실패 때 잠금 정리)·S-20(자동 백업 실패 띠) · check: 윈도우 통과, 지킴이 3갈래 실패는 main에도 있는 흔들림(`budgetstatus_import`·`_merge`·`_replace` 알림 시점 – 기준끼리도 다름, 오늘 다른 가지도 같음 → 공통 세션에 전달) | 빌드 |
 **공통 결정 로그** (나중 날짜가 이겨요 — 활성 결정만, **끝난·대체된 결정 원문은 [docs/history.md](https://github.com/zeondas/gilog/blob/main/docs/history.md) "공통 결정 로그 보관"**, 정리 ③ 쪼개기 틀은 [docs/qa/split.md](https://github.com/zeondas/gilog/blob/main/docs/qa/split.md), 정리 ⑥은 [docs/qa/dedupe.md](https://github.com/zeondas/gilog/blob/main/docs/qa/dedupe.md))
@@ -119,15 +119,12 @@
 번호 표기: **E-n** = [bughunt-excel.md](https://github.com/zeondas/gilog/blob/main/docs/qa/bughunt-excel.md) 표 n번 · **S-n** = [bughunt-storage.md](https://github.com/zeondas/gilog/blob/main/docs/qa/bughunt-storage.md) 표 n번 · **CM-03** 등 = [qc-result-0.65.0.md](https://github.com/zeondas/gilog/blob/main/docs/qa/qc-result-0.65.0.md) 실패 항목. 공통 규칙 검토(우두머리 11-02): 아래 ✔는 모두 걸리는 것 없음(CM-07·CM-17은 11-02 10:23 1안·1안으로 결정).
 
 ### 공통 (`src/excel.ts`·`ExcelMenu.tsx`·core `excel.rs`·`complaints.rs`·`contacts.rs`·`journal.rs` 가져오기 – `wip/excel-fix`)
-- (설정 세션에서 전달, 11-02) 모양 지킴이 `budgetstatus_import`·`_merge`·`_replace`가 계산 모양 1요소(`.bd-toast` – 내보내기 "저장했어요" 알림이 2.2초 뒤 사라지는 시점)로 흔들려요 – main 빌드끼리도 달라서 오늘 wip 가지 check가 모두 실패해요. 장면에서 알림이 사라진 뒤 찍게(또는 `TOLERANCE`) 고쳐야 해요.
+- (설정 세션에서 전달, 11-02) 모양 지킴이 `budgetstatus_import`·`_merge`·`_replace`가 계산 모양 1요소(`.bd-toast` – 내보내기 "저장했어요" 알림이 2.2초 뒤 사라지는 시점)로 흔들려요 – main 빌드끼리도 달라서 오늘 wip 가지 check가 모두 실패해요. 장면에서 알림이 사라진 뒤 찍게(또는 `TOLERANCE`) 고쳐야 해요. → **집행현황 세션이 고침**(`wip/budget-excel` `83b4c11` – 장면이 알림 띠가 사라질 때까지 기다려요, 합치면 끝)
 - (✔1~✔8 코딩함 – `wip/excel-fix` `0303090`, 합치기 기다림) 사용자에게 물은 것: ① 대체하기 붉은 띠 "되돌릴 수 없어요" → "지우기 전에 백업을 남겨요"로 바꿀지 ② E-20 "기호 줄도 앞 띄어쓰기로 단계"는 input.md "들여쓰기는 위계로" 규칙과 부딪혀 안 넣음(앱에서 만든 줄 왕복은 시험으로 고정) ③ E-8 연락처 대체하기는 공사 `contact`만 비우고 `project`(사업 표는 남음)는 그대로 둠.
 - (매뉴얼 세션에 전달 – 0.52.0) `docs/manual/complaints.md`·`budget.md`·`bstatus.md`의 [배치최적화] 줄은 단추가 없어져 못 찾아요 – "머리 줄 우클릭 내용에 맞춤(모든 열)·처음 폭으로"로.
 
 ### 집행현황 (`src/budgetExcel.ts`·`budgetStatusImport.ts`·`budgetStatus.ts`·core `budget.rs`·`bstatus.rs` – `wip/budget-excel`, 예산현황 가져오기도 여기서)
-- ✔1. 집행현황 대체하기도 이름이 같은 줄은 uid 이어받기(세부사업·공사, 지우기 전 이름→uid 표) – E-9·E-25.
-- ✔2. 계약현황 양식 대체하기에서 건너뛴 해의 `split`은 옛 설정에서 이어받기 – E-10.
-- ✔3. 예산현황 시트 가져오기는 1행 "NNNN년"을 읽어 그 해로, 보는 해와 다르면 묻기 – E-11.
-- ✔4. `toWon`: 전각·₩·괄호 음수 읽기, 못 읽은 금액·10원 반올림한 줄은 checks에 안내(E-16·E-17) · 계약현황 지급액 1원 단위는 넣기 전 10원 반올림 + 안내, 여러 해를 한 트랜잭션으로(E-18).
+- (✔1~✔4 코딩함 – `wip/budget-excel` `83b4c11`, 합치기 기다림)
 
 ### 민원대장 (`wip/complaints13`)
 - (✔1·✔2 CM-03·34·추가-01·07·17은 `wip/complaints13` `b1c5e3a`에 코딩함 – 합치기 기다림)
