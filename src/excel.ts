@@ -8,7 +8,8 @@ import { spacePlace } from "./paju";
 import type { Complaint, ComplaintInput, Contact, ContactInput, DayInfo, Entry, EntryInput, JournalLine, Project, ProjectGroup } from "./api";
 import { splitProjects } from "./projectNames";
 import { BKind, BLine, layout, linePrefix, parseLines, stringifyLines } from "./bullets";
-import { isMemo, normTime, parseDate, whoNames } from "./journal";
+import { isMemo, normTime, parseDate, todayStr, whoNames } from "./journal";
+import { finalizePhone } from "./phone";
 
 export type SheetKind = "complaints" | "contacts" | "journal";
 
@@ -20,7 +21,8 @@ export const COMPLAINT_HEADERS = ["연번", "접수유형", "접수일", "민원
 export const CONTACT_HEADERS = ["연번", "이름", "소속", "직위", "무선", "유선", "이메일", "사업", "메모", "그룹", "축약 공사명", "색"];
 
 export type ExcelExport = { rows: string[][]; intake: string[]; status: string[]; days?: string[][] };
-export type ExcelSheet = { headers: string[]; rows: string[][]; extra?: ExcelSheet[] };
+/** hidden = 읽은 줄 중 엑셀에서 숨긴 줄 수(그대로 넣고 알려요 – 공통 ✔5, E-23) */
+export type ExcelSheet = { headers: string[]; rows: string[][]; extra?: ExcelSheet[]; hidden?: number };
 export type ComplaintImport = ComplaintInput & { memo: string };
 export type ContactImport = ContactInput & { memo: string };
 
@@ -85,7 +87,48 @@ function picker(headers: string[]) {
   };
 }
 
-const dateOf = (v: string) => (v ? parseDate(v) ?? v : "");
+/**
+ * 가져오기 전용 날짜 읽기(공통 ✔6, E-13): 날짜 칸 규칙 `parseDate`가 받는 모양에 더해 공문 모양 "2026. 10. 16.",
+ * "2026년 10월 15일", 전각 숫자, 뒤에 붙은 시각("2026-10-15 09:30"), 엑셀 일련번호 "45945"(일반 서식 날짜)도 읽어요.
+ * 날짜 칸에서 치는 규칙은 바꾸지 않아요(이 함수는 엑셀 칸만).
+ */
+export function importDate(v: string): string | null {
+  let s = (v ?? "")
+    .replace(/[\uFF01-\uFF5E]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .replace(/\u3000/g, " ")
+    .trim();
+  if (!s) return null;
+  if (/^\d{5}$/.test(s)) {
+    const n = Number(s);
+    // 1954~2119년 사이만(그 밖의 다섯 자리 수는 날짜로 보지 않아요)
+    return n >= 20000 && n <= 80000 ? todayStr(new Date(1899, 11, 30 + n)) : null;
+  }
+  s = s.replace(/(?:[T\s]+|(?<=\.))\s*\d{1,2}:\d{2}(?::\d{2}(?:\.\d+)?)?\s*$/, "").trim();
+  const k = /^(\d{2,4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일?$/.exec(s);
+  if (k) s = `${k[1]}-${k[2]}-${k[3]}`;
+  s = s.replace(/\s*([.\-/])\s*/g, "$1").replace(/\.$/, "");
+  return parseDate(s);
+}
+
+const dateOf = (v: string) => (v ? importDate(v) ?? v : "");
+
+/** 무선·유선 칸: 숫자 칸으로 적혀 앞 0이 빠진 9~10자리는 0을 붙이고(E-15), 전화번호 규칙(`phone.ts`)으로 모양을 맞춰요. */
+export function phoneCell(v: string): string {
+  const t = (v ?? "").trim();
+  return finalizePhone(/^[1-9]\d{8,9}$/.test(t) ? "0" + t : t);
+}
+
+/** 묻는 창 제목 아래에 덧붙일 말(모든 화면 공통): 숨긴 줄 수, 민원대장 날짜로 못 읽은 줄 수(공통 ✔5·✔6). */
+export function importNotes(kind: SheetKind, sheet: ExcelSheet): string[] {
+  const out: string[] = [];
+  if (sheet.hidden) out.push(`엑셀에서 숨긴 줄 ${sheet.hidden}건도 넣어요`);
+  if (kind === "complaints") {
+    const get = picker(sheet.headers);
+    const n = dataRows(sheet).filter((r) => ["접수일", "마감일", "조치완료일"].some((h) => get(r, h) && !importDate(get(r, h)))).length;
+    if (n) out.push(`날짜로 읽지 못한 줄 ${n}건은 적힌 글자 그대로 넣어요`);
+  }
+  return out;
+}
 
 /**
  * 넣을 줄: 연번 말고 모든 칸이 빈 줄은 건너뛰어요(연번은 앱이 매기고 읽지 않아요 –
@@ -191,8 +234,8 @@ export function contactImports(sheet: ExcelSheet): ContactsImport {
       name: get(r, "이름"),
       org: get(r, "소속"),
       role: get(r, "직위"),
-      mobile: get(r, "무선"),
-      tel: get(r, "유선"),
+      mobile: phoneCell(get(r, "무선")),
+      tel: phoneCell(get(r, "유선")),
       email: get(r, "이메일").replace(/^mailto:/i, ""),
       projects: [],
       memo: linesOfCell(get(r, "메모")),
@@ -296,33 +339,41 @@ export function journalDayRows(days: DayInfo[]): string[][] {
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-/** 내용 칸 → 말 줄. 줄 앞 "이름: "의 이름이 나·상대 칸의 이름·앞에 나온 말한 사람이면 새 말, 아니면 앞 말에 이어 붙여요(한 말 안 줄 바꿈). */
+/**
+ * 내용 칸 → 말 줄. 줄 앞 "이름: "의 이름이 나·상대 칸의 이름·앞에 나온 말한 사람이면 새 말, 아니면 앞 말에 이어 붙여요(한 말 안 줄 바꿈).
+ * 왕복에서 바뀌지 않게(공통 ✔7, E-21): 숫자로 시작하는 것("09:30 현장 도착")은 말한 사람으로 보지 않고, 한 말 안 빈 줄·들여쓰기는
+ * 그대로 이어 붙이고, 내보낼 때 이름 없는 상대 말에 붙인 "상대"는 이름 없음(who "")으로 읽어요.
+ */
 export function linesOfContent(text: string, who: string, myName: string): JournalLine[] {
   const known = new Set(["나", "상대", ...whoNames(who), ...(myName ? [myName] : [])]);
   const out: JournalLine[] = [];
   for (const raw of text.replace(/\r\n?/g, "\n").split("\n")) {
     const line = raw.trim();
-    if (!line) continue;
+    if (!line) {
+      if (out.length) out[out.length - 1].text += "\n";
+      continue;
+    }
     const m = /^([^:：]{1,20})[:：]\s*(.*)$/.exec(line);
     const sp = m?.[1].trim();
-    if (m && sp && (known.has(sp) || !out.length)) {
+    if (m && sp && !/^\d/.test(sp) && (known.has(sp) || !out.length)) {
       known.add(sp);
       const me = sp === "나" || (!!myName && sp === myName);
-      out.push({ who: me ? "" : sp, me, text: m[2] });
+      out.push({ who: me || sp === "상대" ? "" : sp, me, text: m[2] });
     } else if (out.length) {
-      out[out.length - 1].text += "\n" + line;
+      out[out.length - 1].text += "\n" + raw.trimEnd();
     } else {
       out.push({ who: whoNames(who)[0] ?? "", me: false, text: line });
     }
   }
-  return out.filter((l) => l.text.trim());
+  return out.map((l) => ({ ...l, text: l.text.replace(/\n+$/, "") })).filter((l) => l.text.trim());
 }
 
 /**
- * entries와 같은 순서로 same[i] = 덮어쓸 기존 기록 번호(날짜 + 시각 + 상대가 같은 기록, 없으면 null – 공통 ✔5).
+ * entries와 같은 순서로 same[i] = 덮어쓸 기존 기록 번호(날짜 + 시각 + 상대가 같은 기록, 없으면 null – 공통 ✔5),
+ * keep[i] = 짝지은 기록이 메모이고 글자가 같아 건드리지 않을지(서식·표를 지키려고 – 공통 ✔2, E-4).
  * dup = 파일 안에서 똑같이 겹쳐 뺀 줄 수.
  */
-export type JournalImport = { entries: EntryInput[]; same: (number | null)[]; days: DayInfo[]; dup: number; bad: number };
+export type JournalImport = { entries: EntryInput[]; same: (number | null)[]; keep: boolean[]; days: DayInfo[]; dup: number; bad: number };
 
 /** 업무일지에서 "같은 기록"을 가리는 열쇠 – 날짜 + 시각 + 상대(2026-10-25 사용자 ②3안) */
 export const journalSameKey = (date: string, time: string, who: string) => `${date}|${time.trim()}|${who.trim()}`;
@@ -335,14 +386,22 @@ export const journalSameKey = (date: string, time: string, who: string) => `${da
 export function journalImports(sheet: ExcelSheet, existing: Entry[], projects: Project[], myName: string): JournalImport {
   const get = picker(sheet.headers);
   const seen = new Set<string>();
-  const have = new Map<string, number>();
-  for (const e of existing) if (!have.has(journalSameKey(e.date, e.time, e.who))) have.set(journalSameKey(e.date, e.time, e.who), e.id);
+  // 같은 열쇠의 기존 기록들(번호 순). 파일 줄마다 앞에서 하나씩 꺼내 한 기록은 한 번만 짝지어요(공통 ✔2, E-3).
+  const have = new Map<string, Entry[]>();
+  for (const e of [...existing].sort((a, b) => a.id - b.id)) {
+    const k = journalSameKey(e.date, e.time, e.who);
+    const q = have.get(k);
+    if (q) q.push(e);
+    else have.set(k, [e]);
+  }
+  const flat = (t: string) => t.split("\n").map((x) => x.trim()).filter(Boolean).join("\n");
   const entries: EntryInput[] = [];
   const same: (number | null)[] = [];
+  const keep: boolean[] = [];
   let dup = 0;
   let bad = 0;
   for (const r of dataRows(sheet)) {
-    const date = parseDate(get(r, "날짜"));
+    const date = importDate(get(r, "날짜"));
     const time = normTime(get(r, "시각"));
     const content = (() => {
       const i = sheet.headers.findIndex((h) => h.replace(/\s+/g, "") === "내용");
@@ -364,7 +423,15 @@ export function journalImports(sheet: ExcelSheet, existing: Entry[], projects: P
     const pn = get(r, "사업") || get(r, "프로젝트");
     const p = pn ? projects.find((x) => x.name === pn || (x.alias ?? "") === pn) : undefined;
     const memo = isMemo(kind);
-    same.push(have.get(journalSameKey(date, time, memo ? "" : who)) ?? null);
+    const lines = memo ? [] : linesOfContent(content, who, myName);
+    // 말이 하나도 없는 줄("김주무관:"뿐)은 넣을 수 없어 못 읽은 줄로 세요(공통 ✔3, E-5).
+    if (!memo && !lines.length) {
+      bad++;
+      continue;
+    }
+    const ex = have.get(journalSameKey(date, time, memo ? "" : who))?.shift();
+    same.push(ex?.id ?? null);
+    keep.push(!!ex && memo && isMemo(ex.kind) && flat(memoText(ex.body)) === flat(content));
     entries.push({
       date,
       time,
@@ -372,7 +439,7 @@ export function journalImports(sheet: ExcelSheet, existing: Entry[], projects: P
       who: memo ? "" : who,
       contact: memo ? "" : get(r, "연락처"),
       project: memo ? null : p?.id ?? null,
-      lines: memo ? [] : linesOfContent(content, who, myName),
+      lines,
       body: memo ? content.split("\n").filter((x) => x.trim()).map((x) => `<p>${esc(x.trim())}</p>`).join("") : "",
     });
   }
@@ -381,13 +448,13 @@ export function journalImports(sheet: ExcelSheet, existing: Entry[], projects: P
   if (ds) {
     const g = picker(ds.headers);
     for (const r of ds.rows) {
-      const date = parseDate(g(r, "날짜"));
+      const date = importDate(g(r, "날짜"));
       if (!date) continue;
       const d = { date, arrive: normTime(g(r, "출근")) ?? g(r, "출근"), transport: g(r, "교통"), weather: g(r, "날씨"), note: g(r, "비고") };
       if (d.arrive || d.transport || d.weather || d.note) days.push(d);
     }
   }
-  return { entries, same, days, dup, bad };
+  return { entries, same, keep, days, dup, bad };
 }
 
 /** 기본 파일 이름: 민원대장_2026-10-17.xlsx */

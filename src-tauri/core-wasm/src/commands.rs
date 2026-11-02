@@ -49,9 +49,11 @@ pub const BROWSER: &[&str] = &[
     "set_journal_day",
     "delete_journal_day",
     "clear_journal",
+    "import_journal",
     // 자료 지우기(설정)
     "clear_counts",
     "clear_data",
+    "backup_before_replace",
     // 민원대장
     "complaints",
     "add_complaint",
@@ -285,10 +287,16 @@ pub(crate) fn browser(s: &mut Session, cmd: &str, a: &Args) -> Option<Result<Val
             with(s, |st| st.delete_day(&date))
         })(),
         "clear_journal" => with(s, |st| st.clear_journal()),
+        "import_journal" => (|| {
+            let (rows, days, replace): (Vec<gilog_core::JournalImportRow>, Vec<gilog_core::DayInfo>, Option<bool>) = (a.get("rows")?, a.get("days")?, a.get("replace")?);
+            with(s, |st| st.import_journal(&rows, &days, replace.unwrap_or(false)))
+        })(),
         "clear_counts" => (|| {
             let year = a.id("year")?;
             with(s, |st| st.clear_counts(year))
         })(),
+        // 미리 보기(메모리 저장소)는 백업 파일이 없어요 – None.
+        "backup_before_replace" => with(s, |st| st.backup_before_replace().map(|p| p.map(|x| x.to_string_lossy().to_string()))),
         "clear_data" => (|| {
             let (what, year): (String, Option<i64>) = (a.s("what")?, a.get("year")?);
             with(s, |st| st.clear(gilog_core::ClearWhat::parse(&what, year)?))

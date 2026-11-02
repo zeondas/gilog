@@ -453,10 +453,15 @@ export const api = {
   deleteDay: (date: string) => call<number>("delete_journal_day", { date }),
   /** 엑셀 가져오기 "대체하기" – 모든 기록·날짜 머리 줄을 지워요(공통 ✔5) */
   clearJournal: () => call<number>("clear_journal"),
+  /** 업무일지 엑셀 가져오기를 한 번에(공통 ✔3) – [덮은 수, 더한 수, 그대로 둔 수]. 한 줄이라도 틀리면 아무것도 안 바뀌어요. */
+  importJournal: (rows: (EntryInput & { same: number | null; keep: boolean })[], days: DayInfo[], replace = false) =>
+    call<[number, number, number]>("import_journal", { rows, days, replace }),
   /** 설정 "자료 지우기": 화면마다 지금 건수(year = 집행현황 "그 해만"의 해) */
   clearCounts: (year: number) => call<ClearCounts>("clear_counts", { year }),
   /** 설정 "자료 지우기": 지우기 전 백업을 남기고 지워요(year는 집행현황만 – null이면 모든 해). 미리 보기는 백업 없음. */
   clearData: (what: ClearWhat, year: number | null = null) => call<Cleared>("clear_data", { what, year }),
+  /** 엑셀 "대체하기" 전 백업 backup\gilog_날짜_before-replace.gilogbak(공통 ✔1, E-6) – 경로, 미리 보기는 null */
+  backupBeforeReplace: () => call<string | null>("backup_before_replace"),
 
   complaints: () => call<Complaint[]>("complaints"),
   /** 위치 글이 파주시 도로명주소면 법정동 지번으로 (core address.rs) */
@@ -534,7 +539,7 @@ export const api = {
   importContacts: (rows: (ContactInput & { memo: string })[], replace = false) => call<[number, number]>("import_contacts", { rows, replace }),
   /** 엑셀 파일 쓰기·읽기(kind: "complaints" | "contacts") */
   excelWrite: (path: string, kind: string, data: { rows: string[][]; intake: string[]; status: string[]; days?: string[][] }) => call<null>("excel_write", { path, kind, data }),
-  excelRead: (path: string, kind: string) => call<{ headers: string[]; rows: string[][]; extra?: { headers: string[]; rows: string[][] }[] }>("excel_read", { path, kind }),
+  excelRead: (path: string, kind: string) => call<{ headers: string[]; rows: string[][]; extra?: { headers: string[]; rows: string[][] }[]; hidden?: number }>("excel_read", { path, kind }),
 
   tasksData: () => call<TasksData>("tasks_data"),
   addTaskList: (name: string) => call<TaskList>("add_task_list", { name }),

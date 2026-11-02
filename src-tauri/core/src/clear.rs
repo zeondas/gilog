@@ -208,23 +208,33 @@ impl Store {
     }
 
     pub(crate) fn backup_before_clear_on(&self, day: &str) -> Result<PathBuf> {
+        self.backup_tagged_on(day, "before-clear")
+    }
+
+    /// 엑셀 "대체하기" 전 백업 `backup\gilog_YYYY-MM-DD_before-replace.gilogbak`(공통 ✔1, 버그 사냥 2차 E-6) –
+    /// 자료 지우기 백업과 같은 방식·같은 정리 규칙(최근 `BEFORE_CLEAR_KEEP`개). 메모리 저장소(미리 보기)는 None.
+    pub fn backup_before_replace(&self) -> Result<Option<PathBuf>> {
+        if self.is_memory() {
+            return Ok(None);
+        }
+        self.backup_tagged_on(&crate::today(), "before-replace").map(Some)
+    }
+
+    /// `backup\gilog_<day>_<tag>.gilogbak`(같은 날이면 `-2`…)을 남기고 같은 꼬리표의 오래된 것은 지워요.
+    pub(crate) fn backup_tagged_on(&self, day: &str, tag: &str) -> Result<PathBuf> {
         let folder = self.dir.join(BACKUP_DIR);
         fs::create_dir_all(&folder)?;
-        let mut path = folder.join(format!("gilog_{day}_before-clear.gilogbak"));
+        let mut path = folder.join(format!("gilog_{day}_{tag}.gilogbak"));
         let mut i = 2;
         while path.exists() {
-            path = folder.join(format!("gilog_{day}_before-clear-{i}.gilogbak"));
+            path = folder.join(format!("gilog_{day}_{tag}-{i}.gilogbak"));
             i += 1;
         }
         self.export_backup(&path)?;
-        prune_before_clear(&folder, &path);
+        // 만든 순서로 최근 `BEFORE_CLEAR_KEEP`개만 둬요. 방금 만든 것은 늘 남겨요(버그 사냥 1).
+        crate::prune_by_mtime(&folder, &format!("_{tag}"), BEFORE_CLEAR_KEEP, &path);
         Ok(path)
     }
-}
-
-/// 지우기 전 백업은 만든 순서로 최근 `BEFORE_CLEAR_KEEP`개만 둬요. 방금 만든 것은 늘 남겨요(버그 사냥 1).
-fn prune_before_clear(folder: &std::path::Path, made: &std::path::Path) {
-    crate::prune_by_mtime(folder, "_before-clear", BEFORE_CLEAR_KEEP, made);
 }
 
 #[cfg(test)]
@@ -366,6 +376,29 @@ mod tests {
         assert_eq!(left, BEFORE_CLEAR_KEEP);
         // 하루 자동 백업 목록에는 섞이지 않아요.
         assert!(crate::daily_backups(d.path()).is_empty());
+    }
+
+    /// 엑셀 대체하기 전 백업(공통 ✔1, E-6): 이름 `_before-replace`, 같은 날 `-2`, 최근 5개만, 지우기 백업과 따로 세요.
+    #[test]
+    fn before_replace_backup_like_before_clear() {
+        let (d, s) = store();
+        fill(&s);
+        let a = s.backup_tagged_on("2026-11-02", "before-replace").unwrap();
+        let b = s.backup_tagged_on("2026-11-02", "before-replace").unwrap();
+        assert!(a.to_string_lossy().ends_with("gilog_2026-11-02_before-replace.gilogbak") && a.is_file());
+        assert!(b.to_string_lossy().ends_with("gilog_2026-11-02_before-replace-2.gilogbak"));
+        s.backup_before_clear_on("2026-11-02").unwrap();
+        for _ in 0..6 {
+            s.backup_tagged_on("2026-11-02", "before-replace").unwrap();
+        }
+        let names: Vec<String> = fs::read_dir(d.path().join(BACKUP_DIR)).unwrap().flatten().map(|e| e.file_name().to_string_lossy().to_string()).collect();
+        assert_eq!(names.iter().filter(|n| n.contains("_before-replace")).count(), BEFORE_CLEAR_KEEP);
+        assert_eq!(names.iter().filter(|n| n.contains("_before-clear")).count(), 1);
+        let p = s.backup_before_replace().unwrap().unwrap();
+        assert!(p.to_string_lossy().contains("_before-replace"));
+        // 메모리 저장소(미리 보기)는 백업 없이 None.
+        let m = Store::memory("1234").unwrap();
+        assert!(m.backup_before_replace().unwrap().is_none());
     }
 
     #[test]

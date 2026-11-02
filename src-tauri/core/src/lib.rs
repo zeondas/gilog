@@ -33,7 +33,7 @@ pub use clear::{ClearCounts, ClearWhat, Cleared, BEFORE_CLEAR_KEEP};
 pub use calendar::{CalKind, CalendarData, Event, EventInput, Holiday, BUILTIN_HOLIDAYS, KIND_COLORS, REMIND_MAX, SYSTEM_KINDS};
 pub use complaints::{Complaint, ComplaintImport, ComplaintInput, DEFAULT_STATUS};
 pub use contacts::{Contact, ContactImport, ContactInput, ContactsData, Project, ProjectGroup, PROJECT_COLORS};
-pub use journal::{DayInfo, Entry, EntryInput, JournalData, JournalLine};
+pub use journal::{DayInfo, Entry, EntryInput, JournalData, JournalImportRow, JournalLine};
 pub use order::{fill_order, image_size, OrderFill, OrderKind, OrderReport};
 pub use standard::{fill_standard, korean_date, StdItem, STANDARD_TEMPLATE};
 pub use process::{Case, CaseInput, CasePatch, Order, OrderPatch, ProcessData, Work, WorkInput, UNKNOWN_PLACE};
@@ -944,6 +944,9 @@ mod migrate_tests;
 
 #[cfg(test)]
 mod bughunt_tests;
+
+#[cfg(test)]
+mod excel_fix_tests;
 
 #[cfg(test)]
 mod tests {
