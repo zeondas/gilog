@@ -1,3 +1,35 @@
+/* 지도 색(✔6 – 시안 MapDark 4판, 사용자 11-03 00:04). 캔버스가 이 토큰을 읽어 그려요. 도시계획도로는 테마의 연한 색. */
+.mp {
+  --map-road: #D9D7E3;
+  --map-plan: var(--accent-tint);
+  --map-zone: #AEABC0;
+  --map-line: #4A4858;
+  --map-nat: #3470D6;
+  --map-loc: #7DA6E8;
+  --map-small: #B4D0F5;
+  --map-park: #56AA62;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .mp {
+    --map-road: #24222A;
+    --map-zone: #33303C;
+    --map-line: #CFCCDD;
+    --map-nat: #2F5FA8;
+    --map-loc: #294A78;
+    --map-small: #233650;
+    --map-park: #2F6B3A;
+  }
+}
+:root[data-theme="dark"] .mp {
+  --map-road: #24222A;
+  --map-zone: #33303C;
+  --map-line: #CFCCDD;
+  --map-nat: #2F5FA8;
+  --map-loc: #294A78;
+  --map-small: #233650;
+  --map-park: #2F6B3A;
+}
+
 /* ===== map.css – 민원 지도 (2026-11-02 민원 지도 세션, 시안 Map.dc.html·MapJori.dc.html 10판·17:29) ===== */
 
 .main > .mp {

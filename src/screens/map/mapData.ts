@@ -256,27 +256,27 @@ export const FIELDS: { key: Field; name: string }[] = [
 ];
 export const fieldOf = (v: string | null | undefined): Field => (v === "river" || v === "park" ? v : "road");
 
-/** 하천 등급(✔3 23:28 – 국가 = 한강·임진강 전 구간·공릉천 전체·문산천 광탄면 경계 아래). 등급 색은 하천 표시 설정 상자에서만 보여요. */
+/** 하천 등급(✔3 23:28 – 국가 = 한강·임진강 전 구간·공릉천 전체·문산천 광탄면 경계 아래). 등급 색(토큰)은 하천 표시 설정 상자에서만 보여요. */
 export type Grade = "nat" | "loc" | "small";
 export const GRADES: { key: Grade; name: string; color: string }[] = [
-  { key: "nat", name: "국가하천", color: "#3470D6" },
-  { key: "loc", name: "지방하천", color: "#7DA6E8" },
-  { key: "small", name: "소하천", color: "#B4D0F5" },
+  { key: "nat", name: "국가하천", color: "--map-nat" },
+  { key: "loc", name: "지방하천", color: "--map-loc" },
+  { key: "small", name: "소하천", color: "--map-small" },
 ];
 export const RIVER_OUT = "하천 밖";
 /** 민원 ↔ 하천(✔3 23:09 1안): 위치에서 가장 가까운 하천, 이 거리(m) 안에 없으면 "하천 밖" */
 export const RIVER_NEAR_M = 100;
-export const PARK_COLOR = "#56AA62";
+export const PARK_COLOR = "--map-park";
 
 export type FillLayer = { id: string; feats: Feature[]; color: string; minScale?: number };
-/** 분야마다 칠하는 층(아래부터). color "tint"는 화면의 연보라(도시계획도로). */
+/** 분야마다 칠하는 층(아래부터). color는 색 토큰 이름(map.css `.mp` – 밝게/어둡게, ✔6). */
 export function fillLayers(L: Layers, field: Field): FillLayer[] {
   if (field === "river") return [...GRADES].reverse().map((g) => ({ id: g.key, feats: L[g.key], color: g.color }));
   if (field === "park") return [{ id: "park", feats: L.park, color: PARK_COLOR }];
   return [
-    { id: "road", feats: L.road, color: "#D9D7E3" },
-    { id: "plan", feats: L.plan, color: "tint", minScale: 0.06 },
-    { id: "zone", feats: L.zone, color: "#AEABC0" },
+    { id: "road", feats: L.road, color: "--map-road" },
+    { id: "plan", feats: L.plan, color: "--map-plan", minScale: 0.06 },
+    { id: "zone", feats: L.zone, color: "--map-zone" },
   ];
 }
 

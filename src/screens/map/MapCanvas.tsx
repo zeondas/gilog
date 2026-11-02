@@ -10,7 +10,14 @@ export type MapPoint = { c: MapComplaint; x: number; y: number; color: string };
 type View = { cx: number; cy: number; s: number };
 type Cluster = { sx: number; sy: number; pts: MapPoint[] };
 
-const C_LINE = "#4A4858"; // 읍면동 경계
+/** 지도 색은 CSS 토큰(map.css `.mp` – 밝게/어둡게 따로, ✔6)에서 읽어요. 칠하는 층은 fillLayers의 color가 토큰 이름이에요. */
+type Palette = { get: (name: string) => string; key: string };
+const PAL_NAMES = ["--map-road", "--map-plan", "--map-zone", "--map-line", "--map-nat", "--map-loc", "--map-small", "--map-park"];
+function paletteOf(el: Element): Palette {
+  const css = getComputedStyle(el);
+  const m = new Map(PAL_NAMES.map((n) => [n, css.getPropertyValue(n).trim() || "#888"]));
+  return { get: (n) => m.get(n) ?? n, key: [...m.values()].join(",") };
+}
 const ANIM_MS = 500;
 const HIT = 9;
 const DOUBLE_MS = 450; // 두 번 누르기로 보는 사이
@@ -37,7 +44,7 @@ type Snap = { cv: HTMLCanvasElement; v: View; w: number; h: number; dpr: number;
 type Paths = { key: Layers; field: Field; ox: number; oy: number; fills: { id: string; color: string; minScale?: number; p: Path2D }[]; emd: Path2D };
 
 /** 전체 보기(확대 배율이 minScale보다 작을 때)에는 도시계획도로를 빼고 그려요 – 그 크기에선 어차피 안 보여요(0.68.0 멈춤 ②). */
-function renderBg(ctx: CanvasRenderingContext2D, P: Paths, off: Set<string>, v: View, w: number, h: number, dpr: number, tint: string) {
+function renderBg(ctx: CanvasRenderingContext2D, P: Paths, off: Set<string>, v: View, w: number, h: number, dpr: number, pal: Palette) {
   const { ox, oy } = P;
   const s = v.s;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -45,10 +52,10 @@ function renderBg(ctx: CanvasRenderingContext2D, P: Paths, off: Set<string>, v: 
   ctx.setTransform(s * dpr, 0, 0, -s * dpr, (w / 2 - (v.cx - ox) * s) * dpr, (h / 2 + (v.cy - oy) * s) * dpr);
   for (const f of P.fills) {
     if (off.has(f.id) || (f.minScale && s < f.minScale)) continue;
-    ctx.fillStyle = f.color === "tint" ? tint : f.color;
+    ctx.fillStyle = pal.get(f.color);
     ctx.fill(f.p);
   }
-  ctx.strokeStyle = C_LINE;
+  ctx.strokeStyle = pal.get("--map-line");
   ctx.lineWidth = 0.9 / s;
   ctx.stroke(P.emd);
 }
@@ -132,9 +139,9 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
     const ctx = cv.getContext("2d");
     if (!ctx) return;
     const v = { cx: base.cx, cy: base.cy, s: s * k };
-    const tint = getComputedStyle(canvasRef.current ?? document.body).getPropertyValue("--accent-tint").trim() || "#ECE9FB";
-    renderBg(ctx, pathsOf(layers), off, v, cw, ch, dpr, tint);
-    fullSnap.current = { cv, v, w: cw, h: ch, dpr, key: layers, bg: bgKey };
+    const pal = paletteOf(canvasRef.current ?? document.body);
+    renderBg(ctx, pathsOf(layers), off, v, cw, ch, dpr, pal);
+    fullSnap.current = { cv, v, w: cw, h: ch, dpr, key: layers, bg: bgKey + "|" + pal.key };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layers, bgKey]);
 
@@ -148,22 +155,24 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
     if (!ctx) return;
     const css = getComputedStyle(cv);
     const accent = css.getPropertyValue("--accent").trim() || "#4F3CC9";
-    const tint = css.getPropertyValue("--accent-tint").trim() || "#ECE9FB";
+    const onAccent = css.getPropertyValue("--on-accent").trim() || "#fff";
     const bg = css.getPropertyValue("--surface").trim() || "#fff";
+    const pal = paletteOf(cv);
+    const bk = bgKey + "|" + pal.key; // 테마가 바뀌면 그려 둔 그림을 다시 그려요
     if (layers) {
       const P = pathsOf(layers);
       let snap = viewSnap.current;
-      if (!fast && (!snap || snap.key !== layers || snap.bg !== bgKey || snap.w !== w || snap.h !== h || snap.dpr !== dpr || !sameView(snap.v, v))) {
+      if (!fast && (!snap || snap.key !== layers || snap.bg !== bk || snap.w !== w || snap.h !== h || snap.dpr !== dpr || !sameView(snap.v, v))) {
         const sc = snap && snap.w === w && snap.h === h && snap.dpr === dpr ? snap.cv : document.createElement("canvas");
         sc.width = Math.round(w * dpr);
         sc.height = Math.round(h * dpr);
         const sctx = sc.getContext("2d");
         if (sctx) {
-          renderBg(sctx, P, off, v, w, h, dpr, tint);
-          snap = { cv: sc, v: { ...v }, w, h, dpr, key: layers, bg: bgKey };
+          renderBg(sctx, P, off, v, w, h, dpr, pal);
+          snap = { cv: sc, v: { ...v }, w, h, dpr, key: layers, bg: bk };
           viewSnap.current = snap;
         }
-        if (!fullSnap.current || fullSnap.current.key !== layers || fullSnap.current.bg !== bgKey) {
+        if (!fullSnap.current || fullSnap.current.key !== layers || fullSnap.current.bg !== bk) {
           if (fullT.current) clearTimeout(fullT.current);
           fullT.current = window.setTimeout(buildFull, 120);
         }
@@ -171,10 +180,10 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
       const full = fullSnap.current;
-      if (snap && snap.bg === bgKey && sameView(snap.v, v) && snap.w === w && snap.h === h) ctx.drawImage(snap.cv, 0, 0, w, h);
+      if (snap && snap.bg === bk && sameView(snap.v, v) && snap.w === w && snap.h === h) ctx.drawImage(snap.cv, 0, 0, w, h);
       else {
-        if (full && full.key === layers && full.bg === bgKey) blit(ctx, full, v, w, h);
-        if (snap && snap.key === layers && snap.bg === bgKey) blit(ctx, snap, v, w, h); // 마지막으로 또렷하게 그린 그림을 위에 – 밖으로 남는 곳은 밑의 전체 그림이 채워요
+        if (full && full.key === layers && full.bg === bk) blit(ctx, full, v, w, h);
+        if (snap && snap.key === layers && snap.bg === bk) blit(ctx, snap, v, w, h); // 마지막으로 또렷하게 그린 그림을 위에 – 밖으로 남는 곳은 밑의 전체 그림이 채워요
       }
       const { ox, oy } = P;
       const s = v.s;
@@ -241,7 +250,7 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
         ctx.lineWidth = 2;
         ctx.strokeStyle = "#fff";
         ctx.stroke();
-        ctx.fillStyle = "#fff";
+        ctx.fillStyle = onAccent; // 어둡게는 강조색이 밝아 어두운 글자(✔6)
         ctx.font = "600 11px Pretendard, sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";

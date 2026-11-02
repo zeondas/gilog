@@ -533,7 +533,7 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
                               saveRiverOff(s);
                             }}
                           />
-                          <i className="mp-swatch" style={{ background: g.color }} />
+                          <i className="mp-swatch" style={{ background: `var(${g.color})` }} />
                           <span className="mp-check-name">{g.name}</span>
                           <span className="mp-check-n">{layers ? `${layers[g.key].length.toLocaleString()}구역` : ""}</span>
                         </label>

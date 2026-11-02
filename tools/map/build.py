@@ -196,6 +196,66 @@ def park_layer():
     return [("", [simplify_ring(r, 2.0)]) for r in rs]
 
 
+# 도로 세 층 위계(✔5, 사용자 11-02 23:54): 도로구역 > 도시계획도로 > 지목 '도'.
+# 위층이 있는 곳은 아래층에서 잘라내요 – 자료끼리 1~3m 어긋나 위층 가장자리 밖으로 아래층이 하얗게 삐져나오던 것(어둡게에서 특히)을 없애요.
+# 자르기 전에 모두 1m 격자에 맞춰(앱 자료가 m 정수라) 잘린 가장자리가 위층 가장자리와 꼭 맞아요 – 틈이 안 생겨요.
+# 잘린 조각 중 평균 폭(넓이×2 ÷ 둘레) 3m 아래 띠나 40m² 아래 부스러기는 지워요(위층에 거의 덮인 어긋남 띠).
+SLIVER_WIDTH = 3.0
+SLIVER_AREA = 40.0
+
+
+def road_hierarchy(zone_rings, plan_rings, road_rings):
+    import shapely
+    from shapely.geometry import Polygon
+    from shapely.geometry.polygon import orient
+    from shapely.ops import unary_union
+    from shapely.strtree import STRtree
+
+    def poly(ring, tol):
+        g = Polygon(simplify_ring(ring, tol) if tol else ring).buffer(0)
+        return shapely.set_precision(g, 1.0)
+
+    def parts(g):
+        return [x for x in getattr(g, "geoms", [g]) if x.geom_type == "Polygon" and not x.is_empty]
+
+    def keep(x):
+        return x.area >= SLIVER_AREA and 2 * x.area / max(x.length, 1e-9) >= SLIVER_WIDTH
+
+    def feat(polys):
+        out = []
+        for x in polys:
+            x = orient(x, 1.0)  # 바깥 고리와 구멍 고리의 방향을 반대로 – 칠하기(nonzero)에서 구멍이 비어요
+            rings = [list(x.exterior.coords)] + [list(h.coords) for h in x.interiors]
+            out.append(("", rings))
+        return out
+
+    def cut(polys, cutters, label):
+        tree = STRtree(cutters)
+        out, cutn = [], 0
+        for p in polys:
+            idx = tree.query(p, predicate="intersects")
+            if len(idx) == 0:
+                out += parts(p)
+                continue
+            cutn += 1
+            rest = shapely.set_precision(p.difference(unary_union([cutters[i] for i in idx])), 1.0)
+            out += [x for x in parts(rest) if keep(x)]
+        print(f"{label}: 잘린 조각 {cutn:,} · 남은 면 {len(out):,}")
+        return out
+
+    zone = [z for r in zone_rings if len(r) >= 4 for z in parts(poly(r, 3.0))]
+    plan = [z for r in plan_rings if len(r) >= 4 for z in parts(poly(r, 3.0))]
+    road = [z for r in road_rings if len(r) >= 4 for z in parts(poly(r, 0))]
+    plan_cut = cut(plan, zone, "도시계획도로 − 도로구역")
+    road_cut = cut(road, zone + plan, "지목 도 − (도로구역 ∪ 도시계획도로)")
+    # 겹침이 남지 않았는지 재요(1m 격자 맞춤에서 생기는 부스러기만 – 거의 0이어야 해요)
+    Z = unary_union(zone)
+    left = unary_union(plan_cut).intersection(Z).area + unary_union(road_cut).intersection(unary_union([Z] + plan_cut)).area
+    print(f"남은 겹침 {left:,.0f}m²")
+    assert left < 2000, "위층 밑에 아래층이 남았어요"
+    return feat(zone), feat(plan_cut), feat(road_cut)
+
+
 def build_layers(recs, names):
     from shapely.geometry import Point, Polygon
     from shapely.strtree import STRtree
@@ -217,10 +277,11 @@ def build_layers(recs, names):
         feats.append((emd or name, simplify_ring(ring, 3.0)))
     print("경계", len(feats), "곳:", " ".join(sorted(f[0] for f in feats)))
 
+    zone, plan, road = road_hierarchy(by("연속주제_도로_용도구역"), by("연속주제_국토계획_교통시설"), read_roadparcels())
     layers = [
-        (1, "지목 도", [("", [r]) for r in read_roadparcels()]),
-        (2, "도시계획도로", [("", [simplify_ring(r, 3.0)]) for r in by("연속주제_국토계획_교통시설")]),
-        (3, "도로구역", [("", [simplify_ring(r, 3.0)]) for r in by("연속주제_도로_용도구역")]),
+        (1, "지목 도", road),
+        (2, "도시계획도로", plan),
+        (3, "도로구역", zone),
         (4, "읍면동 경계", [(n, [r]) for n, r in feats]),
     ]
     nat, loc, small = river_layers()

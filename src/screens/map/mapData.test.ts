@@ -94,12 +94,12 @@ describe("민원 지도 규칙", () => {
     expect(c.top).toBeGreaterThanOrEqual(8);
   });
 
-  it("앱에 넣은 배경 자료를 읽어요(네 층, 경계 35곳)", () => {
+  it("앱에 넣은 배경 자료를 읽어요(도로 세 층·경계 35곳)", () => {
     const raw = gunzipSync(readFileSync("data/map/paju_layers.bin.gz"));
     const l = parseLayers(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength));
     expect(l.emd).toHaveLength(35);
-    expect(l.road.length).toBeGreaterThan(40000);
-    expect(l.zone.length).toBe(700);
+    expect(l.road.length).toBeGreaterThan(20000); // ✔5: 위층 밑을 잘라내 48,848 → 2만 8천쯤
+    expect(l.zone.length).toBeGreaterThan(690);
     const names = new Set(l.emd.map((e) => e.name));
     for (const r of REGIONS) for (const p of legalPartsOf(r)) expect(names.has(p), `${r} → ${p}`).toBe(true);
     // 파주시 범위(5181 m)
@@ -121,7 +121,7 @@ describe("민원 지도 규칙", () => {
       expect(ms).toBeLessThan(1000);
     }
     expect(layerPaths(l, make, "road").fills.map((f) => f.id)).toEqual(["road", "plan", "zone"]);
-    expect(layerPaths(l, make, "road").fills[0].p.moves).toBeGreaterThan(40000);
+    expect(layerPaths(l, make, "road").fills[0].p.moves).toBeGreaterThan(20000); // ✔5: 위층 밑을 잘라내 48,848 → 2만 8천쯤
     expect(layerPaths(l, make, "river").fills.map((f) => f.id)).toEqual(["small", "loc", "nat"]); // 국가하천이 맨 위
     expect(layerPaths(l, make, "park").fills.map((f) => f.id)).toEqual(["park"]);
   });
