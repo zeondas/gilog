@@ -53,7 +53,7 @@
 | 민원대장 | `wip/complaints13` | 민원대장 화면 | `b1c5e3a` | **끝(합치기 기다림)** – ✔1 CM-03 등록 뒤 접수일 오늘·CM-34 메모 머리 위치 표기·추가-01 0건 위치 열 바닥 폭 · ✔2 CM-07 민원유형 자유 입력 + 설정 목록에 더하기·CM-17 조치완료일 적으면 어느 길로 저장해도 완료 · npm test 356·지킴이 민원대장 19장면 0·동작 통과·check 통과(지킴이 실패는 다른 가지와 같은 예산현황 가져오기 띠·`complaints_newrow_baddate` 4장면 – 이 가지와 무관) | 빌드 합치기 |
 | 민원처리 | `wip/process-fix2` | 민원처리 화면 | `669b0d7` | **끝(합치기 기다림)** – ✔1 PR-04 공사 관리 신규 줄 Enter·Tab = 다음 칸, 마지막 칸 = 등록(공통 `rowKeys`), 후보 목록 Enter는 확정만 · npm test 351·지킴이 민원처리 4장면 0·check 통과(지킴이 실패는 다른 가지도 같은 예산현황 가져오기 띠·`complaints_newrow_baddate` 4장면 – 이 가지와 무관) | 빌드 합치기 |
 | 업무연락처 | – | 업무연락처 화면 | – | 대기 비어 있음(QC 실패 0) | – |
-| 업무일지 | (코딩 때 `wip/journal5`) | 업무일지 화면 | – | 대기 "업무일지" ✔1(QC JN-01·17) | "코딩하자" |
+| 업무일지 | `wip/journal5` | 업무일지 화면 | `b29c64c` | **끝(합치기 기다림)** · ✔1 QC JN-01(가져온 뒤 머리 줄 다시 그림)·JN-17(달력·챙길 일 `flex: none`, 넘치면 오른쪽 열 스크롤) · check: 윈도우·사진·동작 통과, 계산 모양 ❌는 예산현황 `budgetstatus_import*`·`complaints_newrow_baddate`만 – main끼리도 달라지는 원래 문제(다른 가지 같음), guard-allow 업무일지 9장면 | 빌드 묶음 |
 | 할 일 | – | 할 일 화면 | – | 대기 비어 있음(QC 실패 0) · 세션 안 열림 | – |
 | 캘린더 | (코딩 때 `wip/calendar6`) | 캘린더·구글 연동 화면 | – | 대기 "캘린더" ✔1(QC CA-03) | "코딩하자" |
 | 탐색기 | (코딩 때 `wip/explorer10`) | 탐색기 화면 | – | 대기 "탐색기" ✔1(QC FX-22) · B 11개는 사용자가 고르면 | "코딩하자" |
@@ -114,7 +114,7 @@
 
 ## 기능별 대기 목록 (세션 이름 = 칸 이름. 그 세션이 처리하고 지워요)
 
-비어 있음: 업무연락처·할 일·예산현황(엑셀은 집행현황 칸)·공통 부품(✔1~✔8 0.35.0에 들어감)
+비어 있음: 업무연락처·업무일지(✔1 `wip/journal5` 코딩 끝)·할 일·예산현황(엑셀은 집행현황 칸)·공통 부품(✔1~✔8 0.35.0에 들어감)
 
 번호 표기: **E-n** = [bughunt-excel.md](https://github.com/zeondas/gilog/blob/main/docs/qa/bughunt-excel.md) 표 n번 · **S-n** = [bughunt-storage.md](https://github.com/zeondas/gilog/blob/main/docs/qa/bughunt-storage.md) 표 n번 · **CM-03** 등 = [qc-result-0.65.0.md](https://github.com/zeondas/gilog/blob/main/docs/qa/qc-result-0.65.0.md) 실패 항목. 공통 규칙 검토(우두머리 11-02): 아래 ✔는 모두 걸리는 것 없음(CM-07·CM-17은 11-02 10:23 1안·1안으로 결정).
 
@@ -140,9 +140,6 @@
 
 ### 민원처리 (`wip/process-fix2`)
 - (✔1 PR-04는 `wip/process-fix2` `669b0d7`에 코딩함 – 합치기 기다림)
-
-### 업무일지 (`wip/journal5`)
-- ✔1. JN-01 가져온 뒤 보고 있는 날 머리 줄 다시 그리기 · JN-17 12달 고르기 상자·월 달력 5번째 주가 잘리지 않게(높이 모자라면 스크롤).
 
 ### 캘린더 (`wip/calendar6`)
 - ✔1. CA-03 빠른 입력 등록 Tab 뒤 커서는 날짜 칸(등록하는 Tab이 다음 칸으로 넘어가지 않게).
