@@ -7,7 +7,7 @@ import { DialogX } from "../../DialogX";
 import { KeyboardEvent as RKeyboardEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Fragment } from "react";
 import { api, errorText, inApp } from "../../api";
 import { BudgetProject, fmt, okWon, parseWon, typing, Unit } from "../../budget";
-import { BStatusLine, compute, defaultSetup, Line, lineOf, linkedOf, Manual, parseBStatusSheet, projectNames, Setup } from "../../budgetStatus";
+import { BStatusLine, compute, defaultSetup, Line, lineOf, linkedOf, Manual, parseBStatusSheet, projectNames, Setup, sheetYear } from "../../budgetStatus";
 import { BudgetStatusSend, SendTarget } from "../../BudgetStatusSend";
 import { parseV3, planV3, V3Plan } from "../../budgetStatusImport";
 import { dirOf, DIR_KEY, ImportMode, ImportSteps, joinPath, lastDir } from "../../ExcelMenu";
@@ -77,10 +77,23 @@ const EDIT_FIELDS: (keyof Manual)[] = ["cur", "a1", "a2", "a3", "a4", "pm", "ps"
 
 type Pop = { t: "menu"; name: string; x: number; y: number } | { t: "memo"; name: string; x: number; y: number } | { t: "excel"; x: number; y: number };
 /** 같은 모양 시트 가져오기 창 – step: 고르기 → 덮어쓰기/대체하기 확인(공통 ImportSteps, 2026-10-30 ✔1) */
-type Ask = { path: string; cells: { name: string; year: number; src: string; m: Manual }[]; skipped: number; step: "pick" | ImportMode };
+type Cell = { name: string; year: number; src: string; m: Manual };
+/** 예산현황 시트 가져오기 창. 파일의 해(1행 제목)가 보는 해와 다르면 alt에 보는 해로 읽은 것도 두고 고르게 해요(E-11). */
+type Ask = { path: string; cells: Cell[]; skipped: number; step: "pick" | ImportMode; alt?: { fileYear: number; useFile: boolean; file: { cells: Cell[]; skipped: number }; view: { cells: Cell[]; skipped: number } } };
 /** 계약현황 양식 가져오기 창 */
 type AskV3 = { path: string; plan: V3Plan; step: "pick" | ImportMode };
 type Form = { name: string; year: number; src: string; text: Record<string, string> };
+
+/** 가져오기 창 확인 목록(집행현황 가져오기 창과 같은 모양 – 6줄까지, 나머지는 건수) */
+const Checks = ({ list }: { list: string[] }) =>
+  list.length ? (
+    <ul className="bd-checks">
+      {list.slice(0, 6).map((c) => (
+        <li key={c}>{c}</li>
+      ))}
+      {list.length > 6 && <li>그 밖에 {list.length - 6}건</li>}
+    </ul>
+  ) : null;
 
 export default function BudgetStatusScreen() {
   const [byYear, setByYear] = useState<Record<number, BudgetProject[]>>({});
@@ -488,22 +501,27 @@ export default function BudgetStatusScreen() {
       const sheets = await api.budgetExcelRead(path);
       const d = dirOf(path);
       if (d) api.set(DIR_KEY, d).catch(() => {});
-      let cells: ReturnType<typeof parseBStatusSheet> = null;
-      for (const sh of sheets) {
-        cells = parseBStatusSheet(sh.rows, year, setups);
-        if (cells) break;
-      }
-      if (!cells) {
+      const sh = sheets.find((x) => parseBStatusSheet(x.rows, year, setups));
+      if (!sh) {
         setToast("예산현황 모양의 시트를 찾지 못했어요");
         return;
       }
-      // 앱에 없는 세부사업·재원·기간 밖의 해는 건너뛰어요
-      const ok = cells.filter((c) => {
-        const s = setups[c.name];
-        if (!s || !s.sources.includes(c.src)) return false;
-        return s.multi ? c.year >= s.from && c.year <= s.to : c.year === year;
-      });
-      setAsk({ path, cells: ok, skipped: cells.length - ok.length, step: "pick" });
+      // 앱에 없는 세부사업·재원·기간 밖의 해는 건너뛰어요. 단년도 줄은 at 해로 읽어요(파일의 해 또는 보는 해).
+      const read = (at: number) => {
+        const cells = parseBStatusSheet(sh.rows, at, setups) ?? [];
+        const ok = cells.filter((c) => {
+          const s = setups[c.name];
+          if (!s || !s.sources.includes(c.src)) return false;
+          return s.multi ? c.year >= s.from && c.year <= s.to : c.year === at;
+        });
+        return { cells: ok, skipped: cells.length - ok.length };
+      };
+      const fy = sheetYear(sh.rows);
+      const view = read(year);
+      if (fy && fy !== year) {
+        const file = read(fy);
+        setAsk({ path, ...file, step: "pick", alt: { fileYear: fy, useFile: true, file, view } });
+      } else setAsk({ path, ...view, step: "pick" });
     } catch (e) {
       setToast(e === "io" ? "파일을 열지 못했어요." : errorText(e));
     }
@@ -546,10 +564,11 @@ export default function BudgetStatusScreen() {
     try {
       const split: NonNullable<Setup["split"]> = {};
       const uids = new Set<string>();
-      // 집행현황에 등록(사용자 1안) — 해마다 본사업·이월 사업과 공사 줄을 만들고, 만든 줄의 uid로 공사별 재원을 적어요
-      for (const y of askV3.plan.years) {
-        const { list, cells } = perYear[y];
-        const [data] = await api.importBudget(y, list);
+      // 집행현황에 등록(사용자 1안) — 해마다 본사업·이월 사업과 공사 줄을 만들고, 만든 줄의 uid로 공사별 재원을 적어요.
+      // 여러 해를 한 트랜잭션으로 넣어요(E-18 – 중간에 실패하면 앞 해도 되돌려요).
+      const made = askV3.plan.years.length ? await api.importBudgetMany(askV3.plan.years.map((y) => ({ year: y, projects: perYear[y].list }))) : [];
+      for (const [y, data] of made) {
+        const { cells } = perYear[y];
         for (const c of cells) {
           const pj = data.find((p) => p.name === c.project);
           const row = pj?.items.flatMap((it) => it.rows).find((r) => r.name === c.row);
@@ -558,16 +577,20 @@ export default function BudgetStatusScreen() {
         const main = data.find((p) => p.name === parsed.name);
         if (main) uids.add(main.uid);
       }
+      // 건너뛴 해(집행현황 자료가 있어 만들지 않은 해)는 대체하기여도 옛 공사별 재원을 이어받아요(E-10 – 그 해 공사 줄은 그대로라서)
+      const old = setups[parsed.name];
+      const keep: NonNullable<Setup["split"]> = {};
       for (const y of askV3.plan.skipped) {
         const main = (byYear[y] ?? []).find((p) => p.name === parsed.name);
         if (main) uids.add(main.uid);
+        for (const [k, v] of Object.entries(old?.split ?? {})) if (k.startsWith(`${y}:`)) keep[k] = v;
       }
       // 대체하기: 이 사업의 설정만 지우고 파일대로(①1안 – 다른 사업 설정은 그대로). 덮어쓰기: 있던 직접 적은 값·공사별 재원·메모 위에 파일 값을 덮어요.
-      const prev = replace ? undefined : setups[parsed.name];
+      const prev = replace ? undefined : old;
       const next: Setup = {
         ...setup,
         rows: { ...(prev?.rows ?? {}), ...setup.rows },
-        split: { ...(prev?.split ?? {}), ...split },
+        split: { ...(prev?.split ?? {}), ...keep, ...split },
         uids: [...new Set([...(prev?.uids ?? []), ...uids])],
         memo: prev?.memo,
       };
@@ -922,7 +945,27 @@ export default function BudgetStatusScreen() {
                   heading={`${ask.cells.length}줄의 직접 적는 값을 어떻게 가져올까요?`}
                   n={names.length}
                   path={ask.path}
-                  note={`${ask.skipped > 0 ? `앱에 없는 세부사업·재원·기간 밖의 해 ${ask.skipped}줄은 건너뛰어요 · ` : ""}집행현황 값은 그대로예요(당해예산·집행액은 파일 값을 받지 않아요)`}
+                  note={
+                    <>
+                      {ask.alt && (
+                        <span className="bs-xl-year">
+                          파일은 {ask.alt.fileYear}년 것이에요(보는 해 {year}년) · 단년도 사업을{" "}
+                          {seg(
+                            `${ask.alt.fileYear}년으로`,
+                            `${year}년으로`,
+                            ask.alt.useFile ? 0 : 1,
+                            (i) => {
+                              const alt = { ...ask.alt!, useFile: i === 0 };
+                              setAsk({ ...ask, ...(i === 0 ? alt.file : alt.view), alt });
+                            },
+                            "가져올 해",
+                          )}
+                        </span>
+                      )}
+                      {ask.alt && <br />}
+                      {`${ask.skipped > 0 ? `앱에 없는 세부사업·재원·기간 밖의 해 ${ask.skipped}줄은 건너뛰어요 · ` : ""}집행현황 값은 그대로예요(당해예산·집행액은 파일 값을 받지 않아요)`}
+                    </>
+                  }
                   step={ask.step}
                   stats={{ same: names.length, total }}
                   band={`지금 세부사업 ${total.toLocaleString()}건의 직접 적은 값이 모두 지워져요.`}
@@ -964,7 +1007,12 @@ export default function BudgetStatusScreen() {
                   heading={`"${parsed.name}"을(를) 어떻게 가져올까요?`}
                   n={1}
                   path={askV3.path}
-                  note={`${period} · 재원 ${parsed.sources.join("·")} · 계약 ${parsed.contracts.length}건 – ${made}${skip}`}
+                  note={
+                    <>
+                      {`${period} · 재원 ${parsed.sources.join("·")} · 계약 ${parsed.contracts.length}건 – ${made}${skip}`}
+                      <Checks list={askV3.plan.checks} />
+                    </>
+                  }
                   step={askV3.step}
                   stats={null}
                   warn={`집행현황 값은 그대로예요 – 지우는 것은 이 사업의 예산현황 설정뿐이에요(${made}${skip})`}

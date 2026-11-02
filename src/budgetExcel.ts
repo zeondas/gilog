@@ -16,12 +16,46 @@ export type BudgetImport = { sheet: string; unit: 1 | 1000; projects: ImportProj
 const norm = (s: string) => (s ?? "").replace(/\s+/g, "");
 const line = (s: string) => (s ?? "").replace(/\s+/g, " ").trim();
 
+/** 칸 글자 → 숫자. 전각 숫자·쉼표·₩·원·괄호 음수(회계)·△ 음수를 읽어요(E-16). 비면 null, 읽지 못하면 NaN. */
+export function cellNum(cell: string): number | null {
+  let t = (cell ?? "")
+    .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .replace(/[，]/g, ",")
+    .replace(/[．]/g, ".")
+    .replace(/[－−]/g, "-")
+    .replace(/[,\s원₩￦]/g, "");
+  if (!t) return null;
+  let neg = false;
+  const par = /^\((.*)\)$/.exec(t);
+  if (par) [neg, t] = [true, par[1]];
+  else if (/^[△▲]/.test(t)) [neg, t] = [true, t.slice(1)];
+  if (!/^-?\d+(\.\d+)?(e[+-]?\d+)?$/i.test(t)) return NaN;
+  const v = Number(t);
+  return neg ? -v : v;
+}
+
 /** 칸 숫자 → 원(십원 단위로 반올림). 천원이면 1000을 곱해요. 비거나 숫자가 아니면 null. */
 export function toWon(cell: string, unit: 1 | 1000): number | null {
-  const t = (cell ?? "").replace(/[,\s원]/g, "");
-  if (!t || !/^-?\d+(\.\d+)?(e[+-]?\d+)?$/i.test(t)) return null;
-  return Math.round((Number(t) * unit) / 10) * 10;
+  const v = cellNum(cell);
+  if (v === null || Number.isNaN(v)) return null;
+  return Math.round((v * unit) / 10) * 10;
 }
+
+/** toWon + 확인 목록 안내(E-16·E-17): 못 읽은 금액은 "읽지 못했어요", 1원 자리가 있어 반올림한 금액은 "반올림했어요". */
+function wonChecked(cell: string, unit: 1 | 1000, checks: string[], where: string, label: string): number | null {
+  const v = cellNum(cell);
+  if (v === null) return null;
+  if (Number.isNaN(v)) {
+    checks.push(`${where}: ${label} "${(cell ?? "").trim()}"를 읽지 못했어요(비워 넣었어요)`);
+    return null;
+  }
+  const exact = v * unit;
+  const won = Math.round(exact / 10) * 10;
+  if (Math.abs(won - exact) > 1e-6) checks.push(`${where}: ${label} ${fmtWon(exact)}원을 ${fmtWon(won)}원으로 반올림했어요(십원 단위)`);
+  return won;
+}
+
+const fmtWon = (v: number) => (Math.round(v * 1000) / 1000).toLocaleString("ko-KR", { maximumFractionDigits: 3 });
 
 const STAGE_MAP: Record<string, string> = { 추진중: "추진", 진행: "추진", 진행중: "추진", 미착수: "준비", 착수전: "준비", 준공: "완료" };
 
@@ -68,10 +102,10 @@ function fromApp(s: GridSheet, hi: number): BudgetImport | null {
     const isRow = lv ? lv === "공사" : (KINDS as readonly string[]).includes(norm(get(c.kind)));
     const memo = textToMemo(get(c.memo));
     if (lv === "세부사업" || (!lv && !isRow && !out.length)) {
-      out.push({ name, budget: toWon(get(c.bud), unit), carry: carry || isCarry(name), memo, items: [] });
+      out.push({ name, budget: wonChecked(get(c.bud), unit, checks, `${i + 1}행`, "예산"), carry: carry || isCarry(name), memo, items: [] });
     } else if (!isRow) {
       if (!out.length) out.push({ name, budget: null, carry, memo: "", items: [] });
-      out[out.length - 1].items.push({ name, budget: toWon(get(c.bud), unit), memo, rows: [] });
+      out[out.length - 1].items.push({ name, budget: wonChecked(get(c.bud), unit, checks, `${i + 1}행`, "예산"), memo, rows: [] });
     } else {
       if (!out.length) out.push({ name: "세부사업", budget: null, carry, memo: "", items: [] });
       const p = out[out.length - 1];
@@ -80,9 +114,9 @@ function fromApp(s: GridSheet, hi: number): BudgetImport | null {
         name,
         kind: kindOf(get(c.kind)),
         co: line(get(c.co)),
-        cmt: toWon(get(c.cmt), unit) ?? 0,
-        exp: toWon(get(c.exp), unit) ?? 0,
-        act: toWon(get(c.act), unit) ?? 0,
+        cmt: wonChecked(get(c.cmt), unit, checks, `${i + 1}행`, "원인행위") ?? 0,
+        exp: wonChecked(get(c.exp), unit, checks, `${i + 1}행`, "집행액") ?? 0,
+        act: wonChecked(get(c.act), unit, checks, `${i + 1}행`, "시공량") ?? 0,
         stage: stageOf(get(c.stage), checks, `${i + 1}행`),
         memo,
       });
@@ -154,9 +188,9 @@ function fromLegacy(s: GridSheet, hi: number): BudgetImport | null {
       name: line(b),
       kind: kindOf(get(r, c.kind)),
       co: co === "-" ? "" : co,
-      cmt: toWon(get(r, c.cmt), unit) ?? 0,
-      exp: toWon(get(r, c.exp), unit) ?? 0,
-      act: toWon(get(r, c.act), unit) ?? 0,
+      cmt: wonChecked(get(r, c.cmt), unit, checks, `${i + 1}행`, "원인행위") ?? 0,
+      exp: wonChecked(get(r, c.exp), unit, checks, `${i + 1}행`, "지출액") ?? 0,
+      act: wonChecked(get(r, c.act), unit, checks, `${i + 1}행`, "실집행액") ?? 0,
       stage: stageOf(get(r, c.stage), checks, `${i + 1}행`),
       memo: notes.length ? textToMemo(notes.join("\n")) : "",
     });

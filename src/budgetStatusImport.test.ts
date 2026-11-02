@@ -136,3 +136,21 @@ test("planV3 – 해마다 본사업·(명시이월)·(사고이월), 이미 있
   `);
   expect([plan.setup.multi, plan.setup.from, plan.setup.to, plan.setup.carry]).toEqual([true, 2024, 2026, "(명시이월) 24.7. 호우 복구"]);
 });
+
+// 버그 사냥 2차 E-18(집행현황 ✔4): 1원 단위 지급액은 넣기 전에 십원으로 반올림하고 확인 목록에 남겨요(재원 몫 합도 맞게)
+test("planV3 – 1원 단위 지급액 반올림", () => {
+  const odd: GridSheet = { ...contracts, rows: contracts.rows.map((r, i) => (i === 3 ? r.map((c, j) => (j === 12 ? "40,000,001" : j === 13 ? "59,999,999" : c)) : r)) };
+  const p = parseV3([odd, ledger]);
+  if (typeof p === "string") throw new Error(p);
+  const plan = planV3(p, {});
+  if (typeof plan === "string") throw new Error(plan);
+  const row = plan.perYear[2024].list[0].items[0].rows[0];
+  expect([row.cmt, row.exp]).toEqual([40_000_000, 40_000_000]);
+  const cell = plan.perYear[2024].cells[0].funds;
+  expect(Object.values(cell).reduce((a, v) => a + v, 0)).toBe(40_000_000);
+  expect(Object.values(cell).every((v) => v % 10 === 0)).toBe(true);
+  expect(plan.checks).toEqual([
+    '2024년 "호우 피해 복구공사" 지급액 40,000,001원을 40,000,000원으로 반올림했어요(십원 단위)',
+    '2025년 "호우 피해 복구공사" 지급액 59,999,999원을 60,000,000원으로 반올림했어요(십원 단위)',
+  ]);
+});

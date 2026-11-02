@@ -4,7 +4,7 @@
 // 숫자는 사용자가 준 2026 집행현황 실무 엑셀에서 가져왔어요(엑셀 손수식과 같은 값이 나와야 해요).
 import { describe, expect, test } from "vitest";
 import { balance, BudgetRow, CMT_LABEL, rowRate, spent, sums, tied } from "./budget";
-import { parseBudgetBook } from "./budgetExcel";
+import { cellNum, parseBudgetBook, toWon } from "./budgetExcel";
 
 let id = 0;
 const R = (stage: string, cmt: number, exp: number, act = exp): BudgetRow => ({ id: ++id, uid: "r" + id, name: "공사" + id, kind: "공사", co: "", cmt, exp, act, stage, memo: "" });
@@ -150,4 +150,38 @@ describe("원인행위 · 계약금액 열 이름", () => {
       expect(row.act).toBe(50000);
     });
   }
+});
+
+// 버그 사냥 2차 E-16·E-17(집행현황 ✔4): 금액 칸 읽기 넓히기 + 못 읽은·반올림한 금액은 확인 목록에
+describe("금액 칸 읽기(toWon)", () => {
+  test("전각·₩·괄호·△ 음수", () => {
+    expect(toWon("１,０００", 1)).toBe(1000);
+    expect(toWon("₩1,234,560", 1)).toBe(1_234_560);
+    expect(toWon("(1,230)", 1)).toBe(-1230);
+    expect(toWon("△500", 1)).toBe(-500);
+    expect(toWon("1,234.5", 1000)).toBe(1_234_500);
+    expect(toWon("", 1)).toBeNull();
+    expect(toWon("1.5억", 1)).toBeNull();
+    expect(cellNum("1.5억")).toBeNaN();
+  });
+  test("못 읽은 금액·1원 자리 반올림은 확인 목록에 남아요", () => {
+    const r = parseBudgetBook(
+      [
+        {
+          name: "2026",
+          rows: [
+            ["2026 집행현황"],
+            ["단위 원"],
+            ["세부사업", "구분", "업체(하도)", "예산", "원인행위", "집행액", "시공량(사용량)", "단계", "메모", "줄"],
+            ["도로포장", "", "", "100000", "", "", "", "", "", "세부사업"],
+            ["가", "공사", "", "", "1,234,567", "1.5억", "", "추진", "", "공사"],
+          ],
+        },
+      ],
+      2026,
+    )!;
+    const row = r.projects[0].items[0].rows[0];
+    expect([row.cmt, row.exp]).toEqual([1_234_570, 0]);
+    expect(r.checks).toEqual(["5행: 원인행위 1,234,567원을 1,234,570원으로 반올림했어요(십원 단위)", '5행: 집행액 "1.5억"를 읽지 못했어요(비워 넣었어요)']);
+  });
 });
