@@ -529,6 +529,17 @@ fn complaints(state: State<AppState>) -> Result<Vec<Complaint>, String> {
     with_store(&state, |s| s.complaints())
 }
 
+// 민원 지도(2026-11-02): 위치·지역·유형·상태·날짜·좌표만 – 이름·연락처·내용은 돌려주지 않아요.
+#[tauri::command]
+fn complaints_map(state: State<AppState>) -> Result<Vec<gilog_core::MapComplaint>, String> {
+    with_store(&state, |s| s.complaints_map())
+}
+
+#[tauri::command]
+fn map_parcel_stats() -> (usize, usize) {
+    gilog_core::parcel_stats()
+}
+
 #[tauri::command]
 fn add_complaint(state: State<AppState>, complaint: ComplaintInput) -> Result<Complaint, String> {
     with_store(&state, |s| s.add_complaint(&complaint))
@@ -869,6 +880,8 @@ pub fn run() {
             clear_data,
             backup_before_replace,
             complaints,
+            complaints_map,
+            map_parcel_stats,
             add_complaint,
             update_complaint,
             replace_complaint_field,

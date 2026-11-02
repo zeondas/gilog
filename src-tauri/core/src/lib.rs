@@ -22,6 +22,7 @@ mod complaints;
 mod contacts;
 pub mod excel;
 mod journal;
+pub mod map;
 mod order;
 mod standard;
 mod process;
@@ -33,6 +34,7 @@ pub use clear::{ClearCounts, ClearWhat, Cleared, BEFORE_CLEAR_KEEP};
 pub use calendar::{CalKind, CalendarData, Event, EventInput, Holiday, BUILTIN_HOLIDAYS, KIND_COLORS, REMIND_MAX, SYSTEM_KINDS};
 pub use complaints::{Complaint, ComplaintImport, ComplaintInput, DEFAULT_STATUS};
 pub use contacts::{Contact, ContactImport, ContactInput, ContactsData, Project, ProjectGroup, PROJECT_COLORS};
+pub use map::{geocode, parcel_stats, MapComplaint};
 pub use journal::{DayInfo, Entry, EntryInput, JournalData, JournalImportRow, JournalLine};
 pub use order::{fill_order, image_size, OrderFill, OrderKind, OrderReport};
 pub use standard::{fill_standard, korean_date, StdItem, STANDARD_TEMPLATE};
@@ -47,8 +49,8 @@ pub const BACKUP_DIR: &str = "backup";
 /// 자동 백업은 마지막으로 연 날 7개만 남겨요.
 pub const BACKUP_KEEP: usize = 7;
 /// 이 앱이 아는 자료 형식 버전이에요. 표나 칸을 바꾸면 하나 올리고 `migrate()`에 적어요.
-/// 0 = 버전 번호를 두기 전 파일(0.53.0까지).
-pub const SCHEMA_VERSION: i32 = 1;
+/// 0 = 버전 번호를 두기 전 파일(0.53.0까지). 2 = 민원 좌표 칸 4개(민원 지도, 2026-11-02).
+pub const SCHEMA_VERSION: i32 = 2;
 
 /// 열쇠 정보(`key.json`·백업 첫 줄)에서 받는 값의 위 한도: 메모리 1GB(KiB 단위)·반복 10·병렬 16
 const META_MAX_M_COST: u32 = 1024 * 1024;

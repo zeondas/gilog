@@ -12,6 +12,7 @@ import { ModulesCard, ModuleCard, KeysCard, GoogleRows, FilesRows, ListGroup, Li
 import { PasswordChange } from "./Dialogs";
 import { ClearCard } from "./Clear";
 import { Row, Toggle, X } from "./parts";
+import { MapRows } from "./MapRows";
 
 /** 화면 크기 단계(2026-10-21 화면 배율, 사용자 ② 1안) – 값은 prefs.fontSize 그대로, 13 = 100% */
 const SCREEN_SIZES: [number, string][] = [
@@ -36,7 +37,7 @@ type Props = {
 };
 
 /** 설정이 있는 모듈만 "모듈별 설정"에 카드를 둬요(사이드바 순서). 없는 모듈(할 일·업무연락처)은 빼요 – 2026-10-18 사용자. 집행현황은 팀 공유(2026-10-20). */
-const SET_SCREENS = SCREENS.filter((sc) => (["explorer", "complaints", "process", "budget", "calendar", "journal"] as string[]).includes(sc.id));
+const SET_SCREENS = SCREENS.filter((sc) => (["explorer", "complaints", "map", "process", "budget", "calendar", "journal"] as string[]).includes(sc.id));
 
 export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onModules, onClose }: Props) {
   const [s, setS] = useState<Settings | null>(null);
@@ -422,6 +423,8 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
               </Row>
               <AddressRows />
             </>
+          ) : sc.id === "map" ? (
+            <MapRows />
           ) : sc.id === "process" ? (
             <ProcessRows p={s.process} onChange={(process) => update({ ...s, process })} />
           ) : sc.id === "budget" ? (
