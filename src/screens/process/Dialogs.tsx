@@ -6,6 +6,7 @@ import { DelMark } from "../../Icons";
 import { DialogX } from "../../DialogX";
 import { overlayDown, useOutsideClose } from "../../useOutsideClose";
 import { koIndex } from "../../journal";
+import { rowKeys } from "../../keys";
 import { fileName } from "../../process";
 import { AskBand } from "../../AskBand";
 import { Floating } from "./Menu";
@@ -41,6 +42,7 @@ export function WorksDialog({
   const [ask, setAsk] = useState<{ id: number; rect: DOMRect } | null>(null);
   const [err, setErr] = useState("");
   const editRef = useRef<HTMLDivElement>(null);
+  const newRef = useRef<HTMLDivElement>(null);
 
   const contactOf = (id: number | null) => cd.contacts.find((c) => c.id === id);
 
@@ -215,7 +217,8 @@ export function WorksDialog({
               </div>
             );
           })}
-          <div className="pr-wgrid pr-wrow pr-wnew">
+          {/* 신규 줄 키(Enter 규칙, QC PR-04): Enter·Tab = 다음 칸, 마지막 칸이면 등록, Shift+Tab = 앞 칸 */}
+          <div ref={newRef} className="pr-wgrid pr-wrow pr-wnew" onKeyDown={(e) => rowKeys(e, newRef.current, () => void add())}>
             <ProjectPick d={draft} cd={cd} onChange={setDraft} placeholder="업무연락처 사업 찾기" />
             <input className="cell-input" placeholder="예: 동부권 도로시설물 1지구" aria-label="새 축약 공사명" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
             <AgentInputs d={draft} contacts={cd.contacts} onChange={setDraft} />
@@ -303,7 +306,11 @@ function ProjectPick({ d, cd, onChange, placeholder }: { d: Draft; cd: ContactsD
           if (!openList || e.nativeEvent.isComposing || n === 0) return;
           if (e.key === "ArrowDown") (e.preventDefault(), setHi((hi + 1) % n));
           if (e.key === "ArrowUp") (e.preventDefault(), setHi((hi - 1 + n) % n));
-          if (e.key === "Enter" || e.key === "Tab") choose(hi < cands.length ? cands[hi] : null);
+          // 목록이 열려 있으면 Enter는 후보 확정만(한 번 더 Enter가 다음 칸), Tab은 확정하고 다음 칸(Enter 규칙)
+          if (e.key === "Enter" || e.key === "Tab") {
+            if (e.key === "Enter") e.preventDefault();
+            choose(hi < cands.length ? cands[hi] : null);
+          }
           if (e.key === "Escape") (e.stopPropagation(), setOpenList(null));
         }}
       />
@@ -368,6 +375,7 @@ function AgentInputs({ d, contacts, onChange }: { d: Draft; contacts: Contact[];
           if (e.key === "ArrowDown") (e.preventDefault(), setHi((hi + 1) % Math.max(1, n)));
           if (e.key === "ArrowUp") (e.preventDefault(), setHi((hi - 1 + n) % Math.max(1, n)));
           if (e.key === "Enter" || e.key === "Tab") {
+            if (e.key === "Enter") e.preventDefault(); // 확정만(한 번 더 Enter가 다음 칸), Tab은 확정하고 다음 칸
             if (hi < cands.length) choose(cands[hi]);
             else choose(null);
           }
