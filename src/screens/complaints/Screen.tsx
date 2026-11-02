@@ -30,6 +30,8 @@ import {
   passes,
   readStatusFilter,
   shortIntake,
+  addedType,
+  PLACE_SAMPLE,
 } from "../../complaints";
 import { parseLines } from "../../bullets";
 import { todayStr } from "../../journal";
@@ -193,6 +195,12 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
     } catch (e) {
       setNote(errorText(e));
     }
+  }
+
+  /** 목록에 없는 민원유형을 적어 등록·저장하면 설정 민원유형 목록 끝에 저절로 더해요(QC CM-07, 2026-11-02 사용자 1안 – 목록이 비어도 등록을 막지 않아요). */
+  function learnType(input: ComplaintInput) {
+    const ctype = addedType(settings.ctype, input.ctype);
+    if (ctype) void saveLists({ status: settings.status, intake: settings.intake, ctype });
   }
 
   const all = list ?? [];
@@ -394,6 +402,7 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
         <NewRow lists={settings} short={layout.short} onAdd={async (input) => {
           const c = await run(api.addComplaint(input));
           if (c) {
+            learnType(input);
             // 거르는 중이라 새 민원이 안 보이면 거르기를 풀어요.
             if (!passes(c, filters)) clearFilters();
             if (query && !matches(c, query)) setQ("");
@@ -423,6 +432,7 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
                     setEditId(null);
                     if (same(c, input)) return;
                     const r = await run(api.updateComplaint(c.id, input));
+                    if (r) learnType(input);
                     // 접수일·접수유형·위치가 바뀌면 자리와 연번이 바뀌어요 – 다시 읽고 그 자리로 가요.
                     if (r) goTo(r.id, await reload());
                   }}
@@ -518,6 +528,7 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
       {memoOf && (
         <MemoDialog
           c={memoOf}
+          placeStyle={settings.placeStyle}
           onClose={() => setMemoId(null)}
           onSave={async (memo) => {
             setMemoId(null);
@@ -611,9 +622,10 @@ function useColNeeds(list: Complaint[] | null, doneFolded: boolean, today: strin
         intake: at("intake", { full: p90(all.map((c) => tw(c.intake, 500))), short: max(all.map((c) => tw(shortIntake(c.intake), 500))) }),
         received: at("received", { full: date, short: nw("26-10-16") }),
         ctype: at("ctype", { full: p90(all.map((c) => tw(c.ctype))) }),
+        // 보기 글자 폭이 바닥이에요 – 0건(자료 지우기 뒤)이어도 신규 줄 "리·동 지번"이 잘리지 않고 건이 있을 때와 같은 처음 폭(QC 추가-01).
         place: at("place", {
-          full: max(all.map((c) => tw(placeText(c.area, c.place, placeStyle)))),
-          short: max(all.map((c) => tw(c.place))),
+          full: max([tw(PLACE_SAMPLE.full), ...all.map((c) => tw(placeText(c.area, c.place, placeStyle)))]),
+          short: max([tw(PLACE_SAMPLE.short), ...all.map((c) => tw(c.place))]),
         }),
         person: at("person", { full: tw(PHONE_SAMPLE), more: p90(all.map((c) => tw([c.person, c.phone].filter(Boolean).join(" ")))) }),
         // 줄인 모양에서도 답변 끝난 민원은 D-day 대신 짧은 날짜(26-10-16)를 보여서 그 폭도 넣어요(2026-10-21 화면 배율 – 잘림).
