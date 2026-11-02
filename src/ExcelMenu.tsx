@@ -7,7 +7,7 @@ import { BusyButton } from "./BusyButton";
 import { DialogX } from "./DialogX";
 import { useEffect, useRef, useState } from "react";
 import { api, errorText, inApp } from "./api";
-import { ExcelExport, ExcelSheet, SHEET_TITLE, SheetKind, defaultName } from "./excel";
+import { ExcelExport, ExcelSheet, SHEET_TITLE, SheetKind, defaultName, importNotes } from "./excel";
 import { todayStr } from "./journal";
 import { overlayDown, useOutsideClose } from "./useOutsideClose";
 
@@ -146,7 +146,9 @@ export function ExcelMenu<T>({
     try {
       const sheet = await api.excelRead(path, kind);
       remember(path);
-      setAsk({ path, rows: parse(sheet), note: note ? note(sheet) : "", step: "pick" });
+      // 화면이 주는 말 + 모든 화면 공통 말(숨긴 줄·못 읽은 날짜 – 공통 ✔5·✔6)
+      const notes = [note ? note(sheet) : "", ...importNotes(kind, sheet)].filter(Boolean);
+      setAsk({ path, rows: parse(sheet), note: notes.join(" · "), step: "pick" });
     } catch (e) {
       setToast(e === "invalid" ? `${title} 양식이 아니에요` : e === "io" ? "파일을 열지 못했어요." : errorText(e));
     }
@@ -256,6 +258,23 @@ export function ImportSteps({
   onGo: () => void;
 }) {
   const pickRef = useRef<HTMLDivElement>(null);
+  // 대체하기 전 백업(공통 ✔1, E-6): 모든 화면이 이 창을 쓰니 여기서 한 번 남겨요. 실패하면 대체하지 않아요.
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+  const replaceGo = async () => {
+    if (busy || saving) return;
+    setSaving(true);
+    setErr("");
+    try {
+      await api.backupBeforeReplace();
+    } catch (e) {
+      setSaving(false);
+      setErr(`대체하기 전 백업을 남기지 못해 멈췄어요 · ${errorText(e)}`);
+      return;
+    }
+    setSaving(false);
+    onGo();
+  };
   const won = (x: number) => x.toLocaleString();
   if (!n) {
     return (
@@ -384,14 +403,19 @@ export function ImportSteps({
           </div>
         )}
         {warn && <div className="xl-ask-note">{warn}</div>}
+        {err && (
+          <div className="xl-ask-note" role="alert">
+            {err}
+          </div>
+        )}
         <div className="xl-ask-path">{path}</div>
       </div>
       <div className="xl-ask-foot">
         {back}
-        <button type="button" className="btn btn-ctrl btn-text" autoFocus disabled={busy} onClick={onCancel}>
+        <button type="button" className="btn btn-ctrl btn-text" autoFocus disabled={busy || saving} onClick={onCancel}>
           취소
         </button>
-        <BusyButton className="btn btn-ctrl btn-text btn-danger" busy={busy} busyText="가져오는 중…" onClick={onGo}>
+        <BusyButton className="btn btn-ctrl btn-text btn-danger" busy={busy || saving} busyText={saving ? "백업하는 중…" : "가져오는 중…"} onClick={replaceGo}>
           지우고 대체하기
         </BusyButton>
       </div>

@@ -484,6 +484,12 @@ fn clear_journal(state: State<AppState>) -> Result<usize, String> {
     with_store(&state, |s| s.clear_journal())
 }
 
+/// 업무일지 엑셀 가져오기를 한 트랜잭션으로(공통 ✔3, E-5·E-24) – (덮은 수, 더한 수, 그대로 둔 수)
+#[tauri::command]
+fn import_journal(state: State<AppState>, rows: Vec<gilog_core::JournalImportRow>, days: Vec<DayInfo>, replace: Option<bool>) -> Result<(usize, usize, usize), String> {
+    with_store(&state, |s| s.import_journal(&rows, &days, replace.unwrap_or(false)))
+}
+
 // ---------- 자료 지우기(설정 ✔1, 2026-10-30) ----------
 // 화면마다 지금 건수, 그리고 지우기(지우기 전 backup\gilog_날짜_before-clear.gilogbak을 남기고 한 트랜잭션).
 
@@ -495,6 +501,12 @@ fn clear_counts(state: State<AppState>, year: i64) -> Result<gilog_core::ClearCo
 #[tauri::command]
 fn clear_data(state: State<AppState>, what: String, year: Option<i64>) -> Result<gilog_core::Cleared, String> {
     with_store(&state, |s| s.clear(gilog_core::ClearWhat::parse(&what, year)?))
+}
+
+/// 엑셀 "대체하기" 전 백업(공통 ✔1, E-6) – 공통 가져오기 창(ImportSteps)이 모든 화면에서 불러요. 백업 파일 경로(미리 보기는 없음).
+#[tauri::command]
+fn backup_before_replace(state: State<AppState>) -> Result<Option<String>, String> {
+    with_store(&state, |s| Ok(s.backup_before_replace()?.map(|p| p.to_string_lossy().to_string())))
 }
 
 #[tauri::command]
@@ -829,8 +841,10 @@ pub fn run() {
             set_journal_day,
             delete_journal_day,
             clear_journal,
+            import_journal,
             clear_counts,
             clear_data,
+            backup_before_replace,
             complaints,
             add_complaint,
             update_complaint,

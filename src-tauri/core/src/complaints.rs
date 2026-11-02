@@ -7,6 +7,7 @@
 //! - 접수유형·민원유형·상태는 적은 글자 그대로 둬요. 설정 목록에서 지워도 기록의 값은 남아요.
 
 use rusqlite::{params, OptionalExtension, Row};
+use std::collections::{HashMap, VecDeque};
 use serde::{Deserialize, Serialize};
 
 use crate::journal::valid_date;
@@ -412,41 +413,65 @@ impl Store {
     pub fn import_complaints(&mut self, rows: &[ComplaintImport], replace: bool) -> Result<(usize, usize)> {
         let tx = self.conn.transaction()?;
         if replace {
+            // 민원 번호가 1부터 다시 쓰여 민원처리 건이 엉뚱한 새 민원을 가리키지 않게 이어진 것을 먼저 끊어요
+            // (공통 ✔4, E-7 – 자료 지우기처럼 건은 남기고 잇기만 비워요).
+            tx.execute("UPDATE cases SET complaint = NULL WHERE complaint IS NOT NULL", [])?;
             tx.execute("DELETE FROM complaints", [])?;
+        }
+        // 덮어쓰기 짝: (접수일, 접수유형, 위치) → 아직 짝짓지 않은 기존 민원들(번호 순). 한 번 읽어 두고 줄마다 앞에서 하나씩
+        // 꺼내요 – 같은 열쇠가 여럿이어도 파일 순서대로 하나씩 짝짓고, 이번에 더한 민원은 이 표에 없어 짝이 되지 않아요
+        // (공통 ✔2, E-1·E-2). 줄마다 찾지 않아 10만 건 위 덮어쓰기도 빨라요(✔8, E-19).
+        let mut olds: HashMap<(String, String, String), VecDeque<(i64, String, String)>> = HashMap::new();
+        if !replace {
+            let mut st = tx.prepare("SELECT id, received, intake, place, person, phone FROM complaints ORDER BY id")?;
+            let it = st.query_map([], |r| {
+                Ok(((r.get::<_, String>(1)?, r.get::<_, String>(2)?, r.get::<_, String>(3)?), (r.get::<_, i64>(0)?, r.get::<_, String>(4)?, r.get::<_, String>(5)?)))
+            })?;
+            for x in it {
+                let (k, v) = x?;
+                olds.entry(k).or_default().push_back(v);
+            }
         }
         let mut no: i64 = tx.query_row("SELECT COALESCE(MAX(no), 0) FROM complaints", [], |r| r.get(0))?;
         let (mut updated, mut added) = (0, 0);
-        for r in rows {
-            let c = &r.input;
-            let t = |s: &str| s.trim().to_string();
-            let status = t(&c.status);
-            let status = if status.is_empty() { DEFAULT_STATUS.to_string() } else { status };
-            // 위치가 파주시 도로명주소면 지번으로 바꿔요(표에 꼭 맞을 때만, 후보가 필요하면 그대로).
-            let (area, place, road) = convert(&t(&c.area), &t(&c.place), &t(&c.road));
-            let (intake, received) = (t(&c.intake), t(&c.received));
-            let same: Option<i64> = if replace || (intake.is_empty() && received.is_empty() && place.is_empty()) {
-                None
-            } else {
-                tx.query_row(
-                    "SELECT id FROM complaints WHERE received = ?1 AND intake = ?2 AND place = ?3 ORDER BY id LIMIT 1",
-                    params![received, intake, place],
-                    |r| r.get(0),
-                )
-                .optional()?
-            };
-            if let Some(id) = same {
-                tx.execute(
-                    "UPDATE complaints SET intake = ?2, received = ?3, ctype = ?4, area = ?5, place = ?6, person = ?7, phone = ?8,
-                     body = ?9, action = ?10, due = ?11, status = ?12, memo = ?13, road = ?14, done = ?15 WHERE id = ?1",
-                    params![
+        {
+            let mut upd = tx.prepare(
+                "UPDATE complaints SET intake = ?2, received = ?3, ctype = ?4, area = ?5, place = ?6, person = ?7, phone = ?8,
+                 body = ?9, action = ?10, due = ?11, status = ?12, memo = ?13, road = ?14, done = ?15 WHERE id = ?1",
+            )?;
+            let mut ins = tx.prepare(
+                "INSERT INTO complaints (no, intake, received, ctype, area, place, person, phone, body, action, due, status, memo, road, done)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+            )?;
+            for r in rows {
+                let c = &r.input;
+                let t = |s: &str| s.trim().to_string();
+                let status = t(&c.status);
+                let status = if status.is_empty() { DEFAULT_STATUS.to_string() } else { status };
+                // 위치가 파주시 도로명주소면 지번으로 바꿔요(표에 꼭 맞을 때만, 후보가 필요하면 그대로).
+                let (area, place, road) = convert(&t(&c.area), &t(&c.place), &t(&c.road));
+                let (intake, received) = (t(&c.intake), t(&c.received));
+                let same = if replace || (intake.is_empty() && received.is_empty() && place.is_empty()) {
+                    None
+                } else {
+                    olds.get_mut(&(received.clone(), intake.clone(), place.clone())).and_then(|q| q.pop_front())
+                };
+                let (mut person, mut phone) = (t(&c.person), t(&c.phone));
+                if let Some((id, old_person, old_phone)) = same {
+                    // 옛 민원(민원인·연락처 칸이 따로)은 내보낼 때 "이름 연락처" 한 칸이 돼요 – 다시 가져와 같은 글자면
+                    // 칸을 나눈 그대로 둬요(공통 ✔2, E-22).
+                    if !old_phone.is_empty() && phone.is_empty() && person == format!("{old_person} {old_phone}").trim() {
+                        (person, phone) = (old_person, old_phone);
+                    }
+                    upd.execute(params![
                         id,
                         intake,
                         received,
                         t(&c.ctype),
                         area,
                         place,
-                        t(&c.person),
-                        t(&c.phone),
+                        person,
+                        phone,
                         lines(&c.body),
                         lines(&c.action),
                         t(&c.due),
@@ -454,24 +479,20 @@ impl Store {
                         r.memo.trim(),
                         road,
                         t(&c.done)
-                    ],
-                )?;
-                updated += 1;
-                continue;
-            }
-            no += 1;
-            tx.execute(
-                "INSERT INTO complaints (no, intake, received, ctype, area, place, person, phone, body, action, due, status, memo, road, done)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
-                params![
+                    ])?;
+                    updated += 1;
+                    continue;
+                }
+                no += 1;
+                ins.execute(params![
                     no,
                     intake,
                     received,
                     t(&c.ctype),
                     area,
                     place,
-                    t(&c.person),
-                    t(&c.phone),
+                    person,
+                    phone,
                     lines(&c.body),
                     lines(&c.action),
                     t(&c.due),
@@ -479,9 +500,9 @@ impl Store {
                     r.memo.trim(),
                     road,
                     t(&c.done)
-                ],
-            )?;
-            added += 1;
+                ])?;
+                added += 1;
+            }
         }
         renumber(&tx)?;
         tx.commit()?;

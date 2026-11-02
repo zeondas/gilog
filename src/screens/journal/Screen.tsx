@@ -245,19 +245,13 @@ export default function JournalScreen({
             // 덮어쓰기의 "같은 기록" = 날짜 + 시각 + 상대(2026-10-25 사용자 ②3안, 공통 ✔5)
             preview={([r]) => ({ same: r ? r.same.filter((x) => x !== null).length : 0, total: data.entries.length })}
             onImport={async ([r], mode) => {
-              // 대체하기: 기록·날짜 머리 줄을 한 번에 모두 지운 뒤 넣어요.
-              if (mode === "replace") await api.clearJournal();
-              let n = 0;
-              for (const [i, e] of r.entries.entries()) {
-                const id = mode === "merge" ? r.same[i] : null;
-                if (id !== null) await api.updateEntry(id, e);
-                else await api.addEntry(e);
-                n++;
-              }
-              // 날짜별 머리 줄: 파일에 적힌 날은 파일 값으로(덮어쓰기·대체하기 모두).
-              for (const d of r.days) await api.setDay(d);
+              // 한 번에 넣어요(공통 ✔3): 대체하기는 지우기까지 함께, 한 줄이라도 틀리면 아무것도 바뀌지 않아요.
+              // 날짜별 머리 줄은 파일에 적힌 날만 파일 값으로(덮어쓰기·대체하기 모두).
+              const merge = mode === "merge";
+              const rows = r.entries.map((e, i) => ({ ...e, same: merge ? r.same[i] : null, keep: merge && r.keep[i] }));
+              const [u, a, k] = await api.importJournal(rows, r.days, !merge);
               setData(await api.journalData());
-              return n;
+              return k ? { n: u + a + k, note: `글자가 같은 메모 ${k}건은 그대로 뒀어요` } : u + a;
             }}
           />
           <button type="button" className="btn btn-ctrl btn-text jn-print" onClick={() => setPrintOpen(true)}>

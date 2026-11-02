@@ -306,6 +306,9 @@ impl Store {
     pub fn import_contacts(&mut self, rows: &[ContactImport], replace: bool) -> Result<(usize, usize)> {
         let tx = self.conn.transaction()?;
         if replace {
+            // 연락처 번호가 다시 쓰여 민원처리 공사의 현장대리인이 엉뚱한 새 사람을 가리키지 않게 먼저 끊어요(공통 ✔4, E-8).
+            // 공사의 사업(`project`)은 사업 표가 그대로 남아 이어진 채 둬요.
+            tx.execute("UPDATE works SET contact = NULL WHERE contact IS NOT NULL", [])?;
             tx.execute("DELETE FROM contact_projects", [])?;
             tx.execute("DELETE FROM contacts", [])?;
         }
