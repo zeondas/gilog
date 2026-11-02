@@ -30,7 +30,7 @@
    - SendUserFile로 보내고, Releases 주소 https://github.com/zeondas/gilog/releases/tag/build-<번호> 도 함께 적어요.
 
 **끝낼 때**
-- 현황판: 빌드 줄 = 0.N.0(build-번호)·넣은 가지·설치 파일 크기·걸린 시간·"사용자 윈도우 시험 기다림". 합친 가지 줄은 지우고, [docs/history.md](https://github.com/zeondas/gilog/blob/main/docs/history.md) "버전별"에 `### 0.N.0(build-번호)` 칸을 만들어 가지마다 "들어간 것 · 시험" 두 줄로 옮겨요. 다 쓴 가지는 현황판 규칙 8에 "지워도 됨". `[skip ci]`로 main에.
+- 현황판: 빌드 줄 = 0.N.0(build-번호)·넣은 가지·설치 파일 크기·걸린 시간·"사용자 윈도우 시험 기다림". 합친 기능 세션 줄은 지우지 않고(현황판 규칙 10 – 세션 16줄은 고정) 가지 칸을 "(코딩 때 `wip/…`)"·상태 칸을 "0.N.0에 들어감"으로 바꾸고, 그 세션의 대기 목록 ✔가 남아 있으면 지워요. [docs/history.md](https://github.com/zeondas/gilog/blob/main/docs/history.md) "버전별"에 `### 0.N.0(build-번호)` 칸을 만들어 가지마다 "들어간 것 · 시험" 두 줄로 옮겨요. 다 쓴 가지는 현황판 규칙 8에 "지워도 됨". `[skip ci]`로 main에.
 - 사용자에게(해요체, 기술 용어 없이, 링크 함께) 번호 목록 세 가지:
   1. 들어간 것
   2. 제가 확인한 것(검사 결과, 두 grep 0줄, 버전 4곳)
