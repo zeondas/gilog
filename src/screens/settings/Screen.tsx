@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { BudgetShareRows } from "../../BudgetShareCard";
 import { ACCENTS, api, Complaint, DEFAULT_PREFS, errorText, Prefs, Status } from "../../api";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, Settings } from "../../settingsStore";
+import type { GateNote } from "../../Gate";
 import { isOn, Modules, onScreens, SCREENS, firstOn } from "../../screens";
 import Logo, { AppIcon } from "../../Logo";
 import { VERSION } from "../../version";
@@ -26,7 +27,8 @@ type Props = {
   prefs: Prefs;
   onPrefs: (p: Prefs) => Promise<void>;
   status: Status;
-  onLocked: () => void;
+  /** 앱이 잠겼어요(자료 옮기기·백업 불러오기) – 잠금 화면 띠에 보일 안내를 함께 넘겨요(버그 사냥 17) */
+  onLocked: (note?: GateNote) => void;
   /** 모듈을 켜고 끄면 사이드바에 알려요. */
   onModules: (m: Modules) => void;
   /** 설정 닫기(× 단추) – 마지막으로 보던 화면으로 */

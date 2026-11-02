@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-bstatus-set-many"
+description = "Enables the bstatus_set_many command without any pre-configured scope."
+commands.allow = ["bstatus_set_many"]
+
+[[permission]]
+identifier = "deny-bstatus-set-many"
+description = "Denies the bstatus_set_many command without any pre-configured scope."
+commands.deny = ["bstatus_set_many"]

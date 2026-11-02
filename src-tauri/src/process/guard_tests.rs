@@ -29,9 +29,20 @@ fn exe_must_match_saved_setting() {
 #[test]
 fn exe_name_must_be_claude() {
     let bad = parse_saved_process(Some(r#"{"process":{"claude":"C:\\x\\evil.exe"}}"#));
-    assert_eq!(checked_exe("C:\\x\\evil.exe", &bad).unwrap_err(), crate::guard::DENIED);
+    assert_eq!(checked_exe("C:\\x\\evil.exe", &bad).unwrap_err(), NOT_CLAUDE);
     let up = parse_saved_process(Some(r#"{"process":{"claude":"C:\\x\\..\\claude.exe"}}"#));
     assert_eq!(checked_exe("C:\\x\\..\\claude.exe", &up).unwrap_err(), crate::guard::DENIED);
+}
+
+#[test]
+fn claude_name_check() {
+    assert!(is_claude_name(""));
+    assert!(is_claude_name("claude"));
+    assert!(is_claude_name("C:\\Users\\me\\.local\\bin\\CLAUDE.EXE"));
+    assert!(is_claude_name("d:/tools/claude.exe "));
+    assert!(!is_claude_name("D:\\gilog_test\\qc\\notclaude.exe"));
+    assert!(!is_claude_name("C:\\Windows\\System32\\cmd.exe"));
+    assert!(!is_claude_name("C:\\x\\claude.exe.bat"));
 }
 
 #[test]

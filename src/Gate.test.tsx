@@ -112,3 +112,14 @@ describe("Gate 손상 띠", () => {
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("Gate 처음 안내(버그 사냥 17 – 설정에서 옮기기·불러오기 뒤)", () => {
+  it("넘겨받은 안내를 띠로 보이고, 열기를 누르면 지워요", async () => {
+    api.unlock.mockResolvedValue(undefined);
+    await act(async () => void render(<Gate mode="unlock" folder="문서" onOpen={onOpen} note={{ text: "백업을 불러왔어요. 그 백업의 비밀번호로 다시 열어 주세요.", tone: "info" }} />));
+    expect(screen.getByText("백업을 불러왔어요. 그 백업의 비밀번호로 다시 열어 주세요.")).toBeTruthy();
+    await unlockWith("abcd1234");
+    expect(screen.queryByText("백업을 불러왔어요. 그 백업의 비밀번호로 다시 열어 주세요.")).toBeNull();
+    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+});

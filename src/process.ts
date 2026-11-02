@@ -254,3 +254,12 @@ ${m.files.map((f) => `   - ${f}`).join("\n")}
 다른 메일을 열거나 지우지 않아요. 민원인 이름·연락처는 쓰지 않아요.
 `;
 }
+
+/** Claude 실행 파일 칸 값의 파일 이름이 claude·claude.exe인지(대소문자·앞뒤 빈칸 무시, 빈 값은 처음 값 "claude").
+ *  Rust `is_claude_name`(process/claude.rs)과 같은 규칙 – 설정 칸이 그 자리에서 알려요(QC ST-19). */
+export function isClaudeName(path: string): boolean {
+  const t = path.trim();
+  if (!t) return true;
+  const name = (t.split(/[\\/]/).pop() ?? "").toLowerCase();
+  return name === "claude.exe" || name === "claude";
+}

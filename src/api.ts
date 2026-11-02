@@ -11,7 +11,8 @@ import { previewCall } from "./previewCore";
 
 export type Status = { exists: boolean; unlocked: boolean; folder: string };
 /** 자동 백업(하루 하나, 최근 7개) – 잠겨 있어도 읽어요. latest는 YYYY-MM-DD */
-export type BackupInfo = { folder: string; count: number; latest: string | null; latestPath: string | null };
+/** 자동 백업 상태(Rust `BackupInfo`, camelCase). `fail`은 이번에 잠금을 풀 때 자동 백업이 실패했으면 그 오류 이름(버그 사냥 20). */
+export type BackupInfo = { folder: string; count: number; latest: string | null; latestPath: string | null; today?: string; fail?: string | null };
 
 /** 강조색 네 가지. 보라가 기본이에요(tokens.css에 묶음 없음). */
 export type Accent = "purple" | "noctua" | "blue" | "ink";
@@ -69,6 +70,7 @@ export const DEFAULT_PREFS: Prefs = {
 /** 저장 쪽이 돌려주는 실패 이름이에요. */
 export type ErrorCode =
   | "wrong_password"
+  | "not_claude"
   | "already_exists"
   | "not_found"
   | "password_too_short"
@@ -581,10 +583,15 @@ export const api = {
 };
 
 /** 실패 이름을 화면에 보여 줄 문장으로 바꿔요. */
+/** Claude 실행 파일 이름이 claude(.exe)가 아닐 때 – 설정 칸과 [민원 불러오기] 안내가 같은 문구(QC ST-19) */
+export const NOT_CLAUDE_TEXT = "claude 실행 파일이 아니에요. 설정 › 민원처리의 Claude 실행 파일을 확인해 주세요.";
+
 export function errorText(e: unknown): string {
   switch (e as ErrorCode) {
     case "wrong_password":
       return "비밀번호가 맞지 않아요.";
+    case "not_claude":
+      return NOT_CLAUDE_TEXT;
     case "password_too_short":
       return "비밀번호는 4자 이상이어야 해요.";
     case "hello_unavailable":

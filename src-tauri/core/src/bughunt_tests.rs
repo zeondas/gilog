@@ -371,3 +371,37 @@ fn s22_huge_cost_in_key_info_is_refused_quickly() {
     let o = other();
     assert_eq!(restore_backup(o.path(), &broken, PW).err().map(|e| e.code()), Some("bad_backup"));
 }
+
+// ---------- 17 불러오기 전에 먼저 확인(설정 세션 `wip/settings6`) ----------
+
+#[test]
+fn t17_check_backup_leaves_open_data_alone() {
+    let src = tempfile::tempdir().unwrap();
+    let b = src.path().join("b.gilogbak");
+    {
+        let s = mk(src.path());
+        s.set("note", "백업 쪽").unwrap();
+        s.export_backup(&b).unwrap();
+    }
+    let t = tempfile::tempdir().unwrap();
+    let s = mk(t.path());
+    let before = names(t.path());
+    // 비밀번호가 틀리면 그 까닭만 돌려주고, 열린 자료·폴더는 그대로예요
+    assert_eq!(check_backup(t.path(), &b, "틀린비번99").err().map(|e| e.code()), Some("wrong_password"));
+    assert_eq!(names(t.path()), before, "임시 폴더가 남으면 안 돼요");
+    // 백업이 아닌 파일 · 잘린 파일
+    let junk = src.path().join("junk.gilogbak");
+    fs::write(&junk, b"hello").unwrap();
+    assert!(check_backup(t.path(), &junk, PW).is_err());
+    let cut = src.path().join("cut.gilogbak");
+    let bytes = fs::read(&b).unwrap();
+    fs::write(&cut, &bytes[..bytes.len() / 2]).unwrap();
+    assert_eq!(check_backup(t.path(), &cut, PW).err().map(|e| e.code()), Some("bad_backup"));
+    assert_eq!(names(t.path()), before);
+    // 맞으면 Ok – 지금 자료는 바뀌지 않아요(열린 채로도 돼요)
+    check_backup(t.path(), &b, PW).unwrap();
+    assert_eq!(names(t.path()), before);
+    assert_eq!(s.get("note").unwrap().as_deref(), Some("좋은 자료"));
+    drop(s);
+    assert_eq!(note(t.path(), PW).as_deref(), Some("좋은 자료"));
+}

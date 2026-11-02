@@ -298,8 +298,25 @@ pub(crate) fn with_process_exe(old: Option<&str>, exe: &str) -> Result<String, S
 }
 
 /// 설정 → 민원처리의 Claude 실행 파일 자리를 바꿔요(위험 명령 묶음, ②-2 ✔2). 실행할 때 이름 검사(`checked_exe`)는 그대로예요.
+/// 파일 이름이 claude(.exe)가 아니면(QC ST-19) – 화면은 "claude 실행 파일이 아니에요"로 알려요
+pub(crate) const NOT_CLAUDE: &str = "not_claude";
+
+/// 경로의 파일 이름이 claude·claude.exe인지(대소문자 무시). 비어 있으면 처음 값 "claude"라서 돼요.
+pub(crate) fn is_claude_name(path: &str) -> bool {
+    let t = path.trim();
+    if t.is_empty() {
+        return true;
+    }
+    let name = t.rsplit(['\\', '/']).next().unwrap_or("").to_lowercase();
+    name == "claude.exe" || name == "claude"
+}
+
 #[tauri::command]
 pub fn set_process_exe(state: State<AppState>, exe: String) -> Result<(), String> {
+    // 이름이 claude(.exe)가 아니면 저장하지 않고 그 자리에서 알려요(QC ST-19)
+    if !is_claude_name(&exe) {
+        return Err(NOT_CLAUDE.into());
+    }
     with_store(&state, |s| {
         let old = s.get("settings")?;
         let next = with_process_exe(old.as_deref(), &exe).map_err(gilog_core::Error::Meta)?;
@@ -319,10 +336,9 @@ pub(crate) fn checked_exe(req_exe: &str, saved: &SavedProcess) -> Result<PathBuf
         crate::guard::plain(&set)?;
     }
     let exe = claude_exe(&set);
-    let full = exe.to_string_lossy().to_lowercase();
-    let name = full.rsplit(['\\', '/']).next().unwrap_or("");
-    if name != "claude.exe" && name != "claude" {
-        return Err(crate::guard::DENIED.into());
+    // 이름이 다르면 까닭을 알려요(QC ST-19 – 전엔 "파일을 읽거나 쓰지 못했어요"가 떴어요)
+    if !is_claude_name(&exe.to_string_lossy()) {
+        return Err(NOT_CLAUDE.into());
     }
     Ok(exe)
 }

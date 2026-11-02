@@ -10,7 +10,9 @@ import { FormEvent, useEffect, useState } from "react";
 import { api, BackupInfo, errorText, inApp } from "./api";
 import Logo, { AppIcon } from "./Logo";
 
-type Props = { mode: "setup" | "unlock"; folder: string; onOpen: () => void };
+/** 잠금 화면이 처음부터 띄울 안내(설정에서 자료 옮기기·백업 불러오기 뒤 – 버그 사냥 17) */
+export type GateNote = { text: string; tone: "error" | "info" };
+type Props = { mode: "setup" | "unlock"; folder: string; onOpen: () => void; note?: GateNote | null };
 /** 띠 모양: 잘못(붉은 띠, 칸 테두리도 붉게) · 알림(회색 띠 – PIN 취소처럼 잘못이 아닌 것) */
 type Note = { text: string; tone: "error" | "info"; field?: boolean } | null;
 
@@ -20,10 +22,10 @@ function dayLabel(d: string): string {
   return `${m}월 ${day}일`;
 }
 
-export default function Gate({ mode, folder, onOpen }: Props) {
+export default function Gate({ mode, folder, onOpen, note: first }: Props) {
   const [password, setPassword] = useState("");
   const [again, setAgain] = useState("");
-  const [note, setNote] = useState<Note>(null);
+  const [note, setNote] = useState<Note>(first ?? null);
   const [busy, setBusy] = useState(false);
   const [pinOn, setPinOn] = useState(false);
   // 손상 안내 띠(null이면 보통 띠). msg는 되살리기가 안 됐을 때 띠 안 두 번째 줄.

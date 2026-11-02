@@ -603,6 +603,11 @@ fn today() -> String {
     chrono::Local::now().format("%Y-%m-%d").to_string()
 }
 
+/// 오늘 날짜(이 PC 시각) YYYY-MM-DD – 앱이 화면에 넘길 때 써요
+pub fn today_local() -> String {
+    today()
+}
+
 /// 자동 백업(하루 하나짜리)을 오래된 것부터: (날짜, 경로). 버전 올리기 전 백업은 빼요.
 pub fn daily_backups(dir: &Path) -> Vec<(String, PathBuf)> {
     let mut out = Vec::new();
@@ -664,9 +669,9 @@ pub fn keep_corrupt(dir: &Path) -> Result<PathBuf> {
 
 const BACKUP_MAGIC: &[u8] = b"giLog backup 1\n";
 
-/// 백업 파일을 그 파일의 암호로 열어 보고, 맞으면 지금 자료를 그것으로 바꿔요.
-/// 열려 있는 Store가 없을 때 불러야 해요.
-pub fn restore_backup(dir: &Path, from: &Path, password: &str) -> Result<()> {
+/// 백업 파일을 임시 폴더(`.restore-tmp`)에 풀고 그 암호로 열어 봐요. 맞으면 임시 폴더를 돌려줘요.
+/// 백업 쪽이 상했으면 "이 백업 파일이 손상됐어요"(버그 사냥 15), 자료 부분이 비었으면(잘린 파일) 같아요(버그 사냥 3).
+fn stage_checked(dir: &Path, from: &Path, password: &str) -> Result<PathBuf> {
     let bytes = fs::read(from)?;
     if !bytes.starts_with(BACKUP_MAGIC) {
         return Err(Error::Meta("백업 파일이 아니에요".into()));
@@ -678,12 +683,9 @@ pub fn restore_backup(dir: &Path, from: &Path, password: &str) -> Result<()> {
         .ok_or(Error::BadBackup)?;
     let meta = &rest[..nl];
     let db = &rest[nl + 1..];
-    // 자료 부분이 비었으면(잘린 파일) 빈 자료로 바꾸지 않아요(버그 사냥 3)
     if db.is_empty() {
         return Err(Error::BadBackup);
     }
-
-    // 먼저 임시 폴더에 풀어 암호가 맞는지 확인해요. 백업 쪽이 상했으면 "이 백업 파일이 손상됐어요"(버그 사냥 15).
     let tmp = stage_parts(dir, meta, db)?;
     match Store::open(&tmp, password) {
         Ok(s) => drop(s),
@@ -695,6 +697,22 @@ pub fn restore_backup(dir: &Path, from: &Path, password: &str) -> Result<()> {
             });
         }
     }
+    Ok(tmp)
+}
+
+/// 백업 파일이 온전하고 암호가 맞는지만 봐요(자료는 건드리지 않아요). 지금 자료가 열려 있어도 돼요 –
+/// 불러오기 전에 이것으로 먼저 확인하면 비밀번호가 틀려도 앱이 잠기지 않아요(버그 사냥 17).
+pub fn check_backup(dir: &Path, from: &Path, password: &str) -> Result<()> {
+    let tmp = stage_checked(dir, from, password)?;
+    let _ = fs::remove_dir_all(&tmp);
+    Ok(())
+}
+
+/// 백업 파일을 그 파일의 암호로 열어 보고, 맞으면 지금 자료를 그것으로 바꿔요.
+/// 열려 있는 Store가 없을 때 불러야 해요.
+pub fn restore_backup(dir: &Path, from: &Path, password: &str) -> Result<()> {
+    // 먼저 임시 폴더에 풀어 암호가 맞는지 확인해요.
+    let tmp = stage_checked(dir, from, password)?;
     // 맞으면 지금 파일을 바꿔요. 옛 파일의 쓰다 만 기록(-journal·-wal·-shm)은 바꿔치기가 두 파일과 함께 비켜 둬요.
     let _ = fs::remove_file(dir.join(META_NEW_FILE));
     swap_in(dir, &tmp, None)?;
