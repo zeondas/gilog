@@ -3,11 +3,13 @@
 넣는 것(모두 tools/map/source/):
   paju_parcels_v<날짜>.csv.gz   연속지적도에서 파주시만 뽑은 표(extract.py가 만듦)
   paju_roadparcels_2m.bin.gz    지목 '도' 필지 테두리(roads.py가 만듦, EPSG:5181 정수 m)
-  kras_paju_road_<날짜>.dxf.gz  KRAS 연속주제도 DXF(옛 Bessel 중부원점 EPSG:5174)
+  kras_paju_road_<날짜>.dxf.gz  KRAS 연속주제도 DXF – 도로(옛 Bessel 중부원점 EPSG:5174)
+  kras_paju_river_<날짜>.dxf.gz KRAS 연속주제도 DXF – 하천구역·소하천구역(5174)
+  kras_paju_park_<날짜>.dxf.gz  KRAS 연속주제도 DXF – 공간시설(공원, 5174)
 
 만드는 것(data/map/, 앱에 들어가요):
   paju_parcels.bin.gz  지번 → 좌표 표(core가 읽음)
-  paju_layers.bin.gz   배경 네 층(화면이 읽음)
+  paju_layers.bin.gz   배경 여덟 층(화면이 읽음) – 도로 넷 + 국가하천·지방하천·소하천·공원
 
 좌표는 모두 EPSG:5181(중부원점 GRS80, m). DXF만 5174 → 5181로 바꿔요(§7-24, 300m 비낌).
 
@@ -95,10 +97,10 @@ def simplify_ring(ring, tol):
     return dp(ring, tol)
 
 
-def read_dxf():
+def read_dxf(pat="kras_paju_road_*.dxf.gz"):
     from pyproj import Transformer
 
-    path = newest("kras_paju_road_*.dxf.gz")
+    path = newest(pat)
     L = gzip.open(path, "rt", encoding="utf-8", errors="replace").read().split("\n")
     i = L.index("ENTITIES") + 1
     ents, cur = [], None
@@ -161,6 +163,39 @@ def put_ring(buf, ring):
         px, py = x, y
 
 
+# 국가하천 고르기(사용자 11-02 23:23·23:28): 한강·임진강 전 구간 + 공릉천 전체 + 문산천 광탄면 경계 아래.
+# 자료에 등급 표시가 없어 조각 모양으로 골라요 – 평균 폭(넓이×2 ÷ 둘레)이 이보다 넓은 하천구역 조각이 국가하천이에요.
+# 2026-11-02 자료: 국가 조각 중 가장 좁은 것 96m(임진강 적성면 위쪽) · 지방 조각 중 가장 넓은 것 88m(문산천 광탄면 안).
+NATIONAL_MIN_WIDTH = 92.0
+
+
+def river_layers():
+    from shapely.geometry import Polygon
+
+    ents = read_dxf("kras_paju_river_*.dxf.gz")
+    nat, loc, small = [], [], []
+    for e in ents:
+        if len(e["pts"]) < 4:
+            continue
+        if e["layer"] == "연속주제_하천_용도구역":
+            poly = Polygon(e["pts"]).buffer(0)
+            width = 2 * poly.area / max(poly.length, 1e-9)
+            (nat if width > NATIONAL_MIN_WIDTH else loc).append(e["pts"])
+        elif e["layer"] == "연속주제_소하천_소하천구역":
+            small.append(e["pts"])
+    assert 10 <= len(nat) <= 40, f"국가하천 조각 {len(nat)} – 자료가 바뀌었으면 NATIONAL_MIN_WIDTH를 다시 봐요"
+    print(f"하천: 국가 {len(nat)} · 지방 {len(loc)} · 소하천 {len(small)}")
+    return [[("", [simplify_ring(r, 2.0)]) for r in rs] for rs in (nat, loc, small)]
+
+
+def park_layer():
+    # 공원·녹지는 나누지 않아요(사용자 11-02 23:23) – 공간시설 층 전부(색 3·1·7)를 공원 한 층으로.
+    ents = read_dxf("kras_paju_park_*.dxf.gz")
+    rs = [e["pts"] for e in ents if e["layer"] == "연속주제_국토계획_공간시설" and len(e["pts"]) >= 4]
+    print(f"공원: {len(rs)}")
+    return [("", [simplify_ring(r, 2.0)]) for r in rs]
+
+
 def build_layers(recs, names):
     from shapely.geometry import Point, Polygon
     from shapely.strtree import STRtree
@@ -188,6 +223,8 @@ def build_layers(recs, names):
         (3, "도로구역", [("", [simplify_ring(r, 3.0)]) for r in by("연속주제_도로_용도구역")]),
         (4, "읍면동 경계", [(n, [r]) for n, r in feats]),
     ]
+    nat, loc, small = river_layers()
+    layers += [(5, "국가하천", nat), (6, "지방하천", loc), (7, "소하천", small), (8, "공원", park_layer())]
     buf = io.BytesIO()
     buf.write(b"PJL1")
     buf.write(struct.pack("<B", len(layers)))

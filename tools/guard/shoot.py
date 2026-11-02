@@ -500,7 +500,42 @@ async def s_map_regions(p):
     await p.locator(".mp-regbtn").first.click()
 
 
+# ✔1·✔3(11-02 23:2x): 닷카드 · 하천·공원 분야(설정 값을 바꾸고 다른 화면에 갔다 와서 다시 열어요)
+async def s_map_card(p):
+    await p.wait_for_timeout(400)
+    xy = await p.locator(".mp-map").first.get_attribute("data-dot")
+    x, y = (int(v) for v in xy.split(","))
+    box = await p.locator(".mp-map").first.bounding_box()
+    await p.mouse.click(box["x"] + x, box["y"] + y)
+    await p.wait_for_timeout(300)
+
+
+async def field_to(p, field):
+    await p.evaluate("(f) => window.__preview.call('set_value', { key: 'map.field', value: f })", field)
+    await nav(p, "할 일")
+    await nav(p, "민원 지도")
+    await p.wait_for_timeout(600)
+
+
+async def s_map_river(p):
+    await field_to(p, "river")
+    await p.locator(".mp-reg", has_text="하천 밖").first.click()
+
+
+async def s_map_rivers(p):
+    await field_to(p, "river")
+    await p.locator(".mp-regbtn").first.click()
+
+
+async def s_map_park(p):
+    await field_to(p, "park")
+
+
 SCENES.update({
+    "map_card": ("민원 지도", s_map_card),
+    "map_river": ("민원 지도", s_map_river),
+    "map_rivers": ("민원 지도", s_map_rivers),
+    "map_park": ("민원 지도", s_map_park),
     "map": ("민원 지도", None),
     "map_region": ("민원 지도", s_map_region),
     "map_period": ("민원 지도", s_map_period),

@@ -4,17 +4,16 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { MapComplaint } from "../../api";
 import { statusColor } from "../../settingsStore";
-import { cardPlace, layerPaths, tracePath, type Feature, type Layers } from "./mapData";
+import { cardPlace, layerPaths, tracePath, type Feature, type Field, type Layers } from "./mapData";
 
 export type MapPoint = { c: MapComplaint; x: number; y: number; color: string };
 type View = { cx: number; cy: number; s: number };
 type Cluster = { sx: number; sy: number; pts: MapPoint[] };
 
-const C_ROAD = "#D9D7E3"; // 지목 '도' 필지
-const C_ZONE = "#AEABC0"; // 도로구역
 const C_LINE = "#4A4858"; // 읍면동 경계
 const ANIM_MS = 500;
 const HIT = 9;
+const DOUBLE_MS = 450; // 두 번 누르기로 보는 사이
 
 function fit(b: [number, number, number, number], w: number, h: number, pad = 28): View {
   const bw = Math.max(1, b[2] - b[0]);
@@ -33,26 +32,22 @@ function pathOf(feats: Feature[], ox: number, oy: number, close = false): Path2D
   return p;
 }
 
-/** 전체 보기(확대 배율이 이보다 작을 때)에는 도시계획도로를 빼고 그려요 – 그 크기에선 어차피 안 보여요(0.68.0 멈춤 ②). */
-const PLAN_MIN_SCALE = 0.06;
-/** 배경 그림 한 장: 그 그림을 그린 보기(view)와 크기(CSS px) */
-type Snap = { cv: HTMLCanvasElement; v: View; w: number; h: number; dpr: number; key: Layers };
-type Paths = { key: Layers; ox: number; oy: number; road: Path2D; plan: Path2D; zone: Path2D; emd: Path2D };
+/** 배경 그림 한 장: 그 그림을 그린 보기(view)와 크기(CSS px). key = 자료 + 분야·꺼 둔 층(bg) */
+type Snap = { cv: HTMLCanvasElement; v: View; w: number; h: number; dpr: number; key: Layers; bg: string };
+type Paths = { key: Layers; field: Field; ox: number; oy: number; fills: { id: string; color: string; minScale?: number; p: Path2D }[]; emd: Path2D };
 
-function renderBg(ctx: CanvasRenderingContext2D, P: Paths, v: View, w: number, h: number, dpr: number, tint: string) {
+/** 전체 보기(확대 배율이 minScale보다 작을 때)에는 도시계획도로를 빼고 그려요 – 그 크기에선 어차피 안 보여요(0.68.0 멈춤 ②). */
+function renderBg(ctx: CanvasRenderingContext2D, P: Paths, off: Set<string>, v: View, w: number, h: number, dpr: number, tint: string) {
   const { ox, oy } = P;
   const s = v.s;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
   ctx.setTransform(s * dpr, 0, 0, -s * dpr, (w / 2 - (v.cx - ox) * s) * dpr, (h / 2 + (v.cy - oy) * s) * dpr);
-  ctx.fillStyle = C_ROAD;
-  ctx.fill(P.road);
-  if (s >= PLAN_MIN_SCALE) {
-    ctx.fillStyle = tint;
-    ctx.fill(P.plan);
+  for (const f of P.fills) {
+    if (off.has(f.id) || (f.minScale && s < f.minScale)) continue;
+    ctx.fillStyle = f.color === "tint" ? tint : f.color;
+    ctx.fill(f.p);
   }
-  ctx.fillStyle = C_ZONE;
-  ctx.fill(P.zone);
   ctx.strokeStyle = C_LINE;
   ctx.lineWidth = 0.9 / s;
   ctx.stroke(P.emd);
@@ -70,6 +65,10 @@ const sameView = (a: View, b: View) => a.cx === b.cx && a.cy === b.cy && a.s ===
 
 type Props = {
   layers: Layers | null;
+  /** 분야(✔3): 도로 = 도로 층 · 하천 = 하천 면 · 공원 = 공원 면 */
+  field: Field;
+  /** 꺼 둔 배경 층(하천 표시 설정에서 끈 등급) */
+  off: Set<string>;
   points: MapPoint[];
   /** 지금 보는 읍면(없으면 파주시 전체) */
   region: string | null;
@@ -83,7 +82,7 @@ type Props = {
   onWhole: () => void;
 };
 
-export default function MapCanvas({ layers, points, region, regionFeats, focusBounds, selectedId, legend, onOpen, onWhole }: Props) {
+export default function MapCanvas({ layers, field, off, points, region, regionFeats, focusBounds, selectedId, legend, onOpen, onWhole }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -92,7 +91,8 @@ export default function MapCanvas({ layers, points, region, regionFeats, focusBo
   const dim = useRef(0); // 바깥 흐림 0~1
   const anim = useRef<number | null>(null);
   const clusters = useRef<Cluster[]>([]);
-  const paths = useRef<{ key: Layers; ox: number; oy: number; road: Path2D; plan: Path2D; zone: Path2D; emd: Path2D } | null>(null);
+  const paths = useRef<Paths | null>(null);
+  const bgKey = field + "|" + [...off].sort().join(",");
   const [hover, setHover] = useState<Cluster | null>(null);
   const [pinned, setPinned] = useState<Cluster | null>(null);
   const [cardPos, setCardPos] = useState<{ left: number; top: number } | null>(null);
@@ -107,8 +107,8 @@ export default function MapCanvas({ layers, points, region, regionFeats, focusBo
 
   const pathsOf = (L: Layers): Paths => {
     let P = paths.current;
-    if (!P || P.key !== L) {
-      P = { key: L, ...layerPaths(L, () => new Path2D()) };
+    if (!P || P.key !== L || P.field !== field) {
+      P = { key: L, field, ...layerPaths(L, () => new Path2D(), field) };
       paths.current = P;
     }
     return P;
@@ -133,10 +133,10 @@ export default function MapCanvas({ layers, points, region, regionFeats, focusBo
     if (!ctx) return;
     const v = { cx: base.cx, cy: base.cy, s: s * k };
     const tint = getComputedStyle(canvasRef.current ?? document.body).getPropertyValue("--accent-tint").trim() || "#ECE9FB";
-    renderBg(ctx, pathsOf(layers), v, cw, ch, dpr, tint);
-    fullSnap.current = { cv, v, w: cw, h: ch, dpr, key: layers };
+    renderBg(ctx, pathsOf(layers), off, v, cw, ch, dpr, tint);
+    fullSnap.current = { cv, v, w: cw, h: ch, dpr, key: layers, bg: bgKey };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layers]);
+  }, [layers, bgKey]);
 
   /** fast = 움직이는 중(그려 둔 그림을 늘려 붙임) · 아니면 지금 보기로 또렷하게(같은 보기면 그려 둔 것을 그대로) */
   const draw = useCallback((fast = false) => {
@@ -153,17 +153,17 @@ export default function MapCanvas({ layers, points, region, regionFeats, focusBo
     if (layers) {
       const P = pathsOf(layers);
       let snap = viewSnap.current;
-      if (!fast && (!snap || snap.key !== layers || snap.w !== w || snap.h !== h || snap.dpr !== dpr || !sameView(snap.v, v))) {
+      if (!fast && (!snap || snap.key !== layers || snap.bg !== bgKey || snap.w !== w || snap.h !== h || snap.dpr !== dpr || !sameView(snap.v, v))) {
         const sc = snap && snap.w === w && snap.h === h && snap.dpr === dpr ? snap.cv : document.createElement("canvas");
         sc.width = Math.round(w * dpr);
         sc.height = Math.round(h * dpr);
         const sctx = sc.getContext("2d");
         if (sctx) {
-          renderBg(sctx, P, v, w, h, dpr, tint);
-          snap = { cv: sc, v: { ...v }, w, h, dpr, key: layers };
+          renderBg(sctx, P, off, v, w, h, dpr, tint);
+          snap = { cv: sc, v: { ...v }, w, h, dpr, key: layers, bg: bgKey };
           viewSnap.current = snap;
         }
-        if (!fullSnap.current || fullSnap.current.key !== layers) {
+        if (!fullSnap.current || fullSnap.current.key !== layers || fullSnap.current.bg !== bgKey) {
           if (fullT.current) clearTimeout(fullT.current);
           fullT.current = window.setTimeout(buildFull, 120);
         }
@@ -171,10 +171,10 @@ export default function MapCanvas({ layers, points, region, regionFeats, focusBo
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
       const full = fullSnap.current;
-      if (snap && sameView(snap.v, v) && snap.w === w && snap.h === h) ctx.drawImage(snap.cv, 0, 0, w, h);
+      if (snap && snap.bg === bgKey && sameView(snap.v, v) && snap.w === w && snap.h === h) ctx.drawImage(snap.cv, 0, 0, w, h);
       else {
-        if (full && full.key === layers) blit(ctx, full, v, w, h);
-        if (snap && snap.key === layers) blit(ctx, snap, v, w, h); // 마지막으로 또렷하게 그린 그림을 위에 – 밖으로 남는 곳은 밑의 전체 그림이 채워요
+        if (full && full.key === layers && full.bg === bgKey) blit(ctx, full, v, w, h);
+        if (snap && snap.key === layers && snap.bg === bgKey) blit(ctx, snap, v, w, h); // 마지막으로 또렷하게 그린 그림을 위에 – 밖으로 남는 곳은 밑의 전체 그림이 채워요
       }
       const { ox, oy } = P;
       const s = v.s;
@@ -225,6 +225,11 @@ export default function MapCanvas({ layers, points, region, regionFeats, focusBo
       }
     }
     clusters.current = out;
+    // 모양 지킴이가 닷을 누를 자리(또렷하게 다시 그릴 때만 적어요 – 움직이는 동안은 안 건드려요)
+    if (!fast && wrapRef.current) {
+      const one = out.find((c) => c.sx > 20 && c.sy > 20 && c.sx < w - 20 && c.sy < h - 20);
+      wrapRef.current.dataset.dot = one ? `${Math.round(one.sx)},${Math.round(one.sy)}` : "";
+    }
     const sel = state.current.selectedId;
     for (const c of out) {
       const isSel = sel != null && c.pts.some((p) => p.c.id === sel);
@@ -259,7 +264,7 @@ export default function MapCanvas({ layers, points, region, regionFeats, focusBo
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layers, buildFull]);
+  }, [layers, buildFull, bgKey]);
 
   /** 움직임이 멈추면 조금 뒤 또렷하게 다시 */
   const settle = useCallback(() => {
@@ -396,8 +401,9 @@ export default function MapCanvas({ layers, points, region, regionFeats, focusBo
     return () => el.removeEventListener("wheel", onWheel);
   }, [draw, settle, layers]);
 
-  // 끌기 = 이동 · 누르기 = 민원대장 그 줄(여러 건이면 카드를 붙잡아요)
+  // 끌기 = 이동 · 닷 한 번 누르기 = 닷카드 붙잡기 · 두 번 누르기 = 민원대장 그 줄(여러 건이면 카드 줄을 두 번 눌러요)
   const drag = useRef<{ x: number; y: number; cx: number; cy: number; moved: boolean; btn: number } | null>(null);
+  const lastTap = useRef<{ key: number; t: number } | null>(null);
   const hitAt = (mx: number, my: number) => {
     let best: Cluster | null = null;
     let bd = HIT + 1;
@@ -458,7 +464,12 @@ export default function MapCanvas({ layers, points, region, regionFeats, focusBo
       setPinned(null);
       return;
     }
-    if (c.pts.length === 1) onOpen(c.pts[0].c.id);
+    // ✔2(사용자 11-02 22:19): 한 번 누르기 = 닷카드 붙잡기, 두 번 누르기 = 민원대장 그 줄
+    const key = c.pts[0].c.id;
+    const t = performance.now();
+    const twice = lastTap.current && lastTap.current.key === key && t - lastTap.current.t < DOUBLE_MS;
+    lastTap.current = twice ? null : { key, t };
+    if (twice && c.pts.length === 1) onOpen(key);
     else setPinned(c);
   };
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -520,20 +531,18 @@ export default function MapCanvas({ layers, points, region, regionFeats, focusBo
           {card.pts.slice(0, 6).map((p) => {
             const [bg, fg] = statusColor(p.c.status);
             return (
-              <button type="button" key={p.c.id} className="mp-card-row" onClick={() => onOpen(p.c.id)}>
-                <b>{p.c.place || "(위치 없음)"}</b>
+              <button type="button" key={p.c.id} className="mp-card-row" title="두 번 누르면 민원대장 그 줄" onDoubleClick={() => onOpen(p.c.id)}>
+                <b className="mp-card-place">{p.c.place || "(위치 없음)"}</b>
+                <em className="mp-card-badge" style={{ background: bg, color: fg }}>{p.c.status}</em>
                 <span className="mp-card-kind">
                   <i style={{ background: p.color }} />
-                  {[p.c.ctype || "기타", p.c.intake].filter(Boolean).join(", ")}
+                  {p.c.ctype || "기타"}
                 </span>
-                <span className="mp-card-st">
-                  <em style={{ background: bg, color: fg }}>{p.c.status}</em>접수 {p.c.received}
-                </span>
+                <span className="mp-card-sub">{[p.c.intake, p.c.received].filter(Boolean).join(", ")}</span>
               </button>
             );
           })}
           {card.pts.length > 6 && <span className="mp-card-more">그 밖 {card.pts.length - 6}건 – 확대해 보세요</span>}
-          <span className="mp-card-hint">누르면 민원대장 이 줄로</span>
         </div>
       )}
     </div>
