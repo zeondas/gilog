@@ -190,6 +190,21 @@ export type Complaint = ComplaintInput & {
   memo: string;
 };
 
+/** 민원 지도가 읽는 민원 한 건(2026-11-02) – 이름·연락처·내용·조치내용·메모는 없어요. 좌표는 EPSG:5181 m. */
+export type MapComplaint = {
+  id: number;
+  place: string;
+  area: string;
+  ctype: string;
+  intake: string;
+  status: string;
+  received: string;
+  x: number | null;
+  y: number | null;
+  /** exact 정확 · main 본번 · series 본번 계열 · none 못 찾음 */
+  geoSrc: string;
+};
+
 // ---------- 할 일 목록 ----------
 
 export type TaskList = {
@@ -466,6 +481,8 @@ export const api = {
   backupBeforeReplace: () => call<string | null>("backup_before_replace"),
 
   complaints: () => call<Complaint[]>("complaints"),
+  complaintsMap: () => call<MapComplaint[]>("complaints_map"),
+  mapParcelStats: () => call<[number, number]>("map_parcel_stats"),
   /** 위치 글이 파주시 도로명주소면 법정동 지번으로 (core address.rs) */
   roadToJibun: (text: string): Promise<RoadLookup> => (inApp ? invoke<RoadLookup>("road_to_jibun", { text }) : (previewCall("road_to_jibun", { text }) as Promise<RoadLookup>)),
   /** 내장 도로명주소 표: 곳 수·자료 날짜·바꾼 표인지 (주소 변환 웹 2026-10-21) */

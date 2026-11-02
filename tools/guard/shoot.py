@@ -486,6 +486,28 @@ SCENES.update({
 })
 
 
+# 민원 지도(2026-11-02 민원 지도 세션) – SCREENS 목록에는 넣지 않아요(넣으면 뒤 장면 번호가 밀려 기준과 짝이 어긋나요).
+async def s_map_region(p):
+    await p.locator(".mp-reg", has_text="조리읍").first.dblclick()
+    await p.wait_for_timeout(900)
+
+
+async def s_map_period(p):
+    await p.locator(".mp-fbtn", has_text="기간").first.click()
+
+
+async def s_map_regions(p):
+    await p.locator(".mp-regbtn").first.click()
+
+
+SCENES.update({
+    "map": ("민원 지도", None),
+    "map_region": ("민원 지도", s_map_region),
+    "map_period": ("민원 지도", s_map_period),
+    "map_regions": ("민원 지도", s_map_regions),
+})
+
+
 # 화면 크기(창 배율) 장면 – 2026-10-21 화면 배율: 설정 "화면 크기" 15·17을 앱(WebView2 확대)과 같은 방식으로 흉내 내요.
 # CSS 화면을 1600÷z × 900÷z로 줄이고 점 배율 z로 찍어 그림은 늘 1600×900이에요. 기준(13·100%) 장면과 따로 비교돼요.
 ZOOMS = (15, 17)

@@ -10,7 +10,7 @@
 use super::*;
 
 /// 버전마다 옛 파일 만들기 – 칸 번호 = 그 파일의 user_version.
-const OLD_FORMATS: &[fn(&Connection)] = &[v0_tables];
+const OLD_FORMATS: &[fn(&Connection)] = &[v0_tables, v1_tables];
 
 /// 버전 번호를 두기 전(0.35.0 무렵까지) 파일. `upgrade()`가 더하는 칸 14개가 없는 모양이에요:
 /// projects.alias·group_id, journal_entries.body, complaints.road·done, events.remind_time,
@@ -84,6 +84,30 @@ fn v0_tables(c: &Connection) {
     )
     .unwrap();
 }
+
+/// v1(0.54.0 ~ 0.67.0) 파일: v0에 그때까지의 칸·표를 모두 더한 모양 – 민원 좌표 칸 4개(geo_x·geo_y·geo_src·geo_at)만 없어요.
+/// 그때 `upgrade()`가 하던 일을 그대로 돌린 뒤 v2에서 더한 칸만 지워 고정해요(민원 지도, 2026-11-02).
+fn v1_tables(c: &Connection) {
+    v0_tables(c);
+    for (schema, up) in [
+        (contacts::SCHEMA, contacts::upgrade as fn(&Connection) -> Result<()>),
+        (journal::SCHEMA, journal::upgrade),
+        (complaints::SCHEMA, complaints::upgrade),
+        (calendar::SCHEMA, calendar::upgrade),
+        (process::SCHEMA, process::upgrade),
+        (budget::SCHEMA, budget::upgrade),
+    ] {
+        c.execute_batch(schema).unwrap();
+        up(c).unwrap();
+    }
+    c.execute_batch(tasks::SCHEMA).unwrap();
+    c.execute_batch(bstatus::SCHEMA).unwrap();
+    for col in ["geo_x", "geo_y", "geo_src", "geo_at"] {
+        c.execute_batch(&format!("ALTER TABLE complaints DROP COLUMN {col};")).unwrap();
+    }
+    c.execute_batch("INSERT INTO complaints (no, intake, received, ctype, area, place, status) VALUES (2, '방문', '2026-10-30', '배수', '금촌1동', '금촌동 329-17', '접수');").unwrap();
+}
+
 
 /// 파일을 만들고 표를 모두 지운 뒤 `build`로 옛 모양을 만들어 버전을 `version`으로 둬요.
 fn make_old(dir: &Path, version: i32, build: fn(&Connection)) {
@@ -202,4 +226,19 @@ fn v0_file_gets_new_columns_and_keeps_data() {
     assert_eq!(one::<i64>(&s, "SELECT count(*) FROM orders"), 1);
     assert_eq!(one::<String>(&s, "SELECT person FROM complaints WHERE id = 1"), "홍길동 010-0000-0000");
     assert_eq!(fs::read_dir(tmp.path().join(BACKUP_DIR)).unwrap().count(), 1);
+}
+
+#[test]
+fn v1_file_gets_map_columns() {
+    let tmp = tempfile::tempdir().unwrap();
+    make_old(tmp.path(), 1, v1_tables);
+    let mut s = Store::open(tmp.path(), "abcd1234").unwrap();
+    for c in ["geo_x", "geo_y", "geo_src", "geo_at"] {
+        assert!(has_col(&s, "complaints", c), "complaints.{c}");
+    }
+    assert_eq!(one::<String>(&s, "SELECT place FROM complaints WHERE no = 2 OR place = '금촌동 329-17'"), "금촌동 329-17");
+    // 지도를 열면 옛 민원도 좌표가 생겨요.
+    let v = s.complaints_map().unwrap();
+    assert!(v.iter().any(|m| m.place == "금촌동 329-17" && m.x.is_some()));
+    assert!(v.iter().any(|m| m.place == "봉일천리 113 일원" && m.geo_src == "series"));
 }

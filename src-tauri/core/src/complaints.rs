@@ -98,7 +98,11 @@ pub(crate) const SCHEMA: &str = "
         due      TEXT NOT NULL DEFAULT '',
         status   TEXT NOT NULL DEFAULT '',
         memo     TEXT NOT NULL DEFAULT '',
-        road     TEXT NOT NULL DEFAULT ''
+        road     TEXT NOT NULL DEFAULT '',
+        geo_x    REAL,
+        geo_y    REAL,
+        geo_src  TEXT NOT NULL DEFAULT '',
+        geo_at   TEXT NOT NULL DEFAULT ''
     );
 ";
 
@@ -124,6 +128,13 @@ pub(crate) fn upgrade(conn: &rusqlite::Connection) -> Result<()> {
     for (id, action) in rows {
         if let Some(fixed) = order_lines_to_default(&action) {
             conn.execute("UPDATE complaints SET action = ?1 WHERE id = ?2", rusqlite::params![fixed, id])?;
+        }
+    }
+    // 민원 지도 좌표 칸 4개(2026-11-02 민원 지도 ✔1, 자료 형식 v2): EPSG:5181 m · 찾은 단계 · 찾은 날.
+    for (col, ty) in [("geo_x", "REAL"), ("geo_y", "REAL"), ("geo_src", "TEXT NOT NULL DEFAULT ''"), ("geo_at", "TEXT NOT NULL DEFAULT ''")] {
+        let has: bool = conn.prepare("SELECT 1 FROM pragma_table_info('complaints') WHERE name = ?1")?.exists([col])?;
+        if !has {
+            conn.execute_batch(&format!("ALTER TABLE complaints ADD COLUMN {col} {ty};"))?;
         }
     }
     // 연번은 접수일 순서(2026-10-25 사용자 ①1안) – 예전 자료도 한 번 맞춰요.
@@ -325,6 +336,7 @@ impl Store {
             params![no, c.intake, c.received, c.ctype, c.area, c.place, c.person, c.phone, c.body, c.action, c.due, c.status, c.road, c.done],
         )?;
         let id = tx.last_insert_rowid();
+        crate::map::refresh_geo(&tx, Some(id))?;
         renumber(&tx)?;
         tx.commit()?;
         self.complaint(id)
@@ -343,6 +355,7 @@ impl Store {
         if n == 0 {
             return Err(Error::NotFound);
         }
+        crate::map::refresh_geo(&tx, Some(id))?;
         renumber(&tx)?;
         tx.commit()?;
         self.complaint(id)
@@ -504,6 +517,7 @@ impl Store {
                 added += 1;
             }
         }
+        crate::map::refresh_geo(&tx, None)?;
         renumber(&tx)?;
         tx.commit()?;
         Ok((updated, added))

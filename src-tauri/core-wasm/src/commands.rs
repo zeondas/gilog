@@ -56,6 +56,8 @@ pub const BROWSER: &[&str] = &[
     "backup_before_replace",
     // 민원대장
     "complaints",
+    "complaints_map",
+    "map_parcel_stats",
     "add_complaint",
     "update_complaint",
     "replace_complaint_field",
@@ -309,6 +311,8 @@ pub(crate) fn browser(s: &mut Session, cmd: &str, a: &Args) -> Option<Result<Val
 
         // ---------- 민원대장 ----------
         "complaints" => with(s, |st| st.complaints()),
+        "complaints_map" => with(s, |st| st.complaints_map()),
+        "map_parcel_stats" => Ok(serde_json::to_value(gilog_core::parcel_stats()).unwrap_or_default()),
         "add_complaint" => (|| {
             let c: ComplaintInput = a.get("complaint")?;
             with(s, |st| st.add_complaint(&c))

@@ -4,6 +4,7 @@ import { api, applyAccent, changeHooks, DEFAULT_PREFS, errorText, inApp, Prefs, 
 import { measureBullets } from "./bullets";
 import CalendarScreen, { EventFocus } from "./screens/calendar/Screen";
 import ComplaintsScreen from "./screens/complaints/Screen";
+import MapScreen from "./screens/map/Screen";
 import ContactsScreen from "./screens/contacts/Screen";
 import ProcessScreen from "./screens/process/Screen";
 import BudgetScreen from "./screens/budget/Screen";
@@ -316,7 +317,7 @@ export default function App() {
         </div>
       </nav>
       <main
-        className={(current === "explorer" || current === "budget" || current === "bstatus" ? "main main-fill" : "main") + (minWidthOf(current) ? " vp" : "")}
+        className={(current === "explorer" || current === "budget" || current === "bstatus" || current === "map" ? "main main-fill" : "main") + (minWidthOf(current) ? " vp" : "")}
         style={minWidthOf(current) ? ({ "--vp-min": `${minWidthOf(current)}px` } as CSSProperties) : undefined}
       >
         {current === SETTINGS.id ? (
@@ -329,6 +330,8 @@ export default function App() {
           <JournalScreen urgentDays={prefs.urgentDays} onOpenComplaint={openComplaint} onOpenTask={openTask} />
         ) : current === "complaints" ? (
           <ComplaintsScreen urgentDays={prefs.urgentDays} focusId={focusComplaint} onFocused={clearFocus} />
+        ) : current === "map" ? (
+          <MapScreen onOpenComplaint={openComplaint} />
         ) : current === "budget" ? (
           <BudgetScreen />
         ) : current === "bstatus" ? (

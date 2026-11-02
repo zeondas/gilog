@@ -1,0 +1,442 @@
+// 민원 지도 – 캔버스(✔3·✔4). 외부 지도 없이 앱에 넣은 배경 네 층을 직접 그려요.
+// 휠 = 확대·축소(커서 기준) · 왼쪽 끌기·휠 클릭 끌기 = 이동 · 읍면을 고르면 약 0.5초 동안 부드럽게 확대(바깥 흐림·보라 테두리 함께).
+// 오른쪽 위 단추: [+][−] · [가운데로] · [파주시 전체](읍면 보기일 때만). Esc(지도에 초점) = 파주시 전체로.
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { MapComplaint } from "../../api";
+import { statusColor } from "../../settingsStore";
+import { cardPlace, type Feature, type Layers } from "./mapData";
+
+export type MapPoint = { c: MapComplaint; x: number; y: number; color: string };
+type View = { cx: number; cy: number; s: number };
+type Cluster = { sx: number; sy: number; pts: MapPoint[] };
+
+const C_ROAD = "#D9D7E3"; // 지목 '도' 필지
+const C_ZONE = "#AEABC0"; // 도로구역
+const C_LINE = "#4A4858"; // 읍면동 경계
+const ANIM_MS = 500;
+const HIT = 9;
+
+function fit(b: [number, number, number, number], w: number, h: number, pad = 28): View {
+  const bw = Math.max(1, b[2] - b[0]);
+  const bh = Math.max(1, b[3] - b[1]);
+  const s = Math.min((w - pad * 2) / bw, (h - pad * 2) / bh);
+  return { cx: (b[0] + b[2]) / 2, cy: (b[1] + b[3]) / 2, s: Math.max(s, 1e-4) };
+}
+
+const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+
+function pathOf(feats: Feature[], ox: number, oy: number): Path2D {
+  const p = new Path2D();
+  for (const f of feats)
+    for (const r of f.rings) {
+      if (r.length < 4) continue;
+      p.moveTo(r[0] - ox, r[1] - oy);
+      for (let k = 2; k < r.length; k += 2) p.lineTo(r[k] - ox, r[k + 1] - oy);
+      p.closePath();
+    }
+  return p;
+}
+
+type Props = {
+  layers: Layers | null;
+  points: MapPoint[];
+  /** 지금 보는 읍면(없으면 파주시 전체) */
+  region: string | null;
+  /** 그 읍면을 그리는 법정 경계 */
+  regionFeats: Feature[];
+  /** 그 읍면의 테두리 상자 */
+  focusBounds: [number, number, number, number] | null;
+  selectedId: number | null;
+  legend: { type: string; color: string }[];
+  onOpen: (id: number) => void;
+  onWhole: () => void;
+};
+
+export default function MapCanvas({ layers, points, region, regionFeats, focusBounds, selectedId, legend, onOpen, onWhole }: Props) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const size = useRef({ w: 0, h: 0, dpr: 1 });
+  const view = useRef<View | null>(null);
+  const dim = useRef(0); // 바깥 흐림 0~1
+  const anim = useRef<number | null>(null);
+  const clusters = useRef<Cluster[]>([]);
+  const paths = useRef<{ key: Layers; ox: number; oy: number; road: Path2D; plan: Path2D; zone: Path2D; emd: Path2D } | null>(null);
+  const [hover, setHover] = useState<Cluster | null>(null);
+  const [pinned, setPinned] = useState<Cluster | null>(null);
+  const [cardPos, setCardPos] = useState<{ left: number; top: number } | null>(null);
+  const state = useRef({ points, region, regionFeats, selectedId });
+  state.current = { points, region, regionFeats, selectedId };
+
+  const draw = useCallback(() => {
+    const cv = canvasRef.current;
+    const v = view.current;
+    if (!cv || !v) return;
+    const { w, h, dpr } = size.current;
+    const ctx = cv.getContext("2d");
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const css = getComputedStyle(cv);
+    const accent = css.getPropertyValue("--accent").trim() || "#4F3CC9";
+    const tint = css.getPropertyValue("--accent-tint").trim() || "#ECE9FB";
+    const bg = css.getPropertyValue("--surface").trim() || "#fff";
+    if (layers) {
+      let P = paths.current;
+      if (!P || P.key !== layers) {
+        const [ox, oy] = layers.bounds;
+        P = { key: layers, ox, oy, road: pathOf(layers.road, ox, oy), plan: pathOf(layers.plan, ox, oy), zone: pathOf(layers.zone, ox, oy), emd: pathOf(layers.emd, ox, oy) };
+        paths.current = P;
+      }
+      const { ox, oy } = P;
+      const s = v.s;
+      ctx.setTransform(s * dpr, 0, 0, -s * dpr, (w / 2 - (v.cx - ox) * s) * dpr, (h / 2 + (v.cy - oy) * s) * dpr);
+      ctx.fillStyle = C_ROAD;
+      ctx.fill(P.road);
+      ctx.fillStyle = tint;
+      ctx.fill(P.plan);
+      ctx.fillStyle = C_ZONE;
+      ctx.fill(P.zone);
+      ctx.strokeStyle = C_LINE;
+      ctx.lineWidth = 0.9 / s;
+      ctx.stroke(P.emd);
+      const rf = state.current.regionFeats;
+      if (rf.length && dim.current > 0) {
+        const rp = pathOf(rf, ox, oy);
+        // 바깥 흐림: 화면 전체 − 그 읍면
+        const outside = new Path2D();
+        const [x0, y0] = [v.cx - ox - w / 2 / s, v.cy - oy - h / 2 / s];
+        outside.rect(x0, y0, w / s, h / s);
+        outside.addPath(rp);
+        ctx.globalAlpha = 0.62 * dim.current;
+        ctx.fillStyle = bg;
+        ctx.fill(outside, "evenodd");
+        ctx.globalAlpha = dim.current;
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = 2.2 / s;
+        ctx.stroke(rp);
+        ctx.globalAlpha = 1;
+      }
+    }
+    // 점: 화면 자리로 바꿔 같은 자리(9px 안)는 숫자 동그라미로 묶어요.
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const out: Cluster[] = [];
+    const grid = new Map<string, Cluster[]>();
+    for (const p of state.current.points) {
+      const sx = (p.x - v.cx) * v.s + w / 2;
+      const sy = (v.cy - p.y) * v.s + h / 2;
+      if (sx < -20 || sy < -20 || sx > w + 20 || sy > h + 20) continue;
+      const gx = Math.floor(sx / HIT);
+      const gy = Math.floor(sy / HIT);
+      let hit: Cluster | undefined;
+      for (let dx = -1; dx <= 1 && !hit; dx++)
+        for (let dy = -1; dy <= 1 && !hit; dy++)
+          hit = grid.get(`${gx + dx},${gy + dy}`)?.find((c) => Math.hypot(c.sx - sx, c.sy - sy) < HIT);
+      if (hit) hit.pts.push(p);
+      else {
+        const c = { sx, sy, pts: [p] };
+        out.push(c);
+        const k = `${gx},${gy}`;
+        if (!grid.has(k)) grid.set(k, []);
+        grid.get(k)!.push(c);
+      }
+    }
+    clusters.current = out;
+    const sel = state.current.selectedId;
+    for (const c of out) {
+      const isSel = sel != null && c.pts.some((p) => p.c.id === sel);
+      if (c.pts.length > 1) {
+        ctx.beginPath();
+        ctx.arc(c.sx, c.sy, 9, 0, Math.PI * 2);
+        ctx.fillStyle = accent;
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#fff";
+        ctx.stroke();
+        ctx.fillStyle = "#fff";
+        ctx.font = "600 11px Pretendard, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(String(c.pts.length), c.sx, c.sy + 0.5);
+      } else {
+        ctx.beginPath();
+        ctx.arc(c.sx, c.sy, isSel ? 6.5 : 5, 0, Math.PI * 2);
+        ctx.fillStyle = c.pts[0].color;
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#fff";
+        ctx.stroke();
+      }
+      if (isSel) {
+        ctx.beginPath();
+        ctx.arc(c.sx, c.sy, c.pts.length > 1 ? 13 : 10, 0, Math.PI * 2);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = accent;
+        ctx.stroke();
+      }
+    }
+  }, [layers]);
+
+  const animateTo = useCallback(
+    (to: View, toDim: number, ms = ANIM_MS) => {
+      if (anim.current) cancelAnimationFrame(anim.current);
+      const from = view.current ?? to;
+      const fromDim = dim.current;
+      setHover(null);
+      setPinned(null);
+      if (ms <= 0 || !view.current) {
+        view.current = to;
+        dim.current = toDim;
+        draw();
+        return;
+      }
+      const t0 = performance.now();
+      const step = (t: number) => {
+        const k = ease(Math.min(1, (t - t0) / ms));
+        view.current = {
+          cx: from.cx + (to.cx - from.cx) * k,
+          cy: from.cy + (to.cy - from.cy) * k,
+          s: Math.exp(Math.log(from.s) + (Math.log(to.s) - Math.log(from.s)) * k),
+        };
+        dim.current = fromDim + (toDim - fromDim) * k;
+        draw();
+        anim.current = k < 1 ? requestAnimationFrame(step) : null;
+      };
+      anim.current = requestAnimationFrame(step);
+    },
+    [draw],
+  );
+
+  const home = useCallback(
+    (ms = ANIM_MS) => {
+      const b = focusBounds ?? layers?.bounds;
+      const { w, h } = size.current;
+      if (!b || !w) return;
+      animateTo(fit(b, w, h), region ? 1 : 0, ms);
+    },
+    [focusBounds, layers, region, animateTo],
+  );
+
+  // 크기
+  useLayoutEffect(() => {
+    const el = wrapRef.current;
+    const cv = canvasRef.current;
+    if (!el || !cv) return;
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const first = !size.current.w;
+      size.current = { w: r.width, h: r.height, dpr };
+      cv.width = Math.round(r.width * dpr);
+      cv.height = Math.round(r.height * dpr);
+      cv.style.width = `${r.width}px`;
+      cv.style.height = `${r.height}px`;
+      if (first || !view.current) home(0);
+      else draw();
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [draw, home]);
+
+  // 읍면을 고르거나 풀면 부드럽게(처음 그릴 때는 바로)
+  const lastFocus = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (!layers) return;
+    const key = region;
+    const first = lastFocus.current === undefined || !view.current;
+    lastFocus.current = key;
+    home(first ? 0 : ANIM_MS);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layers, region, focusBounds]);
+
+  // 점·강조가 바뀌면 다시
+  useEffect(() => {
+    draw();
+  }, [points, selectedId, draw]);
+
+  // 목록에서 고른 점이 화면 밖이면 그쪽으로 옮겨요.
+  useEffect(() => {
+    const v = view.current;
+    if (selectedId == null || !v) return;
+    const p = points.find((q) => q.c.id === selectedId);
+    if (!p) return;
+    const { w, h } = size.current;
+    const sx = (p.x - v.cx) * v.s + w / 2;
+    const sy = (v.cy - p.y) * v.s + h / 2;
+    if (sx < 24 || sy < 24 || sx > w - 24 || sy > h - 24) animateTo({ ...v, cx: p.x, cy: p.y }, dim.current, 300);
+  }, [selectedId, points, animateTo]);
+
+  // 휠 = 확대·축소(커서 기준)
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      const v = view.current;
+      if (!v) return;
+      e.preventDefault();
+      if (anim.current) {
+        cancelAnimationFrame(anim.current);
+        anim.current = null;
+      }
+      const r = el.getBoundingClientRect();
+      const mx = e.clientX - r.left;
+      const my = e.clientY - r.top;
+      const { w, h } = size.current;
+      const k = Math.exp(-e.deltaY * 0.0015);
+      const base = layers ? fit(layers.bounds, w, h).s : v.s;
+      const s = Math.min(Math.max(v.s * k, base * 0.5), 6);
+      const wx = v.cx + (mx - w / 2) / v.s;
+      const wy = v.cy - (my - h / 2) / v.s;
+      view.current = { s, cx: wx - (mx - w / 2) / s, cy: wy + (my - h / 2) / s };
+      setHover(null);
+      setPinned(null);
+      draw();
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [draw, layers]);
+
+  // 끌기 = 이동 · 누르기 = 민원대장 그 줄(여러 건이면 카드를 붙잡아요)
+  const drag = useRef<{ x: number; y: number; cx: number; cy: number; moved: boolean; btn: number } | null>(null);
+  const hitAt = (mx: number, my: number) => {
+    let best: Cluster | null = null;
+    let bd = HIT + 1;
+    for (const c of clusters.current) {
+      const d = Math.hypot(c.sx - mx, c.sy - my);
+      if (d < bd) {
+        bd = d;
+        best = c;
+      }
+    }
+    return best;
+  };
+  const local = (e: { clientX: number; clientY: number }) => {
+    const r = wrapRef.current!.getBoundingClientRect();
+    return [e.clientX - r.left, e.clientY - r.top] as const;
+  };
+  const onPointerDown = (e: React.PointerEvent) => {
+    if ((e.target as HTMLElement).closest(".mp-btns, .mp-card, .mp-legend")) return;
+    if (e.button !== 0 && e.button !== 1) return;
+    const v = view.current;
+    if (!v) return;
+    if (e.button === 1) e.preventDefault();
+    if (anim.current) {
+      cancelAnimationFrame(anim.current);
+      anim.current = null;
+    }
+    wrapRef.current?.focus({ preventScroll: true });
+    wrapRef.current?.setPointerCapture(e.pointerId);
+    drag.current = { x: e.clientX, y: e.clientY, cx: v.cx, cy: v.cy, moved: false, btn: e.button };
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    const d = drag.current;
+    const v = view.current;
+    if (d && v) {
+      const dx = e.clientX - d.x;
+      const dy = e.clientY - d.y;
+      if (!d.moved && Math.hypot(dx, dy) < 4) return;
+      d.moved = true;
+      view.current = { ...v, cx: d.cx - dx / v.s, cy: d.cy + dy / v.s };
+      if (hover) setHover(null);
+      if (pinned) setPinned(null);
+      draw();
+      return;
+    }
+    if ((e.target as HTMLElement).closest(".mp-btns, .mp-card, .mp-legend")) return;
+    const [mx, my] = local(e);
+    const c = hitAt(mx, my);
+    if (c !== hover) setHover(c);
+  };
+  const onPointerUp = (e: React.PointerEvent) => {
+    const d = drag.current;
+    drag.current = null;
+    if (!d || d.moved || d.btn !== 0) return;
+    const [mx, my] = local(e);
+    const c = hitAt(mx, my);
+    if (!c) {
+      setPinned(null);
+      return;
+    }
+    if (c.pts.length === 1) onOpen(c.pts[0].c.id);
+    else setPinned(c);
+  };
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== "Escape") return;
+    if (pinned) setPinned(null);
+    else if (region) onWhole();
+  };
+
+  // 카드 자리 – 늘 지도 안(16:06)
+  const card = pinned ?? hover;
+  useLayoutEffect(() => {
+    const el = cardRef.current;
+    if (!card || !el) return setCardPos(null);
+    const { w, h } = size.current;
+    setCardPos(cardPlace(card.sx, card.sy, el.offsetWidth, el.offsetHeight, w, h));
+  }, [card]);
+
+  const zoomBy = (k: number) => {
+    const v = view.current;
+    if (v) animateTo({ ...v, s: v.s * k }, dim.current, 200);
+  };
+
+  return (
+    <div className="mp-map" ref={wrapRef} tabIndex={0} aria-label="민원 지도" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={() => !drag.current && setHover(null)} onKeyDown={onKeyDown} onAuxClick={(e) => e.preventDefault()}>
+      <canvas ref={canvasRef} className={hover ? "mp-canvas mp-hot" : "mp-canvas"} />
+      {!layers && <div className="mp-wait">지도를 읽는 중이에요…</div>}
+      <div className="mp-btns">
+        <div className="mp-btn-pair">
+          <button type="button" className="mp-btn" aria-label="확대" title="확대" onClick={() => zoomBy(1.6)}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+          </button>
+          <button type="button" className="mp-btn" aria-label="축소" title="축소" onClick={() => zoomBy(1 / 1.6)}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M5 12h14" /></svg>
+          </button>
+        </div>
+        <button type="button" className="mp-btn mp-btn-one" aria-label="가운데로" title={region ? `가운데로 – ${region}` : "가운데로 – 파주시"} onClick={() => home()}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="6" /><path d="M12 2v4M12 18v4M2 12h4M18 12h4" /></svg>
+        </button>
+        <button type="button" className="mp-btn mp-btn-one mp-btn-home" aria-label="파주시 전체" title="파주시 전체" disabled={!region} onClick={onWhole}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z M9 4v14 M15 6v14" /></svg>
+        </button>
+      </div>
+      {legend.length > 0 && (
+        <div className="mp-legend" aria-label="범례">
+          {legend.map((l) => (
+            <span key={l.type} className="mp-lg">
+              <i style={{ background: l.color }} />
+              {l.type}
+            </span>
+          ))}
+          <span className="mp-lg-sep" />
+          <span className="mp-lg">
+            <b className="mp-lg-n">2</b>같은 자리 여러 건
+          </span>
+        </div>
+      )}
+      {card && (
+        <div ref={cardRef} className={"mp-card" + (pinned ? " mp-card-pin" : "")} style={cardPos ? { left: cardPos.left, top: cardPos.top } : { visibility: "hidden" }} onPointerLeave={() => !pinned && setHover(null)}>
+          {card.pts.slice(0, 6).map((p) => {
+            const [bg, fg] = statusColor(p.c.status);
+            return (
+              <button type="button" key={p.c.id} className="mp-card-row" onClick={() => onOpen(p.c.id)}>
+                <b>{p.c.place || "(위치 없음)"}</b>
+                <span className="mp-card-kind">
+                  <i style={{ background: p.color }} />
+                  {[p.c.ctype || "기타", p.c.intake].filter(Boolean).join(", ")}
+                </span>
+                <span className="mp-card-st">
+                  <em style={{ background: bg, color: fg }}>{p.c.status}</em>접수 {p.c.received}
+                </span>
+              </button>
+            );
+          })}
+          {card.pts.length > 6 && <span className="mp-card-more">그 밖 {card.pts.length - 6}건 – 확대해 보세요</span>}
+          <span className="mp-card-hint">누르면 민원대장 이 줄로</span>
+        </div>
+      )}
+    </div>
+  );
+}
