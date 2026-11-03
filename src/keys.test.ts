@@ -22,7 +22,7 @@ describe("키 이름·처음 키", () => {
       "common.next": "Tab", "common.prev": "Shift+Tab", "common.cancel": "Esc",
       "multi.same": "Enter", "multi.down": "Shift+Enter", "multi.up": "Ctrl+Enter", "multi.br": "Alt+Enter",
       "talk.next": "Enter", "talk.same": "Shift+Enter", "talk.br": "Alt+Enter",
-      "single.next": "Enter", "para.list": "Shift+Enter", "app.lock": "Ctrl+L",
+      "single.next": "Enter", "para.list": "Shift+Enter", "app.lock": "Ctrl+L", "app.map": "Ctrl+M",
     });
   });
   test("mergeKeys – 모르는 동작·모양이 아닌 키·글자 키(앱 묶음 밖)는 버려요", () => {

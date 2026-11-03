@@ -1,7 +1,7 @@
 // 민원대장 규칙 시험 – 지금 동작을 고정해요(정리 2차 2026-10-26): 남은 날·걸린 날·검색(초성·번호)·유형 초성·필터.
 import { describe, expect, test } from "vitest";
 import type { Complaint } from "./api";
-import { addedType, COLUMNS, layoutCols, statusOnSave, daysBetween, daysLeft, daysTaken, ddayText, dueSoon, expandType, filterValues, isUrgent, matches, NO_FILTERS, passes, readStatusFilter, shortDate, shortIntake, takenText } from "./complaints";
+import { addedType, COLUMNS, layoutCols, statusOnSave, daysBetween, daysLeft, daysTaken, ddayText, dueSoon, expandType, leftText, procOf, filterValues, isUrgent, matches, NO_FILTERS, passes, readStatusFilter, shortDate, shortIntake, takenText } from "./complaints";
 
 const C = (o: Partial<Complaint>): Complaint => ({
   id: 1, no: 1, intake: "국민신문고", received: "2026-10-10", ctype: "포트홀", area: "조리읍", place: "봉일천리 113 일원",
@@ -51,12 +51,30 @@ describe("걸린 날", () => {
     expect(daysTaken({ received: "2026-10-01", done: "" })).toBeNull();
   });
   test.each([
-    ["2026-10-01", "2026-10-13", 12, "12d"],
-    ["2026-01-01", "2026-01-31", 30, "30d"],
-    ["2026-01-15", "2026-03-14", 58, "1m"],
-    ["2026-01-15", "2026-03-15", 59, "2m"],
-    ["2025-01-15", "2027-02-01", 747, "2y"],
+    ["2026-10-01", "2026-10-13", 12, "12일 걸림"],
+    ["2026-01-01", "2026-01-31", 30, "30일 걸림"],
+    ["2026-01-15", "2026-03-14", 58, "1달 걸림"],
+    ["2026-01-15", "2026-03-15", 59, "2달 걸림"],
+    ["2025-11-20", "2026-10-30", 344, "11달 걸림"],
+    ["2025-01-15", "2027-02-01", 747, "2년 걸림"],
   ])("takenText %s~%s", (received, done, n, want) => expect(takenText({ received, done }, n)).toBe(want));
+  test("leftText", () => {
+    expect(leftText(3)).toBe("3일 남음");
+    expect(leftText(0)).toBe("오늘 마감");
+    expect(leftText(-2)).toBe("2일 지남");
+  });
+  test("procOf – 처리 칸(2026-11-03 7판)", () => {
+    const P = (o: Partial<Complaint>) => procOf(C({ received: "2026-10-01", ...o }), "2026-10-15", 2);
+    expect(P({ due: "2026-10-20" })).toMatchObject({ text: "3일 남음", tone: "due", title: "마감일 2026-10-20" });
+    expect(P({ due: "2026-10-16" })).toMatchObject({ text: "1일 남음", tone: "urgent" });
+    expect(P({ due: "2026-10-15" })).toMatchObject({ text: "오늘 마감", tone: "urgent" });
+    expect(P({ due: "2026-10-13" })).toMatchObject({ text: "2일 지남", tone: "urgent" });
+    expect(P({ due: "" })).toBeNull();
+    for (const s of ["진행", "답변", "보류", "장기"]) expect(P({ due: "2026-10-20", status: s })).toMatchObject({ text: "답변완료", tone: "soft" });
+    expect(P({ due: "2026-10-20", status: "완료", done: "2026-10-08" })).toMatchObject({ text: "7일 걸림", tone: "soft", title: "마감일 2026-10-20 · 조치완료일 2026-10-08 · 접수부터 7일" });
+    expect(P({ status: "불가", done: "2026-10-08" })?.text).toBe("7일 걸림");
+    expect(P({ status: "완료", done: "" })?.text).toBe("답변완료");
+  });
 });
 
 describe("검색", () => {
