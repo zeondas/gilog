@@ -3,7 +3,7 @@ import type { Complaint } from "./api";
 import { plainOf } from "./bullets";
 import { parseMemo } from "./screens/contacts/parts";
 import { initials, isChosung, koIndex, splitJamo } from "./journal";
-import { DONE_STATUS, isAnswered } from "./settingsStore";
+import { DONE_STATUS, isAnswered, isClosed } from "./settingsStore";
 import { workDaysBetween } from "./workdays";
 
 /**
@@ -48,15 +48,43 @@ export function daysTaken(c: Pick<Complaint, "received" | "done">): number | nul
 }
 
 /**
- * 걸린 날 글자(2026-10-19 사용자): 30일까지는 "12d", 넘으면 달 "3m", 1년부터는 해 "2y".
+ * 걸린 날 글자(2026-11-03 16:15·16:17 사용자 – 처리 칸 말로 풀기): 30일까지 "12일 걸림", 넘으면 달 "3달 걸림", 1년부터는 해 "2년 걸림".
  * 달·해는 달력으로 센 만큼(다 채우지 못한 달은 버림). 정확한 날 수는 마우스를 올리면 보여요.
  */
 export function takenText(c: Pick<Complaint, "received" | "done">, n: number): string {
-  if (n <= 30) return `${n}d`;
+  if (n <= 30) return `${n}일 걸림`;
   const [y1, m1, d1] = c.received.split("-").map(Number);
   const [y2, m2, d2] = c.done!.split("-").map(Number);
   const months = Math.max(1, (y2 - y1) * 12 + (m2 - m1) - (d2 < d1 ? 1 : 0));
-  return months < 12 ? `${months}m` : `${Math.floor(months / 12)}y`;
+  return months < 12 ? `${months}달 걸림` : `${Math.floor(months / 12)}년 걸림`;
+}
+
+/** 남은 날 글자: 3 → "3일 남음", 0 → "오늘 마감", -2 → "2일 지남"(근무일) */
+export function leftText(n: number): string {
+  return n > 0 ? `${n}일 남음` : n === 0 ? "오늘 마감" : `${-n}일 지남`;
+}
+
+/** 처리 칸 글자 – tone: urgent(붉게) · due(굵게) · soft(흐리게) */
+export type Proc = { text: string; tone: "urgent" | "due" | "soft"; title?: string };
+
+/**
+ * 민원대장 "처리" 칸(2026-11-03 사용자 7판, 시안 ComplaintDates.dc.html): 상태에 따라 한 가지만 말로.
+ * - 답변 전(접수): 마감까지 근무일 "N일 남음 · 오늘 마감 · N일 지남"(설정 임박 기준 안이면 붉게). 마감일이 없으면 빈 칸.
+ * - 완료·불가: 접수부터 걸린 날 "N일·N달·N년 걸림"(흐리게). 조치완료일이 없으면 "답변완료".
+ * - 그 밖의 답변한 상태(진행·답변·보류·장기): "답변완료"(흐리게).
+ * 마우스를 올리면 마감일·조치완료일 전체(title).
+ */
+export function procOf(c: Pick<Complaint, "received" | "due" | "status" | "done">, today: string, urgentDays: number): Proc | null {
+  const title = [c.due ? `마감일 ${c.due}` : "", c.done ? `조치완료일 ${c.done}` : ""].filter(Boolean).join(" · ") || undefined;
+  if (!isAnswered(c.status)) {
+    const n = daysLeft(c, today);
+    return n === null ? null : { text: leftText(n), tone: isUrgent(n, urgentDays) ? "urgent" : "due", title };
+  }
+  if (isClosed(c.status)) {
+    const n = daysTaken(c);
+    if (n !== null) return { text: takenText(c, n), tone: "soft", title: title ? `${title} · 접수부터 ${n}일` : undefined };
+  }
+  return { text: "답변완료", tone: "soft", title };
 }
 
 /** 3 → "D-3", 0 → "D-day", -2 → "D+2" */
@@ -106,10 +134,10 @@ export function expandType(v: string, options: string[]): string {
 
 export type ColKey =
   | "no" | "intake" | "received" | "ctype" | "place" | "person"
-  | "body" | "action" | "due" | "status" | "done" | "memo";
+  | "body" | "action" | "status" | "due" | "memo";
 
 /**
- * 사양서 순서 12열(2026-10-21 사용자 – 지역은 위치 칸에 합치고, 민원인·연락처는 "민원인" 한 칸).
+ * 사양서 순서 11열(2026-10-21 사용자 – 지역은 위치 칸에 합치고, 민원인·연락처는 "민원인" 한 칸).
  * 처음 폭은 `layoutCols`가 글 폭·창 폭으로 정해요.
  */
 export const COLUMNS: { key: ColKey; label: string; fixed?: boolean }[] = [
@@ -121,9 +149,9 @@ export const COLUMNS: { key: ColKey; label: string; fixed?: boolean }[] = [
   { key: "person", label: "민원인" },
   { key: "body", label: "내용" },
   { key: "action", label: "조치내용" },
-  { key: "due", label: "마감일" },
+  // 상태 | 처리(2026-11-03 사용자 7판): 처리 칸 하나에 마감까지 남은 날·답변완료·걸린 날 – 조치완료일 열은 없어요(고치는 줄에서 적어요).
   { key: "status", label: "상태" },
-  { key: "done", label: "조치완료일" },
+  { key: "due", label: "처리" },
   { key: "memo", label: "메모" },
 ];
 
@@ -150,8 +178,8 @@ export const CONTENT_SHARE = 0.45;
 export const CELL_PAD = 20;
 /** 다 줄여도 이보다 적으면 다른 열의 여유를 줄여요 */
 export const CONTENT_FLOOR = 0.4;
-/** 줄이는 순서(2026-10-21 사용자): 마감일 날짜 → 접수일 26-10-16 → 접수유형 두 글자 → 위치 읍면. 넓히면 거꾸로 풀려요. */
-export const SHORT_ORDER: ColKey[] = ["due", "received", "intake", "place"];
+/** 줄이는 순서(2026-10-21 사용자): 접수일 26-10-16 → 접수유형 두 글자 → 위치 읍면. 넓히면 거꾸로 풀려요(처리 칸은 줄이지 않아요 – 11-03 7판). */
+export const SHORT_ORDER: ColKey[] = ["received", "intake", "place"];
 /** 내용·조치내용 가장 좁은 폭 */
 export const CONTENT_MIN = 80;
 

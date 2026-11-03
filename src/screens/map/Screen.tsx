@@ -109,7 +109,8 @@ function CheckList({ items, sel, color, onChange }: { items: { name: string; n: 
   );
 }
 
-export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: number) => void }) {
+// focusId: 민원대장 "지도에서 보기"로 넘어온 민원(App이 넘겨요 – 민원대장 ✔1, 2026-11-03). 그 점으로 옮기기·닷카드는 민원 지도 ✔5가 해요.
+export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: number) => void; focusId?: number | null; onFocused?: () => void }) {
   const [list, setList] = useState<MapComplaint[] | null>(null);
   const [layers, setLayers] = useState<Layers | null>(null);
   const [note, setNote] = useState("");

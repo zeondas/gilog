@@ -15,11 +15,8 @@ import {
   ColKey,
   ColNeed,
   ColFilters,
-  daysLeft,
-  daysTaken,
-  takenText,
-  ddayText,
   FilterKey,
+  procOf,
   filterValues,
   CELL_PAD,
   FLEXED,
@@ -34,12 +31,13 @@ import {
   PLACE_SAMPLE,
 } from "../../complaints";
 import { parseLines } from "../../bullets";
+import { isAppKey } from "../../keys";
 import { todayStr } from "../../journal";
 import { useHolidays } from "../../workdays";
 import { useJamoGuard } from "../../koInput";
 import { lookupMany } from "../../addressWeb";
 import { areaFor } from "../../address";
-import { DEFAULT_SETTINGS, DONE_STATUS, isClosed, loadSettings, saveSettings, Settings, STATUS_RENAME } from "../../settingsStore";
+import { DEFAULT_SETTINGS, isClosed, loadSettings, saveSettings, Settings, STATUS_RENAME } from "../../settingsStore";
 import { SearchBox } from "../../SearchBox";
 import { textPx, useColHead } from "../../ColHead";
 import { widthOf, type ColDef } from "../../cols";
@@ -56,15 +54,23 @@ import { Lists, PlaceStyle, placeText } from "./parts";
 const COLS_KEY = "complaints.cols";
 /** 상태 필터만 마지막 것을 기억해요(2026-10-17 사용자 2안 + 상태 예외). 다른 열 필터는 앱을 끄면 풀려요. */
 const STATUS_FILTER_KEY = "complaints.statusFilter";
-/** 조치완료일 열 접기(2026-10-19 사용자) – 접으면 걸린 날 "Nd"만 보여요. */
-const DONE_FOLD_KEY = "complaints.doneFolded";
 
 // ---------- 화면 ----------
 
-export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { urgentDays: number; focusId?: number | null; onFocused?: () => void }) {
+export default function ComplaintsScreen({
+  urgentDays,
+  focusId,
+  onFocused,
+  onOpenMap,
+}: {
+  urgentDays: number;
+  focusId?: number | null;
+  onFocused?: () => void;
+  /** 민원 지도에서 그 민원 보기(2026-11-03 사용자 1안 – 우클릭 "지도에서 보기"·단축키). 지도 모듈을 끄면 없어요. */
+  onOpenMap?: (id: number) => void;
+}) {
   const [list, setList] = useState<Complaint[] | null>(null);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
-  const [doneFolded, setDoneFolded] = useState(true); // 처음엔 접혀 있어요(2026-10-19 사용자)
   // 표가 쓸 수 있는 폭(위쪽 줄 폭 − 표 테두리) – 내용·조치내용 처음 값을 여기에 맞춰요. 넓힌 열이 넘치면 본문이 가로로 밀려요.
   const tableRef = useRef<HTMLDivElement>(null);
   const [avail, setAvail] = useState(0);
@@ -104,10 +110,9 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
       return cs.map((c) => fixed.get(c.id) ?? c);
     });
     const ok = <T,>(p: Promise<T>) => p.then((v) => ({ v }), (e: unknown) => ({ e }));
-    void Promise.all([ok(listP), ok(loadSettings()), ok(api.get(DONE_FOLD_KEY)), ok(api.get(STATUS_FILTER_KEY))]).then(([l, s, fold, sf]) => {
+    void Promise.all([ok(listP), ok(loadSettings()), ok(api.get(STATUS_FILTER_KEY))]).then(([l, s, sf]) => {
       if (!alive) return;
       if ("v" in s) setSettings(s.v);
-      if ("v" in fold) setDoneFolded(fold.v !== "false");
       if ("v" in sf) setFilters((f) => ({ ...f, status: readStatusFilter(sf.v) }));
       if ("v" in l) setList(l.v);
       else setNote(errorText(l.e));
@@ -255,14 +260,14 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [list, settings]);
 
-  const needs = useColNeeds(list, doneFolded, today, settings.placeStyle, holidayVer);
-  // 열 폭(헤더 열 조정 통일 ✔1~3): 처음 값은 layoutCols(글 폭·창 폭), 끈 열은 px 그대로. 상태·메모는 고정, 접힌 조치완료일도 고정.
+  const needs = useColNeeds(list, today, urgentDays, settings.placeStyle, holidayVer);
+  // 열 폭(헤더 열 조정 통일 ✔1~3): 처음 값은 layoutCols(글 폭·창 폭), 끈 열은 px 그대로. 상태·메모는 고정.
   const init = layoutCols(needs, avail).init;
   const colDefs: ColDef[] = COLUMNS.map((c) => ({
     id: c.key,
     label: c.label,
     init: init[c.key],
-    fixed: c.key === "status" || c.key === "memo" || (c.key === "done" && doneFolded),
+    fixed: c.key === "status" || c.key === "memo",
     text: c.key === "place" || FLEXED.includes(c.key),
   }));
   const cols = useColHead({
@@ -279,10 +284,6 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
   const layout = layoutCols(needs, avail, cols.saved);
   const shownWidths = COLUMNS.map((c) => cols.width(c.key));
   const total = shownWidths.reduce((a, w) => a + w, 0);
-  const foldDone = (v: boolean) => {
-    setDoneFolded(v);
-    run(api.set(DONE_FOLD_KEY, v ? "true" : "false"));
-  };
   // 위쪽 줄 높이(열 제목 줄을 그만큼 내려 붙여요)
   const topRef = useRef<HTMLDivElement>(null);
   const [topH, setTopH] = useState(0);
@@ -291,6 +292,21 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
   const committedCols = COLUMNS.map((c) => widthOf(colDefs.find((d) => d.id === c.key)!, cols.committed) + "px").join(" ");
   (tableStyle as Record<string, string>)["--cm-top-h"] = `${topH}px`;
   const memoOf = all.find((c) => c.id === memoId) ?? null;
+
+  // 고른 줄을 민원 지도에서 보기 – 단축키(설정 "키 설정" 앱 묶음, 처음 Ctrl+M · 2026-11-03 사용자 1안). 고치는 중엔 안 해요.
+  const mapKey = useRef({ selId, editId, onOpenMap });
+  mapKey.current = { selId, editId, onOpenMap };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const { selId: id, editId: ed, onOpenMap: go } = mapKey.current;
+      if (!go || id == null || ed != null || !isAppKey(e, "app.map")) return;
+      e.preventDefault();
+      e.stopPropagation();
+      go(id);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // 위쪽 줄(상태 칩·검색·단추)을 고정하고 그 높이만큼 열 제목 줄을 내려 붙여요(2026-10-25 사용자 – 집행현황처럼).
   // 그리기 전에 한 번 재요(2026-10-30 속도 ① – 열 제목 줄이 한 번 더 움직이지 않게).
@@ -378,11 +394,9 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
 
       {note && <p className="note" role="status">{note}</p>}
 
-      <div className={"cm" + (doneFolded ? " cm-fold-done" : "")} role="table" aria-label="민원 목록" style={tableStyle} ref={tableRef}>
+      <div className="cm" role="table" aria-label="민원 목록" style={tableStyle} ref={tableRef}>
         <HeadRow
           cols={cols}
-          doneFolded={doneFolded}
-          onFoldDone={foldDone}
           filters={filters}
           open={openFilter}
           onToggle={(k) => setOpenFilter(openFilter === k ? null : k)}
@@ -441,7 +455,6 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
                     // delete_complaint는 성공해도 null을 돌려줘요 → true로 바꿔 실패(null)와 가려요(2026-10-19 사용자: 지우기가 안 먹음)
                     if (await run(api.deleteComplaint(c.id).then(() => true))) await reload();
                   }}
-                  onMemo={() => setMemoId(c.id)}
                 />
               ) : (
                 <ViewRow
@@ -455,7 +468,6 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
                   selected={selId === c.id}
                   statuses={statuses}
                   short={layout.short}
-                  doneFolded={doneFolded}
                   placeStyle={settings.placeStyle}
                   onSelect={() => setSelId(c.id)}
                   onMenu={(x, y) => {
@@ -475,22 +487,13 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
                     const r = await run(api.setComplaintStatus(c.id, status, done));
                     if (r) put(r);
                   }}
-                  onDone={async (done) => {
-                    // 조치완료일을 적으면 상태는 완료(불가도 – 2026-10-25 사용자).
-                    const r = await run(api.setComplaintStatus(c.id, done ? DONE_STATUS : c.status, done));
-                    if (r) put(r);
-                  }}
-                  onDue={async (due) => {
-                    const r = await run(api.updateComplaint(c.id, { ...inputOf(c), due }));
-                    if (r) put(r);
-                  }}
                 />
               )
             );
           }}
         />
         {all.length === 0 ? (
-          <div className="cm-empty muted small">아직 민원이 없어요. 위 줄에 적고 상태 칸에서 Enter를 눌러 등록해요. 아무 칸 하나만 적어도 돼요.</div>
+          <div className="cm-empty muted small">아직 민원이 없어요. 위 줄에 적고 마감일 칸에서 Enter를 눌러 등록해요. 아무 칸 하나만 적어도 돼요.</div>
         ) : shown.length === 0 ? (
           <div className="cm-empty muted small">맞는 민원이 없어요.</div>
         ) : null}
@@ -516,6 +519,10 @@ export default function ComplaintsScreen({ urgentDays, focusId, onFocused }: { u
                 setMemoId(null);
                 setEditId(c.id);
               }}
+              onMap={onOpenMap && (() => {
+                close();
+                onOpenMap(c.id);
+              })}
               onAsk={() => setRowMenu({ ...rowMenu, ask: true })}
               onDelete={async () => {
                 close();
@@ -553,34 +560,17 @@ function rowEstimate(c: Complaint): number {
   return Math.max(37, 14 + 23 * n);
 }
 
-/** 저장된 민원 → 고치기 칸 값(한 칸만 바꿔 저장할 때) */
-function inputOf(c: Complaint): ComplaintInput {
-  return {
-    intake: c.intake,
-    received: c.received,
-    ctype: c.ctype,
-    area: c.area,
-    place: c.place,
-    road: c.road ?? "",
-    person: c.person,
-    phone: c.phone,
-    body: c.body,
-    action: c.action,
-    due: c.due,
-    status: c.status,
-    done: c.done ?? "",
-  };
-}
-
 /** 민원인 칸의 처음 폭 = 휴대폰 번호 폭(2026-10-21 사용자) */
 const PHONE_SAMPLE = "010-7280-5715";
 const HEAD_FONT = { weight: 600, size: 12 };
-/** 상태 배지 폭(styles/*.css .cm-status width) · 메모 단추 · 접힌 조치완료일 단추 */
+/** 상태 배지 폭(styles/*.css .cm-status width) · 메모 단추 */
 const STATUS_BADGE = 52;
 const MEMO_BTN = 22;
-const FOLD_BTN = 14;
-/** 날짜와 D-day·걸린 날 사이 */
-const DUE_GAP = 8;
+/**
+ * 처리 칸 바닥(2026-11-03 사용자 7판 – 처음 폭 124 = 96 + 여유 28): 날짜 입력칸 87("0000-00-00" 75 + 안 여백)이 들어가고
+ * "120일 지남"처럼 긴 글도 들어가는 폭. 글이 더 길면 그만큼 넓어져요.
+ */
+const PROC_MIN = 96;
 
 
 /**
@@ -588,7 +578,7 @@ const DUE_GAP = 8;
  * 열 제목 글자도 넣어요 – 거르기 아이콘은 마우스를 올릴 때만 여유 자리에 겹쳐 보여 자리를 잡지 않아요(⑨ 1안).
  * 짧은 글 열(접수유형·민원유형)은 90%가 들어가는 폭, 위치는 다 보여야 해서 가장 긴 것.
  */
-function useColNeeds(list: Complaint[] | null, doneFolded: boolean, today: string, placeStyle: PlaceStyle, holidayVer: number): Partial<Record<ColKey, ColNeed>> {
+function useColNeeds(list: Complaint[] | null, today: string, urgentDays: number, placeStyle: PlaceStyle, holidayVer: number): Partial<Record<ColKey, ColNeed>> {
   return useMemo(() => {
     // 목록이 오기 전에는 재지 않아요(2026-10-30 속도 ① – 빈 목록을 한 번 더 재지 않게).
     if (!list) return {};
@@ -615,7 +605,8 @@ function useColNeeds(list: Complaint[] | null, doneFolded: boolean, today: strin
         const h = head(k);
         return { full: Math.max(h, n.full), short: n.short == null ? undefined : Math.max(h, n.short), more: n.more == null ? undefined : Math.max(h, n.more) };
       };
-      const dday = max(all.map((c) => daysLeft(c, today)).filter((x): x is number => x !== null).map((n) => nw(ddayText(n), 700, 11.5)));
+      // 처리 칸 글(굵기는 styles/complaints.css .cm-proc-t – 남은 날 700, 흐린 글 400)
+      const proc = max(all.map((c) => procOf(c, today, urgentDays)).map((p) => (p ? nw(p.text, p.tone === "soft" ? 400 : 700) : 0)));
       const date = nw("2026-10-16");
       const out: Partial<Record<ColKey, ColNeed>> = {
         no: at("no", { full: max(all.map((c) => nw(String(c.no)))) }),
@@ -628,20 +619,8 @@ function useColNeeds(list: Complaint[] | null, doneFolded: boolean, today: strin
           short: max([tw(PLACE_SAMPLE.short), ...all.map((c) => tw(c.place))]),
         }),
         person: at("person", { full: tw(PHONE_SAMPLE), more: p90(all.map((c) => tw([c.person, c.phone].filter(Boolean).join(" ")))) }),
-        // 줄인 모양에서도 답변 끝난 민원은 D-day 대신 짧은 날짜(26-10-16)를 보여서 그 폭도 넣어요(2026-10-21 화면 배율 – 잘림).
-        due: at("due", {
-          full: date + (dday ? DUE_GAP + dday : 0),
-          short: Math.max(dday, nw("D-day", 700, 11.5), all.some((c) => c.due && daysLeft(c, today) === null) ? nw("26-10-16") : 0),
-        }),
         status: at("status", { full: STATUS_BADGE }),
-        done: doneFolded
-          ? { full: FOLD_BTN }
-          : at("done", {
-              full:
-                date +
-                DUE_GAP +
-                max(all.map((c) => { const t = daysTaken(c); return t === null ? 0 : nw(takenText(c, t), 600, 11.5); })),
-            }),
+        due: at("due", { full: Math.max(PROC_MIN, proc) }),
         memo: { full: MEMO_BTN },
       };
       return out;
@@ -674,7 +653,7 @@ function useColNeeds(list: Complaint[] | null, doneFolded: boolean, today: strin
     // ③ 계산
     return compute(twReal, (s, weight = 400, size = 13) => (s ? numCache.get(numKey(s, weight, size)) ?? 0 : 0));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [list, doneFolded, today, placeStyle, holidayVer]);
+  }, [list, today, urgentDays, placeStyle, holidayVer]);
 }
 
 /** 고친 것이 없으면 저장하지 않아요. */

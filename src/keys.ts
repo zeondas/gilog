@@ -35,7 +35,8 @@ export type Action =
   | "table.br"
   | "para.next"
   | "para.list"
-  | "app.lock";
+  | "app.lock"
+  | "app.map";
 
 export type KeyMap = Record<Action, string>;
 
@@ -89,7 +90,15 @@ export const KEY_GROUPS: { scope: Scope; title: string; rows: [Action, string, s
     ],
   },
   // 앱 단축키(2026-10-25 사용자 ⑥1안, 공통 ✔4) – 이 묶음만 Ctrl·왼쪽 Alt + 글자 키를 골라요.
-  { scope: "app", title: "앱", rows: [["app.lock", "잠그기", "Ctrl+L"]] },
+  // 민원대장 고른 줄 → 민원 지도(2026-11-03 사용자 1안 – 우클릭 "지도에서 보기"와 같아요).
+  {
+    scope: "app",
+    title: "앱",
+    rows: [
+      ["app.lock", "잠그기", "Ctrl+L"],
+      ["app.map", "민원대장 고른 민원 지도에서 보기", "Ctrl+M"],
+    ],
+  },
 ];
 
 export const DEFAULT_KEYS: KeyMap = Object.fromEntries(KEY_GROUPS.flatMap((g) => g.rows.map(([a, , k]) => [a, k]))) as KeyMap;
@@ -186,7 +195,15 @@ export function appKeyName(e: AnyKey): string | null {
 
 /** 이 키가 "잠그기" 단축키인지 */
 export function isLockKey(e: AnyKey): boolean {
-  const k = current["app.lock"];
+  return isAppKey(e, "app.lock");
+}
+
+/** 지금 그 동작에 걸린 키(없으면 "") */
+export const keyOf = (a: Action): string => current[a] ?? "";
+
+/** 이 키가 앱 묶음 단축키(잠그기·지도에서 보기)인지 */
+export function isAppKey(e: AnyKey, a: Action): boolean {
+  const k = current[a];
   return !!k && appKeyName(e) === k;
 }
 
