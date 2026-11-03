@@ -483,6 +483,8 @@ export const api = {
   complaints: () => call<Complaint[]>("complaints"),
   complaintsMap: () => call<MapComplaint[]>("complaints_map"),
   mapParcelStats: () => call<[number, number]>("map_parcel_stats"),
+  /** 지번 글 → 좌표(EPSG:5181 m) – 앱에 넣은 필지 표만(✔5) */
+  mapGeocode: (place: string) => call<[number, number] | null>("map_geocode", { place }),
   /** 위치 글이 파주시 도로명주소면 법정동 지번으로 (core address.rs) */
   roadToJibun: (text: string): Promise<RoadLookup> => (inApp ? invoke<RoadLookup>("road_to_jibun", { text }) : (previewCall("road_to_jibun", { text }) as Promise<RoadLookup>)),
   /** 내장 도로명주소 표: 곳 수·자료 날짜·바꾼 표인지 (주소 변환 웹 2026-10-21) */

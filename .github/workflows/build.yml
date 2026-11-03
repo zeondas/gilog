@@ -88,6 +88,14 @@ jobs:
 
       # bash 칸에서는 Git에 딸린 perl이 먼저 잡히는데, 2026-10 러너부터 OpenSSL 설정에 필요한 모듈이 빠져 실패해요.
       # 그래서 윈도우용 Strawberry Perl을 쓰게 해요(openssl-src는 PERL 값을 먼저 봐요).
+      # 키 값은 찍지 않고 있는지만 알려요(작업 공간에선 비밀 목록을 못 봐서 빌드 로그로 확인 – 민원 지도 ✔4).
+      - name: 카카오 키 확인
+        shell: bash
+        env:
+          K: ${{ secrets.KAKAO_JS_KEY }}
+        run: |
+          if [ -n "$K" ]; then echo "카카오 키 있음(${#K}자)"; else echo "::warning::KAKAO_JS_KEY 비밀이 없어요 – 민원 지도는 연속주제도로 떠요"; fi
+
       - name: 설치 파일 만들기
         id: build
         shell: bash
@@ -96,6 +104,8 @@ jobs:
           # 구글 연동 앱 정보(구글 콘솔에서 받은 client_secret JSON 그대로)를 설치 파일에 넣어요. 저장소에는 없어요.
           # 비밀 값이 없으면 비어 있고, 그때는 설정에서 파일을 골라요.
           VITE_GOOGLE_CLIENT: ${{ secrets.GILOG_GOOGLE_CLIENT }}
+          # 카카오 JavaScript 키(민원 지도 배경·로드뷰·주소 검색 – 결정 로그 11-03 10:03). 없으면 지도는 연속주제도로 떠요.
+          VITE_KAKAO_JS_KEY: ${{ secrets.KAKAO_JS_KEY }}
         run: |
           export PATH="/c/Strawberry/perl/bin:$PATH"
           npm run tauri build 2>&1 | tee -a build.log; exit ${PIPESTATUS[0]}

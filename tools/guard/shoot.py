@@ -487,7 +487,14 @@ SCENES.update({
 
 
 # 민원 지도(2026-11-02 민원 지도 세션) – SCREENS 목록에는 넣지 않아요(넣으면 뒤 장면 번호가 밀려 기준과 짝이 어긋나요).
+# 11-03 ✔5·✔8: 사이드바 첫 탭이 "주소 검색"이라 목록 장면은 둘째 탭(민원현황·하천)을 먼저 눌러요. 지킴이 빌드엔 카카오 키가 없어 늘 연속주제도(data-bg="dxf").
+async def list_tab(p):
+    await p.locator(".mp-side-tabs .fx-tab").nth(1).click()
+    await p.wait_for_timeout(200)
+
+
 async def s_map_region(p):
+    await list_tab(p)
     await p.locator(".mp-reg", has_text="조리읍").first.dblclick()
     await p.wait_for_timeout(900)
 
@@ -497,6 +504,7 @@ async def s_map_period(p):
 
 
 async def s_map_regions(p):
+    await list_tab(p)
     await p.locator(".mp-regbtn").first.click()
 
 
@@ -519,16 +527,47 @@ async def field_to(p, field):
 
 async def s_map_river(p):
     await field_to(p, "river")
+    await list_tab(p)
     await p.locator(".mp-reg", has_text="하천 밖").first.click()
 
 
 async def s_map_rivers(p):
     await field_to(p, "river")
+    await list_tab(p)
     await p.locator(".mp-regbtn").first.click()
 
 
 async def s_map_park(p):
     await field_to(p, "park")
+
+
+# 11-03 ✔5·✔6·✔7·✔11: 주소 검색(지번 – 앱 안 필지 표) · [층] 상자 · 거리 재기 · 사이드바 접기
+async def s_map_search(p):
+    await p.locator(".mp-search input").first.fill("봉일천리 113")
+    await p.locator(".mp-search input").first.press("Enter")
+    await p.wait_for_timeout(900)
+
+
+async def s_map_layers(p):
+    await p.locator(".mp-btn[aria-label='층']").first.click()
+
+
+async def s_map_measure(p):
+    await p.locator(".mp-btn[aria-label='거리']").first.click()
+    box = await p.locator(".mp-map").first.bounding_box()
+    cx, cy = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+    for dx, dy in ((-160, 40), (-20, -60)):
+        await p.mouse.click(cx + dx, cy + dy)
+        await p.wait_for_timeout(500)
+    await p.mouse.click(cx + 120, cy + 20)
+    await p.wait_for_timeout(100)
+    await p.mouse.click(cx + 120, cy + 20)  # 두 번 누르기로 끝
+    await p.wait_for_timeout(300)
+
+
+async def s_map_fold(p):
+    await p.locator(".mp-fold").first.click()
+    await p.wait_for_timeout(300)
 
 
 SCENES.update({
@@ -540,6 +579,10 @@ SCENES.update({
     "map_region": ("민원 지도", s_map_region),
     "map_period": ("민원 지도", s_map_period),
     "map_regions": ("민원 지도", s_map_regions),
+    "map_search": ("민원 지도", s_map_search),
+    "map_layers": ("민원 지도", s_map_layers),
+    "map_measure": ("민원 지도", s_map_measure),
+    "map_fold": ("민원 지도", s_map_fold),
 })
 
 

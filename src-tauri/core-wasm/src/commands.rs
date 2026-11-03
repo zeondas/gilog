@@ -58,6 +58,7 @@ pub const BROWSER: &[&str] = &[
     "complaints",
     "complaints_map",
     "map_parcel_stats",
+    "map_geocode",
     "add_complaint",
     "update_complaint",
     "replace_complaint_field",
@@ -313,6 +314,7 @@ pub(crate) fn browser(s: &mut Session, cmd: &str, a: &Args) -> Option<Result<Val
         "complaints" => with(s, |st| st.complaints()),
         "complaints_map" => with(s, |st| st.complaints_map()),
         "map_parcel_stats" => Ok(serde_json::to_value(gilog_core::parcel_stats()).unwrap_or_default()),
+        "map_geocode" => a.s("place").and_then(|t| json(gilog_core::geocode(&t).map(|(x, y, _)| (x, y)))),
         "add_complaint" => (|| {
             let c: ComplaintInput = a.get("complaint")?;
             with(s, |st| st.add_complaint(&c))

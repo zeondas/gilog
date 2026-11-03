@@ -541,6 +541,12 @@ async fn map_parcel_stats() -> (usize, usize) {
     gilog_core::parcel_stats()
 }
 
+// 민원 지도 주소 검색(✔5): 지번 글 → 좌표(EPSG:5181 m). 앱에 넣은 필지 표만 읽어요 – 밖으로 안 나가요.
+#[tauri::command]
+async fn map_geocode(place: String) -> Option<(f64, f64)> {
+    gilog_core::geocode(&place).map(|(x, y, _)| (x, y))
+}
+
 #[tauri::command]
 fn add_complaint(state: State<AppState>, complaint: ComplaintInput) -> Result<Complaint, String> {
     with_store(&state, |s| s.add_complaint(&complaint))
@@ -883,6 +889,7 @@ pub fn run() {
             complaints,
             complaints_map,
             map_parcel_stats,
+            map_geocode,
             add_complaint,
             update_complaint,
             replace_complaint_field,

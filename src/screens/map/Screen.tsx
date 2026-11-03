@@ -9,7 +9,8 @@ import { DateInput, readDate } from "../../DateInput";
 import { useJamoGuard } from "../../koInput";
 import { STATUSES } from "../../settingsStore";
 import layersUrl from "../../../data/map/paju_layers.bin.gz?url";
-import MapCanvas, { type MapPoint } from "./MapCanvas";
+import MapCanvas, { type MapPoint, type Pin } from "./MapCanvas";
+import { kakaoReady, kakaoSearch, type Hit } from "./kakao";
 import {
   DONGS,
   EUPS,
@@ -42,11 +43,13 @@ const KV_LIST_W = "map.listW";
 const KV_HIDDEN = "map.hidden";
 const KV_FIELD = "map.field"; // 분야(✔3) – 설정 › 민원 지도에서 고름
 const KV_RIVER_OFF = "map.riverOff"; // 하천 표시 설정에서 끈 등급
+const KV_FOLD = "map.listFold"; // 왼쪽 사이드바 접음(✔11)
 const LIST_MIN = 280;
 const LIST_MAX = 420;
 const WIDE = 360; // 이 폭부터 행에 접수유형 열
 
 type Pop = "type" | "status" | "period" | "regions" | "rivers" | null;
+type Tab = "search" | "list";
 
 function Chevron({ open }: { open: boolean }) {
   return (
@@ -125,6 +128,17 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
   const [folded, setFolded] = useState<Set<string>>(new Set());
   const [selId, setSelId] = useState<number | null>(null);
   const [draft, setDraft] = useState<{ from: string; to: string }>({ from: "", to: "" });
+  // 사이드바 탭(✔5·✔8): 주소 검색이 앞·처음 열리는 탭 · 접고 펴기(✔11)
+  const [tab, setTab] = useState<Tab>("search");
+  const [fold, setFold] = useState(false);
+  // 주소 검색(✔5): 지번은 앱 안 필지 표, 이름·도로명은 카카오(파주시만) – 결과는 저장하지 않아요
+  const [sq, setSq] = useState("");
+  const [hits, setHits] = useState<Hit[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [pin, setPin] = useState<Pin | null>(null);
+  const [kakaoOn, setKakaoOn] = useState(false);
+  // 재기(✔6): 면적·반경 안 민원만
+  const [picked, setPicked] = useState<Set<number> | null>(null);
   const headRef = useRef<HTMLDivElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
   const regionPopRef = useRef<HTMLDivElement>(null);
@@ -143,6 +157,7 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
       if (alive && n >= LIST_MIN && n <= LIST_MAX) setListW(n);
     }).catch(() => {});
     api.get(KV_FIELD).then((v) => alive && setField(fieldOf(v))).catch(() => {});
+    api.get(KV_FOLD).then((v) => alive && setFold(v === "1")).catch(() => {});
     api.get(KV_RIVER_OFF).then((v) => {
       try {
         const a = v ? (JSON.parse(v) as string[]) : [];
@@ -190,7 +205,7 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
     const r = regionMap.get(c.id) ?? "";
     return r ? !hidden.has(r) : hidden.size === 0;
   }, [river, gradeMap, riverOff, regionMap, hidden]);
-  const passed = useMemo(() => all.filter((c) => passes(c, f) && inView(c)), [all, f, inView]);
+  const passed = useMemo(() => all.filter((c) => passes(c, f) && inView(c) && (!picked || picked.has(c.id))), [all, f, inView, picked]);
   const byRegion = useMemo(() => {
     const m = new Map<string, MapComplaint[]>();
     for (const c of passed) {
@@ -434,6 +449,56 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
     );
   };
 
+  const tabs: { key: Tab; name: string }[] = [
+    { key: "search", name: "주소 검색" },
+    { key: "list", name: river ? "하천" : "민원현황" },
+  ];
+  const saveFold = (v: boolean) => {
+    setFold(v);
+    api.set(KV_FOLD, v ? "1" : "0").catch(() => {});
+  };
+  const runSearch = async () => {
+    const t = sq.trim();
+    if (!t || busy) return;
+    setBusy(true);
+    const out: Hit[] = [];
+    // 지번은 앱 안 필지 표에서 먼저(밖으로 안 나가요) – 찾으면 카카오에 보내지 않아요.
+    if (/\d/.test(t)) {
+      try {
+        const r = await api.mapGeocode(t);
+        if (r) out.push({ name: t, addr: "", x: r[0], y: r[1], src: "jibun" });
+      } catch {
+        /* 못 찾음 */
+      }
+    }
+    const k = kakaoReady();
+    if (!out.length && k && kakaoOn && layers) {
+      try {
+        out.push(...(await kakaoSearch(k, t, layers.bounds)));
+      } catch {
+        /* 못 찾음 */
+      }
+    }
+    setHits(out);
+    setBusy(false);
+    if (out.length === 1) setPin({ x: out[0].x, y: out[0].y, label: out[0].name });
+  };
+  const onPick = useCallback((ids: number[] | null) => {
+    setPicked(ids ? new Set(ids) : null);
+    if (ids) {
+      setTab("list");
+      setFold(false);
+    }
+  }, []);
+  const pickedBar = picked && (
+    <div className="mp-picked">
+      <span>재기 안 민원 {picked.size}건만 보여요</span>
+      <button type="button" className="mp-meas-x" style={{ position: "static" }} aria-label="모두 보기" title="모두 보기" onClick={() => setPicked(null)}>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+      </button>
+    </div>
+  );
+
   return (
     <div className="mp" style={{ "--mp-list": `${listW}px` } as React.CSSProperties}>
       <div className="mp-head tb5" ref={headRef}>
@@ -502,11 +567,87 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
       {note && <p className="note" role="status">{note}</p>}
 
       <div className="mp-body">
-        <div className="mp-list" role="tree" aria-label="읍면동">
-          <div className="mp-list-head" ref={regionPopRef}>
+        {fold ? (
+          <div className="mp-list mp-folded" aria-label="사이드바(접힘)">
+            <button type="button" className="mp-fold" aria-label="사이드바 펴기" title="사이드바 펴기" onClick={() => saveFold(false)}>
+              <span aria-hidden="true">»</span>
+            </button>
+            {tabs.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                className="mp-vtab"
+                data-on={tab === t.key ? "1" : undefined}
+                onClick={() => {
+                  setTab(t.key);
+                  saveFold(false);
+                }}
+              >
+                {t.name}
+              </button>
+            ))}
+          </div>
+        ) : (
+        <div className="mp-list" aria-label="사이드바">
+          <div className="mp-side-tabs" role="tablist" aria-label="사이드바 탭">
+            {tabs.map((t) => (
+              <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} className="fx-tab" data-on={tab === t.key ? "1" : undefined} onClick={() => setTab(t.key)}>
+                {t.name}
+              </button>
+            ))}
+            <button type="button" className="mp-fold" aria-label="사이드바 접기" title="사이드바 접기" onClick={() => saveFold(true)}>
+              <span aria-hidden="true">«</span>
+            </button>
+          </div>
+          {tab === "search" ? (
+            <>
+              <div className="mp-search">
+                <SearchBox
+                  aria-label="주소 검색"
+                  placeholder="지번·도로명·장소 이름"
+                  value={sq}
+                  onChange={(e) => setSq(e.target.value)}
+                  onClear={() => {
+                    setSq("");
+                    setHits(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.nativeEvent.isComposing) void runSearch();
+                  }}
+                />
+                <button type="button" className="btn btn-primary btn-sm" disabled={!sq.trim() || busy} onClick={() => void runSearch()}>
+                  찾기
+                </button>
+              </div>
+              <p className="mp-search-note">{kakaoOn ? "파주시 안만 찾아요. 지번은 앱 안에서 찾고, 장소 이름·도로명은 카카오에서 찾아요." : "카카오 지도가 없어 지번만 찾아요(앱 안 필지 표)."}</p>
+              <div className="mp-hits" role="listbox" aria-label="찾은 곳">
+                {busy && <p className="mp-empty">찾는 중이에요…</p>}
+                {!busy && hits && hits.length === 0 && <p className="mp-empty">파주시 안에서 찾지 못했어요.</p>}
+                {!busy &&
+                  hits?.map((h, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      role="option"
+                      aria-selected={!!pin && pin.x === h.x && pin.y === h.y}
+                      className="mp-hit"
+                      onClick={() => setPin({ x: h.x, y: h.y, label: h.name })}
+                    >
+                      <b>{h.name}</b>
+                      {h.addr && <span>{h.addr}</span>}
+                      <em>{h.src === "jibun" ? "지번 · 앱 안 필지 표" : "카카오"}</em>
+                    </button>
+                  ))}
+              </div>
+            </>
+          ) : (
+          <>
+          <div className="mp-subhead" ref={regionPopRef}>
             {river ? (
               <>
-                <span>하천</span>
+                <span>
+                  하천 표시 <b>{shownGrades.length}</b>/{GRADES.length}
+                </span>
                 <button type="button" className="btn btn-ctrl btn-xs mp-regbtn" aria-expanded={pop === "rivers"} onClick={() => setPop(pop === "rivers" ? null : "rivers")}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M9 4v4M15 10v4M7 16v4" /></svg>
                   하천 표시 설정
@@ -544,7 +685,9 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
               </>
             ) : (
               <>
-                <span>읍면동</span>
+                <span>
+                  관할 <b>{shownRegions.length}</b>/{REGIONS.length}곳
+                </span>
                 <button type="button" className="btn btn-ctrl btn-xs mp-regbtn" aria-expanded={pop === "regions"} onClick={() => setPop(pop === "regions" ? null : "regions")}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M9 4v4M15 10v4M7 16v4" /></svg>
                   지역 표시 설정
@@ -586,7 +729,8 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
             )}
           </div>
           {river ? (
-            <div className="mp-list-body">
+            <div className="mp-list-body" role="tree" aria-label="하천">
+              {pickedBar}
               <div className="mp-row mp-reg mp-all mp-on" role="treeitem" aria-selected>
                 <span className="mp-name">하천 전체</span>
                 <span className="mp-n">{riverTotal}</span>
@@ -595,7 +739,8 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
               {gradeRow(RIVER_OUT, RIVER_OUT)}
             </div>
           ) : (
-            <div className="mp-list-body">
+            <div className="mp-list-body" role="tree" aria-label="읍면동">
+              {pickedBar}
               <div className={"mp-row mp-reg mp-all" + (region === null ? " mp-on" : "")} role="treeitem" aria-selected={region === null} onClick={() => setRegion(null)}>
                 <span className="mp-name">{hidden.size ? "관할 전체" : "파주시 전체"}</span>
                 <span className="mp-n">{total}</span>
@@ -604,8 +749,11 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
               {shownRegions.length === 0 && <p className="mp-empty">지역 표시 설정에서 읍면동을 켜 주세요.</p>}
             </div>
           )}
+          </>
+          )}
         </div>
-        <div className="mp-grip" role="separator" aria-orientation="vertical" aria-label="목록 폭" onPointerDown={onGrip} onPointerMove={onGripMove} onPointerUp={onGripUp} />
+        )}
+        {!fold && <div className="mp-grip" role="separator" aria-orientation="vertical" aria-label="목록 폭" onPointerDown={onGrip} onPointerMove={onGripMove} onPointerUp={onGripUp} />}
         <MapCanvas
           layers={layers}
           field={field}
@@ -618,6 +766,9 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
           legend={legend}
           onOpen={onOpenComplaint}
           onWhole={() => setRegion(null)}
+          pin={pin}
+          onPick={onPick}
+          onMode={setKakaoOn}
         />
       </div>
     </div>
