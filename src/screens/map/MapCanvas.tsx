@@ -4,14 +4,17 @@
 // 카카오일 때: 끌기·휠은 카카오가 하고(부드러운 확대 – 움직이는 동안 우리 그림판은 잠깐 숨김), 우리 그림판은 카카오 화면 범위를 따라 다시 그려요.
 // 연속주제도일 때: 휠 = 확대·축소(커서 기준) · 왼쪽 끌기·휠 클릭 끌기 = 이동 · 읍면을 고르면 약 0.5초 동안 부드럽게 확대.
 // 오른쪽 단추 줄: [로드뷰·층] · [거리·면적·반경] · [+ −] · [가운데로·파주시 전체] (11-03 2판).
+// 11-03 저녁 ✔1~✔12(wip/map7): 카카오 위 덧그림은 테마와 상관없이 한 벌 색(✔7, map.css .mp-map-kakao) · 파주 바깥 경계 굵게 + 파주 밖 흐림·범위 묶기(✔3·✔4)
+//   · 확대하면 화면 안 도형만(✔5) · 고른 민원 = 화면 쪽 selectedId 하나(✔10) → 일어서는 핀(SelPin.tsx, ✔6) · 닷 네 겹(✔9) · 로드뷰 핀 네이버식(✔11).
 // 11-03 ✔1~✔5(wip/map6): 그림판은 카카오 위(z 1) · 로드뷰 핀(rvPin.ts) · 카카오를 기다리는 동안에도 경계·닷 · 로드뷰를 열면 단추 줄은 로드뷰 × 아래 · 민원대장에서 받은 민원(focus).
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, type MapComplaint } from "../../api";
 import { statusColor } from "../../settingsStore";
-import { cardPlace, layerPaths, tracePath, type Feature, type Field, type Layers } from "./mapData";
+import { cardPlace, layerPaths, layerPathsIn, tracePath, type Feature, type Field, type Layers } from "./mapData";
 import { kakaoFailWhy, kakaoKey, loadKakao, tmForward, tmInverse, TILES_MS, type Kakao } from "./kakao";
 import { addPoint, finish, insideIds, summary, TOOLS, type Measure, type Pt, type Tool } from "./measure";
-import { drawBubble, drawFan, drawHead, easeTo, headPose, leanOf, RV_HINT } from "./rvPin";
+import { drawBubble, drawDisc, drawRvHead, easeTo, leanOf, lookPan, RV_HINT } from "./rvPin";
+import SelPin from "./SelPin";
 
 export type MapPoint = { c: MapComplaint; x: number; y: number; color: string };
 export type Pin = { x: number; y: number; label: string };
@@ -33,7 +36,7 @@ const SHOW_ROWS: { key: keyof Show; name: string; base?: boolean }[] = [
 
 /** 지도 색은 CSS 토큰(map.css `.mp` – 밝게/어둡게 따로, ✔6)에서 읽어요. 칠하는 층은 fillLayers의 color가 토큰 이름이에요. */
 type Palette = { get: (name: string) => string; key: string };
-const PAL_NAMES = ["--map-road", "--map-plan", "--map-zone", "--map-line", "--map-nat", "--map-loc", "--map-small", "--map-park", "--map-measure", "--map-rv"];
+const PAL_NAMES = ["--map-road", "--map-plan", "--map-zone", "--map-line", "--map-nat", "--map-loc", "--map-small", "--map-park", "--map-measure", "--map-rv", "--map-outer", "--map-veil", "--map-sel", "--map-accent", "--map-on-accent", "--map-accent-light"];
 function paletteOf(el: Element): Palette {
   const css = getComputedStyle(el);
   const m = new Map(PAL_NAMES.map((n) => [n, css.getPropertyValue(n).trim() || "#888"]));
@@ -46,6 +49,8 @@ const RV_RADIUS = 50; // 로드뷰: 이 거리(m) 안 가장 가까운 사진
 const RV_MIN = 0.3;
 const RV_MAX = 0.7;
 const KAKAO_MAX_LEVEL = 10;
+const CULL_W = 9000; // 화면 폭이 이보다 좁게(m) 확대하면 화면 안 도형만 그려요(✔5)
+const PAJU_PAD = 3000; // 카카오를 끌어도 파주 둘레 3km 밖으로는 못 나가요(✔3)
 
 /** left = 왼쪽을 가리는 패널 폭(px) – 그만큼 비켜 가운데 맞춰요(11-03 ✔2) */
 function fit(b: [number, number, number, number], w: number, h: number, pad = 28, left = 0): View {
@@ -54,6 +59,28 @@ function fit(b: [number, number, number, number], w: number, h: number, pad = 28
   const s = Math.max(Math.min((w - left - pad * 2) / bw, (h - pad * 2) / bh), 1e-4);
   return { cx: (b[0] + b[2]) / 2 - left / 2 / s, cy: (b[1] + b[3]) / 2, s };
 }
+
+/** 닷 네 겹(✔9): 그림자 · 진한 테 1px · 흰 띠 2px · 색(r) */
+function ring4(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, color: string) {
+  ctx.beginPath();
+  ctx.arc(x, y + 1.5, r + 3.5, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(0,0,0,0.14)";
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x, y, r + 3, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(40,38,52,0.8)";
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x, y, r + 2, 0, Math.PI * 2);
+  ctx.fillStyle = "#fff";
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+}
+/** 고른 닷 핀 높이(끝 → 머리 위, px) – 카드는 그 위에 */
+const PIN_H = 42;
 
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
@@ -67,17 +94,36 @@ function pathOf(feats: Feature[], ox: number, oy: number, close = false): Path2D
 
 /** 배경 그림 한 장: 그 그림을 그린 보기(view)와 크기(CSS px). key = 자료 + 분야·꺼 둔 층·배경 방식(bg) */
 type Snap = { cv: HTMLCanvasElement; v: View; w: number; h: number; dpr: number; key: Layers; bg: string };
-type Paths = { key: Layers; field: Field; ox: number; oy: number; fills: { id: string; color: string; minScale?: number; p: Path2D }[]; emd: Path2D };
+type Paths = { key: Layers; field: Field; ox: number; oy: number; fills: { id: string; color: string; minScale?: number; p: Path2D }[]; lines: { id: string; color: string; p: Path2D }[]; emd: Path2D; outer: Path2D };
 /** 배경 그리기 방식: 연속주제도 = 분야의 층 전부 · 카카오 = 켠 층(도로구역·도시계획시설)만 반투명으로 */
-type BgOpt = { only: Set<string> | null; alpha: number; emd: boolean; emdW: number };
+/** kakao = 카카오 위 – 경계에 흰 테두리, 도로구역·도시계획시설 테두리, 파주 밖 흐림(✔3·✔4·✔5) */
+type BgOpt = { only: Set<string> | null; alpha: number; emd: boolean; emdW: number; kakao?: boolean };
 
 /** 전체 보기(확대 배율이 minScale보다 작을 때)에는 도시계획도로를 빼고 그려요 – 그 크기에선 어차피 안 보여요(0.68.0 멈춤 ②). */
-function renderBg(ctx: CanvasRenderingContext2D, P: Paths, off: Set<string>, v: View, w: number, h: number, dpr: number, pal: Palette, o: BgOpt) {
-  const { ox, oy } = P;
+function renderBg(ctx: CanvasRenderingContext2D, P0: Paths, off: Set<string>, v: View, w: number, h: number, dpr: number, pal: Palette, o: BgOpt) {
   const s = v.s;
+  // 크게 확대하면 화면 안 도형만, 화면 가운데를 원점으로(✔5)
+  let P = P0;
+  if (w / s < CULL_W) {
+    const mx = (w / s) * 0.6;
+    const my = (h / s) * 0.6;
+    const ox = Math.round(v.cx);
+    const oy = Math.round(v.cy);
+    P = { ...P0, ...layerPathsIn(P0.key, () => new Path2D(), P0.field, [v.cx - mx, v.cy - my, v.cx + mx, v.cy + my], ox, oy) };
+  }
+  const { ox, oy } = P;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
   ctx.setTransform(s * dpr, 0, 0, -s * dpr, (w / 2 - (v.cx - ox) * s) * dpr, (h / 2 + (v.cy - oy) * s) * dpr);
+  // 파주 밖 흐림(✔3) – 카카오 위에서만(연속주제도는 파주 밖이 원래 비어 있어요)
+  if (o.kakao && P.key.outer.length) {
+    const outside = new Path2D();
+    outside.rect(v.cx - ox - w / s, v.cy - oy - h / s, (w / s) * 2, (h / s) * 2);
+    outside.addPath(P.outer);
+    ctx.globalAlpha = 0.28;
+    ctx.fillStyle = pal.get("--map-veil");
+    ctx.fill(outside, "evenodd");
+  }
   ctx.globalAlpha = o.alpha;
   for (const f of P.fills) {
     if (off.has(f.id) || (o.only && !o.only.has(f.id)) || (f.minScale && s < f.minScale)) continue;
@@ -85,11 +131,36 @@ function renderBg(ctx: CanvasRenderingContext2D, P: Paths, off: Set<string>, v: 
     ctx.fill(f.p);
   }
   ctx.globalAlpha = 1;
+  // 층마다 테두리(✔5) – 카카오 위에서 옅은 면만으로는 어디까지인지 안 보여서
+  if (o.kakao) {
+    for (const f of P.lines) {
+      if (o.only && !o.only.has(f.id)) continue;
+      if (f.id === "plan" && s < 0.06) continue;
+      ctx.strokeStyle = pal.get(f.color);
+      ctx.lineWidth = 1.2 / s;
+      ctx.stroke(f.p);
+    }
+  }
   if (o.emd) {
+    if (o.kakao) {
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 4 / s;
+      ctx.stroke(P.emd);
+    }
     ctx.strokeStyle = pal.get("--map-line");
     ctx.lineWidth = o.emdW / s;
     ctx.stroke(P.emd);
   }
+  // 파주 바깥 경계(✔4): 굵은 선 – 카카오 위는 흰 테두리 + 진한 남색 3px
+  if (o.kakao) {
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 7 / s;
+    ctx.lineJoin = "round";
+    ctx.stroke(P.outer);
+  }
+  ctx.strokeStyle = pal.get("--map-outer");
+  ctx.lineWidth = (o.kakao ? 3 : 2) / s;
+  ctx.stroke(P.outer);
 }
 
 /** 그려 둔 배경 그림을 지금 보기에 맞춰 늘리고 옮겨 붙여요(움직이는 동안 – 한 장면 몇 ms). */
@@ -115,12 +186,10 @@ function RailIcon({ k }: { k: Tool | "rv"; on?: boolean }) {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       {k === "rv" && (
-        // 로드뷰: 핀을 뺀 머리 + 큰 렌즈 눈(반짝이 둘) – 마우스 핀(rvPin.ts)과 같은 렌즈
+        // 로드뷰(✔11 네이버식): 아래로 뾰족한 물방울 머리 + 띠 – 지도 위 로드뷰 핀과 같은 그림
         <>
-          <circle cx="12" cy="12" r="8.6" fill="#FFFFFF" />
-          <circle cx="12" cy="12.6" r="4.6" fill="#2F6FE8" stroke="#1E4FB8" strokeWidth="1" />
-          <circle cx="10.3" cy="10.8" r="1.5" fill="#FFFFFF" stroke="none" />
-          <circle cx="13.9" cy="14.4" r="0.65" fill="#FFFFFF" stroke="none" />
+          <path d="M12 21c-1.6-2.4-6.6-5.8-6.6-11a6.6 6.6 0 1 1 13.2 0c0 5.2-5 8.6-6.6 11z" />
+          <path d="M7.8 12.6q4.2 2.6 8.4 0" strokeWidth="2.2" />
         </>
       )}
       {k === "dist" && (
@@ -164,7 +233,10 @@ type Props = {
   regionFeats: Feature[];
   /** 그 읍면의 테두리 상자 */
   focusBounds: [number, number, number, number] | null;
+  /** 고른 민원(✔10) – 화면 쪽이 하나만 기억해요. 지도·목록·검색·민원대장 모두 이 값을 바꾸고, 핀·닷카드·목록 줄이 따라가요 */
   selectedId: number | null;
+  /** 지도에서 닷을 누르거나 풀 때(null) */
+  onSelect: (id: number | null) => void;
   legend: { type: string; color: string }[];
   /** 주소 검색에서 고른 자리(빨간 핀, ✔5) – 바뀌면 그리로 옮겨요 */
   pin: Pin | null;
@@ -182,7 +254,7 @@ type Props = {
   focus?: { id: number; x: number; y: number; n: number } | null;
 };
 
-export default function MapCanvas({ layers, field, off, points, region, regionFeats, focusBounds, selectedId, legend, pin, onOpen, onWhole, onPick, onMode, overlay, leftInset = 0, focus = null }: Props) {
+export default function MapCanvas({ layers, field, off, points, region, regionFeats, focusBounds, selectedId, onSelect, legend, pin, onOpen, onWhole, onPick, onMode, overlay, leftInset = 0, focus = null }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -210,7 +282,16 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
   const poseTo = useRef({ look: 0, lean: 0 });
   const poseRaf = useRef<number | null>(null);
   const stillT = useRef<number | null>(null);
-  const pendingCard = useRef<number | null>(null);
+  // 고른 민원 핀(✔6): 화면 자리(끝 = 땅)·바깥 div – 자리는 그릴 때 style로만 옮겨요
+  const selXY = useRef<Pt | null>(null);
+  const selPinRef = useRef<HTMLDivElement>(null);
+  const placeSelPin = () => {
+    const el = selPinRef.current;
+    if (!el) return;
+    const p = selXY.current;
+    el.style.visibility = p ? "" : "hidden";
+    if (p) el.style.transform = `translate(${Math.round(p[0])}px, ${Math.round(p[1])}px)`;
+  };
 
   const [mode, setMode] = useState<Mode>("wait");
   const [failed, setFailed] = useState(""); // 카카오를 못 불러온 까닭(빈 글 = 실패 아님)
@@ -226,6 +307,8 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
   const bgKey = [mode, bgField, [...off].sort().join(","), show.emd ? 1 : 0, show.zone ? 1 : 0, show.plan ? 1 : 0].join("|");
   const [hover, setHover] = useState<Cluster | null>(null);
   const [pinned, setPinned] = useState<Cluster | null>(null);
+  const pinnedRef = useRef<Cluster | null>(null);
+  pinnedRef.current = pinned;
   const [cardPos, setCardPos] = useState<{ left: number; top: number } | null>(null);
   const state = useRef({ points, region, regionFeats, selectedId, show, measure, pin, mode, rvOn: false });
   state.current = { points, region, regionFeats, selectedId, show, measure, pin, mode, rvOn: rv != null };
@@ -257,13 +340,20 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
     mode === "wait"
       ? { only: new Set(), alpha: 1, emd: show.emd, emdW: 1.4 }
       : kakao
-      ? { only: new Set([...(show.zone ? ["zone"] : []), ...(show.plan ? ["plan"] : [])]), alpha: 0.5, emd: show.emd, emdW: 1.4 }
+      ? { only: new Set([...(show.zone ? ["zone"] : []), ...(show.plan ? ["plan"] : [])]), alpha: 0.35, emd: show.emd, emdW: 1.6, kakao: true }
       : { only: null, alpha: 1, emd: show.emd, emdW: 0.9 };
 
   const pathsOf = (L: Layers): Paths => {
     let P = paths.current;
     if (!P || P.key !== L || P.field !== bgField) {
-      P = { key: L, field: bgField, ...layerPaths(L, () => new Path2D(), bgField) };
+      P = { key: L, field: bgField, ...layerPaths(L, () => new Path2D(), bgField), lines: [] };
+      // 도로구역·도시계획시설 테두리(✔5): 닫은 선은 이 두 층만(고리 3천여 개 – 칠하는 층의 closePath 문제와 상관없어요)
+      const [ox, oy] = L.bounds;
+      P.lines = (["plan", "zone"] as const).map((id) => {
+        const p = new Path2D();
+        tracePath(p, L[id], ox, oy, true);
+        return { id, color: id === "plan" ? "--map-plan" : "--map-zone", p };
+      });
       paths.current = P;
     }
     return P;
@@ -308,10 +398,12 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
     const css = getComputedStyle(cv);
-    const accent = css.getPropertyValue("--accent").trim() || "#4F3CC9";
-    const onAccent = css.getPropertyValue("--on-accent").trim() || "#fff";
     const bg = css.getPropertyValue("--surface").trim() || "#fff";
     const pal = paletteOf(cv);
+    // 카카오 위에선 테마와 상관없이 한 벌(✔7 – map.css .mp-map-kakao): 강조색도 "밝게" 값(--icon-bg)
+    const accent = pal.get("--map-accent");
+    const onAccent = pal.get("--map-on-accent");
+    const onKakao = st.mode === "kakao";
     const bk = bgKey + "|" + pal.key; // 테마가 바뀌면 그려 둔 그림을 다시 그려요
     if (layers) {
       const P = pathsOf(layers);
@@ -350,12 +442,18 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
         const [x0, y0] = [v.cx - ox - w / 2 / s, v.cy - oy - h / 2 / s];
         outside.rect(x0, y0, w / s, h / s);
         outside.addPath(rp);
-        ctx.globalAlpha = (st.mode === "kakao" ? 0.45 : 0.62) * dim.current;
-        ctx.fillStyle = bg;
+        // 카카오 위: 진한 회색 45% 고정(✔8 – 밝게 테마의 흰 흐림은 밝은 지도에 묻혀요) + 흰 테두리 위 진한 남색
+        ctx.globalAlpha = (onKakao ? 0.45 : 0.62) * dim.current;
+        ctx.fillStyle = onKakao ? pal.get("--map-veil") : bg;
         ctx.fill(outside, "evenodd");
         ctx.globalAlpha = dim.current;
-        ctx.strokeStyle = accent;
-        ctx.lineWidth = 2.2 / s;
+        if (onKakao) {
+          ctx.strokeStyle = "#fff";
+          ctx.lineWidth = 6 / s;
+          ctx.stroke(rp);
+        }
+        ctx.strokeStyle = onKakao ? pal.get("--map-sel") : accent;
+        ctx.lineWidth = (onKakao ? 2.4 : 2.2) / s;
         ctx.stroke(rp);
         ctx.globalAlpha = 1;
       }
@@ -436,59 +534,43 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
       }
     }
     clusters.current = out;
-    // 민원대장에서 받은 민원(✔5): 옮긴 뒤 처음 또렷하게 그릴 때 그 닷카드를 붙잡아요
-    if (!fast && pendingCard.current != null) {
-      const id = pendingCard.current;
-      const c = out.find((q) => q.pts.some((p) => p.c.id === id));
-      if (c) {
-        pendingCard.current = null;
-        setPinned(c);
-      }
-    }
     // 모양 지킴이가 닷을 누를 자리(또렷하게 다시 그릴 때만 적어요 – 움직이는 동안은 안 건드려요)
     if (!fast && wrapRef.current) {
       const one = out.find((c) => c.sx > 20 && c.sy > 20 && c.sx < w - 20 && c.sy < h - 20);
       wrapRef.current.dataset.dot = one ? `${Math.round(one.sx)},${Math.round(one.sy)}` : "";
     }
+    // 고른 민원(✔10): 화면 쪽 selectedId 하나 – 그 닷 자리에 일어선 핀(SelPin), 카드는 핀 위, 다른 닷은 60%(✔6)
     const sel = st.selectedId;
+    const sp = sel != null && st.show.dots ? st.points.find((p) => p.c.id === sel) : undefined;
+    const spXY = sp ? toScreen(sp.x, sp.y, v, w, h) : null;
+    const spOn = !!spXY && spXY[0] > -30 && spXY[1] > -60 && spXY[0] < w + 30 && spXY[1] < h + 30;
+    selXY.current = spOn ? spXY : null;
+    placeSelPin();
+    if (!fast && sp && spOn && spXY) {
+      const cur = pinnedRef.current;
+      if (!cur || cur.pts.length !== 1 || cur.pts[0].c.id !== sel || Math.abs(cur.sx - spXY[0]) > 0.5 || Math.abs(cur.sy - spXY[1] + PIN_H) > 0.5) setPinned({ sx: spXY[0], sy: spXY[1] - PIN_H, pts: [sp] });
+    }
+    // 닷(✔9): 유형색 6px · 흰 띠 2px · 바깥 진한 테 1px · 옅은 그림자 – 카카오든 연속주제도든 같아요
     for (const c of out) {
-      const isSel = sel != null && c.pts.some((p) => p.c.id === sel);
+      const hasSel = sel != null && c.pts.some((p) => p.c.id === sel);
+      if (hasSel && c.pts.length === 1) continue; // 핀이 그 자리를 대신해요
+      ctx.globalAlpha = sel != null && spOn ? 0.6 : 1;
       if (c.pts.length > 1) {
-        ctx.beginPath();
-        ctx.arc(c.sx, c.sy, 9, 0, Math.PI * 2);
-        ctx.fillStyle = accent;
-        ctx.fill();
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = "#fff";
-        ctx.stroke();
-        ctx.fillStyle = onAccent; // 어둡게는 강조색이 밝아 어두운 글자(✔6)
+        ring4(ctx, c.sx, c.sy, 9, accent);
+        ctx.fillStyle = onAccent; // 어둡게 테마의 연속주제도는 강조색이 밝아 어두운 글자(✔6)
         ctx.font = "600 11px Pretendard, sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(String(c.pts.length), c.sx, c.sy + 0.5);
-      } else {
-        ctx.beginPath();
-        ctx.arc(c.sx, c.sy, isSel ? 6.5 : 5, 0, Math.PI * 2);
-        ctx.fillStyle = c.pts[0].color;
-        ctx.fill();
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = "#fff";
-        ctx.stroke();
-      }
-      if (isSel) {
-        ctx.beginPath();
-        ctx.arc(c.sx, c.sy, c.pts.length > 1 ? 13 : 10, 0, Math.PI * 2);
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = accent;
-        ctx.stroke();
-      }
+      } else ring4(ctx, c.sx, c.sy, 6, c.pts[0].color);
     }
-    // 지금 로드뷰 자리(✔2): 발밑 부채꼴 + 보는 쪽으로 고개를 돌린 머리
+    ctx.globalAlpha = 1;
+    // 지금 로드뷰 자리(✔11 네이버식): 원판 + 보는 쪽 부채꼴 + 흰 머리(띠가 보는 쪽을 따라 돌아요)
+    const rvFan = pal.get("--map-accent-light");
     if (rvPos.current) {
       const [x, y] = toScreen(rvPos.current[0], rvPos.current[1], v, w, h);
-      drawFan(ctx, x, y, rvPan.current, pal.get("--map-rv"));
-      const hp = headPose(rvPan.current);
-      drawHead(ctx, x, y, hp.look, hp.front);
+      drawDisc(ctx, x, y, rvPan.current, 24, pal.get("--map-rv"), rvFan);
+      drawRvHead(ctx, x, y, rvPan.current, rvFan);
     }
     // 주소 검색 핀(✔5): 빨간 핀 – 닷 위에
     if (st.pin) {
@@ -511,7 +593,8 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
     // 마우스 핀(✔2): 로드뷰가 켜져 있으면 손 대신 – 맨 위
     const mp = rvMouse.current;
     if (st.rvOn && mp) {
-      drawHead(ctx, mp[0], mp[1], pose.current.look, 1, pose.current.lean);
+      drawDisc(ctx, mp[0], mp[1], 0, 14, pal.get("--map-rv"), null);
+      drawRvHead(ctx, mp[0], mp[1], lookPan(pose.current.look), rvFan, pose.current.lean);
       drawBubble(ctx, mp[0], mp[1], RV_HINT, w);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -657,13 +740,24 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
       if (!tiles && kmap.current === m) fallback("카카오 지도 그림이 8초 안에 오지 않았어요(보안 허용 목록·인터넷)");
     }, TILES_MS);
     const cv = canvasRef.current;
+    // 파주 둘레 3km 밖으로는 못 끌어요(✔3) – 지도 그림은 전국 한 벌이라 파주만 받기는 못 해요
+    const [bx0, by0, bx1, by1] = layers.bounds;
     ev.addListener(m, "center_changed", () => {
+      const c = m.getCenter();
+      const [x, y] = tmForward(c.getLat(), c.getLng());
+      const cx = Math.max(bx0 - PAJU_PAD, Math.min(bx1 + PAJU_PAD, x));
+      const cy = Math.max(by0 - PAJU_PAD, Math.min(by1 + PAJU_PAD, y));
+      if (cx !== x || cy !== y) {
+        m.setCenter(latLng(cx, cy));
+        return;
+      }
       syncView();
       draw(true);
     });
     // 부드러운 확대(✔3): 움직이는 동안(약 0.3초) 우리 그림판은 잠깐 숨기고, 끝나면 다시 그려요.
     ev.addListener(m, "zoom_start", () => {
       if (cv) cv.style.opacity = "0";
+      if (selPinRef.current) selPinRef.current.style.opacity = "0";
       setHover(null);
       setPinned(null);
     });
@@ -671,6 +765,7 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
       syncView();
       draw();
       if (cv) cv.style.opacity = "";
+      if (selPinRef.current) selPinRef.current.style.opacity = "";
     });
     const fb = focusBounds ?? layers.bounds;
     kakaoFit(fb);
@@ -786,8 +881,14 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
     [animateTo],
   );
   useEffect(() => {
+    // 풀면(✔10) 그 닷카드도 닫아요 – 묶음 카드(여러 건)는 그대로
+    if (selectedId == null) {
+      const c = pinnedRef.current;
+      if (c && c.pts.length === 1) setPinned(null);
+      return;
+    }
     const v = view.current;
-    if (selectedId == null || !v) return;
+    if (!v) return;
     const p = points.find((q) => q.c.id === selectedId);
     if (!p) return;
     const { w, h } = size.current;
@@ -813,7 +914,6 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
   // 민원대장에서 받은 민원(✔5): 그리로 옮기고 확대 → 그 닷카드
   useEffect(() => {
     if (!focus) return;
-    pendingCard.current = focus.id;
     const m = kmap.current;
     if (m) {
       m.setLevel(3);
@@ -886,6 +986,9 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
         k.maps.event.addListener(r, "position_changed", () => {
           const p = r.getPosition();
           rvPos.current = tmForward(p.getLat(), p.getLng());
+          // 로드뷰 자리를 왼쪽 지도 칸 가운데로(✔2 – 열 때·길을 누를 때·로드뷰 안 화살표로 옮길 때마다, 카카오 예제 방식)
+          m.relayout();
+          m.panTo(p);
           draw();
         });
         // 로드뷰를 돌리면 지도 위 머리·부채꼴도 같이(✔2)
@@ -957,11 +1060,13 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
   const escape = useCallback(() => {
     if (rv) closeRv();
     else if (measure) clearMeasure();
-    else if (pinned) setPinned(null);
-    else if (region) onWhole();
+    else if (pinned || selectedId != null) {
+      setPinned(null);
+      onSelect(null);
+    } else if (region) onWhole();
     else return false;
     return true;
-  }, [rv, measure, pinned, region, closeRv, clearMeasure, onWhole]);
+  }, [rv, measure, pinned, selectedId, region, closeRv, clearMeasure, onWhole, onSelect]);
   useEffect(() => {
     if (!rv && !measure) return;
     const key = (e: KeyboardEvent) => {
@@ -1074,6 +1179,7 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
     const c = hitAt(mx, my);
     if (!c) {
       setPinned(null);
+      onSelect(null);
       // 로드뷰가 열려 있으면 누른 자리로(파란 선 위)
       if (rv) {
         const p = world(mx, my);
@@ -1086,7 +1192,11 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
     const twice = last && last.key === key && t - last.t < DOUBLE_MS;
     lastTap.current = twice ? null : { key, t, x: mx, y: my };
     if (twice && c.pts.length === 1) onOpen(key);
-    else setPinned(c);
+    else if (c.pts.length === 1) onSelect(key); // 핀·카드·목록 줄은 고른 값을 따라와요(✔10)
+    else {
+      onSelect(null); // 묶음은 카드만 – 카드 안 한 건을 누르면 그 건이 골라져요
+      setPinned(c);
+    }
   };
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key !== "Escape") return;
@@ -1099,7 +1209,18 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
     const el = cardRef.current;
     if (!card || !el) return setCardPos(null);
     const { w, h } = size.current;
-    setCardPos(cardPlace(card.sx, card.sy, el.offsetWidth, el.offsetHeight, w, h));
+    // 고른 핀의 카드는 핀 머리 위 가운데(✔6), 그 밖은 닷 옆
+    if (card === pinned && card.pts.length === 1 && card.pts[0].c.id === selectedId) {
+      const ew = el.offsetWidth;
+      const eh = el.offsetHeight;
+      let left = card.sx - ew / 2;
+      let top = card.sy - eh - 6;
+      if (top < 8) top = card.sy + PIN_H + 14; // 위에 자리가 없으면 핀 아래
+      left = Math.max(8, Math.min(left, w - 8 - ew));
+      top = Math.max(8, Math.min(top, h - 8 - eh));
+      setCardPos({ left, top });
+    } else setCardPos(cardPlace(card.sx, card.sy, el.offsetWidth, el.offsetHeight, w, h));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [card]);
   // 재기 상자 자리는 그릴 때 정해요(내용이 바뀌면 다시)
   useLayoutEffect(() => {
@@ -1186,6 +1307,11 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
     </div>
   );
 
+  const selPoint = selectedId != null && show.dots ? points.find((p) => p.c.id === selectedId) : undefined;
+  // 핀이 생긴 뒤 자리를 바로 맞춰요(처음 그릴 때 div가 아직 없을 수 있어요)
+  useLayoutEffect(() => {
+    placeSelPin();
+  });
   const cls = ["mp-map", kakao ? "mp-map-kakao" : "", tool ? "mp-measuring" : "", hover && !tool ? "mp-hot" : ""].filter(Boolean).join(" ");
   return (
     <div className="mp-mapbox" ref={boxRef}>
@@ -1208,6 +1334,7 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
       >
         <div className="mp-kakao" ref={kdivRef} aria-hidden={!kakao} />
         <canvas ref={canvasRef} className="mp-canvas" />
+        {selPoint && <SelPin ref={selPinRef} color={selPoint.color} play={selectedId ?? 0} />}
         {!layers && <div className="mp-wait">지도를 읽는 중이에요…</div>}
         {overlay}
         {failed && mode === "dxf" && (
@@ -1267,7 +1394,7 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
             {card.pts.slice(0, 6).map((p) => {
               const [bg, fg] = statusColor(p.c.status);
               return (
-                <button type="button" key={p.c.id} className="mp-card-row" title="두 번 누르면 민원대장 그 줄" onDoubleClick={() => onOpen(p.c.id)}>
+                <button type="button" key={p.c.id} className="mp-card-row" title="두 번 누르면 민원대장 그 줄" onClick={() => card.pts.length > 1 && onSelect(p.c.id)} onDoubleClick={() => onOpen(p.c.id)}>
                   <b className="mp-card-place">{p.c.place || "(위치 없음)"}</b>
                   <em className="mp-card-badge" style={{ background: bg, color: fg }}>{p.c.status}</em>
                   <span className="mp-card-kind">

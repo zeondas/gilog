@@ -1377,3 +1377,69 @@
 .mp-panel-close:hover {
   color: var(--ink);
 }
+
+/* 11-03 저녁(wip/map7, 사용자 20:13~21:17 ✔1~✔12) */
+/* ✔1: 검색창·거르기 배지 높이 34(디자인 시스템 "검색창·머리 줄 단추 34" – 카카오맵 흉내 42·36을 공통 규칙으로) */
+.mp-sbar {
+  height: 34px;
+  border-radius: 17px;
+  padding: 0 4px;
+}
+.mp-sbar .mp-hamb {
+  width: 28px;
+  height: 28px;
+  border-radius: 14px;
+}
+.mp-pill {
+  height: 34px;
+  border-radius: 17px;
+}
+/* ✔7: 카카오 위 덧그림은 테마와 상관없이 "밝은 카카오 바탕용" 한 벌(캔버스가 이 토큰을 읽어요).
+   떠 있는 상자·검색창·단추는 테마를 따라요. 연속주제도(카카오 없을 때)는 위 .mp 토큰(테마 색) 그대로. */
+.mp-map {
+  --map-outer: #3B394A;
+  --map-veil: #1C1B22;
+  --map-sel: var(--accent);
+  --map-accent: var(--accent);
+  --map-on-accent: var(--on-accent);
+  --map-accent-light: var(--icon-bg, #4B37C4);
+}
+:root[data-theme="dark"] .mp-map {
+  --map-outer: #ECEAF2;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .mp-map {
+    --map-outer: #ECEAF2;
+  }
+}
+.mp-map.mp-map-kakao {
+  --map-plan: #E39A3B; /* 도시계획시설(도로) – 밝은 지도 위 주황 테두리 + 옅은 면 */
+  --map-zone: #8F86C9; /* 도로구역 – 보라회색 */
+  --map-line: #3A406E; /* 읍면동 경계 1.6px(흰 테두리 위) */
+  --map-outer: #1B2A5E; /* 파주 바깥 경계 3px(✔4) */
+  --map-veil: #1C1B22; /* 파주 밖·지역 밖 흐림(✔3·✔8) */
+  --map-sel: #1B2A5E; /* 고른 지역 테두리(✔8) */
+  --map-measure: #E5484D;
+  --map-rv: #2F7BF6;
+  --map-accent: var(--icon-bg, #4B37C4); /* 숫자 동그라미 – 강조색의 "밝게" 값 */
+  --map-on-accent: #fff;
+}
+/* ✔12: 떠 있는 상자의 고르기 목록 – 목록 묶음(스크롤)이 줄을 눌러 줄이지 않게(정한 32px 그대로) */
+.mp-checks > .mp-check {
+  flex: none;
+}
+/* ✔6: 고른 닷이 일어서는 핀(SelPin.tsx) – 그림판 위, 카드·단추 아래. 자리는 transform으로(끝 = 땅 자리) */
+.mp-selpin {
+  position: absolute;
+  left: -40px;
+  top: -64px;
+  width: 80px;
+  height: 80px;
+  z-index: 1;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+.mp-selpin svg {
+  display: block;
+  overflow: visible;
+}

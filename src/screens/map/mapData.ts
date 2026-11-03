@@ -161,6 +161,8 @@ export type Layers = {
   loc: Feature[];
   small: Feature[];
   park: Feature[];
+  /** 파주 바깥 경계(11-03 ✔4 – 읍면동을 합친 바깥 테두리, build.py 층 9). 옛 자료엔 없어요(빈 배열). */
+  outer: Feature[];
   bounds: [number, number, number, number];
 };
 
@@ -170,7 +172,7 @@ export function parseLayers(buf: ArrayBuffer): Layers {
   if (dec.decode(new Uint8Array(buf, 0, 4)) !== "PJL1") throw new Error("지도 자료 모양이 달라요");
   let o = 4;
   const n = v.getUint8(o++);
-  const out: Layers = { road: [], plan: [], zone: [], emd: [], nat: [], loc: [], small: [], park: [], bounds: [Infinity, Infinity, -Infinity, -Infinity] };
+  const out: Layers = { road: [], plan: [], zone: [], emd: [], nat: [], loc: [], small: [], park: [], outer: [], bounds: [Infinity, Infinity, -Infinity, -Infinity] };
   const b = out.bounds;
   for (let li = 0; li < n; li++) {
     const id = v.getUint8(o);
@@ -219,6 +221,7 @@ export function parseLayers(buf: ArrayBuffer): Layers {
     else if (id === 6) out.loc = feats;
     else if (id === 7) out.small = feats;
     else if (id === 8) out.park = feats;
+    else if (id === 9) out.outer = feats;
   }
   return out;
 }
@@ -308,7 +311,54 @@ export function layerPaths<T extends Tracer>(L: Layers, make: () => T, field: Fi
     tracePath(p, f, ox, oy, close);
     return p;
   };
-  return { ox, oy, fills: fillLayers(L, field).map((l) => ({ id: l.id, color: l.color, minScale: l.minScale, p: one(l.feats, false) })), emd: one(L.emd, true) };
+  return { ox, oy, fills: fillLayers(L, field).map((l) => ({ id: l.id, color: l.color, minScale: l.minScale, p: one(l.feats, false) })), emd: one(L.emd, true), outer: one(L.outer, true), lines: [] as { id: string; color: string; p: T }[] };
+}
+
+// ---------- 확대했을 때: 화면 안에 걸친 도형만(11-03 ✔5) ----------
+// 크게 확대하면 파주 전체 그리기 모양의 좌표가 화면 밖 수십만 점까지 커져, 그래픽 카드가 큰 면을 빼먹고 안 그리는 일이 있었어요
+// (도로구역·도시계획시설이 확대하면 사라짐). 확대했을 때는 화면에 걸친 고리만 골라, 화면 가운데를 원점으로 다시 만들어요.
+const ringBox = new WeakMap<Ring, [number, number, number, number]>();
+function boxOf(r: Ring): [number, number, number, number] {
+  let b = ringBox.get(r);
+  if (b) return b;
+  b = [Infinity, Infinity, -Infinity, -Infinity];
+  for (let k = 0; k < r.length; k += 2) {
+    if (r[k] < b[0]) b[0] = r[k];
+    if (r[k + 1] < b[1]) b[1] = r[k + 1];
+    if (r[k] > b[2]) b[2] = r[k];
+    if (r[k + 1] > b[3]) b[3] = r[k + 1];
+  }
+  ringBox.set(r, b);
+  return b;
+}
+/** 상자(x0, y0, x1, y1 – m)에 걸친 고리만 남긴 도형들 */
+export function cullFeats(feats: Feature[], b: [number, number, number, number]): Feature[] {
+  const out: Feature[] = [];
+  for (const f of feats) {
+    const rings = f.rings.filter((r) => {
+      const q = boxOf(r);
+      return q[2] >= b[0] && q[0] <= b[2] && q[3] >= b[1] && q[1] <= b[3];
+    });
+    if (rings.length) out.push({ name: f.name, rings });
+  }
+  return out;
+}
+/** layerPaths와 같은 모양이되 상자 안 고리만, 원점(ox, oy)을 받아요 + 도로구역·도시계획시설 테두리(닫은 선, ✔5) */
+export function layerPathsIn<T extends Tracer>(L: Layers, make: () => T, field: Field, b: [number, number, number, number], ox: number, oy: number) {
+  const one = (f: Feature[], close: boolean) => {
+    const p = make();
+    tracePath(p, f, ox, oy, close);
+    return p;
+  };
+  const fl = fillLayers(L, field).map((l) => ({ ...l, feats: cullFeats(l.feats, b) }));
+  return {
+    ox,
+    oy,
+    fills: fl.map((l) => ({ id: l.id, color: l.color, minScale: l.minScale, p: one(l.feats, false) })),
+    lines: fl.filter((l) => l.id === "zone" || l.id === "plan").map((l) => ({ id: l.id, color: l.color, p: one(l.feats, true) })),
+    emd: one(cullFeats(L.emd, b), true),
+    outer: one(L.outer, true),
+  };
 }
 
 // ---------- 민원 → 가장 가까운 하천 ----------
