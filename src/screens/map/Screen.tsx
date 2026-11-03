@@ -5,6 +5,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, type MapComplaint } from "../../api";
 import { SearchBox } from "../../SearchBox";
+import { koIndex } from "../../journal";
 import { DateInput, readDate } from "../../DateInput";
 import { STATUSES } from "../../settingsStore";
 import layersUrl from "../../../data/map/paju_layers.bin.gz?url";
@@ -67,6 +68,8 @@ function usePopClose(open: boolean, close: () => void, ref: React.RefObject<HTML
       if (ref.current && !ref.current.contains(e.target as Node)) close();
     };
     const key = (e: KeyboardEvent) => {
+      // 찾기 칸에 글자가 있으면 Esc는 글자부터 지워요(검색칸 부품이 받아요)
+      if (e.key === "Escape" && e.target instanceof HTMLInputElement && e.target.value && ref.current?.contains(e.target)) return;
       if (e.key === "Escape") {
         e.stopPropagation();
         close();
@@ -81,32 +84,67 @@ function usePopClose(open: boolean, close: () => void, ref: React.RefObject<HTML
   }, [open, close, ref]);
 }
 
-function CheckList({ items, sel, color, onChange }: { items: { name: string; n: number }[]; sel: Set<string>; color?: (n: string) => string; onChange: (s: Set<string>) => void }) {
-  const all = items.every((i) => sel.has(i.name));
+/** 떠 있는 상자 닫기 ×(11-03 2판): 모든 상자의 첫 줄 오른쪽 끝, 24px */
+function PopX({ onClick }: { onClick: () => void }) {
   return (
-    <div className="mp-checks">
-      <label className="mp-check mp-check-all">
-        <input type="checkbox" checked={all} onChange={() => onChange(all ? new Set() : new Set(items.map((i) => i.name)))} />
-        <span>모두</span>
-      </label>
-      {items.map((i) => (
-        <label key={i.name} className="mp-check">
-          <input
-            type="checkbox"
-            checked={sel.has(i.name)}
-            onChange={() => {
-              const s = new Set(sel);
-              if (s.has(i.name)) s.delete(i.name);
-              else s.add(i.name);
-              onChange(s);
-            }}
-          />
-          {color && <i className="mp-dot" style={{ background: color(i.name) }} />}
-          <span className="mp-check-name">{i.name}</span>
-          <span className="mp-check-n">{i.n}</span>
+    <button type="button" className="mp-popx" aria-label="닫기" title="닫기 (Esc)" onClick={onClick}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+        <path d="M6 6l12 12M18 6L6 18" />
+      </svg>
+    </button>
+  );
+}
+
+/** 체크 목록(민원유형·상태). search면 첫 줄이 찾기 칸(초성도) + ×, 아니면 "모두" 줄 끝에 × */
+function CheckList({ items, sel, color, onChange, onClose, search }: { items: { name: string; n: number }[]; sel: Set<string>; color?: (n: string) => string; onChange: (s: Set<string>) => void; onClose: () => void; search?: string }) {
+  const [q, setQ] = useState("");
+  const qt = q.trim();
+  const shown = qt ? items.filter((i) => koIndex(i.name, qt) >= 0) : items;
+  const all = shown.length > 0 && shown.every((i) => sel.has(i.name));
+  const toggleAll = () => {
+    const s = new Set(sel);
+    for (const i of shown) {
+      if (all) s.delete(i.name);
+      else s.add(i.name);
+    }
+    onChange(s);
+  };
+  return (
+    <>
+      {search && (
+        <div className="mp-pophead">
+          <SearchBox className="mp-psearch" iconSize={13} aria-label={search} placeholder={search} value={q} autoFocus onChange={(e) => setQ(e.target.value)} onClear={() => setQ("")} />
+          <PopX onClick={onClose} />
+        </div>
+      )}
+      <div className="mp-allrow">
+        <label className="mp-check mp-check-all">
+          <input type="checkbox" checked={all} disabled={!shown.length} onChange={toggleAll} />
+          <span>{qt ? `찾은 ${shown.length}개 모두` : "모두"}</span>
         </label>
-      ))}
-    </div>
+        {!search && <PopX onClick={onClose} />}
+      </div>
+      <div className="mp-checks">
+        {shown.map((i) => (
+          <label key={i.name} className="mp-check">
+            <input
+              type="checkbox"
+              checked={sel.has(i.name)}
+              onChange={() => {
+                const s = new Set(sel);
+                if (s.has(i.name)) s.delete(i.name);
+                else s.add(i.name);
+                onChange(s);
+              }}
+            />
+            {color && <i className="mp-dot" style={{ background: color(i.name) }} />}
+            <span className="mp-check-name">{i.name}</span>
+            <span className="mp-check-n">{i.n}</span>
+          </label>
+        ))}
+        {qt && !shown.length && <p className="mp-empty">맞는 유형이 없어요</p>}
+      </div>
+    </>
   );
 }
 
@@ -653,8 +691,8 @@ export default function MapScreen({ onOpenComplaint, focusId = null, onFocused }
                 <Chevron open />
               </button>
               {pop === "type" && (
-                <div className="mp-pop" role="dialog" aria-label="민원유형 거르기">
-                  <CheckList items={typeItems} sel={typeSel} color={colorOf} onChange={(s) => setF((o) => ({ ...o, types: s.size === colors.size ? null : s }))} />
+                <div className="mp-pop mp-typepop" role="dialog" aria-label="민원유형 거르기">
+                  <CheckList items={typeItems} sel={typeSel} color={colorOf} search="유형 찾기" onClose={closePop} onChange={(s) => setF((o) => ({ ...o, types: s.size === colors.size ? null : s }))} />
                 </div>
               )}
             </div>
@@ -665,7 +703,7 @@ export default function MapScreen({ onOpenComplaint, focusId = null, onFocused }
               </button>
               {pop === "status" && (
                 <div className="mp-pop" role="dialog" aria-label="상태 거르기">
-                  <CheckList items={statusItems} sel={f.statuses} onChange={(s) => setF((o) => ({ ...o, statuses: s }))} />
+                  <CheckList items={statusItems} sel={f.statuses} onClose={closePop} onChange={(s) => setF((o) => ({ ...o, statuses: s }))} />
                 </div>
               )}
             </div>
@@ -682,6 +720,7 @@ export default function MapScreen({ onOpenComplaint, focusId = null, onFocused }
                         {{ year: "올해", last: "작년", y1: "최근 1년", all: "전체" }[c]}
                       </button>
                     ))}
+                    <PopX onClick={closePop} />
                   </div>
                   <div className="mp-range">
                     <DateInput base="input mp-date-in" label="시작일" value={draft.from} invalid={fromOk === null} onChange={(v) => setDraft((d) => ({ ...d, from: v }))} onKeyDown={(e) => e.key === "Enter" && applyPeriod()} />
@@ -702,12 +741,12 @@ export default function MapScreen({ onOpenComplaint, focusId = null, onFocused }
             <div className="mp-subhead" ref={regionPopRef}>
               {river ? (
                 <>
-                  <span>
-                    하천 표시 <b>{shownGrades.length}</b>/{GRADES.length}
+                  <span className="mp-subhead-t">
+                    하천 <b>{shownGrades.length}</b>/{GRADES.length}등급
                   </span>
                   <button type="button" className="btn btn-ctrl btn-xs mp-regbtn" aria-expanded={pop === "rivers"} onClick={() => setPop(pop === "rivers" ? null : "rivers")}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M9 4v4M15 10v4M7 16v4" /></svg>
-                    하천 표시 설정
+                    표시 설정
                   </button>
                   {pop === "rivers" && (
                     <div className="mp-pop mp-regpop mp-rivpop" role="dialog" aria-label="하천 표시 설정">
@@ -715,8 +754,7 @@ export default function MapScreen({ onOpenComplaint, focusId = null, onFocused }
                         <span>
                           하천 표시 <b>{shownGrades.length}</b> / {GRADES.length}
                         </span>
-                        <button type="button" className="btn btn-ctrl btn-xs" onClick={() => saveRiverOff(new Set())}>모두 켜기</button>
-                        <button type="button" className="btn btn-ctrl btn-xs" onClick={() => saveRiverOff(new Set(GRADES.map((g) => g.key)))}>모두 끄기</button>
+                        <PopX onClick={closePop} />
                       </div>
                       <div className="mp-rivpop-list">
                         {GRADES.map((g) => (
@@ -737,17 +775,21 @@ export default function MapScreen({ onOpenComplaint, focusId = null, onFocused }
                           </label>
                         ))}
                       </div>
+                      <div className="mp-regpop-foot">
+                        <button type="button" className="btn btn-ctrl btn-xs" onClick={() => saveRiverOff(new Set())}>모두 켜기</button>
+                        <button type="button" className="btn btn-ctrl btn-xs" onClick={() => saveRiverOff(new Set(GRADES.map((g) => g.key)))}>모두 끄기</button>
+                      </div>
                     </div>
                   )}
                 </>
               ) : (
                 <>
-                  <span>
-                    관할 <b>{shownRegions.length}</b>/{REGIONS.length}곳
+                  <span className="mp-subhead-t">
+                    지역 <b>{shownRegions.length}</b>/{REGIONS.length}곳
                   </span>
                   <button type="button" className="btn btn-ctrl btn-xs mp-regbtn" aria-expanded={pop === "regions"} onClick={() => setPop(pop === "regions" ? null : "regions")}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M9 4v4M15 10v4M7 16v4" /></svg>
-                    지역 표시 설정
+                    표시 설정
                   </button>
                   {pop === "regions" && (
                     <div className="mp-pop mp-regpop" role="dialog" aria-label="지역 표시 설정">
@@ -755,8 +797,7 @@ export default function MapScreen({ onOpenComplaint, focusId = null, onFocused }
                         <span>
                           지역 표시 <b>{shownRegions.length}</b> / {REGIONS.length}
                         </span>
-                        <button type="button" className="btn btn-ctrl btn-xs" onClick={() => saveHidden(new Set())}>모두 켜기</button>
-                        <button type="button" className="btn btn-ctrl btn-xs" onClick={() => saveHidden(new Set(REGIONS))}>모두 끄기</button>
+                        <PopX onClick={closePop} />
                       </div>
                       <div className="mp-regpop-cols">
                         {[EUPS, DONGS].map((col, i) => (
@@ -780,6 +821,10 @@ export default function MapScreen({ onOpenComplaint, focusId = null, onFocused }
                           </div>
                         ))}
                       </div>
+                      <div className="mp-regpop-foot">
+                        <button type="button" className="btn btn-ctrl btn-xs" onClick={() => saveHidden(new Set())}>모두 켜기</button>
+                        <button type="button" className="btn btn-ctrl btn-xs" onClick={() => saveHidden(new Set(REGIONS))}>모두 끄기</button>
+                      </div>
                     </div>
                   )}
                 </>
@@ -799,14 +844,20 @@ export default function MapScreen({ onOpenComplaint, focusId = null, onFocused }
               <div className="mp-list-body" role="tree" aria-label="읍면동">
                 {pickedBar}
                 <div className={"mp-row mp-reg mp-all" + (region === null ? " mp-on" : "")} role="treeitem" aria-selected={region === null} onClick={() => setRegion(null)}>
-                  <span className="mp-name">{hidden.size ? "관할 전체" : "파주시 전체"}</span>
+                  <span className="mp-name">{hidden.size ? "지역 전체" : "파주시 전체"}</span>
                   <span className="mp-n">{total}</span>
                 </div>
                 {shownRegions.map(regionRow)}
-                {shownRegions.length === 0 && <p className="mp-empty">지역 표시 설정에서 읍면동을 켜 주세요.</p>}
+                {shownRegions.length === 0 && <p className="mp-empty">표시 설정에서 읍면동을 켜 주세요.</p>}
               </div>
             )}
           <div className="mp-panel-grip" role="separator" aria-orientation="vertical" aria-label="목록 폭" onPointerDown={onGrip} onPointerMove={onGripMove} onPointerUp={onGripUp} />
+          {/* 패널 닫기 손잡이(11-03 2판 1안 – 카카오맵 왼쪽 패널과 같은 자리), 다시 열기는 검색창의 줄 단추 */}
+          <button type="button" className="mp-panel-close" aria-label="패널 닫기" title="패널 닫기" onClick={() => saveFold(true)}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M15 6l-6 6 6 6" />
+            </svg>
+          </button>
         </div>
       )}
     </div>

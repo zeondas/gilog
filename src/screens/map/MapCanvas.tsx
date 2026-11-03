@@ -3,7 +3,7 @@
 //   키가 없거나(미리 보기·check·지킴이) 6초 안에 못 불러오거나 8초 안에 지도 그림이 안 오면 연속주제도(앱에 넣은 배경)로 그려요.
 // 카카오일 때: 끌기·휠은 카카오가 하고(부드러운 확대 – 움직이는 동안 우리 그림판은 잠깐 숨김), 우리 그림판은 카카오 화면 범위를 따라 다시 그려요.
 // 연속주제도일 때: 휠 = 확대·축소(커서 기준) · 왼쪽 끌기·휠 클릭 끌기 = 이동 · 읍면을 고르면 약 0.5초 동안 부드럽게 확대.
-// 오른쪽 위 단추: [+][−] · [가운데로] · [파주시 전체] · [층] · [거리][면적][반경] · [로드뷰](카카오일 때만, 지도 | 로드뷰 2분할).
+// 오른쪽 단추 줄: [로드뷰·층] · [거리·면적·반경] · [+ −] · [가운데로·파주시 전체] (11-03 2판).
 // 11-03 ✔1~✔5(wip/map6): 그림판은 카카오 위(z 1) · 로드뷰 핀(rvPin.ts) · 카카오를 기다리는 동안에도 경계·닷 · 로드뷰를 열면 단추 줄은 로드뷰 × 아래 · 민원대장에서 받은 민원(focus).
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, type MapComplaint } from "../../api";
@@ -109,11 +109,47 @@ function Icon({ d, size = 15 }: { d: string; size?: number }) {
     </svg>
   );
 }
-const TOOL_ICON: Record<Tool, string> = {
-  dist: "M4 18L10 9l5 5 5-9 M4 18h.01 M10 9h.01 M15 14h.01 M20 5h.01",
-  area: "M5 7l7-3 7 5-2 10H7z",
-  radius: "M12 12m-8 0a8 8 0 1 0 16 0a8 8 0 1 0-16 0 M12 12h8",
-};
+/** 오른쪽 단추 그림(11-03 2판, 캔버스 판 MapRail2): 24칸 · 선 1.8 · 둥근 끝. on = 켜진 단추(보라 바탕) */
+/** on은 지금 모양이 같아도 받아 둬요(켜진 단추는 currentColor가 흰색) */
+function RailIcon({ k }: { k: Tool | "rv"; on?: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {k === "rv" && (
+        // 로드뷰: 핀을 뺀 머리 + 큰 렌즈 눈(반짝이 둘) – 마우스 핀(rvPin.ts)과 같은 렌즈
+        <>
+          <circle cx="12" cy="12" r="8.6" fill="#FFFFFF" />
+          <circle cx="12" cy="12.6" r="4.6" fill="#2F6FE8" stroke="#1E4FB8" strokeWidth="1" />
+          <circle cx="10.3" cy="10.8" r="1.5" fill="#FFFFFF" stroke="none" />
+          <circle cx="13.9" cy="14.4" r="0.65" fill="#FFFFFF" stroke="none" />
+        </>
+      )}
+      {k === "dist" && (
+        // 거리: 자
+        <>
+          <path d="M3.3 16.3 16.3 3.3a1 1 0 0 1 1.4 0l3 3a1 1 0 0 1 0 1.4L7.7 20.7a1 1 0 0 1-1.4 0l-3-3a1 1 0 0 1 0-1.4z" />
+          <path d="M8 11.6l1.8 1.8M10.6 9l1.2 1.2M13.2 6.4l1.8 1.8M5.4 14.2l1.2 1.2" />
+        </>
+      )}
+      {k === "area" && (
+        // 면적: 꼭짓점 찍은 다각형 + 옅게 칠한 안쪽
+        <>
+          <path d="M5 8.5 13.5 4l6 6.5-3 9.5L5 17z" fill="currentColor" fillOpacity={0.14} />
+          {[[5, 8.5], [13.5, 4], [19.5, 10.5], [16.5, 20], [5, 17]].map(([x, y]) => (
+            <circle key={`${x},${y}`} cx={x} cy={y} r="1.3" fill="currentColor" />
+          ))}
+        </>
+      )}
+      {k === "radius" && (
+        // 반경: 원 + 가운데 점 + 반지름 선
+        <>
+          <circle cx="12" cy="12" r="8.5" />
+          <circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none" />
+          <path d="M13.6 12h6.9" />
+        </>
+      )}
+    </svg>
+  );
+}
 
 type Props = {
   layers: Layers | null;
@@ -178,7 +214,6 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
 
   const [mode, setMode] = useState<Mode>("wait");
   const [failed, setFailed] = useState(""); // 카카오를 못 불러온 까닭(빈 글 = 실패 아님)
-  const [measOpen, setMeasOpen] = useState(false);
   const [show, setShow] = useState<Show>(SHOW0);
   const [layerPop, setLayerPop] = useState(false);
   const [tool, setTool] = useState<Tool | null>(null);
@@ -921,15 +956,12 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
   // Esc: 로드뷰 닫기 → 재기 취소 → 카드 → 파주시 전체
   const escape = useCallback(() => {
     if (rv) closeRv();
-    else if (measure || measOpen) {
-      clearMeasure();
-      setMeasOpen(false);
-    }
+    else if (measure) clearMeasure();
     else if (pinned) setPinned(null);
     else if (region) onWhole();
     else return false;
     return true;
-  }, [rv, measure, measOpen, pinned, region, closeRv, clearMeasure, onWhole]);
+  }, [rv, measure, pinned, region, closeRv, clearMeasure, onWhole]);
   useEffect(() => {
     if (!rv && !measure) return;
     const key = (e: KeyboardEvent) => {
@@ -1095,36 +1127,8 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
     <div className="mp-btns">
       <div className="mp-rgrp">
         <button type="button" className={"mp-btn" + (rv ? " mp-btn-on" : "")} aria-pressed={!!rv} aria-label="로드뷰" title={kakao ? "로드뷰 – 지도 | 로드뷰로 나눠 봐요" : "로드뷰는 카카오 지도일 때만 볼 수 있어요"} disabled={!kakao} onClick={toggleRv}>
-          <Icon d="M12 4a2 2 0 1 0 0 .01 M9 21l1-7-2-2 2-4h4l2 4-2 2 1 7" />
+          <RailIcon k="rv" on={!!rv} />
         </button>
-        <div className="mp-layerwrap">
-          <button
-            type="button"
-            className={"mp-btn" + (tool || measOpen ? " mp-btn-on" : "")}
-            aria-label="재기"
-            title="거리·면적·반경 재기"
-            aria-expanded={measOpen}
-            onClick={() => {
-              if (tool) {
-                clearMeasure();
-                setMeasOpen(false);
-              } else setMeasOpen(!measOpen);
-              setLayerPop(false);
-            }}
-          >
-            <Icon d="M3 17l6-6 4 4 8-8 M14 7h7v7" />
-          </button>
-          {(measOpen || tool) && (
-            <div className="mp-fly" role="group" aria-label="거리·면적·반경">
-              {TOOLS.map((t) => (
-                <button key={t.key} type="button" className={tool === t.key ? "mp-fly-on" : ""} aria-pressed={tool === t.key} aria-label={t.name} title={`${t.name} 재기`} onClick={() => pickTool(t.key)}>
-                  <Icon size={14} d={TOOL_ICON[t.key]} />
-                  {t.name}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
         <div className="mp-layerwrap">
           <button
             type="button"
@@ -1132,10 +1136,7 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
             aria-label="층"
             title="층 – 겹쳐 보기 켜고 끄기"
             aria-expanded={layerPop}
-            onClick={() => {
-              setLayerPop(!layerPop);
-              if (!tool) setMeasOpen(false);
-            }}
+            onClick={() => setLayerPop(!layerPop)}
           >
             <Icon d="M12 3l9 5-9 5-9-5z M3 13l9 5 9-5" />
           </button>
@@ -1154,6 +1155,17 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
             </div>
           )}
         </div>
+      </div>
+      {/* 재기(11-03 2판): 묶음을 풀어 거리·면적·반경 세 단추 – 다시 누르면 꺼져요 */}
+      <div className="mp-rgrp" role="group" aria-label="재기">
+        {TOOLS.map((t) => (
+          <button key={t.key} type="button" className={"mp-btn" + (tool === t.key ? " mp-btn-on" : "")} aria-pressed={tool === t.key} aria-label={`${t.name} 재기`} title={`${t.name} 재기`} onClick={() => {
+            pickTool(t.key);
+            setLayerPop(false);
+          }}>
+            <RailIcon k={t.key} on={tool === t.key} />
+          </button>
+        ))}
       </div>
       <div className="mp-rgrp">
         <button type="button" className="mp-btn" aria-label="확대" title="확대" onClick={() => zoomBy(1.6)}>
