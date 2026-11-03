@@ -50,7 +50,7 @@
 | 버그 사냥 | main(문서만 – `docs/qa/bughunt-*.md`) | 예상 못 한 버그 찾기(결정 로그 11-01 20:49) – 1차 자료 저장(끝·0.66.0에 고침) · 2차 엑셀 가져오기(끝·✔로 옮김) | `ca18e22` | **2차 끝** · [bughunt-excel.md](https://github.com/zeondas/gilog/blob/main/docs/qa/bughunt-excel.md) 25건 · 3차 묶음은 날짜 규칙 추천 | 3차 프롬프트(엑셀 고침 빌드 뒤) |
 | 매뉴얼 | `wip/manual`·`wip/setup-guide`(문서만) | 매뉴얼(`docs/manual/`·`tools/manual/`) + 준비 안내서(`docs/setup/`) | `2f65080` / `b2b53ae` | **매뉴얼 v31 보냄** · 준비 안내서 초안(hwpx 4장, 그림 틀 10개 비움, 【확인 필요】 3) – 내력 [history.md 매뉴얼](https://github.com/zeondas/gilog/blob/main/docs/history.md#매뉴얼-현황판-줄-상태-칸-원문) | 사용자 한글 확인 · 안내서 【확인 필요】 답·캡처 11장 · 0.66.0 자료 안전 반영 |
 | 공통 | `wip/excel-fix` | core·공통 부품(자료 안전·엑셀 공통·ExcelMenu·ColHead 등 한 화면에 안 속하는 것) – 전엔 "자료 안전"·"버그수정" 세션 | `0303090` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) · 11-03 날짜 "1105"=올해 검토: 이미 공통 규칙(모든 날짜 칸 `DateInput`→`parseDate`), 코딩 없음 | 사용자 윈도우 시험 · QC 2회차 |
-| 민원대장 | `wip/complaints14` | 민원대장 화면 · **11-03 16:17 "코딩해줘"** 상태 | 처리 7판(N일 남음·답변완료·N일/N달/N년 걸림) + ✔1 지도에서 보기(우클릭·Ctrl+M) | `d42f911` | **끝(합치기 기다림)** – npm test 428·build 통과, 지킴이 민원대장·설정(키 설정 한 줄 더함) 장면만 달라짐(guard-allow), 동작 통과 · 0.67.0까지 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) · CM-39는 QC 2회차 때 목록 고치기 | 빌드 묶음 · 사용자 윈도우 시험
+| 민원대장 | `wip/complaints14` | 민원대장 화면 · **11-03 16:17 "코딩해줘"** 상태 | 처리 7판(N일 남음·답변완료·N일/N달/N년 걸림) + ✔1 지도에서 보기(우클릭·Ctrl+M) | `2b417f6` | **끝(합치기 기다림)** – check.yml 통과([run](https://github.com/zeondas/gilog/actions/runs/41599458525)) · npm test 428·build 통과, 지킴이 민원대장·설정(키 설정 한 줄 더함) 장면만 달라짐(guard-allow), 동작 통과 · 0.67.0까지 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) · CM-39는 QC 2회차 때 목록 고치기 | 빌드 묶음 · 사용자 윈도우 시험
 | 민원 지도 | `wip/map6` | 민원 지도 화면 – 민원대장과 별도 모듈, 민원대장 자료(위치·유형·상태·날짜만)를 읽어 지도에 점으로(결정 로그 11-02 14:25·16:11) | `16231d5` | **끝(검사 도는 중) – 11-03 16:30 "코딩하자" ✔1~✔5**: 닷·경계를 카카오 위로 · 로드뷰 핀(기울기·고개 돌림·반짝 눈) · 카카오 기다리는 동안 경계·닷 · 로드뷰 땐 단추 줄 × 아래 · 민원대장에서 받기 – 지도 장면 15 통과 · npm 430 · **`wip/complaints14`와 모의 합치기: App은 같은 글로 맞춰 겹침 없음, 겹침 2곳은 둘 다 살리기**(`docs/rules/structure.md` 민원대장 줄은 complaints14·민원 지도 줄은 map6, `map/Screen.tsx` 함수 머리는 map6 쪽) | 빌드 묶음 합치기 · 민원대장 ✔1(메뉴·단축키 → `openMap`) · 행정동 경계 자료(사용자) |
 | 민원처리 | `wip/process-fix2` | 민원처리 화면 | `669b0d7` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
 | 업무연락처 | – | 업무연락처 화면 | – | 대기 비어 있음(QC 실패 0) | – |
@@ -134,7 +134,7 @@
 ### 집행현황 (`src/budgetExcel.ts`·`budgetStatusImport.ts`·`budgetStatus.ts`·core `budget.rs`·`bstatus.rs` – `wip/budget-excel`, 예산현황 가져오기도 여기서)
 
 ### 민원대장 (`wip/complaints14`)
-- (✔1·7판 처리 칸은 `wip/complaints14` `d42f911`에 코딩함 – 합치기 기다림)
+- (✔1·7판 처리 칸은 `wip/complaints14` `2b417f6`에 코딩함 – 합치기 기다림)
 
 ### 민원 지도 (`wip/map6`)
 - (✔1~✔5는 `wip/map6` `16231d5`에 코딩함 – 빌드 기다림. 로드뷰 화살표는 그대로 두기로 함 15:48)
