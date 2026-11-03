@@ -77,6 +77,10 @@ export default function App() {
       off.then((f) => f());
     };
   }, []);
+  // 브라우저 미리 보기 시험용(모양 지킴이 map_focus 장면 – 민원 지도 ✔5): window.__openMap(민원 id)
+  useEffect(() => {
+    if (!inApp) (window as unknown as { __openMap?: (id: number) => void }).__openMap = openMap;
+  }, [openMap]);
 
   const refresh = useCallback(() => {
     api.status().then(setStatus, (e) => setFatal(errorText(e)));

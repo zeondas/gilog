@@ -1203,3 +1203,177 @@
   bottom: 52px;
   z-index: 5;
 }
+
+/* 11-03 ✔1(wip/map6, 사용자 15:48): 카카오 칸을 따로 묶고(z 0 – 카카오가 자기 층마다 붙이는 위 순서는 이 안에서만) 우리 그림판을 그 위(z 1)에.
+   그 위에 떠 있는 것(범례·안내·카드·패널·단추)은 z 2 이상. */
+.mp-map .mp-kakao {
+  z-index: 0;
+}
+.mp-map .mp-canvas {
+  z-index: 1;
+}
+.mp-map .mp-wait {
+  z-index: 2;
+}
+.mp-map .mp-legend {
+  z-index: 5;
+}
+/* ✔2: 로드뷰 핀이 손 대신 – 지도 위에서는 마우스 화살표를 감춰요(닷 위에선 손가락 그대로) */
+.mp-map.mp-rvpin,
+.mp-map.mp-rvpin .mp-kakao,
+.mp-map.mp-rvpin .mp-kakao * {
+  cursor: none !important;
+}
+/* ✔4: 로드뷰를 열면 단추 줄은 로드뷰 오른쪽 끝, × 아래 같은 세로줄(× = 단추 묶음과 같은 40px 둥근 단추) */
+.mp-rv .mp-rv-x {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 20px;
+  box-shadow: var(--shadow-pop);
+}
+.mp-rv .mp-btns {
+  top: 62px;
+  right: 12px;
+  transform: none;
+  align-items: center;
+  gap: 10px;
+  z-index: 6;
+}
+
+/* 11-03 2판(wip/map6, 사용자 18:01 1안): 떠 있는 상자 × · 민원유형 찾기 · 고른 칩 채움 · 패널 닫기 손잡이 · 재기 세 단추.
+   공통 결정 로그 11-03 18:0x "고른·열린 상태는 채움" – 1px 테두리·고리로 상태를 나타내지 않아요(125%에서 소수점 자리의 가는 선이 두 줄로 번져 보여서). */
+.mp-popx {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.mp-popx:hover {
+  background: var(--surface-band);
+  color: var(--ink);
+}
+.mp-pophead {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.mp-pophead .mp-psearch {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  gap: 6px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+}
+.mp-allrow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1px solid var(--line-soft);
+  margin-bottom: 2px;
+}
+.mp-allrow .mp-check-all {
+  flex: 1;
+  border-bottom: 0;
+  margin-bottom: 0;
+}
+.mp-pop .mp-check {
+  height: 32px;
+}
+.mp-typepop {
+  width: 216px;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 8px;
+}
+.mp-typepop .mp-check {
+  gap: 8px;
+  padding: 0 6px;
+}
+.mp-typepop .mp-check-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mp-chips {
+  align-items: flex-start;
+}
+.mp-chip-on {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.mp-pill.mp-fopen {
+  box-shadow: var(--shadow-pop);
+  background: var(--accent-tint);
+}
+.mp-regpop {
+  min-width: 330px;
+  left: 6px;
+  right: auto;
+}
+.mp-regpop-head {
+  height: 24px;
+  padding-bottom: 0;
+  margin-bottom: 8px;
+  border-bottom: 0;
+}
+.mp-regpop-cols,
+.mp-rivpop-list {
+  border-top: 1px solid var(--line-soft);
+  padding-top: 6px;
+}
+.mp-regpop-foot {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
+.mp-subhead {
+  height: 44px;
+  padding: 0 10px 0 14px;
+  font-size: 13px;
+}
+.mp-subhead .mp-regbtn {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+  gap: 5px;
+}
+.mp-panel-close {
+  position: absolute;
+  top: 50%;
+  right: -16px;
+  z-index: 1;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 48px;
+  padding: 0;
+  border: 1px solid var(--line-soft);
+  border-left: 0;
+  border-radius: 0 8px 8px 0;
+  background: var(--surface);
+  color: var(--muted);
+  box-shadow: 4px 0 10px rgba(28, 27, 34, 0.08);
+  cursor: pointer;
+}
+.mp-panel-close:hover {
+  color: var(--ink);
+}

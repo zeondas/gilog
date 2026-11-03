@@ -15,6 +15,7 @@ import {
   ringDist,
   fieldOf,
   passes,
+  relaxFor,
   periodLabel,
   regionOf,
   typeColors,
@@ -152,5 +153,25 @@ describe("민원 지도 규칙", () => {
     expect(fieldOf("park")).toBe("park");
     expect(fieldOf(null)).toBe("road");
     expect(fieldOf("x")).toBe("road");
+  });
+});
+
+describe("민원대장에서 받은 민원 – 거르기 풀기(11-03 ✔5)", () => {
+  const f0 = { types: new Set(["포트홀"]), statuses: new Set(["접수"]), period: { from: "2026-01-01", to: "2026-12-31", chip: "year" as const }, q: "" };
+  it("이미 보이면 그대로", () => {
+    expect(relaxFor(mk({}), f0)).toBe(f0);
+  });
+  it("유형·상태는 그 값만 더하고, 기간 밖이면 전체 기간", () => {
+    const c = mk({ ctype: "가로등", status: "완료", received: "2025-03-02" });
+    const f = relaxFor(c, f0);
+    expect(passes(c, f)).toBe(true);
+    expect([...f.types!].sort()).toEqual(["가로등", "포트홀"]);
+    expect([...f.statuses].sort()).toEqual(["완료", "접수"]);
+    expect(f.period.chip).toBe("all");
+  });
+  it("검색 글에 안 맞으면 검색 글만 지워요", () => {
+    const f = relaxFor(mk({ place: "봉일천리 1" }), { ...f0, q: "금촌" });
+    expect(f.q).toBe("");
+    expect(relaxFor(mk({ place: "봉일천리 1" }), { ...f0, q: "봉일" }).q).toBe("봉일");
   });
 });

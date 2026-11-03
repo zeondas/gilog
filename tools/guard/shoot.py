@@ -517,6 +517,18 @@ async def s_map_card(p):
     await p.wait_for_timeout(300)
 
 
+async def s_map_focus(p):
+    # 11-03 ✔5: 민원대장 "지도에서 보기"로 받은 민원 – 처음 거르기(완료는 꺼짐)에 걸리는 완료 민원을 골라 거르기가 풀리고 닷카드가 열리는지
+    await nav(p, "할 일")
+    cid = await p.evaluate("""async () => {
+        const l = await window.__preview.call('complaints_map');
+        const c = l.find((c) => c.x != null && c.status === '완료') || l.find((c) => c.x != null);
+        return c.id;
+    }""")
+    await p.evaluate("(id) => window.__openMap(id)", cid)
+    await p.wait_for_timeout(1200)
+
+
 async def field_to(p, field):
     await p.evaluate("(f) => window.__preview.call('set_value', { key: 'map.field', value: f })", field)
     await nav(p, "할 일")
@@ -557,8 +569,12 @@ async def s_map_layers(p):
 
 
 async def s_map_measure(p):
-    await p.locator(".mp-btn[aria-label='재기']").first.click()
-    await p.locator(".mp-fly button[aria-label='거리']").first.click()
+    # 11-03 2판: 재기 묶음을 풀어 세 단추(거리 재기·면적 재기·반경 재기) – 옛 빌드(기준)는 펼침 상자
+    if await p.locator(".mp-btn[aria-label='거리 재기']").count():
+        await p.locator(".mp-btn[aria-label='거리 재기']").first.click()
+    else:
+        await p.locator(".mp-btn[aria-label='재기']").first.click()
+        await p.locator(".mp-fly button[aria-label='거리']").first.click()
     box = await p.locator(".mp-map").first.bounding_box()
     cx, cy = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
     for dx, dy in ((-160, 40), (-20, -60)):
@@ -568,6 +584,15 @@ async def s_map_measure(p):
     await p.wait_for_timeout(100)
     await p.mouse.click(cx + 120, cy + 20)  # 두 번 누르기로 끝
     await p.wait_for_timeout(300)
+
+
+async def s_map_typefind(p):
+    # 11-03 2판: 민원유형 상자 – 첫 줄 찾기 칸(초성) + ×, 폭 216
+    await p.locator(".mp-pill", has_text="민원유형").first.click()
+    await p.wait_for_timeout(200)
+    if await p.locator(".mp-typepop input").count():
+        await p.locator(".mp-typepop input").first.fill("ㅍ")
+        await p.wait_for_timeout(200)
 
 
 async def s_map_fold(p):
@@ -595,6 +620,8 @@ SCENES.update({
     "map_fold": ("민원 지도", s_map_fold),
     "map_searchcm": ("민원 지도", s_map_searchcm),
     "map_legend": ("민원 지도", s_map_legend),
+    "map_focus": ("민원 지도", s_map_focus),
+    "map_typefind": ("민원 지도", s_map_typefind),
 })
 
 
