@@ -526,7 +526,7 @@ async def s_map_focus(p):
         return c.id;
     }""")
     await p.evaluate("(id) => window.__openMap(id)", cid)
-    await p.wait_for_timeout(1200)
+    await p.wait_for_timeout(2600)  # 핀이 일어서는 움직임(1.45초)이 끝난 뒤에 찍어요(map8 – 0.74.0 빌드에서 흔들림)
 
 
 async def field_to(p, field):
