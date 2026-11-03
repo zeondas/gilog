@@ -101,6 +101,19 @@ export function passes(c: MapComplaint, f: Filters, skip?: "type" | "status"): b
   return true;
 }
 
+/** 민원대장에서 받은 민원이 거르기에 걸리면 그 민원이 보이도록 거르기를 꼭 필요한 만큼만 풀어요(11-03 ✔5).
+ *  유형·상태는 그 값을 더하고, 기간 밖이면 전체 기간, 검색 글에 안 맞으면 검색 글을 지워요. */
+export function relaxFor(c: MapComplaint, f: Filters): Filters {
+  const t = typeOf(c);
+  const types = f.types && !f.types.has(t) ? new Set([...f.types, t]) : f.types;
+  const statuses = f.statuses.has(c.status) ? f.statuses : new Set([...f.statuses, c.status]);
+  const { from, to } = f.period;
+  const period = (from && c.received < from) || (to && c.received > to) ? { from: "", to: "", chip: "all" as const } : f.period;
+  const q = f.q.trim() && !passes(c, { types: null, statuses: new Set([c.status]), period: { from: "", to: "", chip: "all" }, q: f.q }) ? "" : f.q;
+  if (types === f.types && statuses === f.statuses && period === f.period && q === f.q) return f;
+  return { types, statuses, period, q };
+}
+
 /** 검색 글이 주소 꼴인지(숫자가 있거나 리·동·로·길로 끝남) – 그러면 검색 결과에서 주소 묶음을 위에(11-03 ✔3) */
 export function looksAddress(q: string): boolean {
   const t = q.trim();

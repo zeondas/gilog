@@ -49,6 +49,18 @@ export default function App() {
     setFocusComplaint(id);
     setCurrent("complaints");
   }, []);
+  // 민원대장 "지도에서 보기"로 넘긴 민원(11-03 민원 지도 ✔5). 민원 지도가 그 점으로 가면 비워요.
+  // 민원대장 쪽 메뉴·단축키는 민원대장 ✔1이 openMap을 넘겨받아 붙여요.
+  const [focusMap, setFocusMap] = useState<number | null>(null);
+  const clearMap = useCallback(() => setFocusMap(null), []);
+  const openMap = useCallback((id: number) => {
+    setFocusMap(id);
+    setCurrent("map");
+  }, []);
+  useEffect(() => {
+    // 브라우저 미리 보기 시험용(모양 지킴이 map_focus 장면): window.__openMap(민원 id)
+    if (!inApp) (window as unknown as { __openMap?: (id: number) => void }).__openMap = openMap;
+  }, [openMap]);
   // 업무일지 "챙길 일"에서 누른 할 일. 할 일 목록이 그 항목으로 가면 비워요.
   const [focusTask, setFocusTask] = useState<number | null>(null);
   const clearTask = useCallback(() => setFocusTask(null), []);
@@ -331,7 +343,7 @@ export default function App() {
         ) : current === "complaints" ? (
           <ComplaintsScreen urgentDays={prefs.urgentDays} focusId={focusComplaint} onFocused={clearFocus} />
         ) : current === "map" ? (
-          <MapScreen onOpenComplaint={openComplaint} />
+          <MapScreen onOpenComplaint={openComplaint} focusId={focusMap} onFocused={clearMap} />
         ) : current === "budget" ? (
           <BudgetScreen />
         ) : current === "bstatus" ? (

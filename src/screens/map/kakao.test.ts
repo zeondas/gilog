@@ -99,3 +99,24 @@ describe("검색창 하나 – 주소 꼴 알아보기(11-03 ✔3)", () => {
     expect(looksAddress("  ")).toBe(false);
   });
 });
+
+describe("로드뷰 핀(11-03 ✔2)", () => {
+  it("고개 방향: 북쪽 = 뒤통수, 남쪽 = 렌즈 정면, 동쪽 = 오른쪽", async () => {
+    const { headPose } = await import("./rvPin");
+    expect(headPose(0).front).toBeCloseTo(-1);
+    expect(headPose(180).front).toBeCloseTo(1);
+    expect(headPose(90).look).toBeCloseTo(1);
+    expect(headPose(270).look).toBeCloseTo(-1);
+  });
+  it("움직인 쪽으로 기울고, 조금 움직인 건 정면", async () => {
+    const { leanOf, easeTo } = await import("./rvPin");
+    expect(leanOf(5)).toEqual({ look: 0.75, lean: 10 });
+    expect(leanOf(-5).lean).toBe(-10);
+    expect(leanOf(1)).toEqual({ look: 0, lean: 0 });
+    const cur = { look: 0, lean: 0 };
+    let n = 0;
+    while (!easeTo(cur, { look: 0.75, lean: 10 }) && n < 50) n++;
+    expect(cur).toEqual({ look: 0.75, lean: 10 });
+    expect(n).toBeLessThan(20);
+  });
+});

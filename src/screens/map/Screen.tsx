@@ -30,6 +30,7 @@ import {
   passes,
   periodLabel,
   regionOf,
+  relaxFor,
   typeColors,
   typeOf,
   type Field,
@@ -109,7 +110,14 @@ function CheckList({ items, sel, color, onChange }: { items: { name: string; n: 
   );
 }
 
-export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: number) => void }) {
+type ScreenProps = {
+  onOpenComplaint: (id: number) => void;
+  /** 민원대장에서 "지도에서 보기"로 받은 민원(11-03 ✔5) – 받으면 onFocused로 비워요 */
+  focusId?: number | null;
+  onFocused?: () => void;
+};
+
+export default function MapScreen({ onOpenComplaint, focusId = null, onFocused }: ScreenProps) {
   const [list, setList] = useState<MapComplaint[] | null>(null);
   const [layers, setLayers] = useState<Layers | null>(null);
   const [note, setNote] = useState("");
@@ -138,6 +146,9 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
   const [kakaoOn, setKakaoOn] = useState(false);
   // 재기(✔6): 면적·반경 안 민원만
   const [picked, setPicked] = useState<Set<number> | null>(null);
+  // 민원대장에서 받은 민원(✔5): 지도가 그리로 옮겨 닷카드를 열어요 · 좌표가 없으면 안내 한 줄
+  const [focus, setFocus] = useState<{ id: number; x: number; y: number; n: number } | null>(null);
+  const [hint, setHint] = useState("");
   const popRef = useRef<HTMLDivElement>(null);
   const regionPopRef = useRef<HTMLDivElement>(null);
 
@@ -255,6 +266,39 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
     return layers.emd.filter((e) => parts.includes(e.name));
   }, [layers, region]);
   const focusBounds = useMemo(() => (regionFeats.length ? boundsOf(regionFeats) : null), [regionFeats]);
+
+  // 민원대장에서 받은 민원(✔5): 거르기에 걸리면 꼭 필요한 만큼만 풀고(저장은 안 해요), 그 점으로 옮겨 닷카드
+  useEffect(() => {
+    if (focusId == null || list === null) return;
+    onFocused?.();
+    const c = list.find((x) => x.id === focusId);
+    if (!c) return setHint("그 민원을 지도 자료에서 찾지 못했어요");
+    setF((o) => relaxFor(c, o));
+    setPicked(null);
+    const r = regionMap.get(c.id) ?? "";
+    if (river) {
+      const g = gradeMap.get(c.id);
+      if (g && riverOff.has(g)) setRiverOff((s) => new Set([...s].filter((x) => x !== g)));
+    } else {
+      if (r && hidden.has(r)) setHidden((s) => new Set([...s].filter((x) => x !== r)));
+      if (region && region !== r) setRegion(null);
+    }
+    if (r) setOpen(r);
+    setSelId(c.id);
+    if (c.x == null || c.y == null) {
+      setFold(false);
+      setHint(`${c.place || "(위치 없음)"} – 위치 확인 필요(좌표를 찾지 못해 지도에 없어요)`);
+    } else {
+      setHint("");
+      setFocus((o) => ({ id: c.id, x: c.x!, y: c.y!, n: (o?.n ?? 0) + 1 }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusId, list]);
+  useEffect(() => {
+    if (!hint) return;
+    const t = window.setTimeout(() => setHint(""), 6000);
+    return () => clearTimeout(t);
+  }, [hint]);
 
   // 목록 폭 끌기
   const dragW = useRef<{ x: number; w: number } | null>(null);
@@ -771,6 +815,7 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
   return (
     <div className="mp mp-full">
       {note && <p className="note" role="status">{note}</p>}
+      {hint && <p className="note mp-hint" role="status">{hint}</p>}
       <div className="mp-body">
         <MapCanvas
           layers={layers}
@@ -789,6 +834,7 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
           onMode={setKakaoOn}
           overlay={overlay}
           leftInset={panelOpen ? listW + 12 : 0}
+          focus={focus}
         />
       </div>
     </div>

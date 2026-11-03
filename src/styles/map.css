@@ -1203,3 +1203,40 @@
   bottom: 52px;
   z-index: 5;
 }
+
+/* 11-03 ✔1(wip/map6): 카카오 칸을 따로 묶고(z 0 – 카카오가 자기 층마다 붙이는 위 순서는 이 안에서만) 우리 그림판을 그 위(z 1)에.
+   그 위에 떠 있는 것(범례·안내·카드·패널·단추)은 z 2 이상. */
+.mp-map .mp-kakao {
+  z-index: 0;
+}
+.mp-map .mp-canvas {
+  z-index: 1;
+}
+.mp-map .mp-wait {
+  z-index: 2;
+}
+.mp-map .mp-legend {
+  z-index: 5;
+}
+/* ✔2: 로드뷰 핀이 손 대신 – 지도 위에서는 마우스 화살표를 감춰요(닷 위에선 손가락 그대로) */
+.mp-map.mp-rvpin,
+.mp-map.mp-rvpin .mp-kakao,
+.mp-map.mp-rvpin .mp-kakao * {
+  cursor: none !important;
+}
+/* ✔4: 로드뷰를 열면 단추 줄은 로드뷰 오른쪽 끝, × 아래 같은 세로줄(× = 단추 묶음과 같은 40px 둥근 단추) */
+.mp-rv .mp-rv-x {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 20px;
+  box-shadow: var(--shadow-pop);
+}
+.mp-rv .mp-btns {
+  top: 62px;
+  right: 12px;
+  transform: none;
+  align-items: center;
+  gap: 10px;
+  z-index: 6;
+}
