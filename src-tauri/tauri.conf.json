@@ -28,12 +28,12 @@
     "security": {
       "csp": {
         "default-src": "'self'",
-        "script-src": "'self' https://www.juso.go.kr https://*.kakao.com http://*.kakao.com https://*.daumcdn.net http://*.daumcdn.net https://*.daum.net http://*.daum.net",
-        "style-src": "'self' 'unsafe-inline'",
-        "img-src": "'self' asset: http://asset.localhost data: blob: https://*.kakao.com http://*.kakao.com https://*.daumcdn.net http://*.daumcdn.net https://*.daum.net http://*.daum.net",
+        "script-src": "'self' https://www.juso.go.kr https://*.kakao.com http://*.kakao.com https://*.daumcdn.net http://*.daumcdn.net https://*.kakaocdn.net http://*.kakaocdn.net https://*.daum.net http://*.daum.net",
+        "style-src": "'self' 'unsafe-inline' https://*.kakaocdn.net http://*.kakaocdn.net",
+        "img-src": "'self' asset: http://asset.localhost data: blob: https://*.kakao.com http://*.kakao.com https://*.daumcdn.net http://*.daumcdn.net https://*.kakaocdn.net http://*.kakaocdn.net https://*.daum.net http://*.daum.net",
         "font-src": "'self' data:",
         "media-src": "'self' asset: http://asset.localhost",
-        "connect-src": "'self' ipc: http://ipc.localhost https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com https://tasks.googleapis.com https://sheets.googleapis.com https://holidays.hyunbin.page https://cdn.jsdelivr.net https://business.juso.go.kr https://*.kakao.com http://*.kakao.com https://*.daumcdn.net http://*.daumcdn.net https://*.daum.net http://*.daum.net",
+        "connect-src": "'self' ipc: http://ipc.localhost https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com https://tasks.googleapis.com https://sheets.googleapis.com https://holidays.hyunbin.page https://cdn.jsdelivr.net https://business.juso.go.kr https://*.kakao.com http://*.kakao.com https://*.daumcdn.net http://*.daumcdn.net https://*.kakaocdn.net http://*.kakaocdn.net https://*.daum.net http://*.daum.net",
         "object-src": "'none'",
         "base-uri": "'self'",
         "form-action": "'none'",

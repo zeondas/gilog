@@ -487,10 +487,9 @@ SCENES.update({
 
 
 # 민원 지도(2026-11-02 민원 지도 세션) – SCREENS 목록에는 넣지 않아요(넣으면 뒤 장면 번호가 밀려 기준과 짝이 어긋나요).
-# 11-03 ✔5·✔8: 사이드바 첫 탭이 "주소 검색"이라 목록 장면은 둘째 탭(민원현황·하천)을 먼저 눌러요. 지킴이 빌드엔 카카오 키가 없어 늘 연속주제도(data-bg="dxf").
+# 11-03 ✔2(map5): 머리 줄 없이 지도 위 검색창·거르기 배지, 민원현황 패널은 처음 열림이라 목록 장면은 그대로 눌러요. 지킴이 빌드엔 카카오 키가 없어 늘 연속주제도(data-bg="dxf").
 async def list_tab(p):
-    await p.locator(".mp-side-tabs .fx-tab").nth(1).click()
-    await p.wait_for_timeout(200)
+    await p.wait_for_timeout(100)
 
 
 async def s_map_region(p):
@@ -543,9 +542,14 @@ async def s_map_park(p):
 
 # 11-03 ✔5·✔6·✔7·✔11: 주소 검색(지번 – 앱 안 필지 표) · [층] 상자 · 거리 재기 · 사이드바 접기
 async def s_map_search(p):
-    await p.locator(".mp-search input").first.fill("봉일천리 113")
-    await p.locator(".mp-search input").first.press("Enter")
+    await p.locator(".mp-sbar input").first.fill("봉일천리 113")
+    await p.locator(".mp-sbar input").first.press("Enter")
     await p.wait_for_timeout(900)
+
+
+async def s_map_searchcm(p):
+    await p.locator(".mp-sbar input").first.fill("포트홀")
+    await p.wait_for_timeout(400)
 
 
 async def s_map_layers(p):
@@ -553,7 +557,8 @@ async def s_map_layers(p):
 
 
 async def s_map_measure(p):
-    await p.locator(".mp-btn[aria-label='거리']").first.click()
+    await p.locator(".mp-btn[aria-label='재기']").first.click()
+    await p.locator(".mp-fly button[aria-label='거리']").first.click()
     box = await p.locator(".mp-map").first.bounding_box()
     cx, cy = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
     for dx, dy in ((-160, 40), (-20, -60)):
@@ -566,8 +571,13 @@ async def s_map_measure(p):
 
 
 async def s_map_fold(p):
-    await p.locator(".mp-fold").first.click()
+    await p.locator(".mp-hamb").first.click()
     await p.wait_for_timeout(300)
+
+
+async def s_map_legend(p):
+    await p.locator(".mp-lg-fold").first.click()
+    await p.wait_for_timeout(200)
 
 
 SCENES.update({
@@ -583,6 +593,8 @@ SCENES.update({
     "map_layers": ("민원 지도", s_map_layers),
     "map_measure": ("민원 지도", s_map_measure),
     "map_fold": ("민원 지도", s_map_fold),
+    "map_searchcm": ("민원 지도", s_map_searchcm),
+    "map_legend": ("민원 지도", s_map_legend),
 })
 
 

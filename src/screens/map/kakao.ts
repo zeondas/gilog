@@ -90,11 +90,30 @@ export async function kakaoKey(): Promise<string> {
 let loading: Promise<Kakao | null> | null = null;
 let loadedKey = "";
 let ready: Kakao | null = null;
+let failWhy = "";
 
 /** 불러 둔 카카오(주소 검색이 씀) – 아직이거나 실패면 null */
 export const kakaoReady = (): Kakao | null => ready;
+/** 마지막으로 못 불러온 까닭(안내 글에 붙여요, 11-03 ✔1) */
+export const kakaoFailWhy = () => failWhy;
 
-/** SDK(services 포함)를 불러요. 키가 없거나 실패·시간 넘김이면 null. */
+const sdkUrl = (key: string) => `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(key)}&autoload=false&libraries=services`;
+/** 키처럼 보이는 글(32자 16진수)은 가려요 – 화면에 키가 남지 않게 */
+export const maskKey = (t: string) => t.replace(/[0-9a-f]{32}/gi, "(키)");
+
+/** 카카오가 돌려준 거절 글을 읽어 봐요(읽을 수 있을 때만 – 못 읽으면 빈 글) */
+async function serverSays(key: string): Promise<string> {
+  try {
+    const r = await fetch(sdkUrl(key), { cache: "no-store" });
+    const t = await r.text();
+    const m = t.match(/"message"\s*:\s*"([^"]{1,200})"/);
+    return m ? maskKey(m[1]) : "";
+  } catch {
+    return "";
+  }
+}
+
+/** SDK(services 포함)를 불러요. 키가 없거나 실패·시간 넘김이면 null(까닭은 kakaoFailWhy). */
 export function loadKakao(key: string): Promise<Kakao | null> {
   if (!key) return Promise.resolve(null);
   if (loading && loadedKey === key) return loading;
@@ -106,24 +125,35 @@ export function loadKakao(key: string): Promise<Kakao | null> {
       return resolve(w.kakao);
     }
     let done = false;
-    const finish = (k: Kakao | null) => {
+    const finish = (k: Kakao | null, why = "") => {
       if (done) return;
       done = true;
       clearTimeout(t);
       ready = k;
-      if (!k) loading = null; // 다음에 열 때 다시 해 봐요
+      failWhy = why;
+      if (!k) {
+        loading = null; // 다음에 열 때 다시 해 봐요
+        // 카카오가 거절 글을 돌려줬으면 그 글을 붙여요(읽히는 경우만)
+        void serverSays(key).then((m) => {
+          if (m) failWhy = `${why} – 카카오: ${m}`;
+        });
+      }
       resolve(k);
     };
-    const t = window.setTimeout(() => finish(null), LOAD_MS);
+    const t = window.setTimeout(
+      () => finish(null, w.kakao?.maps ? "카카오 지도 파일을 받지 못했어요(보안 허용 목록·인터넷)" : "카카오 응답이 늦어요(6초 넘음)"),
+      LOAD_MS,
+    );
     const sc = document.createElement("script");
-    sc.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(key)}&autoload=false&libraries=services`;
+    sc.src = sdkUrl(key);
     sc.async = true;
-    sc.onerror = () => finish(null);
+    sc.onerror = () => finish(null, "카카오 SDK를 받지 못했어요(인터넷·키 거절)");
     sc.onload = () => {
+      if (!w.kakao?.maps?.load) return finish(null, "카카오가 키를 받아 주지 않았어요(키·도메인 확인)");
       try {
         w.kakao.maps.load(() => finish(w.kakao));
       } catch {
-        finish(null);
+        finish(null, "카카오 지도를 여는 중 오류가 났어요");
       }
     };
     document.head.appendChild(sc);
