@@ -50,7 +50,6 @@ const RV_MIN = 0.3;
 const RV_MAX = 0.7;
 const KAKAO_MAX_LEVEL = 10;
 const CULL_W = 9000; // 화면 폭이 이보다 좁게(m) 확대하면 화면 안 도형만 그려요(✔5)
-const PAJU_PAD = 3000; // 카카오를 끌어도 파주 둘레 3km 밖으로는 못 나가요(✔3)
 
 /** left = 왼쪽을 가리는 패널 폭(px) – 그만큼 비켜 가운데 맞춰요(11-03 ✔2) */
 function fit(b: [number, number, number, number], w: number, h: number, pad = 28, left = 0): View {
@@ -754,17 +753,8 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
       if (!tiles && kmap.current === m) fallback("카카오 지도 그림이 8초 안에 오지 않았어요(보안 허용 목록·인터넷)");
     }, TILES_MS);
     const cv = canvasRef.current;
-    // 파주 둘레 3km 밖으로는 못 끌어요(✔3) – 지도 그림은 전국 한 벌이라 파주만 받기는 못 해요
-    const [bx0, by0, bx1, by1] = layers.bounds;
+    // 끌기 범위 제한은 없어요(map8 ✔6, 사용자 23:12 – 파주 둘레 3km 제한 폐기)
     ev.addListener(m, "center_changed", () => {
-      const c = m.getCenter();
-      const [x, y] = tmForward(c.getLat(), c.getLng());
-      const cx = Math.max(bx0 - PAJU_PAD, Math.min(bx1 + PAJU_PAD, x));
-      const cy = Math.max(by0 - PAJU_PAD, Math.min(by1 + PAJU_PAD, y));
-      if (cx !== x || cy !== y) {
-        m.setCenter(latLng(cx, cy));
-        return;
-      }
       syncView();
       drawRef.current(true);
     });
