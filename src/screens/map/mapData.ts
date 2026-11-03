@@ -101,6 +101,13 @@ export function passes(c: MapComplaint, f: Filters, skip?: "type" | "status"): b
   return true;
 }
 
+/** 검색 글이 주소 꼴인지(숫자가 있거나 리·동·로·길로 끝남) – 그러면 검색 결과에서 주소 묶음을 위에(11-03 ✔3) */
+export function looksAddress(q: string): boolean {
+  const t = q.trim();
+  if (!t) return false;
+  return /\d/.test(t) || /(리|동|로|길)$/.test(t);
+}
+
 /** 같은 읍면동 안에서 민원유형별 묶음: 건수 많은 순, 안은 접수일 내림차순 */
 export function groupByType(list: MapComplaint[]): { type: string; items: MapComplaint[] }[] {
   const m = new Map<string, MapComplaint[]>();

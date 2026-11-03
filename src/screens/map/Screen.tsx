@@ -6,7 +6,6 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { api, type MapComplaint } from "../../api";
 import { SearchBox } from "../../SearchBox";
 import { DateInput, readDate } from "../../DateInput";
-import { useJamoGuard } from "../../koInput";
 import { STATUSES } from "../../settingsStore";
 import layersUrl from "../../../data/map/paju_layers.bin.gz?url";
 import MapCanvas, { type MapPoint, type Pin } from "./MapCanvas";
@@ -26,6 +25,7 @@ import {
   groupByType,
   legalPartsOf,
   loadLayers,
+  looksAddress,
   monthDay,
   passes,
   periodLabel,
@@ -49,7 +49,6 @@ const LIST_MAX = 420;
 const WIDE = 360; // 이 폭부터 행에 접수유형 열
 
 type Pop = "type" | "status" | "period" | "regions" | "rivers" | null;
-type Tab = "search" | "list";
 
 function Chevron({ open }: { open: boolean }) {
   return (
@@ -116,8 +115,6 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
   const [note, setNote] = useState("");
   const today = useMemo(() => new Date(), []);
   const [f, setF] = useState<Filters>(() => ({ types: null, statuses: defaultStatuses(STATUSES), period: chipRange("year", new Date()), q: "" }));
-  const [q, setQ] = useState("");
-  const qGuard = useJamoGuard(setQ);
   const [pop, setPop] = useState<Pop>(null);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [field, setField] = useState<Field>("road");
@@ -128,9 +125,11 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
   const [folded, setFolded] = useState<Set<string>>(new Set());
   const [selId, setSelId] = useState<number | null>(null);
   const [draft, setDraft] = useState<{ from: string; to: string }>({ from: "", to: "" });
-  // 사이드바 탭(✔5·✔8): 주소 검색이 앞·처음 열리는 탭 · 접고 펴기(✔11)
-  const [tab, setTab] = useState<Tab>("search");
+  // 민원현황 패널(11-03 ✔2): ☰로 열고 닫기, 마지막 상태 기억(map.listFold – "1"이면 닫힘, 처음엔 열림)
   const [fold, setFold] = useState(false);
+  // 검색창 하나(✔3): 결과 목록(민원 · 주소·장소)이 열려 있는지
+  const [sopen, setSopen] = useState(false);
+  const sbarRef = useRef<HTMLDivElement>(null);
   // 주소 검색(✔5): 지번은 앱 안 필지 표, 이름·도로명은 카카오(파주시만) – 결과는 저장하지 않아요
   const [sq, setSq] = useState("");
   const [hits, setHits] = useState<Hit[] | null>(null);
@@ -139,7 +138,6 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
   const [kakaoOn, setKakaoOn] = useState(false);
   // 재기(✔6): 면적·반경 안 민원만
   const [picked, setPicked] = useState<Set<number> | null>(null);
-  const headRef = useRef<HTMLDivElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
   const regionPopRef = useRef<HTMLDivElement>(null);
 
@@ -179,7 +177,6 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
     };
   }, []);
 
-  useEffect(() => setF((o) => ({ ...o, q })), [q]);
   const closePop = useCallback(() => setPop(null), []);
   usePopClose(pop === "type" || pop === "status" || pop === "period", closePop, popRef);
   usePopClose(pop === "regions" || pop === "rivers", closePop, regionPopRef);
@@ -449,17 +446,18 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
     );
   };
 
-  const tabs: { key: Tab; name: string }[] = [
-    { key: "search", name: "주소 검색" },
-    { key: "list", name: river ? "하천" : "민원현황" },
-  ];
   const saveFold = (v: boolean) => {
     setFold(v);
     api.set(KV_FOLD, v ? "1" : "0").catch(() => {});
   };
-  const runSearch = async () => {
-    const t = sq.trim();
-    if (!t || busy) return;
+  // ---------- 검색창 하나(✔3): 민원(앱 안) + 주소·장소(지번 = 앱 안 필지 표, 이름·도로명 = 카카오 파주시만) ----------
+  const sqT = sq.trim();
+  const cmHits = useMemo(() => (sqT ? all.filter((c) => passes(c, { ...f, q: sqT }) && inView(c)) : []), [all, f, sqT, inView]);
+  const addrFirst = looksAddress(sqT);
+  const groups: ("addr" | "cm")[] = addrFirst ? ["addr", "cm"] : ["cm", "addr"];
+  // 민원유형·상태 이름과 똑같은 글은 카카오에 보내지 않아요(민원 검색으로만)
+  const ownNames = useMemo(() => new Set([...colors.keys(), ...STATUSES, ...REGIONS]), [colors]);
+  const runAddr = async (t: string) => {
     setBusy(true);
     const out: Hit[] = [];
     // 지번은 앱 안 필지 표에서 먼저(밖으로 안 나가요) – 찾으면 카카오에 보내지 않아요.
@@ -472,7 +470,7 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
       }
     }
     const k = kakaoReady();
-    if (!out.length && k && kakaoOn && layers) {
+    if (!out.length && k && kakaoOn && layers && !ownNames.has(t)) {
       try {
         out.push(...(await kakaoSearch(k, t, layers.bounds)));
       } catch {
@@ -481,12 +479,35 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
     }
     setHits(out);
     setBusy(false);
-    if (out.length === 1) setPin({ x: out[0].x, y: out[0].y, label: out[0].name });
+    return out;
   };
+  const goHit = (h: Hit) => {
+    setPin({ x: h.x, y: h.y, label: h.name });
+    setSopen(false);
+  };
+  const applyQ = () => {
+    setF((o) => ({ ...o, q: sqT }));
+    setSopen(false);
+  };
+  const clearSearch = () => {
+    setSq("");
+    setHits(null);
+    setSopen(false);
+    setF((o) => ({ ...o, q: "" }));
+  };
+  /** Enter: 주소 꼴이 아니고 맞는 민원이 있으면 그 민원만 보기, 아니면 주소·장소 찾기(하나면 바로 그리로) */
+  const onEnter = async () => {
+    if (!sqT || busy) return;
+    setSopen(true);
+    if (!addrFirst && cmHits.length) return applyQ();
+    const out = await runAddr(sqT);
+    if (out.length === 1) goHit(out[0]);
+  };
+  const closeS = useCallback(() => setSopen(false), []);
+  usePopClose(sopen, closeS, sbarRef);
   const onPick = useCallback((ids: number[] | null) => {
     setPicked(ids ? new Set(ids) : null);
     if (ids) {
-      setTab("list");
       setFold(false);
     }
   }, []);
@@ -499,261 +520,258 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
     </div>
   );
 
-  return (
-    <div className="mp" style={{ "--mp-list": `${listW}px` } as React.CSSProperties}>
-      <div className="mp-head tb5" ref={headRef}>
-        <h1 className="title">민원 지도</h1>
-        <div className="mp-filters" ref={popRef}>
-          <div className="mp-fwrap">
-            <button type="button" className={"btn btn-ctrl mp-fbtn" + (pop === "type" ? " mp-fopen" : "")} aria-haspopup="true" aria-expanded={pop === "type"} onClick={() => setPop(pop === "type" ? null : "type")}>
-              민원유형 <b>{typeLabel}</b>
-              <Chevron open />
-            </button>
-            {pop === "type" && (
-              <div className="mp-pop" role="dialog" aria-label="민원유형 거르기">
-                <CheckList items={typeItems} sel={typeSel} color={colorOf} onChange={(s) => setF((o) => ({ ...o, types: s.size === colors.size ? null : s }))} />
-              </div>
-            )}
-          </div>
-          <div className="mp-fwrap">
-            <button type="button" className={"btn btn-ctrl mp-fbtn" + (pop === "status" ? " mp-fopen" : "")} aria-haspopup="true" aria-expanded={pop === "status"} onClick={() => setPop(pop === "status" ? null : "status")}>
-              상태 <b>{statusLabel}</b>
-              <Chevron open />
-            </button>
-            {pop === "status" && (
-              <div className="mp-pop" role="dialog" aria-label="상태 거르기">
-                <CheckList items={statusItems} sel={f.statuses} onChange={(s) => setF((o) => ({ ...o, statuses: s }))} />
-              </div>
-            )}
-          </div>
-          <div className="mp-fwrap">
-            <button type="button" className={"btn btn-ctrl mp-fbtn" + (pop === "period" ? " mp-fopen" : "")} aria-haspopup="true" aria-expanded={pop === "period"} onClick={openPeriod}>
-              기간 <b>{periodLabel(f.period)}</b>
-              <Chevron open />
-            </button>
-            {pop === "period" && (
-              <div className="mp-pop mp-period" role="dialog" aria-label="기간">
-                <div className="mp-chips">
-                  {(["year", "last", "y1", "all"] as const).map((c) => (
-                    <button key={c} type="button" className={"mp-chip" + (f.period.chip === c ? " mp-chip-on" : "")} onClick={() => setPeriod(chipRange(c, today))}>
-                      {{ year: "올해", last: "작년", y1: "최근 1년", all: "전체" }[c]}
-                    </button>
-                  ))}
-                </div>
-                <div className="mp-range">
-                  <DateInput base="input mp-date-in" label="시작일" value={draft.from} invalid={fromOk === null} onChange={(v) => setDraft((d) => ({ ...d, from: v }))} onKeyDown={(e) => e.key === "Enter" && applyPeriod()} />
-                  <span className="mp-tilde">~</span>
-                  <DateInput base="input mp-date-in" label="끝일" value={draft.to} invalid={toOk === null} onChange={(v) => setDraft((d) => ({ ...d, to: v }))} onKeyDown={(e) => e.key === "Enter" && applyPeriod()} />
-                  <button type="button" className="btn btn-primary btn-xs mp-apply" disabled={fromOk === null || toOk === null} onClick={applyPeriod}>
-                    적용
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-        <SearchBox
-          aria-label="민원 지도 검색"
-          placeholder="위치, 민원유형 검색"
-          value={q}
-          onClear={() => setQ("")}
-          onKeyDown={qGuard.onKeyDown}
-          onChange={qGuard.onChange}
-          onCompositionEnd={qGuard.onCompositionEnd}
-        />
-        <span className="tb-hole-xl" aria-hidden="true" />
-      </div>
-
-      {note && <p className="note" role="status">{note}</p>}
-
-      <div className="mp-body">
-        {fold ? (
-          <div className="mp-list mp-folded" aria-label="사이드바(접힘)">
-            <button type="button" className="mp-fold" aria-label="사이드바 펴기" title="사이드바 펴기" onClick={() => saveFold(false)}>
-              <span aria-hidden="true">»</span>
-            </button>
-            {tabs.map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                className="mp-vtab"
-                data-on={tab === t.key ? "1" : undefined}
-                onClick={() => {
-                  setTab(t.key);
-                  saveFold(false);
-                }}
-              >
-                {t.name}
-              </button>
-            ))}
-          </div>
-        ) : (
-        <div className="mp-list" aria-label="사이드바">
-          <div className="mp-side-tabs" role="tablist" aria-label="사이드바 탭">
-            {tabs.map((t) => (
-              <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} className="fx-tab" data-on={tab === t.key ? "1" : undefined} onClick={() => setTab(t.key)}>
-                {t.name}
-              </button>
-            ))}
-            <button type="button" className="mp-fold" aria-label="사이드바 접기" title="사이드바 접기" onClick={() => saveFold(true)}>
-              <span aria-hidden="true">«</span>
-            </button>
-          </div>
-          {tab === "search" ? (
-            <>
-              <div className="mp-search">
-                <SearchBox
-                  aria-label="주소 검색"
-                  placeholder="지번·도로명·장소 이름"
-                  value={sq}
-                  onChange={(e) => setSq(e.target.value)}
-                  onClear={() => {
-                    setSq("");
-                    setHits(null);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.nativeEvent.isComposing) void runSearch();
-                  }}
-                />
-                <button type="button" className="btn btn-primary btn-sm" disabled={!sq.trim() || busy} onClick={() => void runSearch()}>
-                  찾기
-                </button>
-              </div>
-              <p className="mp-search-note">{kakaoOn ? "파주시 안만 찾아요. 지번은 앱 안에서 찾고, 장소 이름·도로명은 카카오에서 찾아요." : "카카오 지도가 없어 지번만 찾아요(앱 안 필지 표)."}</p>
-              <div className="mp-hits" role="listbox" aria-label="찾은 곳">
-                {busy && <p className="mp-empty">찾는 중이에요…</p>}
-                {!busy && hits && hits.length === 0 && <p className="mp-empty">파주시 안에서 찾지 못했어요.</p>}
-                {!busy &&
-                  hits?.map((h, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      role="option"
-                      aria-selected={!!pin && pin.x === h.x && pin.y === h.y}
-                      className="mp-hit"
-                      onClick={() => setPin({ x: h.x, y: h.y, label: h.name })}
-                    >
-                      <b>{h.name}</b>
-                      {h.addr && <span>{h.addr}</span>}
-                      <em>{h.src === "jibun" ? "지번 · 앱 안 필지 표" : "카카오"}</em>
-                    </button>
-                  ))}
-              </div>
-            </>
-          ) : (
-          <>
-          <div className="mp-subhead" ref={regionPopRef}>
-            {river ? (
-              <>
-                <span>
-                  하천 표시 <b>{shownGrades.length}</b>/{GRADES.length}
-                </span>
-                <button type="button" className="btn btn-ctrl btn-xs mp-regbtn" aria-expanded={pop === "rivers"} onClick={() => setPop(pop === "rivers" ? null : "rivers")}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M9 4v4M15 10v4M7 16v4" /></svg>
-                  하천 표시 설정
-                </button>
-                {pop === "rivers" && (
-                  <div className="mp-pop mp-regpop mp-rivpop" role="dialog" aria-label="하천 표시 설정">
-                    <div className="mp-regpop-head">
-                      <span>
-                        하천 표시 <b>{shownGrades.length}</b> / {GRADES.length}
-                      </span>
-                      <button type="button" className="btn btn-ctrl btn-xs" onClick={() => saveRiverOff(new Set())}>모두 켜기</button>
-                      <button type="button" className="btn btn-ctrl btn-xs" onClick={() => saveRiverOff(new Set(GRADES.map((g) => g.key)))}>모두 끄기</button>
-                    </div>
-                    <div className="mp-rivpop-list">
-                      {GRADES.map((g) => (
-                        <label key={g.key} className="mp-check">
-                          <input
-                            type="checkbox"
-                            checked={!riverOff.has(g.key)}
-                            onChange={() => {
-                              const s = new Set(riverOff);
-                              if (s.has(g.key)) s.delete(g.key);
-                              else s.add(g.key);
-                              saveRiverOff(s);
+  const panelOpen = !fold;
+  const overlay = (
+    <div className="mp-ovwrap">
+      <div className="mp-ov mp-ovbar">
+        <div className="mp-sbar" ref={sbarRef}>
+          <button type="button" className={"mp-hamb" + (panelOpen ? " mp-hamb-on" : "")} aria-label={panelOpen ? "민원현황 닫기" : "민원현황 열기"} title={panelOpen ? "민원현황 닫기" : "민원현황 열기"} aria-expanded={panelOpen} onClick={() => saveFold(panelOpen)}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+          </button>
+          <SearchBox
+            className="mp-sbox"
+            aria-label="민원 지도 검색"
+            placeholder="주소·장소·민원유형 검색"
+            value={sq}
+            onChange={(e) => {
+              setSq(e.target.value);
+              setHits(null);
+              setSopen(true);
+              if (!e.target.value.trim()) setF((o) => ({ ...o, q: "" }));
+            }}
+            onFocus={() => setSopen(true)}
+            onClear={clearSearch}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.nativeEvent.isComposing) void onEnter();
+              else if (e.key === "Escape" && sopen) setSopen(false);
+            }}
+          />
+          {sopen && sq.trim() && (
+            <div className="mp-sres" role="listbox" aria-label="찾은 것">
+              {groups.map((g) =>
+                g === "addr" ? (
+                  <Fragment key="addr">
+                    <h6 className="mp-sres-cap">주소·장소{kakaoOn ? " – 지번은 앱 안, 이름·도로명은 카카오(파주시만)" : " – 지번(앱 안 필지 표)"}</h6>
+                    {busy && <p className="mp-sres-empty">찾는 중이에요…</p>}
+                    {!busy && !hits && <p className="mp-sres-empty">Enter를 누르면 찾아요</p>}
+                    {!busy && hits && hits.length === 0 && <p className="mp-sres-empty">파주시 안에서 찾지 못했어요</p>}
+                    {!busy &&
+                      hits?.map((h, i) => (
+                        <button key={i} type="button" role="option" aria-selected={!!pin && pin.x === h.x && pin.y === h.y} className="mp-sres-row" onClick={() => goHit(h)}>
+                          <b>{h.name}</b>
+                          <span>{h.addr || (h.src === "jibun" ? "지번 · 앱 안 필지 표" : "카카오")}</span>
+                        </button>
+                      ))}
+                  </Fragment>
+                ) : (
+                  <Fragment key="cm">
+                    <h6 className="mp-sres-cap">민원 – 민원유형·위치·상태·읍면동에 "{sq.trim()}"</h6>
+                    {cmHits.length === 0 ? (
+                      <p className="mp-sres-empty">맞는 민원이 없어요</p>
+                    ) : (
+                      <>
+                        <button type="button" role="option" aria-selected={f.q === sq.trim()} className="mp-sres-row mp-sres-all" onClick={applyQ}>
+                          <b>"{sq.trim()}" 민원만 보기</b>
+                          <span className="mp-sres-n">{cmHits.length}건</span>
+                        </button>
+                        {cmHits.slice(0, 5).map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            role="option"
+                            aria-selected={selId === c.id}
+                            className="mp-sres-row mp-sres-cm"
+                            onClick={() => {
+                              setSelId(c.id);
+                              setSopen(false);
                             }}
-                          />
-                          <i className="mp-swatch" style={{ background: `var(${g.color})` }} />
-                          <span className="mp-check-name">{g.name}</span>
-                          <span className="mp-check-n">{layers ? `${layers[g.key].length.toLocaleString()}구역` : ""}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                <span>
-                  관할 <b>{shownRegions.length}</b>/{REGIONS.length}곳
-                </span>
-                <button type="button" className="btn btn-ctrl btn-xs mp-regbtn" aria-expanded={pop === "regions"} onClick={() => setPop(pop === "regions" ? null : "regions")}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M9 4v4M15 10v4M7 16v4" /></svg>
-                  지역 표시 설정
-                </button>
-                {pop === "regions" && (
-                  <div className="mp-pop mp-regpop" role="dialog" aria-label="지역 표시 설정">
-                    <div className="mp-regpop-head">
-                      <span>
-                        지역 표시 <b>{shownRegions.length}</b> / {REGIONS.length}
-                      </span>
-                      <button type="button" className="btn btn-ctrl btn-xs" onClick={() => saveHidden(new Set())}>모두 켜기</button>
-                      <button type="button" className="btn btn-ctrl btn-xs" onClick={() => saveHidden(new Set(REGIONS))}>모두 끄기</button>
-                    </div>
-                    <div className="mp-regpop-cols">
-                      {[EUPS, DONGS].map((col, i) => (
-                        <div key={i} className="mp-regpop-col">
-                          <span className="mp-regpop-cap">{i === 0 ? "읍·면" : "동"}</span>
-                          {col.map((r) => (
-                            <label key={r} className="mp-check">
-                              <input
-                                type="checkbox"
-                                checked={!hidden.has(r)}
-                                onChange={() => {
-                                  const s = new Set(hidden);
-                                  if (s.has(r)) s.delete(r);
-                                  else s.add(r);
-                                  saveHidden(s);
-                                }}
-                              />
-                              <span className="mp-check-name">{r}</span>
-                            </label>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-          {river ? (
-            <div className="mp-list-body" role="tree" aria-label="하천">
-              {pickedBar}
-              <div className="mp-row mp-reg mp-all mp-on" role="treeitem" aria-selected>
-                <span className="mp-name">하천 전체</span>
-                <span className="mp-n">{riverTotal}</span>
-              </div>
-              {shownGrades.map((g) => gradeRow(g.key, g.name))}
-              {gradeRow(RIVER_OUT, RIVER_OUT)}
+                          >
+                            <i className="mp-dot" style={{ background: colorOf(typeOf(c)) }} />
+                            <b>{c.place || "(위치 없음)"}</b>
+                            <span>
+                              {typeOf(c)} · {c.status} · {monthDay(c.received)}
+                            </span>
+                          </button>
+                        ))}
+                      </>
+                    )}
+                  </Fragment>
+                ),
+              )}
             </div>
-          ) : (
-            <div className="mp-list-body" role="tree" aria-label="읍면동">
-              {pickedBar}
-              <div className={"mp-row mp-reg mp-all" + (region === null ? " mp-on" : "")} role="treeitem" aria-selected={region === null} onClick={() => setRegion(null)}>
-                <span className="mp-name">{hidden.size ? "관할 전체" : "파주시 전체"}</span>
-                <span className="mp-n">{total}</span>
-              </div>
-              {shownRegions.map(regionRow)}
-              {shownRegions.length === 0 && <p className="mp-empty">지역 표시 설정에서 읍면동을 켜 주세요.</p>}
-            </div>
-          )}
-          </>
           )}
         </div>
-        )}
-        {!fold && <div className="mp-grip" role="separator" aria-orientation="vertical" aria-label="목록 폭" onPointerDown={onGrip} onPointerMove={onGripMove} onPointerUp={onGripUp} />}
+        <div className="mp-chipsbar" ref={popRef}>
+          <div className="mp-filters">
+            <div className="mp-fwrap">
+              <button type="button" className={"mp-fbtn mp-pill" + (pop === "type" ? " mp-fopen" : "")} aria-haspopup="true" aria-expanded={pop === "type"} onClick={() => setPop(pop === "type" ? null : "type")}>
+                민원유형 <b>{typeLabel}</b>
+                <Chevron open />
+              </button>
+              {pop === "type" && (
+                <div className="mp-pop" role="dialog" aria-label="민원유형 거르기">
+                  <CheckList items={typeItems} sel={typeSel} color={colorOf} onChange={(s) => setF((o) => ({ ...o, types: s.size === colors.size ? null : s }))} />
+                </div>
+              )}
+            </div>
+            <div className="mp-fwrap">
+              <button type="button" className={"mp-fbtn mp-pill" + (pop === "status" ? " mp-fopen" : "")} aria-haspopup="true" aria-expanded={pop === "status"} onClick={() => setPop(pop === "status" ? null : "status")}>
+                상태 <b>{statusLabel}</b>
+                <Chevron open />
+              </button>
+              {pop === "status" && (
+                <div className="mp-pop" role="dialog" aria-label="상태 거르기">
+                  <CheckList items={statusItems} sel={f.statuses} onChange={(s) => setF((o) => ({ ...o, statuses: s }))} />
+                </div>
+              )}
+            </div>
+            <div className="mp-fwrap">
+              <button type="button" className={"mp-fbtn mp-pill" + (pop === "period" ? " mp-fopen" : "")} aria-haspopup="true" aria-expanded={pop === "period"} onClick={openPeriod}>
+                기간 <b>{periodLabel(f.period)}</b>
+                <Chevron open />
+              </button>
+              {pop === "period" && (
+                <div className="mp-pop mp-period" role="dialog" aria-label="기간">
+                  <div className="mp-chips">
+                    {(["year", "last", "y1", "all"] as const).map((c) => (
+                      <button key={c} type="button" className={"mp-chip" + (f.period.chip === c ? " mp-chip-on" : "")} onClick={() => setPeriod(chipRange(c, today))}>
+                        {{ year: "올해", last: "작년", y1: "최근 1년", all: "전체" }[c]}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="mp-range">
+                    <DateInput base="input mp-date-in" label="시작일" value={draft.from} invalid={fromOk === null} onChange={(v) => setDraft((d) => ({ ...d, from: v }))} onKeyDown={(e) => e.key === "Enter" && applyPeriod()} />
+                    <span className="mp-tilde">~</span>
+                    <DateInput base="input mp-date-in" label="끝일" value={draft.to} invalid={toOk === null} onChange={(v) => setDraft((d) => ({ ...d, to: v }))} onKeyDown={(e) => e.key === "Enter" && applyPeriod()} />
+                    <button type="button" className="btn btn-primary btn-xs mp-apply" disabled={fromOk === null || toOk === null} onClick={applyPeriod}>
+                      적용
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+      {panelOpen && (
+        <div className="mp-ov mp-list mp-panel" aria-label="민원현황" style={{ width: listW }}>
+            <div className="mp-subhead" ref={regionPopRef}>
+              {river ? (
+                <>
+                  <span>
+                    하천 표시 <b>{shownGrades.length}</b>/{GRADES.length}
+                  </span>
+                  <button type="button" className="btn btn-ctrl btn-xs mp-regbtn" aria-expanded={pop === "rivers"} onClick={() => setPop(pop === "rivers" ? null : "rivers")}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M9 4v4M15 10v4M7 16v4" /></svg>
+                    하천 표시 설정
+                  </button>
+                  {pop === "rivers" && (
+                    <div className="mp-pop mp-regpop mp-rivpop" role="dialog" aria-label="하천 표시 설정">
+                      <div className="mp-regpop-head">
+                        <span>
+                          하천 표시 <b>{shownGrades.length}</b> / {GRADES.length}
+                        </span>
+                        <button type="button" className="btn btn-ctrl btn-xs" onClick={() => saveRiverOff(new Set())}>모두 켜기</button>
+                        <button type="button" className="btn btn-ctrl btn-xs" onClick={() => saveRiverOff(new Set(GRADES.map((g) => g.key)))}>모두 끄기</button>
+                      </div>
+                      <div className="mp-rivpop-list">
+                        {GRADES.map((g) => (
+                          <label key={g.key} className="mp-check">
+                            <input
+                              type="checkbox"
+                              checked={!riverOff.has(g.key)}
+                              onChange={() => {
+                                const s = new Set(riverOff);
+                                if (s.has(g.key)) s.delete(g.key);
+                                else s.add(g.key);
+                                saveRiverOff(s);
+                              }}
+                            />
+                            <i className="mp-swatch" style={{ background: `var(${g.color})` }} />
+                            <span className="mp-check-name">{g.name}</span>
+                            <span className="mp-check-n">{layers ? `${layers[g.key].length.toLocaleString()}구역` : ""}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <span>
+                    관할 <b>{shownRegions.length}</b>/{REGIONS.length}곳
+                  </span>
+                  <button type="button" className="btn btn-ctrl btn-xs mp-regbtn" aria-expanded={pop === "regions"} onClick={() => setPop(pop === "regions" ? null : "regions")}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M9 4v4M15 10v4M7 16v4" /></svg>
+                    지역 표시 설정
+                  </button>
+                  {pop === "regions" && (
+                    <div className="mp-pop mp-regpop" role="dialog" aria-label="지역 표시 설정">
+                      <div className="mp-regpop-head">
+                        <span>
+                          지역 표시 <b>{shownRegions.length}</b> / {REGIONS.length}
+                        </span>
+                        <button type="button" className="btn btn-ctrl btn-xs" onClick={() => saveHidden(new Set())}>모두 켜기</button>
+                        <button type="button" className="btn btn-ctrl btn-xs" onClick={() => saveHidden(new Set(REGIONS))}>모두 끄기</button>
+                      </div>
+                      <div className="mp-regpop-cols">
+                        {[EUPS, DONGS].map((col, i) => (
+                          <div key={i} className="mp-regpop-col">
+                            <span className="mp-regpop-cap">{i === 0 ? "읍·면" : "동"}</span>
+                            {col.map((r) => (
+                              <label key={r} className="mp-check">
+                                <input
+                                  type="checkbox"
+                                  checked={!hidden.has(r)}
+                                  onChange={() => {
+                                    const s = new Set(hidden);
+                                    if (s.has(r)) s.delete(r);
+                                    else s.add(r);
+                                    saveHidden(s);
+                                  }}
+                                />
+                                <span className="mp-check-name">{r}</span>
+                              </label>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            {river ? (
+              <div className="mp-list-body" role="tree" aria-label="하천">
+                {pickedBar}
+                <div className="mp-row mp-reg mp-all mp-on" role="treeitem" aria-selected>
+                  <span className="mp-name">하천 전체</span>
+                  <span className="mp-n">{riverTotal}</span>
+                </div>
+                {shownGrades.map((g) => gradeRow(g.key, g.name))}
+                {gradeRow(RIVER_OUT, RIVER_OUT)}
+              </div>
+            ) : (
+              <div className="mp-list-body" role="tree" aria-label="읍면동">
+                {pickedBar}
+                <div className={"mp-row mp-reg mp-all" + (region === null ? " mp-on" : "")} role="treeitem" aria-selected={region === null} onClick={() => setRegion(null)}>
+                  <span className="mp-name">{hidden.size ? "관할 전체" : "파주시 전체"}</span>
+                  <span className="mp-n">{total}</span>
+                </div>
+                {shownRegions.map(regionRow)}
+                {shownRegions.length === 0 && <p className="mp-empty">지역 표시 설정에서 읍면동을 켜 주세요.</p>}
+              </div>
+            )}
+          <div className="mp-panel-grip" role="separator" aria-orientation="vertical" aria-label="목록 폭" onPointerDown={onGrip} onPointerMove={onGripMove} onPointerUp={onGripUp} />
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="mp mp-full">
+      {note && <p className="note" role="status">{note}</p>}
+      <div className="mp-body">
         <MapCanvas
           layers={layers}
           field={field}
@@ -769,6 +787,8 @@ export default function MapScreen({ onOpenComplaint }: { onOpenComplaint: (id: n
           pin={pin}
           onPick={onPick}
           onMode={setKakaoOn}
+          overlay={overlay}
+          leftInset={panelOpen ? listW + 12 : 0}
         />
       </div>
     </div>

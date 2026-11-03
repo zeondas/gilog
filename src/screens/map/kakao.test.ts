@@ -87,3 +87,15 @@ describe("거리·면적·반경 재기", () => {
     expect(insideIds(m, [{ id: 3, x: 8, y: 2 }, { id: 4, x: 2, y: 8 }])).toEqual([3]);
   });
 });
+
+describe("검색창 하나 – 주소 꼴 알아보기(11-03 ✔3)", () => {
+  it("숫자가 있거나 리·동·로·길로 끝나면 주소 꼴", async () => {
+    const { looksAddress } = await import("./mapData");
+    expect(looksAddress("봉일천리 113")).toBe(true);
+    expect(looksAddress("문산로")).toBe(true);
+    expect(looksAddress("봉일천리")).toBe(true);
+    expect(looksAddress("포트홀")).toBe(false);
+    expect(looksAddress("접수")).toBe(false);
+    expect(looksAddress("  ")).toBe(false);
+  });
+});

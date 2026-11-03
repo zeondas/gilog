@@ -4,11 +4,11 @@
 // 카카오일 때: 끌기·휠은 카카오가 하고(부드러운 확대 – 움직이는 동안 우리 그림판은 잠깐 숨김), 우리 그림판은 카카오 화면 범위를 따라 다시 그려요.
 // 연속주제도일 때: 휠 = 확대·축소(커서 기준) · 왼쪽 끌기·휠 클릭 끌기 = 이동 · 읍면을 고르면 약 0.5초 동안 부드럽게 확대.
 // 오른쪽 위 단추: [+][−] · [가운데로] · [파주시 전체] · [층] · [거리][면적][반경] · [로드뷰](카카오일 때만, 지도 | 로드뷰 2분할).
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, type MapComplaint } from "../../api";
 import { statusColor } from "../../settingsStore";
 import { cardPlace, layerPaths, tracePath, type Feature, type Field, type Layers } from "./mapData";
-import { kakaoKey, loadKakao, tmForward, tmInverse, TILES_MS, type Kakao } from "./kakao";
+import { kakaoFailWhy, kakaoKey, loadKakao, tmForward, tmInverse, TILES_MS, type Kakao } from "./kakao";
 import { addPoint, finish, insideIds, summary, TOOLS, type Measure, type Pt, type Tool } from "./measure";
 
 export type MapPoint = { c: MapComplaint; x: number; y: number; color: string };
@@ -18,14 +18,15 @@ type Cluster = { sx: number; sy: number; pts: MapPoint[] };
 type Mode = "wait" | "kakao" | "dxf";
 
 /** [층] 상자(✔7): 겹쳐 보기 켜고 끄기 – 민원 닷·읍면동 경계는 처음 켜짐, 도로구역·도시계획시설은 처음 꺼짐 */
-export type Show = { dots: boolean; emd: boolean; zone: boolean; plan: boolean };
-const SHOW0: Show = { dots: true, emd: true, zone: false, plan: false };
+export type Show = { dots: boolean; emd: boolean; zone: boolean; plan: boolean; legend: boolean };
+const SHOW0: Show = { dots: true, emd: true, zone: false, plan: false, legend: true };
 const KV_SHOW = "map.show";
 const SHOW_ROWS: { key: keyof Show; name: string; base?: boolean }[] = [
   { key: "dots", name: "민원 닷" },
   { key: "emd", name: "읍면동 경계" },
   { key: "zone", name: "도로구역", base: true },
   { key: "plan", name: "도시계획시설(도로)", base: true },
+  { key: "legend", name: "범례" },
 ];
 
 /** 지도 색은 CSS 토큰(map.css `.mp` – 밝게/어둡게 따로, ✔6)에서 읽어요. 칠하는 층은 fillLayers의 color가 토큰 이름이에요. */
@@ -44,11 +45,12 @@ const RV_MIN = 0.3;
 const RV_MAX = 0.7;
 const KAKAO_MAX_LEVEL = 10;
 
-function fit(b: [number, number, number, number], w: number, h: number, pad = 28): View {
+/** left = 왼쪽을 가리는 패널 폭(px) – 그만큼 비켜 가운데 맞춰요(11-03 ✔2) */
+function fit(b: [number, number, number, number], w: number, h: number, pad = 28, left = 0): View {
   const bw = Math.max(1, b[2] - b[0]);
   const bh = Math.max(1, b[3] - b[1]);
-  const s = Math.min((w - pad * 2) / bw, (h - pad * 2) / bh);
-  return { cx: (b[0] + b[2]) / 2, cy: (b[1] + b[3]) / 2, s: Math.max(s, 1e-4) };
+  const s = Math.max(Math.min((w - left - pad * 2) / bw, (h - pad * 2) / bh), 1e-4);
+  return { cx: (b[0] + b[2]) / 2 - left / 2 / s, cy: (b[1] + b[3]) / 2, s };
 }
 
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -134,9 +136,13 @@ type Props = {
   onPick: (ids: number[] | null) => void;
   /** 배경 방식이 정해지면(주소 검색이 카카오를 쓸 수 있는지) */
   onMode?: (kakao: boolean) => void;
+  /** 지도 위 왼쪽 위에 띄우는 것(검색창·거르기 배지·민원현황 패널 – 11-03 ✔2). 그 안 누르기는 지도가 받지 않아요(.mp-ov). */
+  overlay?: ReactNode;
+  /** 왼쪽 패널이 열려 있으면 범례·안내를 그만큼 오른쪽으로(px) */
+  leftInset?: number;
 };
 
-export default function MapCanvas({ layers, field, off, points, region, regionFeats, focusBounds, selectedId, legend, pin, onOpen, onWhole, onPick, onMode }: Props) {
+export default function MapCanvas({ layers, field, off, points, region, regionFeats, focusBounds, selectedId, legend, pin, onOpen, onWhole, onPick, onMode, overlay, leftInset = 0 }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -155,9 +161,12 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
   const rvObj = useRef<{ rv: Kakao; client: Kakao } | null>(null);
   const rvPos = useRef<Pt | null>(null);
   const live = useRef<Pt | null>(null);
+  const inset = useRef(leftInset);
+  inset.current = leftInset;
 
   const [mode, setMode] = useState<Mode>("wait");
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState(""); // 카카오를 못 불러온 까닭(빈 글 = 실패 아님)
+  const [measOpen, setMeasOpen] = useState(false);
   const [show, setShow] = useState<Show>(SHOW0);
   const [layerPop, setLayerPop] = useState(false);
   const [tool, setTool] = useState<Tool | null>(null);
@@ -484,16 +493,16 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
     const k = kk.current;
     if (!m || !k) return;
     const lb = new k.maps.LatLngBounds(latLng(b[0], b[1]), latLng(b[2], b[3]));
-    m.setBounds(lb, 28, 28, 28, 28);
+    m.setBounds(lb, 28, 28, 28, 28 + inset.current);
   };
 
   /** 카카오 → 연속주제도(못 불러옴) */
-  const fallback = useCallback(() => {
+  const fallback = useCallback((why: string) => {
     kmap.current = null;
     rvObj.current = null;
     if (kdivRef.current) kdivRef.current.innerHTML = "";
     setRv(null);
-    setFailed(true);
+    setFailed(why);
     setMode("dxf");
   }, []);
 
@@ -507,7 +516,9 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
       const k = await loadKakao(key);
       if (!alive) return;
       if (!k) {
-        setFailed(true);
+        setFailed(kakaoFailWhy() || "카카오 지도를 불러오지 못했어요");
+        // 카카오가 돌려준 거절 글은 조금 늦게 읽혀요 – 읽히면 안내를 바꿔요
+        window.setTimeout(() => alive && setFailed(kakaoFailWhy() || "카카오 지도를 불러오지 못했어요"), 2000);
         return setMode("dxf");
       }
       kk.current = k;
@@ -531,7 +542,7 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
       m.setMaxLevel(KAKAO_MAX_LEVEL);
       m.setCopyrightPosition(k.maps.CopyrightPosition.BOTTOMRIGHT, true);
     } catch {
-      fallback();
+      fallback("카카오 지도를 만들지 못했어요");
       return;
     }
     kmap.current = m;
@@ -541,7 +552,7 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
       tiles = true;
     });
     const t = window.setTimeout(() => {
-      if (!tiles && kmap.current === m) fallback();
+      if (!tiles && kmap.current === m) fallback("카카오 지도 그림이 8초 안에 오지 않았어요(보안 허용 목록·인터넷)");
     }, TILES_MS);
     const cv = canvasRef.current;
     ev.addListener(m, "center_changed", () => {
@@ -611,7 +622,7 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
         draw();
         return;
       }
-      animateTo(fit(b, w, h), region ? 1 : 0, ms);
+      animateTo(fit(b, w, h, 28, inset.current), region ? 1 : 0, ms);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [focusBounds, layers, region, animateTo, draw, syncView],
@@ -702,6 +713,7 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
     const el = wrapRef.current;
     if (!el || kakao) return;
     const onWheel = (e: WheelEvent) => {
+      if ((e.target as HTMLElement).closest(".mp-ov, .mp-layerpop, .mp-card")) return; // 패널 목록 굴리기는 지도가 받지 않아요
       const v = view.current;
       if (!v) return;
       e.preventDefault();
@@ -818,12 +830,15 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
   // Esc: 로드뷰 닫기 → 재기 취소 → 카드 → 파주시 전체
   const escape = useCallback(() => {
     if (rv) closeRv();
-    else if (measure) clearMeasure();
+    else if (measure || measOpen) {
+      clearMeasure();
+      setMeasOpen(false);
+    }
     else if (pinned) setPinned(null);
     else if (region) onWhole();
     else return false;
     return true;
-  }, [rv, measure, pinned, region, closeRv, clearMeasure, onWhole]);
+  }, [rv, measure, measOpen, pinned, region, closeRv, clearMeasure, onWhole]);
   useEffect(() => {
     if (!rv && !measure) return;
     const key = (e: KeyboardEvent) => {
@@ -863,7 +878,7 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
     const { w, h } = size.current;
     return [v.cx + (mx - w / 2) / v.s, v.cy - (my - h / 2) / v.s];
   };
-  const OVER = ".mp-btns, .mp-card, .mp-legend, .mp-meas, .mp-layerpop, .mp-note";
+  const OVER = ".mp-btns, .mp-card, .mp-legend, .mp-lgpill, .mp-meas, .mp-layerpop, .mp-note, .mp-ov";
   const onPointerDown = (e: React.PointerEvent) => {
     if ((e.target as HTMLElement).closest(OVER)) return;
     if (e.button !== 0 && e.button !== 1) return;
@@ -1001,13 +1016,77 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
         <div className="mp-kakao" ref={kdivRef} aria-hidden={!kakao} />
         <canvas ref={canvasRef} className="mp-canvas" />
         {(!layers || mode === "wait") && <div className="mp-wait">지도를 읽는 중이에요…</div>}
+        {overlay}
         {failed && mode === "dxf" && (
-          <div className="mp-note" role="status">
-            카카오 지도를 불러오지 못해 연속주제도로 보여요
+          <div className="mp-note" role="status" style={{ left: leftInset + 12 }}>
+            카카오 지도를 불러오지 못해 연속주제도로 보여요 · {failed}
           </div>
         )}
+        {/* 오른쪽 가운데 단추 한 줄(11-03 ✔5): [로드뷰·재기·층] · [+ −] · [가운데로·파주시 전체] */}
         <div className="mp-btns">
-          <div className="mp-btn-pair">
+          <div className="mp-rgrp">
+            <button type="button" className={"mp-btn" + (rv ? " mp-btn-on" : "")} aria-pressed={!!rv} aria-label="로드뷰" title={kakao ? "로드뷰 – 지도 | 로드뷰로 나눠 봐요" : "로드뷰는 카카오 지도일 때만 볼 수 있어요"} disabled={!kakao} onClick={toggleRv}>
+              <Icon d="M12 4a2 2 0 1 0 0 .01 M9 21l1-7-2-2 2-4h4l2 4-2 2 1 7" />
+            </button>
+            <div className="mp-layerwrap">
+              <button
+                type="button"
+                className={"mp-btn" + (tool || measOpen ? " mp-btn-on" : "")}
+                aria-label="재기"
+                title="거리·면적·반경 재기"
+                aria-expanded={measOpen}
+                onClick={() => {
+                  if (tool) {
+                    clearMeasure();
+                    setMeasOpen(false);
+                  } else setMeasOpen(!measOpen);
+                  setLayerPop(false);
+                }}
+              >
+                <Icon d="M3 17l6-6 4 4 8-8 M14 7h7v7" />
+              </button>
+              {(measOpen || tool) && (
+                <div className="mp-fly" role="group" aria-label="거리·면적·반경">
+                  {TOOLS.map((t) => (
+                    <button key={t.key} type="button" className={tool === t.key ? "mp-fly-on" : ""} aria-pressed={tool === t.key} aria-label={t.name} title={`${t.name} 재기`} onClick={() => pickTool(t.key)}>
+                      <Icon size={14} d={TOOL_ICON[t.key]} />
+                      {t.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="mp-layerwrap">
+              <button
+                type="button"
+                className={"mp-btn" + (layerPop ? " mp-btn-on" : "")}
+                aria-label="층"
+                title="층 – 겹쳐 보기 켜고 끄기"
+                aria-expanded={layerPop}
+                onClick={() => {
+                  setLayerPop(!layerPop);
+                  if (!tool) setMeasOpen(false);
+                }}
+              >
+                <Icon d="M12 3l9 5-9 5-9-5z M3 13l9 5 9-5" />
+              </button>
+              {layerPop && (
+                <div className="mp-pop mp-layerpop" role="dialog" aria-label="층">
+                  <span className="mp-layerpop-cap">겹쳐 보기</span>
+                  {SHOW_ROWS.map((r) => {
+                    const always = !kakao && r.base; // 연속주제도에선 도로 층이 바탕이라 늘 보여요
+                    return (
+                      <label key={r.key} className="mp-check" title={always ? "연속주제도에선 늘 보여요" : undefined}>
+                        <input type="checkbox" checked={always || show[r.key]} disabled={always} onChange={() => saveShow({ ...show, [r.key]: !show[r.key] })} />
+                        <span className="mp-check-name">{r.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="mp-rgrp">
             <button type="button" className="mp-btn" aria-label="확대" title="확대" onClick={() => zoomBy(1.6)}>
               <Icon size={14} d="M12 5v14M5 12h14" />
             </button>
@@ -1015,44 +1094,18 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
               <Icon size={14} d="M5 12h14" />
             </button>
           </div>
-          <button type="button" className="mp-btn mp-btn-one" aria-label="가운데로" title={region ? `가운데로 – ${region}` : "가운데로 – 파주시"} onClick={() => home()}>
-            <Icon d="M12 12m-6 0a6 6 0 1 0 12 0a6 6 0 1 0-12 0 M12 2v4M12 18v4M2 12h4M18 12h4" />
-          </button>
-          <button type="button" className="mp-btn mp-btn-one mp-btn-home" aria-label="파주시 전체" title="파주시 전체" disabled={!region} onClick={onWhole}>
-            <Icon d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z M9 4v14 M15 6v14" />
-          </button>
-          <div className="mp-layerwrap">
-            <button type="button" className={"mp-btn mp-btn-one" + (layerPop ? " mp-btn-on" : "")} aria-label="층" title="층 – 겹쳐 보기 켜고 끄기" aria-expanded={layerPop} onClick={() => setLayerPop(!layerPop)}>
-              <Icon d="M12 3l9 5-9 5-9-5z M3 13l9 5 9-5" />
+          <div className="mp-rgrp">
+            <button type="button" className="mp-btn" aria-label="가운데로" title={region ? `가운데로 – ${region}` : "가운데로 – 파주시"} onClick={() => home()}>
+              <Icon d="M12 12m-6 0a6 6 0 1 0 12 0a6 6 0 1 0-12 0 M12 2v4M12 18v4M2 12h4M18 12h4" />
             </button>
-            {layerPop && (
-              <div className="mp-pop mp-layerpop" role="dialog" aria-label="층">
-                <span className="mp-layerpop-cap">겹쳐 보기</span>
-                {SHOW_ROWS.map((r) => {
-                  const always = !kakao && r.base; // 연속주제도에선 도로 층이 바탕이라 늘 보여요
-                  return (
-                    <label key={r.key} className="mp-check" title={always ? "연속주제도에선 늘 보여요" : undefined}>
-                      <input type="checkbox" checked={always || show[r.key]} disabled={always} onChange={() => saveShow({ ...show, [r.key]: !show[r.key] })} />
-                      <span className="mp-check-name">{r.name}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            )}
+            <button type="button" className="mp-btn mp-btn-home" aria-label="파주시 전체" title="파주시 전체" disabled={!region} onClick={onWhole}>
+              <Icon d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z M9 4v14 M15 6v14" />
+            </button>
           </div>
-          <div className="mp-btn-pair" role="group" aria-label="거리·면적·반경">
-            {TOOLS.map((t) => (
-              <button key={t.key} type="button" className={"mp-btn" + (tool === t.key ? " mp-btn-on" : "")} aria-pressed={tool === t.key} aria-label={t.name} title={`${t.name} 재기`} onClick={() => pickTool(t.key)}>
-                <Icon d={TOOL_ICON[t.key]} />
-              </button>
-            ))}
-          </div>
-          <button type="button" className={"mp-btn mp-btn-one" + (rv ? " mp-btn-on" : "")} aria-pressed={!!rv} aria-label="로드뷰" title={kakao ? "로드뷰 – 지도 | 로드뷰로 나눠 봐요" : "로드뷰는 카카오 지도일 때만 볼 수 있어요"} disabled={!kakao} onClick={toggleRv}>
-            <Icon d="M12 4a2 2 0 1 0 0 .01 M9 21l1-7-2-2 2-4h4l2 4-2 2 1 7" />
-          </button>
         </div>
-        {legend.length > 0 && show.dots && (
-          <div className="mp-legend" aria-label="범례">
+        {/* 범례(11-03 ✔4): ▾로 접으면 "● 범례" 알약 – [층] 상자의 "범례"와 같은 값(map.show.legend) */}
+        {legend.length > 0 && show.dots && show.legend && (
+          <div className="mp-legend" aria-label="범례" style={{ left: leftInset + 12, maxWidth: `calc(100% - ${leftInset + 80}px)` }}>
             {legend.map((l) => (
               <span key={l.type} className="mp-lg">
                 <i style={{ background: l.color }} />
@@ -1063,7 +1116,17 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
             <span className="mp-lg">
               <b className="mp-lg-n">2</b>같은 자리 여러 건
             </span>
+            <button type="button" className="mp-lg-fold" aria-label="범례 접기" title="범례 접기" onClick={() => saveShow({ ...show, legend: false })}>
+              <Icon size={12} d="M6 9l6 6 6-6" />
+            </button>
           </div>
+        )}
+        {legend.length > 0 && show.dots && !show.legend && (
+          <button type="button" className="mp-lgpill" style={{ left: leftInset + 12 }} title="범례 펴기" onClick={() => saveShow({ ...show, legend: true })}>
+            <i />
+            범례
+            <Icon size={12} d="M6 15l6-6 6 6" />
+          </button>
         )}
         {measure && measure.pts.length > 0 && (
           <div ref={measRef} className="mp-meas" style={{ visibility: "hidden" }}>

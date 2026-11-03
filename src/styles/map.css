@@ -855,66 +855,6 @@
   z-index: 3;
 }
 
-/* 왼쪽 사이드바 – 탭(탐색기 탭과 같은 모양 fx-tab) · 접고 펴기(✔5·✔8·✔11) */
-.mp-side-tabs {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 6px 6px 8px;
-  border-bottom: 1px solid var(--line);
-  background: var(--surface-side, var(--surface-band, var(--surface)));
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-}
-.mp-side-tabs .fx-tab {
-  height: 30px;
-  padding: 0 12px;
-  font-size: 14px;
-}
-.mp-fold {
-  margin-left: auto;
-  width: 26px;
-  height: 26px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-}
-.mp-fold:hover {
-  background: var(--accent-wash);
-  color: var(--ink);
-}
-.mp-list.mp-folded {
-  width: 34px;
-  align-items: center;
-  padding: 6px 0;
-  gap: 6px;
-}
-.mp-list.mp-folded .mp-fold {
-  margin: 0;
-}
-.mp-vtab {
-  writing-mode: vertical-rl;
-  padding: 10px 0;
-  width: 26px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: 13.5px;
-  letter-spacing: 1px;
-  cursor: pointer;
-}
-.mp-vtab[data-on="1"] {
-  background: var(--accent);
-  color: var(--on-accent);
-  font-weight: 700;
-}
 .mp-subhead {
   display: flex;
   align-items: center;
@@ -945,61 +885,321 @@
 .mp-picked span {
   flex: 1;
 }
-/* 주소 검색 탭 */
-.mp-search {
-  display: flex;
-  gap: 6px;
-  padding: 10px 8px 8px;
+/* ===== 카카오맵식 배치(2026-11-03 ✔2~✔5, 시안 MapTop): 머리 줄 없음 · 지도 위 검색창·거르기 배지·민원현황 패널 · 오른쪽 가운데 단추 ===== */
+.mp-full {
+  gap: 0;
 }
-.mp-search .search {
-  flex: 1;
-  min-width: 0;
-  width: auto;
+.mp-full > .mp-body {
+  position: relative;
 }
-.mp-search .btn {
-  flex: none;
-}
-.mp-search-note {
-  padding: 0 12px 8px;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.5;
-}
-.mp-hits {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding: 0 4px 6px;
-}
-.mp-hit {
+/* 지도 위에 떠 있는 것(누르기는 지도가 받지 않아요 – MapCanvas OVER) */
+/* 검색창·배지 줄과 패널을 한 기둥에 – 배지가 두 줄로 넘어가도 패널이 그 아래에서 시작해요 */
+.mp-ovwrap {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  bottom: 12px;
+  right: 72px;
+  z-index: 7;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  align-items: flex-start;
+  gap: 10px;
+  pointer-events: none;
+}
+.mp-ovwrap > .mp-panel {
+  pointer-events: auto;
+}
+.mp-ovbar {
+  position: relative;
+  max-width: 100%;
+  z-index: 8;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+.mp-ovbar > * {
+  pointer-events: auto;
+}
+.mp-sbar {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  width: 340px;
+  height: 42px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border-radius: 21px;
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+}
+.mp-hamb {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.mp-hamb:hover {
+  background: var(--accent-wash);
+}
+.mp-hamb-on {
+  background: var(--accent-tint);
+  color: var(--accent);
+}
+.mp-sbar .search {
+  flex: 1;
+  width: auto;
+  height: 100%;
+  min-width: 0;
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.mp-sres {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  width: 380px;
+  max-height: min(60vh, 480px);
+  overflow: auto;
+  z-index: 9;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+}
+.mp-sres-cap {
+  margin: 6px 8px 3px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.mp-sres-cap ~ .mp-sres-cap {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-soft);
+}
+.mp-sres-empty {
+  margin: 4px 10px 6px;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+.mp-sres-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 1px;
   width: 100%;
   padding: 7px 10px;
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: 8px;
   background: transparent;
   color: var(--ink);
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
-.mp-hit:hover {
+.mp-sres-row:hover,
+.mp-sres-row[aria-selected="true"] {
   background: var(--accent-wash);
 }
-.mp-hit[aria-selected="true"] {
-  background: var(--accent-tint);
-}
-.mp-hit b {
+.mp-sres-row b {
   font-weight: 600;
 }
-.mp-hit span {
+.mp-sres-row span {
+  flex-basis: 100%;
   color: var(--muted);
   font-size: var(--fs-sm);
 }
-.mp-hit em {
-  font-style: normal;
+.mp-sres-cm span {
+  flex-basis: auto;
+  margin-left: auto;
+}
+.mp-sres-all {
+  color: var(--accent);
+}
+.mp-sres-all .mp-sres-n {
+  flex-basis: auto;
+  margin-left: auto;
+  color: var(--accent);
+  font-weight: 600;
+}
+/* 거르기 배지(둥근 알약) */
+.mp-chipsbar .mp-filters {
+  margin: 0;
+}
+.mp-pill {
+  height: 36px;
+  border: 0;
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  font: inherit;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+.mp-pill:hover {
+  background: var(--surface-band, var(--surface));
+}
+.mp-pill.mp-fopen {
+  box-shadow: 0 0 0 2px var(--accent-line), var(--shadow-pop);
+}
+/* 민원현황 패널 – 검색창 아래, 지도 위에 떠 있음 */
+.mp-panel {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-width: 100%;
+  box-shadow: var(--shadow-pop);
+}
+.mp-panel-grip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -5px;
+  width: 10px;
+  cursor: col-resize;
+}
+.mp-panel-grip:hover {
+  background: linear-gradient(90deg, transparent 4px, var(--accent-line) 4px, var(--accent-line) 6px, transparent 6px);
+}
+/* 오른쪽 가운데 단추 한 줄 */
+.mp-map .mp-btns {
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  align-items: center;
+  gap: 10px;
+  z-index: 6;
+}
+.mp-rgrp {
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+}
+.mp-rgrp > * + * {
+  border-top: 1px solid var(--line-soft);
+}
+.mp-rgrp .mp-btn {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+}
+.mp-rgrp > :first-child,
+.mp-rgrp > :first-child > .mp-btn {
+  border-radius: 20px 20px 0 0;
+}
+.mp-rgrp > :last-child,
+.mp-rgrp > :last-child > .mp-btn {
+  border-radius: 0 0 20px 20px;
+}
+.mp-rgrp .mp-btn.mp-btn-on {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.mp-rgrp .mp-btn-home:not(:disabled) {
+  color: var(--accent);
+}
+.mp-fly {
+  position: absolute;
+  top: 0;
+  right: calc(100% + 8px);
+  display: flex;
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+}
+.mp-fly button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 14px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.mp-fly button + button {
+  border-left: 1px solid var(--line-soft);
+}
+.mp-fly button:hover {
+  background: var(--accent-wash);
+}
+.mp-fly .mp-fly-on,
+.mp-fly .mp-fly-on:hover {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+/* 범례 접기 */
+.mp-legend {
+  padding-right: 6px;
+}
+.mp-lg-fold {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
   color: var(--muted);
-  font-size: 11px;
+  cursor: pointer;
+}
+.mp-lg-fold:hover {
+  background: var(--accent-wash);
+  color: var(--ink);
+}
+.mp-lgpill {
+  position: absolute;
+  bottom: 12px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px 0 12px;
+  border: 0;
+  border-radius: 15px;
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.mp-lgpill i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.mp-map .mp-note {
+  top: auto;
+  bottom: 52px;
+  z-index: 5;
 }
