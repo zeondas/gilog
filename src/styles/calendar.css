@@ -591,8 +591,9 @@
   box-shadow: inset 0 3px 0 var(--accent);
 }
 
+/* 오늘 칸을 고르면 위 띠를 빼고 사방 2px 테두리만(2026-11-03 21:58 사용자 2안 – 위만 3px로 두꺼워 보였어요) */
 .cal-day.today.sel {
-  box-shadow: inset 0 3px 0 var(--accent), inset 0 0 0 2px var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent);
 }
 
 .cal-day.today:hover {
@@ -724,6 +725,11 @@
 .cal-wday.sel {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
+}
+
+/* 주 보기도 같게: 오늘 머리 칸을 고르면 위 띠를 빼고 2px 테두리만 */
+.cal-wday.today.sel {
+  box-shadow: none;
 }
 
 .cal-wk-allday {
