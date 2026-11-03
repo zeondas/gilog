@@ -51,7 +51,7 @@
 | 매뉴얼 | `wip/manual`·`wip/setup-guide`(문서만) | 매뉴얼(`docs/manual/`·`tools/manual/`) + 준비 안내서(`docs/setup/`) | `2f65080` / `b2b53ae` | **매뉴얼 v31 보냄** · 준비 안내서 초안(hwpx 4장, 그림 틀 10개 비움, 【확인 필요】 3) – 내력 [history.md 매뉴얼](https://github.com/zeondas/gilog/blob/main/docs/history.md#매뉴얼-현황판-줄-상태-칸-원문) | 사용자 한글 확인 · 안내서 【확인 필요】 답·캡처 11장 · 0.66.0 자료 안전 반영 |
 | 공통 | `wip/excel-fix` | core·공통 부품(자료 안전·엑셀 공통·ExcelMenu·ColHead 등 한 화면에 안 속하는 것) – 전엔 "자료 안전"·"버그수정" 세션 | `0303090` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) · 11-03 날짜 "1105"=올해 검토: 이미 공통 규칙(모든 날짜 칸 `DateInput`→`parseDate`), 코딩 없음 | 사용자 윈도우 시험 · QC 2회차 |
 | 민원대장 | `wip/complaints14` | 민원대장 화면 · **11-03 16:17 "코딩해줘"** 상태 | 처리 7판(N일 남음·답변완료·N일/N달/N년 걸림) + ✔1 지도에서 보기(우클릭·Ctrl+M) | `d42f911` | **끝(합치기 기다림)** – npm test 428·build 통과, 지킴이 민원대장·설정(키 설정 한 줄 더함) 장면만 달라짐(guard-allow), 동작 통과 · 0.67.0까지 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) · CM-39는 QC 2회차 때 목록 고치기 | 빌드 묶음 · 사용자 윈도우 시험
-| 민원 지도 | `wip/map6` | 민원 지도 화면 – 민원대장과 별도 모듈, 민원대장 자료(위치·유형·상태·날짜만)를 읽어 지도에 점으로(결정 로그 11-02 14:25·16:11) | `26fbec0` | **끝(검사 도는 중) – 11-03 16:30 "코딩하자" ✔1~✔5**: 닷·경계를 카카오 위로 · 로드뷰 핀(기울기·고개 돌림·반짝 눈) · 카카오 기다리는 동안 경계·닷 · 로드뷰 땐 단추 줄 × 아래 · 민원대장에서 받기(App `openMap`) – 지도 장면 15 통과 · npm 430 | 빌드 묶음 합치기 · 민원대장 ✔1(메뉴·단축키 → `openMap`) · 행정동 경계 자료(사용자) |
+| 민원 지도 | `wip/map6` | 민원 지도 화면 – 민원대장과 별도 모듈, 민원대장 자료(위치·유형·상태·날짜만)를 읽어 지도에 점으로(결정 로그 11-02 14:25·16:11) | `16231d5` | **끝(검사 도는 중) – 11-03 16:30 "코딩하자" ✔1~✔5**: 닷·경계를 카카오 위로 · 로드뷰 핀(기울기·고개 돌림·반짝 눈) · 카카오 기다리는 동안 경계·닷 · 로드뷰 땐 단추 줄 × 아래 · 민원대장에서 받기 – 지도 장면 15 통과 · npm 430 · **`wip/complaints14`와 모의 합치기: App은 같은 글로 맞춰 겹침 없음, 겹침 2곳은 둘 다 살리기**(`docs/rules/structure.md` 민원대장 줄은 complaints14·민원 지도 줄은 map6, `map/Screen.tsx` 함수 머리는 map6 쪽) | 빌드 묶음 합치기 · 민원대장 ✔1(메뉴·단축키 → `openMap`) · 행정동 경계 자료(사용자) |
 | 민원처리 | `wip/process-fix2` | 민원처리 화면 | `669b0d7` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
 | 업무연락처 | – | 업무연락처 화면 | – | 대기 비어 있음(QC 실패 0) | – |
 | 업무일지 | `wip/journal5` | 업무일지 화면 | `b29c64c` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
@@ -137,8 +137,8 @@
 - (✔1·7판 처리 칸은 `wip/complaints14` `d42f911`에 코딩함 – 합치기 기다림)
 
 ### 민원 지도 (`wip/map6`)
-- (✔1~✔5는 `wip/map6` `26fbec0`에 코딩함 – 빌드 기다림. 로드뷰 화살표는 그대로 두기로 함 15:48)
-- (민원대장에서 전달, 11-03 16:3x) ✔5 받기 자리: `wip/complaints14`가 App `openMap(id)` → `<MapScreen focusId={…} onFocused={…} />`를 넣고 `MapScreen` 타입에 `focusId?: number | null; onFocused?: () => void`만 더했어요(쓰지는 않음). 지도 쪽은 focusId가 오면 그 점으로 옮기고 닷카드 열기 → `onFocused()` 불러 비우기.
+- (✔1~✔5는 `wip/map6` `16231d5`에 코딩함 – 빌드 기다림. 로드뷰 화살표는 그대로 두기로 함 15:48)
+- (민원대장에서 전달, 11-03 16:3x – 받음) ✔5 받기 자리는 `wip/complaints14`와 같은 `openMap`·`focusId`/`onFocused`로 맞췄어요(map6가 실제로 씀).
 - (4차는 0.72.0, 3차는 0.71.0, 2차는 0.70.0, 멈춤 고침은 0.69.0, 1차는 0.68.0에 들어감 – 원문 [history.md 0.72.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0720build-92--민원-지도-4차))
 - (기다림) 운정·금촌·교하 행정동 테두리 – 지금은 법정동을 모아 그려 동패동·야당동처럼 나뉜 동은 넓게 잡혀요. 사용자가 행정동 경계 자료를 구해 보기로 함(11-03 00:05) – 공개 자료(통계청 행정동 경계, CC BY 4.0, 2026-10-01판)도 있음
 - (보류 – 사용자 11:05 "노선은 나중에 구해보고") 도로노선 선 + 노선 글자(국도 네이비·시도 초록·지방도 보라·국지도 노랑, 고속국도 색 미정) – 선 자료는 표준노드링크, 시도 번호는 도로구역 SHP 시도 구역 안만 가능, 도로중심선 008엔 시도 번호 없음([map.md §7-33](https://github.com/zeondas/gilog/blob/main/docs/qa/map.md))
