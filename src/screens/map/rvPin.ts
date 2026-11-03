@@ -28,7 +28,9 @@ export function easeTo(cur: { look: number; lean: number }, to: { look: number; 
 /** 마우스 핀의 look(-1..1) → 띠가 보는 방향(도, 0 = 북쪽·시계 방향). 가만히 있으면 우리 쪽(남쪽 180°). */
 export const lookPan = (look: number) => 180 - look * 90;
 
-const R = 8.2; // 머리 반지름
+const R = 8.2; // 머리 반지름(그림 단위 – 화면에는 RV_SCALE배)
+/** 로드뷰 핀 크기(map8 ✔5, 사용자 22:52 "30% 키우기") – 머리·원판·말풍선 자리가 함께 커져요 */
+export const RV_SCALE = 1.3;
 const CY = -13.5; // 끝(땅) → 머리 가운데
 const EDGE = "#B9B8C6";
 
@@ -84,15 +86,16 @@ export function visorSegs(pan: number): [number, number][][] {
 }
 
 /** 흰 물방울 머리 + 도는 띠. (x, y) = 끝(땅). pan = 띠가 보는 방향(도). lean = 기울기(도, + = 오른쪽) */
-export function drawRvHead(ctx: CanvasRenderingContext2D, x: number, y: number, pan: number, visor: string, lean = 0) {
+export function drawRvHead(ctx: CanvasRenderingContext2D, x: number, y: number, pan: number, visor: string, lean = 0, scale = RV_SCALE) {
   ctx.save();
   // 땅 그림자(기울어도 그대로)
   ctx.beginPath();
-  ctx.ellipse(x + 1.2, y + 0.6, 3.4, 1.2, 0, 0, Math.PI * 2);
+  ctx.ellipse(x + 1.2 * scale, y + 0.6, 3.4 * scale, 1.2 * scale, 0, 0, Math.PI * 2);
   ctx.fillStyle = "rgba(0,0,0,0.25)";
   ctx.fill();
   ctx.translate(x, y);
   ctx.rotate((lean * Math.PI) / 180);
+  ctx.scale(scale, scale);
   // 머리: 은은한 입체(왼쪽 위가 밝아요)
   const g = ctx.createRadialGradient(-2.4, CY - 3, 1, 0, CY, R * 1.6);
   g.addColorStop(0, "#FFFFFF");
@@ -130,7 +133,7 @@ export function drawBubble(ctx: CanvasRenderingContext2D, x: number, y: number, 
   const tw = ctx.measureText(text).width + 14;
   let bx = x + 14;
   if (bx + tw > w - 8) bx = x - 14 - tw; // 오른쪽 끝이면 왼쪽으로
-  const by = y + CY - R - 26;
+  const by = y + (CY - R) * RV_SCALE - 26;
   ctx.beginPath();
   ctx.roundRect(bx, by, tw, 22, 6);
   ctx.fillStyle = "rgba(255,255,255,0.96)";

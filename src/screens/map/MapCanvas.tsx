@@ -13,7 +13,7 @@ import { statusColor } from "../../settingsStore";
 import { cardPlace, layerPaths, layerPathsIn, tracePath, type Feature, type Field, type Layers } from "./mapData";
 import { kakaoFailWhy, kakaoKey, loadKakao, tmForward, tmInverse, TILES_MS, type Kakao } from "./kakao";
 import { addPoint, finish, insideIds, summary, TOOLS, type Measure, type Pt, type Tool } from "./measure";
-import { drawBubble, drawDisc, drawRvHead, easeTo, leanOf, lookPan, RV_HINT } from "./rvPin";
+import { drawBubble, drawDisc, drawRvHead, easeTo, leanOf, lookPan, RV_HINT, RV_SCALE } from "./rvPin";
 import SelPin from "./SelPin";
 
 export type MapPoint = { c: MapComplaint; x: number; y: number; color: string };
@@ -50,7 +50,6 @@ const RV_MIN = 0.3;
 const RV_MAX = 0.7;
 const KAKAO_MAX_LEVEL = 10;
 const CULL_W = 9000; // 화면 폭이 이보다 좁게(m) 확대하면 화면 안 도형만 그려요(✔5)
-const PAJU_PAD = 3000; // 카카오를 끌어도 파주 둘레 3km 밖으로는 못 나가요(✔3)
 
 /** left = 왼쪽을 가리는 패널 폭(px) – 그만큼 비켜 가운데 맞춰요(11-03 ✔2) */
 function fit(b: [number, number, number, number], w: number, h: number, pad = 28, left = 0): View {
@@ -115,15 +114,7 @@ function renderBg(ctx: CanvasRenderingContext2D, P0: Paths, off: Set<string>, v:
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
   ctx.setTransform(s * dpr, 0, 0, -s * dpr, (w / 2 - (v.cx - ox) * s) * dpr, (h / 2 + (v.cy - oy) * s) * dpr);
-  // 파주 밖 흐림(✔3) – 카카오 위에서만(연속주제도는 파주 밖이 원래 비어 있어요)
-  if (o.kakao && P.key.outer.length) {
-    const outside = new Path2D();
-    outside.rect(v.cx - ox - w / s, v.cy - oy - h / s, (w / s) * 2, (h / s) * 2);
-    outside.addPath(P.outer);
-    ctx.globalAlpha = 0.28;
-    ctx.fillStyle = pal.get("--map-veil");
-    ctx.fill(outside, "evenodd");
-  }
+  // 파주 밖 흐림은 뺐어요(map8 ✔1, 사용자 22:52 "지도가 지저분해 보여요" – 경계선만)
   ctx.globalAlpha = o.alpha;
   for (const f of P.fills) {
     if (off.has(f.id) || (o.only && !o.only.has(f.id)) || (f.minScale && s < f.minScale)) continue;
@@ -164,11 +155,13 @@ function renderBg(ctx: CanvasRenderingContext2D, P0: Paths, off: Set<string>, v:
 }
 
 /** 그려 둔 배경 그림을 지금 보기에 맞춰 늘리고 옮겨 붙여요(움직이는 동안 – 한 장면 몇 ms). */
-function blit(ctx: CanvasRenderingContext2D, snap: Snap, v: View, w: number, h: number) {
+function blitRect(snap: Snap, v: View, w: number, h: number) {
   const k = v.s / snap.v.s;
-  const left = w / 2 - (snap.w / 2) * k + (snap.v.cx - v.cx) * v.s;
-  const top = h / 2 - (snap.h / 2) * k + (v.cy - snap.v.cy) * v.s;
-  ctx.drawImage(snap.cv, left, top, snap.w * k, snap.h * k);
+  return { left: w / 2 - (snap.w / 2) * k + (snap.v.cx - v.cx) * v.s, top: h / 2 - (snap.h / 2) * k + (v.cy - snap.v.cy) * v.s, w: snap.w * k, h: snap.h * k };
+}
+function blit(ctx: CanvasRenderingContext2D, snap: Snap, v: View, w: number, h: number) {
+  const r = blitRect(snap, v, w, h);
+  ctx.drawImage(snap.cv, r.left, r.top, r.w, r.h);
 }
 
 const sameView = (a: View, b: View) => a.cx === b.cx && a.cy === b.cy && a.s === b.s;
@@ -427,8 +420,22 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
       const full = fullSnap.current;
       if (snap && snap.bg === bk && sameView(snap.v, v) && snap.w === w && snap.h === h) ctx.drawImage(snap.cv, 0, 0, w, h);
       else {
-        if (full && full.key === layers && full.bg === bk) blit(ctx, full, v, w, h);
-        if (snap && snap.key === layers && snap.bg === bk) blit(ctx, snap, v, w, h); // 마지막으로 또렷하게 그린 그림을 위에 – 밖으로 남는 곳은 밑의 전체 그림이 채워요
+        // 마지막으로 또렷하게 그린 그림을 위에, 밑의 전체 그림(작은 배율 – 늘리면 선이 두껍고 흐려요)은 위 그림이 못 덮는 가장자리에만(map8 ✔4).
+        // 카카오 위에선 우리 그림이 선만 있는 투명 그림이라, 밑 그림을 다 깔면 두꺼운 선이 비쳐 보였어요.
+        const snapOk = !!snap && snap.key === layers && snap.bg === bk;
+        if (full && full.key === layers && full.bg === bk) {
+          ctx.save();
+          if (snapOk && snap) {
+            const r = blitRect(snap, v, w, h);
+            const clip = new Path2D();
+            clip.rect(0, 0, w, h);
+            clip.rect(r.left + 1, r.top + 1, r.w - 2, r.h - 2);
+            ctx.clip(clip, "evenodd");
+          }
+          blit(ctx, full, v, w, h);
+          ctx.restore();
+        }
+        if (snapOk && snap) blit(ctx, snap, v, w, h);
       }
       const { ox, oy } = P;
       const s = v.s;
@@ -569,7 +576,7 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
     const rvFan = pal.get("--map-accent-light");
     if (rvPos.current) {
       const [x, y] = toScreen(rvPos.current[0], rvPos.current[1], v, w, h);
-      drawDisc(ctx, x, y, rvPan.current, 24, pal.get("--map-rv"), rvFan);
+      drawDisc(ctx, x, y, rvPan.current, 24 * RV_SCALE, pal.get("--map-rv"), rvFan);
       drawRvHead(ctx, x, y, rvPan.current, rvFan);
     }
     // 주소 검색 핀(✔5): 빨간 핀 – 닷 위에
@@ -593,12 +600,18 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
     // 마우스 핀(✔2): 로드뷰가 켜져 있으면 손 대신 – 맨 위
     const mp = rvMouse.current;
     if (st.rvOn && mp) {
-      drawDisc(ctx, mp[0], mp[1], 0, 14, pal.get("--map-rv"), null);
+      drawDisc(ctx, mp[0], mp[1], 0, 14 * RV_SCALE, pal.get("--map-rv"), null);
       drawRvHead(ctx, mp[0], mp[1], lookPan(pose.current.look), rvFan, pose.current.lean);
       drawBubble(ctx, mp[0], mp[1], RV_HINT, w);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layers, buildFull, bgKey]);
+
+  // 카카오·로드뷰의 움직임 알림은 지도를 만들 때 한 번만 달아요 – 그 안에서는 늘 "지금" 그리기를 불러요(map8 ✔2).
+  // 전엔 단 때의 그리기([층]·분야 값)를 계속 불러, 끈 층이 움직일 때마다 다시 나타나고, 끄는 동안 옛 그리기와 지금 그리기가
+  // 번갈아 돌아 흐림·층이 번쩍였어요.
+  const drawRef = useRef(draw);
+  drawRef.current = draw;
 
   /** 기울기를 목표까지 한 장면씩(다 오면 멈춰요) */
   const runPose = useCallback(() => {
@@ -740,19 +753,10 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
       if (!tiles && kmap.current === m) fallback("카카오 지도 그림이 8초 안에 오지 않았어요(보안 허용 목록·인터넷)");
     }, TILES_MS);
     const cv = canvasRef.current;
-    // 파주 둘레 3km 밖으로는 못 끌어요(✔3) – 지도 그림은 전국 한 벌이라 파주만 받기는 못 해요
-    const [bx0, by0, bx1, by1] = layers.bounds;
+    // 끌기 범위 제한은 없어요(map8 ✔6, 사용자 23:12 – 파주 둘레 3km 제한 폐기)
     ev.addListener(m, "center_changed", () => {
-      const c = m.getCenter();
-      const [x, y] = tmForward(c.getLat(), c.getLng());
-      const cx = Math.max(bx0 - PAJU_PAD, Math.min(bx1 + PAJU_PAD, x));
-      const cy = Math.max(by0 - PAJU_PAD, Math.min(by1 + PAJU_PAD, y));
-      if (cx !== x || cy !== y) {
-        m.setCenter(latLng(cx, cy));
-        return;
-      }
       syncView();
-      draw(true);
+      drawRef.current(true);
     });
     // 부드러운 확대(✔3): 움직이는 동안(약 0.3초) 우리 그림판은 잠깐 숨기고, 끝나면 다시 그려요.
     ev.addListener(m, "zoom_start", () => {
@@ -763,14 +767,14 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
     });
     ev.addListener(m, "idle", () => {
       syncView();
-      draw();
+      drawRef.current();
       if (cv) cv.style.opacity = "";
       if (selPinRef.current) selPinRef.current.style.opacity = "";
     });
     const fb = focusBounds ?? layers.bounds;
     kakaoFit(fb);
     syncView();
-    draw();
+    drawRef.current();
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, layers]);
@@ -880,6 +884,11 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [animateTo],
   );
+  // 새로 고를 때만 그 자리로(map8 ✔2 – 전엔 [층]을 바꿔도 다시 돌아 고른 핀 자리로 끌려갔어요)
+  const panRef = useRef(panTo);
+  panRef.current = panTo;
+  const pointsRef = useRef(points);
+  pointsRef.current = points;
   useEffect(() => {
     // 풀면(✔10) 그 닷카드도 닫아요 – 묶음 카드(여러 건)는 그대로
     if (selectedId == null) {
@@ -889,13 +898,13 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
     }
     const v = view.current;
     if (!v) return;
-    const p = points.find((q) => q.c.id === selectedId);
+    const p = pointsRef.current.find((q) => q.c.id === selectedId);
     if (!p) return;
     const { w, h } = size.current;
     const [sx, sy] = toScreen(p.x, p.y, v, w, h);
-    if (sx < 24 || sy < 24 || sx > w - 24 || sy > h - 24) panTo(p.x, p.y);
+    if (sx < 24 || sy < 24 || sx > w - 24 || sy > h - 24) panRef.current(p.x, p.y);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId, points, panTo]);
+  }, [selectedId]);
 
   // 주소 검색 핀: 그리로 옮기고 확대(✔5)
   useEffect(() => {
@@ -986,15 +995,16 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
         k.maps.event.addListener(r, "position_changed", () => {
           const p = r.getPosition();
           rvPos.current = tmForward(p.getLat(), p.getLng());
-          // 로드뷰 자리를 왼쪽 지도 칸 가운데로(✔2 – 열 때·길을 누를 때·로드뷰 안 화살표로 옮길 때마다, 카카오 예제 방식)
+          // 로드뷰 자리를 왼쪽 지도 칸 가운데로(map7 ✔2) – 미끄러지지 않고 한 번에(map8 ✔3: 미끄러지는 동안 덧그림이 뚝뚝 끊겨 따라와 어색했어요)
           m.relayout();
-          m.panTo(p);
-          draw();
+          m.setCenter(p);
+          syncView();
+          drawRef.current();
         });
         // 로드뷰를 돌리면 지도 위 머리·부채꼴도 같이(✔2)
         k.maps.event.addListener(r, "viewpoint_changed", () => {
           rvPan.current = r.getViewpoint().pan;
-          draw(true);
+          drawRef.current(true);
         });
         m.relayout();
       } catch {
