@@ -100,23 +100,28 @@ describe("검색창 하나 – 주소 꼴 알아보기(11-03 ✔3)", () => {
   });
 });
 
-describe("로드뷰 핀(11-03 ✔2)", () => {
-  it("고개 방향: 북쪽 = 뒤통수, 남쪽 = 렌즈 정면, 동쪽 = 오른쪽", async () => {
-    const { headPose } = await import("./rvPin");
-    expect(headPose(0).front).toBeCloseTo(-1);
-    expect(headPose(180).front).toBeCloseTo(1);
-    expect(headPose(90).look).toBeCloseTo(1);
-    expect(headPose(270).look).toBeCloseTo(-1);
+describe("로드뷰 핀(11-03 ✔11 네이버식)", () => {
+  it("띠: 남쪽(우리 쪽)을 보면 다 보이고 북쪽이면 숨어요 · 1°씩 돌려도 갑자기 바뀌지 않아요", async () => {
+    const { visorSegs } = await import("./rvPin");
+    const n = (pan: number) => visorSegs(pan).reduce((a, s) => a + s.length, 0);
+    expect(n(180)).toBe(23);
+    expect(n(0)).toBe(0);
+    // 동쪽을 보면 띠가 오른쪽(+x)에
+    const e = visorSegs(90).flat();
+    expect(Math.min(...e.map((p) => p[0]))).toBeGreaterThan(-1);
+    for (let a = 0; a < 360; a++) expect(Math.abs(n(a + 1) - n(a)), `${a}°`).toBeLessThanOrEqual(2);
   });
-  it("움직인 쪽으로 기울고, 조금 움직인 건 정면", async () => {
-    const { leanOf, easeTo } = await import("./rvPin");
-    expect(leanOf(5)).toEqual({ look: 0.75, lean: 10 });
-    expect(leanOf(-5).lean).toBe(-10);
+  it("마우스 핀: 움직인 쪽으로 기울고 띠도 그쪽, 조금 움직인 건 정면", async () => {
+    const { leanOf, easeTo, lookPan } = await import("./rvPin");
+    expect(leanOf(5)).toEqual({ look: 1, lean: 8 });
+    expect(leanOf(-5).lean).toBe(-8);
     expect(leanOf(1)).toEqual({ look: 0, lean: 0 });
+    expect(lookPan(0)).toBe(180);
+    expect(lookPan(1)).toBe(90);
     const cur = { look: 0, lean: 0 };
-    let n = 0;
-    while (!easeTo(cur, { look: 0.75, lean: 10 }) && n < 50) n++;
-    expect(cur).toEqual({ look: 0.75, lean: 10 });
-    expect(n).toBeLessThan(20);
+    let k = 0;
+    while (!easeTo(cur, { look: 1, lean: 8 }) && k < 50) k++;
+    expect(cur).toEqual({ look: 1, lean: 8 });
+    expect(k).toBeLessThan(20);
   });
 });

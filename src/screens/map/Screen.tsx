@@ -877,6 +877,7 @@ export default function MapScreen({ onOpenComplaint, focusId = null, onFocused }
           regionFeats={regionFeats}
           focusBounds={focusBounds}
           selectedId={selId}
+          onSelect={setSelId}
           legend={legend}
           onOpen={onOpenComplaint}
           onWhole={() => setRegion(null)}

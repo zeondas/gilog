@@ -9,7 +9,7 @@
 
 만드는 것(data/map/, 앱에 들어가요):
   paju_parcels.bin.gz  지번 → 좌표 표(core가 읽음)
-  paju_layers.bin.gz   배경 여덟 층(화면이 읽음) – 도로 넷 + 국가하천·지방하천·소하천·공원
+  paju_layers.bin.gz   배경 아홉 층(화면이 읽음) – 도로 넷 + 국가하천·지방하천·소하천·공원 + 파주 바깥 경계(--outer로 이 층만 다시)
 
 좌표는 모두 EPSG:5181(중부원점 GRS80, m). DXF만 5174 → 5181로 바꿔요(§7-24, 300m 비낌).
 
@@ -286,6 +286,24 @@ def build_layers(recs, names):
     ]
     nat, loc, small = river_layers()
     layers += [(5, "국가하천", nat), (6, "지방하천", loc), (7, "소하천", small), (8, "공원", park_layer())]
+    layers += [(9, "파주 바깥 경계", outer_layer([r for _, r in feats]))]
+    write_layers(layers)
+
+
+def outer_layer(emd_rings):
+    """파주 바깥 경계(11-03 ✔4): 읍면동 경계를 합친 바깥 테두리만 – 화면이 굵은 남색 선으로 그려요.
+    경계끼리 1m 안팎 틈이 있어 20m 부풀렸다 줄여 메우고, 1km² 넘는 덩어리의 바깥 고리만 남겨요."""
+    from shapely.geometry import Polygon
+    from shapely.ops import unary_union
+
+    u = unary_union([Polygon(r).buffer(0) for r in emd_rings if len(r) >= 4]).buffer(20).buffer(-20)
+    parts = [u] if u.geom_type == "Polygon" else list(u.geoms)
+    out = [("파주시", [simplify_ring([(round(x), round(y)) for x, y in g.exterior.coords], 3.0) for g in parts if g.area > 1e6])]
+    print("바깥 경계 고리", len(out[0][1]), "개")
+    return out
+
+
+def write_layers(layers):
     buf = io.BytesIO()
     buf.write(b"PJL1")
     buf.write(struct.pack("<B", len(layers)))
@@ -302,7 +320,44 @@ def build_layers(recs, names):
     print("층:", " · ".join(f"{t} {len(fs):,}" for _, t, fs in layers), f"· {len(gz)/1e6:.2f}MB")
 
 
+def add_outer_only():
+    """원본 DXF 없이 이미 만든 자료에 바깥 경계(층 9)만 더하거나 바꿔요: python tools/map/build.py --outer"""
+    raw = gzip.open(os.path.join(OUT, "paju_layers.bin.gz")).read()
+    assert raw[:4] == b"PJL1"
+    o, n, layers = 5, raw[4], []
+    for _ in range(n):
+        lid, nf = struct.unpack_from("<BI", raw, o)
+        o += 5
+        fs = []
+        for _ in range(nf):
+            nl = raw[o]
+            name = raw[o + 1 : o + 1 + nl].decode()
+            o += 1 + nl
+            (nr,) = struct.unpack_from("<H", raw, o)
+            o += 2
+            rings = []
+            for _ in range(nr):
+                np_, x, y = struct.unpack_from("<Iii", raw, o)
+                o += 12
+                r = [(x, y)]
+                for _ in range(np_ - 1):
+                    dx, dy = struct.unpack_from("<hh", raw, o)
+                    o += 4
+                    x, y = x + dx, y + dy
+                    r.append((x, y))
+                rings.append(r)
+            fs.append((name, rings))
+        if lid != 9:
+            layers.append((lid, "", fs))
+    emd = [r for lid, _, fs in layers if lid == 4 for _, rs in fs for r in rs]
+    layers.append((9, "파주 바깥 경계", outer_layer(emd)))
+    write_layers(layers)
+
+
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
+    if "--outer" in sys.argv:
+        add_outer_only()
+        sys.exit(0)
     recs, names = build_parcels()
     build_layers(recs, names)

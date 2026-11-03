@@ -1,19 +1,15 @@
-// 민원 지도 – 로드뷰 핀(11-03 ✔2, 카카오맵 방식을 우리 그림으로 – 캔버스 판 MapRvPin 2판·MapRvEye 1안).
-// ① 로드뷰가 켜져 있으면 손 대신 핀(흰 둥근 머리 + 파란 렌즈 눈 + 가는 다리)이 마우스를 따라와요.
-//    움직이는 쪽으로 고개·몸을 기울였다가 멈추면 정면으로 – 제자리에서 계속 돌지 않아요.
-// ② 지금 로드뷰 자리에는 같은 머리가 서서 사진이 보는 쪽으로 고개를 돌리고, 발밑 부채꼴(60°, 땅에 누운 모양)도 같이 돌아요.
+// 민원 지도 – 로드뷰 핀(11-03 ✔11, 네이버지도 방식 – 캔버스 판 MapRvPin5·MapRvPin6).
+// ① 지금 로드뷰 자리: 땅에 누운 옅은 파랑 원판 + 보는 쪽 부채꼴 + 아래로 뾰족한 작은 흰 물방울 머리 + 머리 둘레를 도는 띠.
+//    띠는 머리 앞쪽(우리 쪽)에 있을 때만 보이고, 뒤로 돌면 가장자리로 서서히 숨어 흰 머리만 남아요 – 뒤통수 그림은 없어요.
+//    그래서 360° 어느 쪽이든 끊김 없이 돌아요(옛 눈알 머리는 ±98°에서 렌즈↔뒤통수로 갑자기 바뀌었어요).
+// ② 마우스 핀(로드뷰가 켜져 있을 때 손 대신): 같은 머리 + 작은 원판, 움직이는 쪽으로 기울고 띠도 그쪽을 봐요.
+// 색: 원판 = 로드뷰 길 파랑(--map-rv) · 부채꼴·띠 = 설정 강조색의 "밝게" 값(--icon-bg, 밝게·어둡게 같음 – ✔7).
 // 카카오 그림 파일은 쓰지 않아요(운영정책) – 모두 캔버스에 직접 그려요.
 
-/** 고개 방향: pan(도, 0 = 북쪽, 시계 방향) → look(렌즈 가로 치우침 -1..1) · front(1 = 렌즈가 우리 쪽, -1 = 뒤통수) */
-export function headPose(pan: number): { look: number; front: number } {
-  const p = (pan * Math.PI) / 180;
-  return { look: Math.sin(p), front: -Math.cos(p) };
-}
-
-/** 마우스가 가로로 움직인 양(px) → 기울기 목표. 조금 움직인 건 무시해요. */
+/** 마우스가 가로로 움직인 양(px) → 기울기 목표. look = 띠가 보는 쪽(-1 왼쪽 … 1 오른쪽). 조금 움직인 건 무시해요. */
 export function leanOf(dx: number): { look: number; lean: number } {
-  if (dx > 1.5) return { look: 0.75, lean: 10 };
-  if (dx < -1.5) return { look: -0.75, lean: -10 };
+  if (dx > 1.5) return { look: 1, lean: 8 };
+  if (dx < -1.5) return { look: -1, lean: -8 };
   return { look: 0, lean: 0 };
 }
 
@@ -29,99 +25,101 @@ export function easeTo(cur: { look: number; lean: number }, to: { look: number; 
   return done;
 }
 
-const R = 10; // 머리 반지름(px)
-const NECK = 24; // 발끝 → 머리 가운데
-const EDGE = "#9696A5";
+/** 마우스 핀의 look(-1..1) → 띠가 보는 방향(도, 0 = 북쪽·시계 방향). 가만히 있으면 우리 쪽(남쪽 180°). */
+export const lookPan = (look: number) => 180 - look * 90;
 
-/** 머리 하나: (x, y) = 발끝(땅). lean = 기울기(도, + = 오른쪽으로) */
-export function drawHead(ctx: CanvasRenderingContext2D, x: number, y: number, look: number, front: number, lean = 0) {
-  ctx.save();
-  // 그림자(기울어도 땅에 그대로)
+const R = 8.2; // 머리 반지름
+const CY = -13.5; // 끝(땅) → 머리 가운데
+const EDGE = "#B9B8C6";
+
+function dropPath(ctx: CanvasRenderingContext2D) {
   ctx.beginPath();
-  ctx.ellipse(x, y, 6, 2, 0, 0, Math.PI * 2);
-  ctx.fillStyle = "rgba(0,0,0,0.28)";
-  ctx.fill();
-  ctx.translate(x, y);
-  ctx.rotate((lean * Math.PI) / 180);
-  const cy = -NECK;
-  // 다리
-  ctx.beginPath();
-  ctx.moveTo(0, -1);
-  ctx.lineTo(0, cy + R - 2);
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = "#787887";
-  ctx.stroke();
-  // 목(작은 세모)
-  ctx.beginPath();
-  ctx.moveTo(-5, cy + R - 3);
-  ctx.lineTo(5, cy + R - 3);
-  ctx.lineTo(0, cy + R + 5);
+  ctx.moveTo(0, 0);
+  ctx.bezierCurveTo(-2.2, -3.2, -R, -6, -R, CY);
+  ctx.arc(0, CY, R, Math.PI, 0);
+  ctx.bezierCurveTo(R, -6, 2.2, -3.2, 0, 0);
   ctx.closePath();
-  ctx.fillStyle = "#fff";
-  ctx.fill();
-  ctx.lineWidth = 1;
-  ctx.strokeStyle = EDGE;
-  ctx.stroke();
-  // 머리
-  ctx.beginPath();
-  ctx.arc(0, cy, R, 0, Math.PI * 2);
-  ctx.fillStyle = "#fff";
-  ctx.fill();
-  ctx.lineWidth = 1;
-  ctx.strokeStyle = EDGE;
-  ctx.stroke();
-  if (front > -0.15) {
-    // 렌즈 눈(1안 반짝 눈): 크게 · 위 진한 파랑 → 아래 밝은 파랑 · 진한 파랑 테두리 · 반짝이 둘(빛은 늘 왼쪽 위)
-    const k = (0.55 + 0.45 * Math.max(0, Math.min(1, front))) * (1 - 0.3 * Math.abs(look)); // 옆을 보면 좁아져요
-    const lr = 6.2;
-    const lx = look * R * 0.5;
-    const ly = cy - 0.4;
-    const g = ctx.createLinearGradient(0, ly - lr, 0, ly + lr);
-    g.addColorStop(0, "#235FE1");
-    g.addColorStop(1, "#5FA5FF");
-    ctx.beginPath();
-    ctx.ellipse(lx, ly, lr * k, lr, 0, 0, Math.PI * 2);
-    ctx.fillStyle = g;
-    ctx.fill();
-    ctx.lineWidth = 0.8;
-    ctx.strokeStyle = "#163CAA";
-    ctx.stroke();
-    ctx.fillStyle = "#fff";
-    ctx.beginPath();
-    ctx.ellipse(lx - lr * k * 0.29, ly - lr * 0.4, lr * k * 0.33, lr * 0.35, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(lx + lr * k * 0.3, ly + lr * 0.4, lr * k * 0.15, lr * 0.15, 0, 0, Math.PI * 2);
-    ctx.fill();
-  } else {
-    // 뒤통수: 회색 띠 하나
-    ctx.beginPath();
-    ctx.arc(0, cy + 1, R * 0.6, Math.PI * 1.1, Math.PI * 1.9);
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = "#BEBECA";
-    ctx.stroke();
-  }
-  ctx.restore();
 }
 
-/** 보는 방향 부채꼴(60°) – 땅에 누운 것처럼 세로를 반으로 눌러요. pan 0 = 북쪽(화면 위), 시계 방향 */
-export function drawFan(ctx: CanvasRenderingContext2D, x: number, y: number, pan: number, color: string) {
-  const a = ((pan - 90) * Math.PI) / 180;
-  const half = Math.PI / 6;
+/** 땅 원판 + 보는 쪽 부채꼴(원판 안, 세로를 반으로 눌러 땅에 누운 모양). r = 원판 가로 반지름 */
+export function drawDisc(ctx: CanvasRenderingContext2D, x: number, y: number, pan: number, r: number, disc: string, fan: string | null) {
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(1, 0.5);
   ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.arc(0, 0, 44, a - half, a + half);
-  ctx.closePath();
-  ctx.globalAlpha = 0.38;
-  ctx.fillStyle = color;
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.globalAlpha = 0.32;
+  ctx.fillStyle = disc;
   ctx.fill();
-  ctx.globalAlpha = 0.85;
-  ctx.lineWidth = 1.5;
-  ctx.strokeStyle = color;
+  if (fan) {
+    const a = ((pan - 90) * Math.PI) / 180;
+    const hw = Math.PI / 5.2;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, r, a - hw, a + hw);
+    ctx.closePath();
+    ctx.globalAlpha = 0.62;
+    ctx.fillStyle = fan;
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/** 띠가 보이는 조각들(머리 좌표, 끝 = 0,0). 보는 쪽 ±55°를 5°마다 – 앞쪽(우리 쪽 반)에 있는 점만, 이어진 것끼리 한 조각.
+ *  각도를 1°씩 돌려도 보이는 점 수가 한 번에 하나씩만 바뀌어요(갑자기 돌지 않음 – 시험으로 고정). */
+export function visorSegs(pan: number): [number, number][][] {
+  const k = R * 0.42;
+  const out: [number, number][][] = [];
+  let cur: [number, number][] = [];
+  for (let t = -55; t <= 55; t += 5) {
+    const th = ((pan + t) * Math.PI) / 180;
+    if (-Math.cos(th) > -0.02) cur.push([Math.sin(th) * R * 0.98, CY + 1.6 - Math.cos(th) * k]);
+    else if (cur.length) {
+      out.push(cur);
+      cur = [];
+    }
+  }
+  if (cur.length) out.push(cur);
+  return out.filter((c) => c.length > 1);
+}
+
+/** 흰 물방울 머리 + 도는 띠. (x, y) = 끝(땅). pan = 띠가 보는 방향(도). lean = 기울기(도, + = 오른쪽) */
+export function drawRvHead(ctx: CanvasRenderingContext2D, x: number, y: number, pan: number, visor: string, lean = 0) {
+  ctx.save();
+  // 땅 그림자(기울어도 그대로)
+  ctx.beginPath();
+  ctx.ellipse(x + 1.2, y + 0.6, 3.4, 1.2, 0, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(0,0,0,0.25)";
+  ctx.fill();
+  ctx.translate(x, y);
+  ctx.rotate((lean * Math.PI) / 180);
+  // 머리: 은은한 입체(왼쪽 위가 밝아요)
+  const g = ctx.createRadialGradient(-2.4, CY - 3, 1, 0, CY, R * 1.6);
+  g.addColorStop(0, "#FFFFFF");
+  g.addColorStop(0.7, "#F1F1F5");
+  g.addColorStop(1, "#D9D9E2");
+  dropPath(ctx);
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.lineWidth = 0.9;
+  ctx.strokeStyle = EDGE;
   ctx.stroke();
+  // 띠: 머리 적도(타원)에서 보는 쪽 ±55° – 앞쪽(아래 반)만 보여요
+  ctx.save();
+  dropPath(ctx);
+  ctx.clip();
+  ctx.lineWidth = 2.6;
+  ctx.lineCap = "round";
+  ctx.strokeStyle = visor;
+  ctx.beginPath();
+  for (const seg of visorSegs(pan)) seg.forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
+  ctx.stroke();
+  ctx.restore();
+  // 반짝임
+  ctx.beginPath();
+  ctx.ellipse(-2.6, CY - 3.4, 2.2, 1.4, 0, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  ctx.fill();
   ctx.restore();
 }
 
@@ -132,7 +130,7 @@ export function drawBubble(ctx: CanvasRenderingContext2D, x: number, y: number, 
   const tw = ctx.measureText(text).width + 14;
   let bx = x + 14;
   if (bx + tw > w - 8) bx = x - 14 - tw; // 오른쪽 끝이면 왼쪽으로
-  const by = y - NECK - R - 26;
+  const by = y + CY - R - 26;
   ctx.beginPath();
   ctx.roundRect(bx, by, tw, 22, 6);
   ctx.fillStyle = "rgba(255,255,255,0.96)";

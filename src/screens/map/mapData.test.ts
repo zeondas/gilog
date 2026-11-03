@@ -5,6 +5,8 @@ import type { MapComplaint } from "../../api";
 import {
   REGIONS,
   cardPlace,
+  cullFeats,
+  layerPathsIn,
   chipOf,
   chipRange,
   groupByType,
@@ -106,6 +108,14 @@ describe("민원 지도 규칙", () => {
     // 파주시 범위(5181 m)
     expect(l.bounds[0]).toBeGreaterThan(150000);
     expect(l.bounds[3]).toBeLessThan(520000);
+    // ✔4: 파주 바깥 경계 한 고리(읍면동을 합친 바깥 테두리) – 읍면동 범위와 같아요
+    expect(l.outer).toHaveLength(1);
+    expect(l.outer[0].rings).toHaveLength(1);
+    const r = l.outer[0].rings[0];
+    let x0 = Infinity, x1 = -Infinity;
+    for (let k = 0; k < r.length; k += 2) (x0 = Math.min(x0, r[k])), (x1 = Math.max(x1, r[k]));
+    expect(Math.abs(x0 - l.bounds[0])).toBeLessThan(50);
+    expect(Math.abs(x1 - l.bounds[2])).toBeLessThan(50);
   });
 
   it("배경 모양 만들기: 칠하는 층은 closePath 0번, 전체 자료 1초 안(0.68.0 멈춤 재발 방지) – 세 분야 모두", () => {
@@ -127,6 +137,23 @@ describe("민원 지도 규칙", () => {
     expect(layerPaths(l, make, "park").fills.map((f) => f.id)).toEqual(["park"]);
   });
 
+  it("확대했을 때 화면 안 도형만(✔5): 상자에 걸친 고리만 · 원점이 화면 가운데라 좌표가 작아요", () => {
+    const raw = gunzipSync(readFileSync("data/map/paju_layers.bin.gz"));
+    const l = parseLayers(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength));
+    const cx = (l.bounds[0] + l.bounds[2]) / 2, cy = (l.bounds[1] + l.bounds[3]) / 2;
+    const b: [number, number, number, number] = [cx - 600, cy - 400, cx + 600, cy + 400];
+    const zone = cullFeats(l.zone, b);
+    const all = l.zone.reduce((a, f) => a + f.rings.length, 0);
+    const some = zone.reduce((a, f) => a + f.rings.length, 0);
+    expect(some).toBeLessThan(all / 5);
+    let maxAbs = 0;
+    const make = () => ({ moves: 0, lines: 0, closes: 0, moveTo(x: number, y: number) { this.moves++; maxAbs = Math.max(maxAbs, Math.abs(x), Math.abs(y)); }, lineTo() { this.lines++; }, closePath() { this.closes++; } });
+    const P = layerPathsIn(l, make, "road", b, Math.round(cx), Math.round(cy));
+    expect(P.lines.map((x) => x.id)).toEqual(["plan", "zone"]);
+    for (const f of P.fills) expect(f.p.closes).toBe(0);
+    expect(maxAbs).toBeLessThan(40000); // 걸친 고리의 시작점 – 파주 전체 원점이면 3만 m 넘어요
+  });
+
   it("하천·공원 자료(✔3): 국가 17 · 지방 541 · 소하천 252 · 공원 1,272", () => {
     const raw = gunzipSync(readFileSync("data/map/paju_layers.bin.gz"));
     const l = parseLayers(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength));
@@ -142,7 +169,7 @@ describe("민원 지도 규칙", () => {
     const sq = new Int32Array([0, 0, 100, 0, 100, 100, 0, 100, 0, 0]);
     expect(ringDist(sq, 50, 50)).toBe(0);
     expect(ringDist(sq, 150, 50)).toBeCloseTo(50);
-    const L = { road: [], plan: [], zone: [], emd: [], nat: [], loc: [{ name: "", rings: [sq] }], small: [], park: [], bounds: [0, 0, 100, 100] as [number, number, number, number] };
+    const L = { road: [], plan: [], zone: [], emd: [], nat: [], loc: [{ name: "", rings: [sq] }], small: [], park: [], outer: [], bounds: [0, 0, 100, 100] as [number, number, number, number] };
     expect(riverGradeOf(L, 50, 50)).toBe("loc");
     expect(riverGradeOf(L, 190, 50)).toBe("loc"); // 90m
     expect(riverGradeOf(L, 210, 50)).toBeNull(); // 110m – 하천 밖
