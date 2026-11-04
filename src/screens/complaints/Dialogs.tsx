@@ -38,6 +38,7 @@ export function DateField({
   placeholder = "연-월-일",
   shortOf,
   selectAll,
+  title,
   onChange,
   onBlur,
 }: {
@@ -51,6 +52,8 @@ export function DateField({
   selectAll?: boolean;
   onChange: (v: string) => void;
   onBlur: () => void;
+  /** 마우스를 올리면 보이는 이름(안내 글만 있는 칸 – 민원대장 처리 칸) */
+  title?: string;
 }) {
   // 마우스로 눌러 들어오면 떼는 순간 커서가 놓이며 고른 것이 풀려요 – 들어온 뒤 첫 떼기는 막아요.
   const justIn = useRef(false);
@@ -61,6 +64,7 @@ export function DateField({
       label={label}
       invalid={bad}
       placeholder={placeholder}
+      title={title}
       shortOf={shortOf}
       value={value}
       onChange={onChange}

@@ -272,40 +272,44 @@ function Cells({
         <BulletEditor name="body" label="내용" invalid={bad.body} placeholder="민원 내용" lines={parseLines(d.body)} onChange={(ls) => set({ body: JSON.stringify(ls) })} />,
       )}
       {cell("action", <BulletEditor name="action" label="조치내용" placeholder="조치내용" lines={parseLines(d.action)} onChange={(ls) => set({ action: JSON.stringify(ls) })} />)}
-      {cell(
-        "status",
-        <ChoiceInput
-          name="status"
-          label="상태"
-          value={d.status}
-          options={lists.status}
-          allow={orig?.status}
-          invalid={bad.status}
-          onChange={(status) =>
-            // 완료·불가를 고르면 비어 있는 조치완료일에 오늘, 다른 상태로 돌리면 비워요(배지와 같게).
-            set({ status, ...(isClosed(status) ? (d.done ? {} : { done: todayStr() }) : isClosed(d.status) ? { done: "" } : {}) })
-          }
-        />,
-      )}
-      {/* 처리 칸(2026-11-03 사용자 7판): 신규 줄은 마감일만(처음부터 완료일 리 없어요), 고치는 줄은 마감일·조치완료일 위아래 – 이름은 칸 앞, 메모 열까지 써요. */}
+      {/* 상태(2026-11-04 사용자): 신규 줄은 늘 "접수"(흐린 배지, 눌리지 않음), 고치는 줄은 보기 줄과 같은 배지 콤보 – 고른 값은 저장할 때 함께 저장 */}
+      {orig
+        ? cell(
+            "status",
+            <StatusPick
+              status={d.status}
+              statuses={lists.status}
+              bg={statusColor(d.status)[0]}
+              fg={statusColor(d.status)[1]}
+              render={(x) => x}
+              onPick={(status) =>
+                // 완료·불가를 고르면 비어 있는 조치완료일에 오늘, 다른 상태로 돌리면 비워요(보기 줄 배지와 같게).
+                set({ status, ...(isClosed(status) ? (d.done ? {} : { done: todayStr() }) : isClosed(d.status) ? { done: "" } : {}) })
+              }
+            />,
+            "cm-c cm-status-in",
+          )
+        : cell(
+            "status",
+            <span className="cm-status cm-status-fixed" style={{ background: statusColor(d.status)[0], color: statusColor(d.status)[1] }} title="새 민원은 접수로 등록돼요">
+              {d.status}
+            </span>,
+            "cm-c cm-status-in",
+          )}
+      {/* 처리 칸(2026-11-04 사용자 1안): 이름은 입력칸 안 안내 글(빈 칸일 때만, 마우스를 올리면 이름) – 날짜 칸 폭 그대로라 처리 열을 좁혀도 칸 안.
+          신규 줄은 마감일만, 고치는 줄은 마감일·조치완료일 위아래로 메모 열까지 써요. */}
       {orig
         ? cell(
             "due",
             <>
-              <label className="cm-proc-line">
-                <span className="cm-proc-cap">마감일</span>
-                <DateField name="due" label="마감일" bad={bad.due} value={d.due} onChange={(due) => set({ due })} onBlur={() => onDateBlur("due")} />
-              </label>
-              <label className="cm-proc-line">
-                <span className="cm-proc-cap">조치완료일</span>
-                <DateField name="done" label="조치완료일" bad={bad.done} value={d.done ?? ""} onChange={onDoneType} onBlur={() => onDateBlur("done")} />
-              </label>
+              <DateField name="due" label="마감일" placeholder="마감일" title="마감일" bad={bad.due} value={d.due} onChange={(due) => set({ due })} onBlur={() => onDateBlur("due")} />
+              <DateField name="done" label="조치완료일" placeholder="조치완료일" title="조치완료일" bad={bad.done} value={d.done ?? ""} onChange={onDoneType} onBlur={() => onDateBlur("done")} />
             </>,
             "cm-c cm-proc-in cm-proc-ed",
           )
         : cell(
             "due",
-            <DateField name="due" label="마감일" placeholder="마감일" bad={bad.due} value={d.due} onChange={(due) => set({ due })} onBlur={() => onDateBlur("due")} />,
+            <DateField name="due" label="마감일" placeholder="마감일" title="마감일" bad={bad.due} value={d.due} onChange={(due) => set({ due })} onBlur={() => onDateBlur("due")} />,
             "cm-c cm-proc-in",
           )}
     </>
