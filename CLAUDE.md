@@ -54,7 +54,7 @@
 | 민원지도 | `wip/map12` | 민원 지도 화면 – 민원대장과 별도 모듈, 민원대장 자료(위치·유형·상태·날짜만)를 읽어 지도에 점으로(결정 로그 11-02 14:25·16:11) | `36b64cd` | **끝(합치기 기다림 · check 통과 [run](https://github.com/zeondas/gilog/actions/runs/41853301211))** – ✔1 QC MP-07: 카카오 SDK를 못 받으면 한 번 더 받기(1.2초 뒤, 키 거절은 다시 안 받음) · 시험 2개 더함 · 0.78.0엔 캡처 배율·파주 넘침 6% | 빌드 0.79.0 · 사용자 윈도우 시험 · 행정동 경계·노선 자료(사용자) |
 | 민원처리 | `wip/process-fix2` | 민원처리 화면 | `669b0d7` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
 | 업무연락처 | – | 업무연락처 화면 | – | 대기 비어 있음(QC 실패 0) | – |
-| 업무일지 | `wip/journal5` | 업무일지 화면 | `b29c64c` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
+| 업무일지 | `wip/journal6` | 업무일지 화면 | `3d6093a` | **끝(합치기 기다림)** · ✔2 QC CO-28 엑셀 내보내기 글 잃음 고침(표 뒤 글·칸 안 줄 바꿈 " / "·구분 비운 말 카드) + 왕복 시험 `src/journalExcel.test.ts` 8개 · check 통과(지킴이 업무일지 장면 0) | 빌드 묶음 · 사용자 CO-29(연락처 앞 0) 답 |
 | 할 일 | – | 할 일 화면 | – | 대기 비어 있음(QC 실패 0) · 세션 안 열림 | – |
 | 캘린더 | (코딩 때 `wip/calendar8`) | 캘린더·구글 연동 화면 | `2c6ba2d` | **0.78.0(build-98)에 들어감** – ✔1 다시 로그인 · ✔2 연동 방향(단방향/양방향) · ✔3 구글 상자 구역·확인할 것 창 · ✔4 미니달력 사이드바·5주·일 보기 – 내력 [history.md 0.78.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0780build-98--민원지도-캡처-배율--캘린더-구글-연동미니달력--민원대장-완료-전-상태) | 사용자 윈도우 시험(실제 구글 계정) · 21:38 신고 "구글 일정이 안 불러와져요" – 원인 분석·안 물음(①② 표) |
 | 탐색기 | `wip/explorer10` | 탐색기 화면 | `ff011a3` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
@@ -138,9 +138,9 @@
 - (매뉴얼 세션에 전달 – 캘린더 11-04) `docs/manual/calendar.md`의 "앞으로 7일" 줄은 없어졌어요 – 왼쪽 위 미니달력(한 번 = 그 주부터 5주, 두 번 = 일 보기)·보기 단추 [일][주][월]·구글 상자(로그인/연동 구역, [확인할 것 N건 보기 ›] 창)로 바꿔요.
 - (매뉴얼 세션에 전달 – 11-04) 사이드바·화면 글자가 "민원 지도" → "민원지도"(0.76.0)예요 – 매뉴얼 글도 맞춰요.
 - (매뉴얼 세션에 전달 – 민원대장 11-03) `docs/manual/complaints.md` 7번 "마감일 | .cm-due .cm-tpick" 줄은 없어진 칸이에요 – 열이 "상태 | 처리"로 바뀜, 선택자 `.cm-proc-t`, 설명 "답변 전엔 N일 남음·오늘 마감·N일 지남, 답변하면 답변완료, 완료하면 걸린 기간". 우클릭 메뉴에 "지도에서 보기"(단축키 Ctrl+M) 더함.
+- (업무일지 세션에서 알림, 11-05) 업무일지 ✔2(QC CO-28)로 `src/excel.ts`의 업무일지 전용 함수만 고쳤어요(`wip/journal6` `3d6093a`) – `memoText`(표 칸 안 줄 바꿈 " / "·문단 밖 글), `entryContent`·새 `entryKind`·`journalImports`(구분 비운 말 카드). 공통 함수(`cellOfLines`·`linesOfCell`·`picker`·core `excel.rs`)는 그대로예요 – 공통 세션이 같은 곳을 고칠 때 이 가지와 겹치지 않게만 봐 주세요.
 
-### 업무일지 (`wip/journal5` – ✔1 0.67.0에 들어감)
-- ✔2. (QC 2회차 CO-28, 우두머리 11-04 옮김) **엑셀 내보내기가 글을 잃음** – 표 뒤 머릿기호 없는 줄이 빠지고, 칸 안 줄 바꿈이 표 줄을 쪼개고, 상대를 고르고 구분을 비운 말 카드는 내용이 비고 상대 칸에 화면 표시 글이 나가요(대체하기 때 사라질 수 있음). 내보내기→가져오기 왕복 시험을 더해요(엑셀 공통 부분이면 공통 세션과 나눔) – [qc-result-0.78.0.md](https://github.com/zeondas/gilog/blob/main/docs/qa/qc-result-0.78.0.md)
+### 업무일지 (`wip/journal6` – ✔2 코딩 끝, 합치기 기다림)
 - (참고 – QC 2회차 CO-29, 실패 아님·판단은 업무일지 세션) 엑셀 가져오기의 "연락처" 칸은 숫자 1012345678이 그대로 들어가요 – 앞 0 붙이기는 업무연락처 무선·유선에만. 업무일지도 붙일지 사용자에게 물어요 – [qc-result-0.78.0.md](https://github.com/zeondas/gilog/blob/main/docs/qa/qc-result-0.78.0.md)
 
 ### 집행현황 (`src/budgetExcel.ts`·`budgetStatusImport.ts`·`budgetStatus.ts`·core `budget.rs`·`bstatus.rs` – `wip/budget-excel`, 예산현황 가져오기도 여기서)
