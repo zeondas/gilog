@@ -31,6 +31,7 @@ import {
   whenText,
   BUILTIN_CLIENT,
   needsTasksLogin,
+  reloginGoogle,
 } from "../../google";
 import { Row, Toggle, PIN_CHANGED, X } from "./parts";
 import type { GateNote } from "../../Gate";
@@ -247,8 +248,16 @@ export function GoogleRows() {
 
   async function login() {
     setMsg("브라우저에서 구글 로그인을 마쳐 주세요.");
-    await b.run("login", () => connectGoogle(opts.gtasks));
+    // 7일이 지나 풀린 로그인은 전에 받던 권한 그대로 다시 받아요(✔1).
+    await b.run("login", () => (g?.lapsed || g?.connected ? reloginGoogle() : connectGoogle(opts.gtasks)));
     setMsg("");
+  }
+
+  function setWay(twoWay: boolean) {
+    if (b.busy || twoWay === opts.twoWay) return;
+    const next = { ...opts, twoWay };
+    setOpts(next);
+    void saveOpts(next);
   }
 
   async function cut(removeEvents: boolean) {
@@ -274,7 +283,9 @@ export function GoogleRows() {
 
   if (!g) return null;
   const exporting = b.is("export") || g.busy;
-  const sub = exporting ? "내보내는 중…" : g.lastError || (g.lastOk ? `기록 → 구글 한 방향 · 마지막 내보내기 ${whenText(g.lastOk)}` : "기록 → 구글 한 방향");
+  const way = opts.twoWay ? "양방향" : "기록 → 구글 한 방향";
+  const verb = opts.twoWay ? "맞추기" : "내보내기";
+  const sub = exporting ? (opts.twoWay ? "맞추는 중…" : "내보내는 중…") : g.lastError || (g.lastOk ? `${way} · 마지막 ${verb} ${whenText(g.lastOk)}` : way);
   const cutting = b.is("cut-keep") || b.is("cut-del");
   const note = (keys: string[], noLate = false) => <BusyNote busy={!!b.busy && keys.includes(b.busy)} late={b.late} flash={b.flash && keys.includes(b.flash.key) ? b.flash : null} noLate={noLate} />;
 
@@ -298,8 +309,8 @@ export function GoogleRows() {
                   다시 로그인
                 </BusyButton>
               )}
-              <BusyButton busy={exporting} busyText="내보내는 중…" disabled={!!b.busy} onClick={() => void b.run("export", exportNow)}>
-                지금 내보내기
+              <BusyButton busy={exporting} busyText={opts.twoWay ? "맞추는 중…" : "내보내는 중…"} disabled={!!b.busy} onClick={() => void b.run("export", exportNow)}>
+                지금 {verb}
               </BusyButton>
               <button type="button" className="btn g-cut" disabled={!!b.busy || g.busy} onClick={() => setAsk(true)}>
                 연결 끊기
@@ -344,6 +355,23 @@ export function GoogleRows() {
         </>
       )}
       {ask && cutting && <BusyNote line busy late={b.late} flash={null} />}
+      {g.connected && (
+        // 연동 방향(대기 캘린더 ✔2 – 11-04 16:08): 처음은 한 방향, 고른 쪽은 채움 모양(결정 로그 11-03 18:01).
+        <Row
+          k="구글 연동 방향 한 방향 양방향 맞추기"
+          label="연동 방향"
+          desc={opts.twoWay ? "구글 giLog 캘린더에서 고치거나 새로 만든 내 일정도 받아 와요. 민원·할 일 마감은 한 방향이에요." : "기록에서 고친 것만 구글로 보내요. 구글에서 고친 것은 다음 내보내기 때 기록 내용으로 덮여요."}
+        >
+          <span className="seg" role="radiogroup" aria-label="연동 방향">
+            <button type="button" role="radio" aria-checked={!opts.twoWay} disabled={!!b.busy} onClick={() => setWay(false)}>
+              한 방향
+            </button>
+            <button type="button" role="radio" aria-checked={opts.twoWay} disabled={!!b.busy} onClick={() => setWay(true)}>
+              양방향
+            </button>
+          </span>
+        </Row>
+      )}
       {msg && (
         <p className="g-msg small" role="status">
           {msg}
