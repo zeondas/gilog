@@ -550,10 +550,11 @@ async fn map_geocode(place: String) -> Option<(f64, f64)> {
 // 민원지도 캡처(2026-11-04 사용자 13:25): 지도 칸(로드뷰면 지도·로드뷰 두 칸, 창 안 CSS px [x, y, w, h])을
 // 화면에서 찍어 나란히 붙여 클립보드에 그림으로 – 파일은 안 남겨요.
 #[tauri::command]
-async fn map_capture(window: tauri::Window, rects: Vec<[f64; 4]>) -> Result<(), String> {
+/// `dpr` = 화면의 devicePixelRatio(윈도우 배율 × 설정 화면 크기 배율) – CSS px → 화면 점(map11, 사용자 15:05: 화면 크기 배율이 빠져 칸이 밀렸어요).
+async fn map_capture(window: tauri::Window, rects: Vec<[f64; 4]>, dpr: f64) -> Result<(), String> {
     #[cfg(windows)]
     {
-        let s = window.scale_factor().map_err(|e| e.to_string())?;
+        let s = if dpr.is_finite() && dpr > 0.1 { dpr } else { window.scale_factor().map_err(|e| e.to_string())? };
         let p = window.inner_position().map_err(|e| e.to_string())?;
         let px = |v: f64| (v * s).round() as i32;
         let r: Vec<(i32, i32, i32, i32)> = rects.iter().map(|q| (p.x + px(q[0]), p.y + px(q[1]), px(q[2]), px(q[3]))).collect();
@@ -561,7 +562,7 @@ async fn map_capture(window: tauri::Window, rects: Vec<[f64; 4]>) -> Result<(), 
     }
     #[cfg(not(windows))]
     {
-        let _ = (window, rects);
+        let _ = (window, rects, dpr);
         Err("windows_only".into())
     }
 }

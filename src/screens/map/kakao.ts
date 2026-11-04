@@ -213,11 +213,13 @@ export function kakaoSearch(k: Kakao, q: string, bounds: [number, number, number
   return Promise.all([addr, kw]).then(() => out);
 }
 
-/** 한 단계 가까이(두 배)에서 범위가 남는 자리보다 2% 안쪽으로만 넘치는지 – 시험이 써요 */
-export function closerFits(b: [number, number, number, number], s: number, w: number, h: number, pad: number, left: number, slack = 0.02): boolean {
+/** 한 단계 가까이(두 배)에서 범위가 남는 자리보다 `slack`(6%) 안쪽으로만 넘치는지 – 시험이 써요.
+ *  map11(사용자 11-04 16:04 1안): 위아래는 여백 없이 지도 높이 그대로 재고, 넘쳐도 되는 폭은 2% → 6%
+ *  (카카오 배율이 두 배씩이라 2%로는 창 높이에 따라 파주가 절반 크기로 남았어요 – 북·남 끝이 몇 점 가려질 수 있어요). */
+export function closerFits(b: [number, number, number, number], s: number, w: number, h: number, pad: number, left: number, slack = 0.06): boolean {
   const bw = (b[2] - b[0]) * s * 2;
   const bh = (b[3] - b[1]) * s * 2;
   const aw = w - pad - left;
-  const ah = h - pad * 2;
+  const ah = h;
   return aw > 0 && ah > 0 && bw <= aw * (1 + slack) && bh <= ah * (1 + slack);
 }
