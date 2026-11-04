@@ -32,7 +32,8 @@ const R = 8.2; // 머리 반지름(그림 단위 – 화면에는 RV_SCALE배)
 /** 로드뷰 핀 크기(map8 ✔5, 사용자 22:52 "30% 키우기") – 머리·원판·말풍선 자리가 함께 커져요 */
 export const RV_SCALE = 1.3;
 const CY = -13.5; // 끝(땅) → 머리 가운데
-const EDGE = "#B9B8C6";
+const EDGE = "#7E7C8E"; // map9 ✔2: 머리 테두리 진하게(네이버 정도 – 캔버스 판 MapFix9·MapRvRing)
+const DISC_EDGE = "#1E5FD0"; // 원판 테두리(2px – 사용자 11-04 09:31)
 
 function dropPath(ctx: CanvasRenderingContext2D) {
   ctx.beginPath();
@@ -53,6 +54,16 @@ export function drawDisc(ctx: CanvasRenderingContext2D, x: number, y: number, pa
   ctx.globalAlpha = 0.32;
   ctx.fillStyle = disc;
   ctx.fill();
+  // 원판 테두리: 눌린 좌표를 풀고 타원으로 그어 위아래 굵기가 같아요
+  ctx.save();
+  ctx.scale(1, 2);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, r, r / 2, 0, 0, Math.PI * 2);
+  ctx.globalAlpha = 1;
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = DISC_EDGE;
+  ctx.stroke();
+  ctx.restore();
   if (fan) {
     const a = ((pan - 90) * Math.PI) / 180;
     const hw = Math.PI / 5.2;
@@ -60,7 +71,7 @@ export function drawDisc(ctx: CanvasRenderingContext2D, x: number, y: number, pa
     ctx.moveTo(0, 0);
     ctx.arc(0, 0, r, a - hw, a + hw);
     ctx.closePath();
-    ctx.globalAlpha = 0.62;
+    ctx.globalAlpha = 0.72;
     ctx.fillStyle = fan;
     ctx.fill();
   }
@@ -104,14 +115,14 @@ export function drawRvHead(ctx: CanvasRenderingContext2D, x: number, y: number, 
   dropPath(ctx);
   ctx.fillStyle = g;
   ctx.fill();
-  ctx.lineWidth = 0.9;
+  ctx.lineWidth = 1.6; // map9 ✔2 (머리 단위 – 시안과 같아요)
   ctx.strokeStyle = EDGE;
   ctx.stroke();
   // 띠: 머리 적도(타원)에서 보는 쪽 ±55° – 앞쪽(아래 반)만 보여요
   ctx.save();
   dropPath(ctx);
   ctx.clip();
-  ctx.lineWidth = 2.6;
+  ctx.lineWidth = 3.8;
   ctx.lineCap = "round";
   ctx.strokeStyle = visor;
   ctx.beginPath();

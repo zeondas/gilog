@@ -1224,7 +1224,8 @@
 .mp-map.mp-rvpin .mp-kakao * {
   cursor: none !important;
 }
-/* ✔4: 로드뷰를 열면 단추 줄은 로드뷰 오른쪽 끝, × 아래 같은 세로줄(× = 단추 묶음과 같은 40px 둥근 단추) */
+/* ✔4: 로드뷰를 열면 단추 줄은 로드뷰 오른쪽 끝(× = 단추 묶음과 같은 40px 둥근 단추, 맨 위).
+   map9 ✔1(11-04 사용자 "중앙으로 통일"): 단추 줄은 지도 모드와 같이 세로 가운데 – ×가 있어도 위아래로 안 옮겨 다녀요 */
 .mp-rv .mp-rv-x {
   width: 40px;
   height: 40px;
@@ -1233,9 +1234,9 @@
   box-shadow: var(--shadow-pop);
 }
 .mp-rv .mp-btns {
-  top: 62px;
+  top: 50%;
   right: 12px;
-  transform: none;
+  transform: translateY(-50%);
   align-items: center;
   gap: 10px;
   z-index: 6;

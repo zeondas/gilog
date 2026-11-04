@@ -532,7 +532,7 @@ async def s_map_focus(p):
 async def field_to(p, field):
     await p.evaluate("(f) => window.__preview.call('set_value', { key: 'map.field', value: f })", field)
     await nav(p, "할 일")
-    await nav(p, "민원 지도")
+    await nav(p, "민원지도")
     await p.wait_for_timeout(600)
 
 
@@ -606,22 +606,22 @@ async def s_map_legend(p):
 
 
 SCENES.update({
-    "map_card": ("민원 지도", s_map_card),
-    "map_river": ("민원 지도", s_map_river),
-    "map_rivers": ("민원 지도", s_map_rivers),
-    "map_park": ("민원 지도", s_map_park),
-    "map": ("민원 지도", None),
-    "map_region": ("민원 지도", s_map_region),
-    "map_period": ("민원 지도", s_map_period),
-    "map_regions": ("민원 지도", s_map_regions),
-    "map_search": ("민원 지도", s_map_search),
-    "map_layers": ("민원 지도", s_map_layers),
-    "map_measure": ("민원 지도", s_map_measure),
-    "map_fold": ("민원 지도", s_map_fold),
-    "map_searchcm": ("민원 지도", s_map_searchcm),
-    "map_legend": ("민원 지도", s_map_legend),
-    "map_focus": ("민원 지도", s_map_focus),
-    "map_typefind": ("민원 지도", s_map_typefind),
+    "map_card": ("민원지도", s_map_card),
+    "map_river": ("민원지도", s_map_river),
+    "map_rivers": ("민원지도", s_map_rivers),
+    "map_park": ("민원지도", s_map_park),
+    "map": ("민원지도", None),
+    "map_region": ("민원지도", s_map_region),
+    "map_period": ("민원지도", s_map_period),
+    "map_regions": ("민원지도", s_map_regions),
+    "map_search": ("민원지도", s_map_search),
+    "map_layers": ("민원지도", s_map_layers),
+    "map_measure": ("민원지도", s_map_measure),
+    "map_fold": ("민원지도", s_map_fold),
+    "map_searchcm": ("민원지도", s_map_searchcm),
+    "map_legend": ("민원지도", s_map_legend),
+    "map_focus": ("민원지도", s_map_focus),
+    "map_typefind": ("민원지도", s_map_typefind),
 })
 
 

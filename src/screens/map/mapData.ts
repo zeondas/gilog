@@ -304,14 +304,19 @@ export function fillLayers(L: Layers, field: Field): FillLayer[] {
 }
 
 /** 그 분야 배경의 그리기 모양 – 칠하는 층은 닫지 않고, 선으로 긋는 읍면동 경계만 닫아요. */
-export function layerPaths<T extends Tracer>(L: Layers, make: () => T, field: Field = "road") {
+/** 카카오 위에서 테두리를 긋는 층 = 그 분야의 칠하는 층 중 바탕 도로 면(road)을 뺀 것(✔5·map9 ✔7) */
+export const outlined = (id: string) => id !== "road";
+
+/** skip = 만들지 않을 칠하는 층(map9 ✔5 – 카카오 위에선 도로 면을 그리지 않으니 만들지도 않아요) */
+export function layerPaths<T extends Tracer>(L: Layers, make: () => T, field: Field = "road", skip?: Set<string>) {
   const [ox, oy] = L.bounds;
   const one = (f: Feature[], close: boolean) => {
     const p = make();
     tracePath(p, f, ox, oy, close);
     return p;
   };
-  return { ox, oy, fills: fillLayers(L, field).map((l) => ({ id: l.id, color: l.color, minScale: l.minScale, p: one(l.feats, false) })), emd: one(L.emd, true), outer: one(L.outer, true), lines: [] as { id: string; color: string; p: T }[] };
+  const fl = fillLayers(L, field).filter((l) => !skip?.has(l.id));
+  return { ox, oy, fills: fl.map((l) => ({ id: l.id, color: l.color, minScale: l.minScale, p: one(l.feats, false) })), emd: one(L.emd, true), outer: one(L.outer, true), lines: [] as { id: string; color: string; p: T }[] };
 }
 
 // ---------- 확대했을 때: 화면 안에 걸친 도형만(11-03 ✔5) ----------
@@ -344,18 +349,20 @@ export function cullFeats(feats: Feature[], b: [number, number, number, number])
   return out;
 }
 /** layerPaths와 같은 모양이되 상자 안 고리만, 원점(ox, oy)을 받아요 + 도로구역·도시계획시설 테두리(닫은 선, ✔5) */
-export function layerPathsIn<T extends Tracer>(L: Layers, make: () => T, field: Field, b: [number, number, number, number], ox: number, oy: number) {
+export function layerPathsIn<T extends Tracer>(L: Layers, make: () => T, field: Field, b: [number, number, number, number], ox: number, oy: number, skip?: Set<string>) {
   const one = (f: Feature[], close: boolean) => {
     const p = make();
     tracePath(p, f, ox, oy, close);
     return p;
   };
-  const fl = fillLayers(L, field).map((l) => ({ ...l, feats: cullFeats(l.feats, b) }));
+  const fl = fillLayers(L, field)
+    .filter((l) => !skip?.has(l.id))
+    .map((l) => ({ ...l, feats: cullFeats(l.feats, b) }));
   return {
     ox,
     oy,
     fills: fl.map((l) => ({ id: l.id, color: l.color, minScale: l.minScale, p: one(l.feats, false) })),
-    lines: fl.filter((l) => l.id === "zone" || l.id === "plan").map((l) => ({ id: l.id, color: l.color, p: one(l.feats, true) })),
+    lines: fl.filter((l) => outlined(l.id)).map((l) => ({ id: l.id, color: l.color, p: one(l.feats, true) })),
     emd: one(cullFeats(L.emd, b), true),
     outer: one(L.outer, true),
   };
