@@ -56,7 +56,7 @@
 | 업무연락처 | – | 업무연락처 화면 | – | 대기 비어 있음(QC 실패 0) | – |
 | 업무일지 | `wip/journal5` | 업무일지 화면 | `b29c64c` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
 | 할 일 | – | 할 일 화면 | – | 대기 비어 있음(QC 실패 0) · 세션 안 열림 | – |
-| 캘린더 | (코딩 때 `wip/calendar8`) | 캘린더·구글 연동 화면 | `2c6ba2d` | **0.78.0(build-98)에 들어감** – ✔1 다시 로그인 · ✔2 연동 방향(단방향/양방향) · ✔3 구글 상자 구역·확인할 것 창 · ✔4 미니달력 사이드바·5주·일 보기 – 내력 [history.md 0.78.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0780build-98--민원지도-캡처-배율--캘린더-구글-연동미니달력--민원대장-완료-전-상태) | 사용자 윈도우 시험(실제 구글 계정) |
+| 캘린더 | (코딩 때 `wip/calendar8`) | 캘린더·구글 연동 화면 | `2c6ba2d` | **0.78.0(build-98)에 들어감** – ✔1 다시 로그인 · ✔2 연동 방향(단방향/양방향) · ✔3 구글 상자 구역·확인할 것 창 · ✔4 미니달력 사이드바·5주·일 보기 – 내력 [history.md 0.78.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0780build-98--민원지도-캡처-배율--캘린더-구글-연동미니달력--민원대장-완료-전-상태) | 사용자 윈도우 시험(실제 구글 계정) · 21:38 신고 "구글 일정이 안 불러와져요" – 원인 분석·안 물음(①② 표) |
 | 탐색기 | `wip/explorer10` | 탐색기 화면 | `ff011a3` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
 | 집행현황 | `wip/budget-excel` | 집행현황 화면 + 팀 공유(공유 시험 [share-test.md](https://github.com/zeondas/gilog/blob/main/docs/qa/share-test.md) 1·2 됨, 3 기다림) | `83b4c11` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
 | 예산현황 | – | 예산현황 화면 | `fa58e52`(0.65.0에 들어감) | ✔1 대체하기 끝(0.65.0) · 엑셀 고침은 집행현황 세션이 함께 · 세션 안 열림 | – |
