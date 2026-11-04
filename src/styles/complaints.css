@@ -787,8 +787,12 @@
 .cm-proc-t.urgent { font-weight: 700; color: var(--st-work-fg); }
 .cm-proc-t.urgent { color: var(--urgent); }
 .cm-proc-t.soft { color: var(--muted); }
-/* 입력 줄: 날짜 입력칸은 "0000-00-00"에 맞춘 87px. 고치는 줄은 마감일·조치완료일 위아래 – 이름은 칸 앞(58px), 메모 열까지 써요. */
-.cm-proc-in input { width: 87px; padding-left: 5px; font-variant-numeric: tabular-nums; }
-.cm-edit > .cm-proc-ed { grid-column: span 2; display: flex; flex-direction: column; gap: 4px; }
-.cm-proc-line { display: flex; align-items: center; gap: 6px; }
-.cm-proc-cap { width: 58px; flex: none; font-size: 12px; color: var(--muted); white-space: nowrap; }
+/* 입력 줄(2026-11-04 사용자 1안): 날짜 입력칸은 "0000-00-00"에 맞춘 87px(열이 좁으면 칸 폭까지 줄어요), 이름은 칸 안 안내 글.
+   고치는 줄은 마감일·조치완료일 위아래로 메모 열까지 – 왼쪽에 붙여 좁아도 상태 칸 밑으로 숨지 않아요. */
+.cm-proc-in input { width: 100%; max-width: 87px; padding-left: 5px; font-variant-numeric: tabular-nums; }
+.cm-edit > .cm-proc-ed { grid-column: span 2; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.cm-edit > .cm-proc-ed > * { width: 100%; max-width: 87px; }
+/* 상태 칸: 신규 줄은 흐린 "접수"(눌리지 않음), 고치는 줄은 보기 줄과 같은 배지 콤보 – 입력칸(28) 가운데 높이에 맞춰요 */
+.cm-new > .cm-status-in,
+.cm-edit > .cm-status-in { padding-top: 9px; }
+.cm-status-fixed { opacity: 0.55; cursor: default; }

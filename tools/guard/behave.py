@@ -361,8 +361,10 @@ async def c_complaints_dbl(p):
     await shoot.s_complaints_dbl(p)
     edit = p.locator(".cm-edit")
     assert await edit.count() == 1, "두 번 눌렀는데 고치기 줄이 안 열림"
-    for n in ("intake", "place", "person", "due", "status"):
+    for n in ("intake", "place", "person", "due", "done"):
         assert await edit.locator(f"input[name={n}]").count() == 1, f"줄 전체가 아님 – {n} 칸 없음"
+    # 상태는 배지 콤보(2026-11-04 사용자 1안)
+    assert await edit.locator(".cm-status-btn").count() == 1, "줄 전체가 아님 – 상태 배지 없음"
     await p.keyboard.press("Escape")
     await p.wait_for_timeout(250)
     assert await p.locator(".cm-edit").count() == 0, "Esc로 안 닫힘"
