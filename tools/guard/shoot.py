@@ -393,13 +393,18 @@ async def s_calendar_notitle(p):
 
 async def s_calendar_roll(p):
     # 미니달력 10/14 한 번 → 그 주가 첫 줄인 5주(11-04 캘린더 ✔4)
-    await p.locator('.cal-mini-d[aria-label="2026-10-14"]').click()
+    d = p.locator('.cal-mini-d[aria-label="2026-10-14"]')
+    await d.wait_for(timeout=15000)
+    await d.click()
     await p.wait_for_timeout(300)
 
 
 async def s_calendar_day(p):
     # 미니달력 10/21 두 번 → 일 보기(11-04 캘린더 ✔4)
-    await p.locator('.cal-mini-d[aria-label="2026-10-21"]').dblclick()
+    d = p.locator('.cal-mini-d[aria-label="2026-10-21"]')
+    await d.wait_for(timeout=15000)
+    await d.dblclick()
+    await p.locator(".cal-wk.one").wait_for(timeout=15000)
     await p.wait_for_timeout(400)
 
 
