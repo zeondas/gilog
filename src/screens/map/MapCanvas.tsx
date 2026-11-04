@@ -733,7 +733,7 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
     if (!m || !k) return;
     const lb = new k.maps.LatLngBounds(latLng(b[0], b[1]), latLng(b[2], b[3]));
     // map9 ✔3(사용자 11-04 "파주에 딱 맞게"): 여백 8px. 카카오 배율은 두 배씩이라, 한 단계 가까이에서
-    // 범위가 남는 자리보다 2% 안쪽으로만 넘치면 그 단계로 보여요(가장자리가 여백 몇 px에 걸칠 뿐이에요).
+    // 범위가 남는 자리보다 6% 안쪽으로만 넘치면 그 단계로 보여요(map11 – 위아래는 여백 없이, 북·남 끝이 몇 점 가려질 수 있어요).
     const pad = FIT_PAD;
     const left = pad + inset.current; // 왼쪽 목록 패널이 지도 위에 떠 있으면 그만큼 더(위·오른쪽·아래·왼쪽 순서)
     m.setBounds(lb, pad, pad, pad, left);
@@ -1345,7 +1345,8 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
       const rects = [inner(mapEl)];
       const rvEl = rvOn ? box.querySelector(".mp-rv") : null;
       if (rvEl) rects.push(inner(rvEl));
-      await api.mapCapture(rects);
+      // 화면 크기 배율(설정 → 화면 크기)까지 들어간 배율 – 윈도우 배율만 곱하면 칸이 작고 왼쪽 위로 쏠려요(map11, 사용자 15:05)
+      await api.mapCapture(rects, window.devicePixelRatio || 1);
       box.classList.remove("mp-capturing");
       flashCap("지금 화면을 복사했어요");
     } catch (e) {

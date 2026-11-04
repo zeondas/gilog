@@ -486,7 +486,7 @@ export const api = {
   /** 지번 글 → 좌표(EPSG:5181 m) – 앱에 넣은 필지 표만(✔5) */
   mapGeocode: (place: string) => call<[number, number] | null>("map_geocode", { place }),
   /** 민원지도 캡처(2026-11-04): 창 안 CSS px 사각형 [x, y, w, h]들을 화면에서 찍어 왼쪽부터 나란히(흰 줄 2px) 클립보드에 그림으로 – 앱에서만(미리 보기는 "io") */
-  mapCapture: (rects: [number, number, number, number][]) => call<null>("map_capture", { rects }),
+  mapCapture: (rects: [number, number, number, number][], dpr: number) => call<null>("map_capture", { rects, dpr }),
   /** 위치 글이 파주시 도로명주소면 법정동 지번으로 (core address.rs) */
   roadToJibun: (text: string): Promise<RoadLookup> => (inApp ? invoke<RoadLookup>("road_to_jibun", { text }) : (previewCall("road_to_jibun", { text }) as Promise<RoadLookup>)),
   /** 내장 도로명주소 표: 곳 수·자료 날짜·바꾼 표인지 (주소 변환 웹 2026-10-21) */
