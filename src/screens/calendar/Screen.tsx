@@ -1,16 +1,17 @@
 // 캘린더 (8단계). 시안: Calendar.dc.html, 사양서 "캘린더".
-// - 월 달력 하나가 화면을 채워요(주·일 보기는 없어요). 그 달의 주 수에 맞춰 칸 높이를 나누고, 칸에 다 못 그리면 "+N개".
+// - 보기는 [일][주][월]. 월 보기는 그 달의 주 수에 맞춰 칸 높이를 나누고, 칸에 다 못 그리면 "+N개".
+//   미니달력에서 날짜를 한 번 누르면 그 주가 첫 줄인 5주(‹ ›·휠은 한 주씩), 두 번 누르면 그날 일 보기(✔4).
 // - 달력 위 빠른 입력 줄: 날짜 → 시작 → 종료 → 일정 → 종류. 아무 칸에서 Enter, 종류 칸에서 Tab이면 등록. 시작을 비우면 종일.
 // - "상세 입력"이나 달력의 내 일정을 누르면 상세 창: 제목, 일시·종일, 반복(종료일 필수), 장소, 설명(머릿기호), 종류, 알림.
 // - 민원 마감·할 일 마감은 저장하지 않고 민원대장·할 일 목록을 읽어 그려요. 누르면 원래 화면의 그 항목으로 가요.
 // - 공휴일은 칸 위쪽에 빨간 글자로 보여요(앱이 인터넷에서 받아 저장해 둔 것).
-// - 왼쪽: 종류 체크(보이기·숨기기), "관리"(색 24가지·새 종류·지우기), "앞으로 7일"(옆 칸 일정 목록).
+// - 왼쪽: 미니달력, 종류 체크(보이기·숨기기), "관리"(색 24가지·새 종류·지우기), 아래 구글 상자. ("앞으로 7일" 목록은 11-04 뺐어요 – 달력과 겹쳐서)
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { DialogX } from "../../DialogX";
 import { overlayDown } from "../../useOutsideClose";
 import { api, CalendarData, Complaint, errorText, EventInput, Task } from "../../api";
 import {
-  addDays, colorBg, colorFg, expand, hourLater, kindColor, longDay, monthGrid, Occ, occMatches, shortDay, Source, weekday,
+  addDays, colorBg, colorFg, expand, hourLater, kindColor, longDay, monthGrid, Occ, occMatches, Source, weekday,
 } from "../../calendar";
 import { todayStr } from "../../journal";
 import { ANSWER_STATUS, DEFAULT_SETTINGS, isAnswered, loadSettings } from "../../settingsStore";
@@ -19,6 +20,11 @@ import { refreshHolidaysDaily, syncReminders, updateHolidays } from "../../remin
 import { SearchBox } from "../../SearchBox";
 import { ChipActs, EventChip, WeekView, weekLayout } from "./Table";
 import { Draft, draftOf, blankDraft, QuickRow, EventDialog, KindsDialog, GoogleBox, NotifyDialog } from "./Dialogs";
+import { MiniCal } from "./MiniCal";
+
+type View = "month" | "week" | "day";
+/** 미니달력으로 고른 주부터 보이는 주 수(✔4) */
+const ROLL_WEEKS = 5;
 
 /** 알림을 누르거나 다른 화면에서 이 일정을 열 때 */
 export type EventFocus = { event: number; date: string };
@@ -43,8 +49,12 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
   const [kindsOpen, setKindsOpen] = useState(false);
   /** "+N개"를 눌러 펼친 날 */
   const [dayOpen, setDayOpen] = useState<string | null>(null);
-  /** 월 보기 · 주 보기 (마지막에 고른 것을 기억해요) */
-  const [view, setView] = useState<"month" | "week">("month");
+  /** 일·주·월 보기 (마지막에 고른 것을 기억해요) */
+  const [view, setView] = useState<View>("month");
+  /** 미니달력에서 한 번 누른 날의 주 첫날 – 월 보기가 이 주부터 5주를 보여요(없으면 그 달). */
+  const [roll, setRoll] = useState<string | null>(null);
+  /** 미니달력이 보여 주는 달 */
+  const [miniYm, setMiniYm] = useState<[number, number]>(() => [new Date().getFullYear(), new Date().getMonth()]);
   /** 한 번 눌러 골라 둔 일정 */
   const [pick, setPick] = useState<string | null>(null);
   const [notifyOpen, setNotifyOpen] = useState(false);
@@ -59,10 +69,11 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
   }, []);
 
   useEffect(() => {
-    api.get("calendar.view").then((v) => (v === "week" || v === "month") && setView(v), () => {});
+    api.get("calendar.view").then((v) => (v === "week" || v === "month" || v === "day") && setView(v), () => {});
   }, []);
-  const changeView = (v: "month" | "week") => {
+  const changeView = (v: View) => {
     setView(v);
+    setRoll(null);
     api.set("calendar.view", v).catch(() => {});
   };
 
@@ -76,8 +87,9 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
     api.tasksData().then((d) => setTasks(d.tasks), () => {});
     // 오늘 받은 적이 없으면 공휴일을 새로 받아 와요.
     refreshHolidaysDaily().then((got) => got && load());
-    // 구글 할 일에서 체크한 것이 들어오면 다시 읽어요.
+    // 구글에서 바뀐 것(할 일 체크·양방향 일정)이 들어오면 다시 읽어요.
     const reload = () => {
+      load();
       api.complaints().then(setComplaints, () => {});
       api.tasksData().then((d) => setTasks(d.tasks), () => {});
     };
@@ -164,9 +176,16 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
   const lq = q.trim().toLowerCase();
   const month = monthGrid(ym[0], ym[1]);
   const wkStart = addDays(sel, -weekday(sel));
-  const start = view === "week" ? wkStart : month.start;
-  const weeks = view === "week" ? 1 : month.weeks;
-  const gridEnd = addDays(start, weeks * 7 - 1);
+  const rolled = view === "month" && roll !== null;
+  const start = view === "day" ? sel : view === "week" ? wkStart : rolled ? roll! : month.start;
+  const weeks = view === "month" ? (rolled ? ROLL_WEEKS : month.weeks) : 1;
+  const gridEnd = view === "day" ? sel : addDays(start, weeks * 7 - 1);
+  // 미니달력은 큰 달력이 보여 주는 달을 따라가요(미니달력 ‹ ›로 따로 넘길 수 있어요).
+  const anchor = view === "month" && !rolled ? `${ym[0]}-${ym[1]}` : `${sel.slice(0, 4)}-${Number(sel.slice(5, 7)) - 1}`;
+  useEffect(() => {
+    const [y, m] = anchor.split("-").map(Number);
+    setMiniYm([y, m]);
+  }, [anchor]);
 
   // 답변 끝난 민원(답변·완료·보류·장기)은 캘린더에서 빼요(2026-10-19 사용자). 이 화면에서 방금 체크한 것만 되돌릴 수 있게 흐리게 남겨요.
   const shownComplaints = useMemo(() => complaints.filter((c) => !isAnswered(c.status) || prevStatus.current.has(c.id)), [complaints]);
@@ -179,14 +198,6 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
     () => (src ? expand(src, start, gridEnd).filter((o) => !hidden.has(o.kind.id) && (o.kind.system === "holiday" || occMatches(o, lq))) : []),
     [src, start, gridEnd, hidden, lq],
   );
-  const upcoming = useMemo(() => {
-    if (!src) return [];
-    const to = addDays(today, 6);
-    return expand(src, today, to)
-      .filter((o) => !hidden.has(o.kind.id) && o.kind.system !== "holiday" && !o.done)
-      .map((o) => ({ ...o, day: o.start < today ? today : o.start }))
-      .sort((a, b) => (a.day !== b.day ? (a.day < b.day ? -1 : 1) : (a.allDay ? "" : a.time) < (b.allDay ? "" : b.time) ? -1 : 1));
-  }, [src, today, hidden]);
 
   // 달력은 화면 아래 여백까지 내려가요(2026-10-17 사용자). 달력 위치에서 화면(.main) 아래 여백까지를 재서
   // 그 높이를 달력에 주고, 월 보기는 주 수로 나눠요. 왼쪽 구글 상자는 이 아래 끝에 맞춰져요(0.9.2).
@@ -219,7 +230,7 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
   const compact = fitLanes === 1;
   const lanes = compact ? 2 : fitLanes;
   /** 창이 너무 낮으면 높이를 정하지 않고 화면이 스크롤돼요. */
-  const gridH = view === "week" ? (inner >= 300 ? fit.h : undefined) : cellH * weeks + fit.dow <= inner ? fit.h : undefined;
+  const gridH = view !== "month" ? (inner >= 300 ? fit.h : undefined) : cellH * weeks + fit.dow <= inner ? fit.h : undefined;
 
   if (!data) {
     return (
@@ -230,9 +241,18 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
     );
   }
 
-  /** 이전·다음: 월 보기는 한 달, 주 보기는 한 주 */
+  /** 이전·다음: 월 보기는 한 달(미니달력으로 고른 5주면 한 주), 주 보기는 한 주, 일 보기는 하루 */
   const move = (n: number) => {
     setPick(null);
+    if (view === "day") {
+      goDay(addDays(sel, n));
+      return;
+    }
+    if (rolled) {
+      const r = addDays(roll!, n * 7);
+      setRoll(r);
+      return;
+    }
     if (view === "week") {
       const d = addDays(sel, n * 7);
       setSel(d);
@@ -244,10 +264,10 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
   };
   /**
    * 마우스 휠(세로)로 이전·다음 (0.8.2 사용자 1안): 월 보기는 달력 어디서나 달 이동.
-   * 주 보기는 날짜 머리 줄·종일 줄 위에서만 주 이동이고, 시간 칸 위의 휠은 시간을 내려요.
+   * 주·일 보기는 날짜 머리 줄·종일 줄 위에서만 주·날 이동이고, 시간 칸 위의 휠은 시간을 내려요.
    */
   const onWheel = (e: React.WheelEvent) => {
-    if (view === "week" && !(e.target as HTMLElement).closest(".cal-wk-head, .cal-wk-allday")) return;
+    if (view !== "month" && !(e.target as HTMLElement).closest(".cal-wk-head, .cal-wk-allday")) return;
     const dx = e.deltaY;
     if (!dx) return;
     const w = wheel.current;
@@ -264,6 +284,18 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
     setSel(d);
     setYm([Number(d.slice(0, 4)), Number(d.slice(5, 7)) - 1]);
   };
+  /** 미니달력 한 번: 월 보기면 그 주가 첫 줄인 5주, 주·일 보기면 그 주·그날로 */
+  const miniPick = (d: string) => {
+    setPick(null);
+    goDay(d);
+    if (view === "month") setRoll(addDays(d, -weekday(d)));
+  };
+  /** 미니달력 두 번: 그날 일 보기 */
+  const miniDouble = (d: string) => {
+    setPick(null);
+    goDay(d);
+    changeView("day");
+  };
 
   function openOcc(o: Occ) {
     if (o.event) setEd(draftOf(o.event, data!.kinds));
@@ -277,15 +309,20 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
   });
   const newAt = (d: string, time: string) =>
     setEd(time ? { ...blankDraft(d, data.kinds), allDay: false, time, endTime: hourLater(time), remind: 10 } : blankDraft(d, data.kinds));
+  const span = (a: string, e: string) => {
+    const [y1, m1, d1] = [Number(a.slice(0, 4)), Number(a.slice(5, 7)), Number(a.slice(8))];
+    const [y2, m2, d2] = [Number(e.slice(0, 4)), Number(e.slice(5, 7)), Number(e.slice(8))];
+    return y1 !== y2 ? `${y1}년 ${m1}월 ${d1}일 – ${y2}년 ${m2}월 ${d2}일` : m1 !== m2 ? `${y1}년 ${m1}월 ${d1}일 – ${m2}월 ${d2}일` : `${y1}년 ${m1}월 ${d1}일 – ${d2}일`;
+  };
   const title =
-    view === "week"
-      ? (() => {
-          const e = addDays(wkStart, 6);
-          const [y1, m1, d1] = [Number(wkStart.slice(0, 4)), Number(wkStart.slice(5, 7)), Number(wkStart.slice(8))];
-          const [y2, m2, d2] = [Number(e.slice(0, 4)), Number(e.slice(5, 7)), Number(e.slice(8))];
-          return y1 !== y2 ? `${y1}년 ${m1}월 ${d1}일 – ${y2}년 ${m2}월 ${d2}일` : m1 !== m2 ? `${y1}년 ${m1}월 ${d1}일 – ${m2}월 ${d2}일` : `${y1}년 ${m1}월 ${d1}일 – ${d2}일`;
-        })()
-      : `${ym[0]}년 ${ym[1] + 1}월`;
+    view === "day"
+      ? `${sel.slice(0, 4)}년 ${Number(sel.slice(5, 7))}월 ${Number(sel.slice(8))}일`
+      : view === "week"
+        ? span(wkStart, addDays(wkStart, 6))
+        : rolled
+          ? span(start, gridEnd)
+          : `${ym[0]}년 ${ym[1] + 1}월`;
+  const unit = view === "day" ? "날" : view === "week" || rolled ? "주" : "달";
 
   const holidaysOf = new Map<string, string[]>();
   if (!hidden.has(data.kinds.find((k) => k.system === "holiday")?.id ?? -1)) {
@@ -298,6 +335,17 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
   return (
     <div className="cal-screen">
       <aside className="cal-side">
+        <MiniCal
+          ym={miniYm}
+          onYm={setMiniYm}
+          today={today}
+          sel={sel}
+          from={rolled || view === "week" ? start : ""}
+          to={rolled || view === "week" ? gridEnd : ""}
+          restDays={restDays}
+          onPick={miniPick}
+          onDouble={miniDouble}
+        />
         <div className="cal-kinds">
           <div className="cal-side-head">
             <span>캘린더 종류</span>
@@ -324,28 +372,6 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
             );
           })}
         </div>
-        <div className="cal-upcoming">
-          <div className="cal-side-head">
-            <span>앞으로 7일</span>
-          </div>
-          {upcoming.length ? (
-            upcoming.slice(0, 12).map((o) => (
-              <button key={o.key + o.day} type="button" className="cal-up" onClick={() => (goDay(o.day), openOcc(o))}>
-                <span className="cal-up-dot" aria-hidden="true" style={{ background: colorBg(o.color) }} />
-                <span className="cal-up-text">
-                  <span className="cal-up-title" title={o.title}>{o.title}</span>
-                  <span className="cal-up-when">
-                    {shortDay(o.day)}
-                    {o.allDay ? "" : " " + o.time} · {o.kind.name}
-                  </span>
-                </span>
-              </button>
-            ))
-          ) : (
-            <p className="cal-up-empty">일주일 안에 일정이 없어요.</p>
-          )}
-          {upcoming.length > 12 && <p className="cal-up-empty">외 {upcoming.length - 12}건</p>}
-        </div>
         <GoogleBox />
       </aside>
 
@@ -353,26 +379,29 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
         <div className="cal-head">
           <h1 className="title cal-month">{title}</h1>
           <div className="cal-nav">
-            <button type="button" className="btn btn-ctrl cal-navbtn" aria-label={view === "week" ? "이전 주" : "이전 달"} onClick={() => move(-1)}>
+            <button type="button" className="btn btn-ctrl cal-navbtn" aria-label={"이전 " + unit} onClick={() => move(-1)}>
               <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M15 5l-7 7 7 7" />
               </svg>
             </button>
-            <button type="button" className="btn btn-ctrl" onClick={() => (goDay(today), setPick(null))}>
+            <button type="button" className="btn btn-ctrl" onClick={() => (goDay(today), setRoll(null), setPick(null))}>
               오늘
             </button>
-            <button type="button" className="btn btn-ctrl cal-navbtn" aria-label={view === "week" ? "다음 주" : "다음 달"} onClick={() => move(1)}>
+            <button type="button" className="btn btn-ctrl cal-navbtn" aria-label={"다음 " + unit} onClick={() => move(1)}>
               <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 5l7 7-7 7" />
               </svg>
             </button>
           </div>
           <div className="cal-views" role="group" aria-label="보기 방식">
-            <button type="button" aria-pressed={view === "month"} onClick={() => changeView("month")}>
-              월
+            <button type="button" aria-pressed={view === "day"} onClick={() => changeView("day")}>
+              일
             </button>
             <button type="button" aria-pressed={view === "week"} onClick={() => changeView("week")}>
               주
+            </button>
+            <button type="button" aria-pressed={view === "month"} onClick={() => changeView("month")}>
+              월
             </button>
           </div>
           <SearchBox aria-label="일정 검색" placeholder="일정 검색" value={q} onChange={(e) => setQ(e.target.value)} onClear={() => setQ("")} />
@@ -395,12 +424,13 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
           style={{ height: gridH }}
           onWheel={onWheel}
         >
-          {view === "week" ? (
+          {view !== "month" ? (
             <WeekView
-              start={wkStart}
+              start={view === "day" ? sel : wkStart}
+              days={view === "day" ? 1 : 7}
               occs={occs}
               today={today}
-              sel={sel}
+              sel={view === "day" ? "" : sel}
               pickKey={pick}
               q={lq}
               holidaysOf={holidaysOf}
@@ -425,7 +455,7 @@ export default function CalendarScreen({ focus, onFocused, onOpenComplaint, onOp
               <div key={ws} className="cal-week" role="row" style={{ minHeight: cellH, gridTemplateRows: `30px repeat(${compact ? 1 : lanes}, 24px) 1fr` }}>
                 {Array.from({ length: 7 }, (_, i) => {
                   const d = addDays(ws, i);
-                  const inMonth = Number(d.slice(5, 7)) - 1 === ym[1];
+                  const inMonth = rolled || Number(d.slice(5, 7)) - 1 === ym[1];
                   const hol = holidaysOf.get(d);
                   const dow = weekday(d);
                   const cls = ["cal-day", inMonth ? "" : "out", d === sel ? "sel" : "", d === today ? "today" : "", dow === 0 || hol ? "red" : dow === 6 ? "blue" : "", dow === 0 || dow === 6 || restDays.has(d) ? "rest" : ""]

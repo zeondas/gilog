@@ -9,26 +9,112 @@
   min-width: 0;
 }
 
-/* 왼쪽: 종류와 앞으로 7일 */
+/* 왼쪽: 미니달력 · 종류 · 구글 상자(✔4 – 11-04 시안 CalendarLayout.dc.html) */
 .cal-side {
   flex: 1 0 200px;
   max-width: 250px;
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: var(--space-4);
 }
 
-.cal-kinds,
-.cal-upcoming {
+.cal-kinds {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line-soft);
 }
 
-.cal-upcoming {
+/* 미니달력: 오늘 = 강조색 채운 동그라미, 고른 날 = 옅은 채움, 큰 달력에 보이는 날 = 아주 옅은 띠(18:01 채움 규칙) */
+.cal-mini-head {
+  display: flex;
+  align-items: center;
   gap: 2px;
-  padding-top: var(--space-6);
-  border-top: 1px solid var(--line-soft);
+  min-height: 28px;
+  padding-left: var(--space-2);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.cal-mini-head > span {
+  margin-right: auto;
+}
+.cal-mini-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.cal-mini-nav:hover {
+  background: var(--surface-band);
+  color: var(--ink);
+}
+.cal-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  row-gap: 2px;
+  margin-top: 4px;
+}
+.cal-mini-w {
+  padding-bottom: 2px;
+  font-size: 11px;
+  text-align: center;
+  color: var(--muted);
+}
+.cal-mini-d {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.cal-mini-d > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+.cal-mini-d.in {
+  background: var(--accent-wash);
+}
+.cal-mini-d.red {
+  color: var(--urgent);
+}
+.cal-mini-d.blue {
+  color: var(--saturday);
+}
+.cal-mini-d.out {
+  color: var(--muted);
+  opacity: 0.6;
+}
+.cal-mini-d:hover > span {
+  background: var(--surface-band);
+}
+.cal-mini-d.sel > span {
+  background: var(--accent-tint);
+  color: var(--accent);
+  font-weight: 700;
+}
+.cal-mini-d.today > span {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  opacity: 1;
 }
 
 .cal-side-head {
@@ -97,61 +183,6 @@
 
 .cal-kind-note {
   font-size: 11.5px;
-  color: var(--muted);
-}
-
-.cal-up {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
-  padding: 6px var(--space-2);
-  border: 0;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--ink);
-  text-align: left;
-}
-
-.cal-up:hover {
-  background: var(--surface-band);
-}
-
-.cal-up-dot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  margin-top: 6px;
-  border-radius: 3px;
-}
-
-.cal-up-text {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-/* 한 줄로 두고 넘치면 … (2026-10-18 사용자) */
-.cal-up-title {
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.cal-up-when {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 12px;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.cal-up-empty {
-  margin: 0;
-  padding: 6px var(--space-2);
-  font-size: 12px;
   color: var(--muted);
 }
 
@@ -1116,8 +1147,132 @@
 .g-box-sub.g-err {
   color: var(--danger);
 }
-.g-box-at {
+/* 구글 상자(대기 캘린더 ✔1·✔2 – 시안 GoogleRelogin.dc.html 1안): 풀리기 하루 전은 연보라, 풀렸을 때는 붉은 상자 + [다시 로그인] */
+.g-box.soon {
+  border-color: var(--accent-line);
+  background: var(--accent-wash);
+}
+.g-box.off {
+  border-color: var(--danger);
+  background: var(--danger-wash);
+}
+.g-dot.soon {
+  background: var(--accent);
+}
+/* 구글 상자 ✔3(11-04 17:25 – 시안 GoogleNotice.dc.html 맨 아래 판): 위 로그인 구역 · 아래 연동 구역.
+   상태는 구역 제목 줄 오른쪽 글자(채운 배지가 아니에요 – 단추처럼 보여서), 단추는 폭을 꽉 채워요. */
+.g-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.g-sec + .g-sec {
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line-row);
+}
+.g-sec-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.g-state {
+  font-size: 12px;
+  font-weight: 400;
   color: var(--muted);
+  white-space: nowrap;
+}
+.g-state.soon {
+  font-weight: 700;
+  color: var(--accent);
+}
+.g-state.off {
+  font-weight: 700;
+  color: var(--danger);
+}
+.g-full {
+  width: 100%;
+  justify-content: center;
+  margin-top: 6px;
+}
+/* 확인할 것 N건 보기 › – 옅은 채움(18:01 규칙) */
+.g-checks {
+  display: flex;
+  align-items: center;
+  margin-top: 6px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--accent-tint);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.g-checks b {
+  color: var(--accent);
+}
+.g-checks-go {
+  margin-left: auto;
+  font-weight: 700;
+  color: var(--accent);
+}
+/* 확인할 것 창 */
+.g-chk-dlg {
+  width: 560px;
+  max-width: calc(100vw - 48px);
+}
+.g-chk-body {
+  max-height: min(560px, calc(100vh - 220px));
+  overflow-y: auto;
+}
+.g-chk-sec + .g-chk-sec {
+  margin-top: var(--space-4);
+}
+.g-chk-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 700;
+}
+.g-chk-head > span:first-child {
+  flex: 1;
+}
+.g-chk-note {
+  margin: 2px 0 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.g-chk-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 7px 0;
+  border-top: 1px solid var(--line-row);
+}
+.g-chk-d {
+  flex: none;
+  width: 72px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.g-chk-n {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.g-chk-n small {
+  display: block;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.g-chk-btns {
+  display: flex;
+  flex: none;
+  gap: 6px;
 }
 /* 0.9.2: 연동 상자 아래 끝을 달력 맨 아래 선에 맞춰요(사용자 시안 확인). */
 .cal-side {
@@ -1239,4 +1394,11 @@
 
 .cal-dialog .cal-in-title {
   font-size: 15px;
+}
+
+/* 일 보기(✔4): 한 칸뿐이라 오늘 칸 옅은 바탕은 칠하지 않아요(지금 선만). */
+.cal-wk.one .cal-wk-col.today,
+.cal-wk.one .cal-wk-allcell.today,
+.cal-wk.one .cal-wday.today {
+  background: none;
 }
