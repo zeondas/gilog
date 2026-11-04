@@ -39,3 +39,17 @@
 - [CalendarBridge – Manage Syncs](https://help.calendarbridge.com/help/manage-syncs.html)
 - [Engineering Google Calendar Sync: The Hidden Complexity](https://codexconversation.substack.com/p/engineering-google-calendar-sync)
 - [Google Calendar API – Synchronize resources efficiently](https://developers.google.com/calendar/v3/sync?authuser=2)
+
+## 4. 구글 앱을 "테스트" 상태로 둔 채 양방향 (11-04 16:0x 사용자 질문)
+
+테스트 상태에서는 사용자 로그인(OAuth)으로 받은 허락이 7일 뒤 끊겨요. 이건 기록이 바꿀 수 없어요. 길은 둘이에요.
+
+- **서비스 계정**: 사람 로그인 대신 "기록 전용 로봇 계정"을 콘솔에서 만들고 열쇠 파일을 받아요. 구글 캘린더에서 "기Log" 캘린더를 그 로봇 메일에 "일정 변경" 권한으로 공유하면, 기록은 로그인 없이 그 캘린더를 읽고 써요. 로그인이 없으니 7일 제한도 없고, 앱 게시 상태와도 상관없어요.
+  - 걸림: 구글 할 일(Tasks)은 공유가 안 돼 로봇이 못 만져요. "구글 할 일로 보내기"는 지금 로그인 방식 그대로라 7일 제한이 남아요.
+  - 걸림: 열쇠 파일은 비밀번호와 같아요. PC에만 암호화해 두고 저장소에는 적지 않아요(앱 정보 파일과 같은 방식).
+  - 걸림: 2024-05-03 뒤 만든 "조직" 계정은 열쇠 만들기가 기본으로 막혀 있어요. 개인 gmail 프로젝트는 조직이 없어 대개 해당하지 않지만, 막혀 있으면 이 길은 못 써요.
+- **로그인 그대로 + 매주 다시 로그인을 쉽게**: 6일째 "내일 연동이 풀려요" 띠와 캘린더 상자의 [다시 로그인](30초). 풀린 동안 기록에서 고친 것은 쌓였다가 다시 로그인하면 한꺼번에 맞춰요.
+
+어느 쪽이든 양방향에는 같은 안전장치가 필요해요: 일정마다 "고친 시각"을 남겨 공백 뒤에도 "나중 것 이김"이 맞게, 연결이 끊긴 동안 안 보이는 일정을 "지워졌다"로 착각하지 않게(구글 "바뀐 것만 받기"는 지운 것을 따로 알려 줘요).
+
+출처: [CData – 서비스 계정으로 구글 캘린더 읽기(캘린더를 로봇 메일에 공유)](https://lic-test.cdata.com/kb/articles/googlecalendar-service-authentication.rst) · [Google Groups – 서비스 계정에서 캘린더 접근](https://groups.google.com/g/google-calendar-api/c/MySzyAXq12Q) · [Google Cloud – 조직 기본 제약(2024-05-03 뒤 조직)](https://docs.cloud.google.com/resource-manager/docs/manage-baseline-constraints?authuser=4)
