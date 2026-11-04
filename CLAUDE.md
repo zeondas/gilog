@@ -56,7 +56,7 @@
 | 업무연락처 | – | 업무연락처 화면 | – | 대기 비어 있음(QC 실패 0) | – |
 | 업무일지 | `wip/journal5` | 업무일지 화면 | `b29c64c` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
 | 할 일 | – | 할 일 화면 | – | 대기 비어 있음(QC 실패 0) · 세션 안 열림 | – |
-| 캘린더 | (코딩 때 `wip/calendar8`) | 캘린더·구글 연동 화면 | `c7e9db9`(0.75.0에 들어감) | **11-04 검토: 구글 연동 단방향/양방향 + 7일 로그인 풀림** – 레퍼런스 조사 [gcal-twoway.md](https://github.com/zeondas/gilog/blob/main/docs/qa/gcal-twoway.md) · 16:0x 사용자 "테스트 상태 유지" → 서비스 계정(로그인 없이 7일 없음, 할 일은 제외) / 로그인 + 매주 다시 로그인 쉽게 – 표로 물음(§4) | 사용자 ⓪ 로그인 방식 + ②~④ 답 · 시안 TodayRing.dc.html 지우기 |
+| 캘린더 | (코딩 때 `wip/calendar8`) | 캘린더·구글 연동 화면 | `c7e9db9`(0.75.0에 들어감) | **11-04 16:07 사용자: 테스트 상태 유지 + 7일마다 다시 로그인(2안)** → 대기 ✔1(로그인 단추·알림) · 양방향 세부 ②~④ 표로 물음 – 레퍼런스 [gcal-twoway.md](https://github.com/zeondas/gilog/blob/main/docs/qa/gcal-twoway.md) | 사용자 ②~④ 답 → ✔2 · "코딩하자" · 시안 TodayRing.dc.html 지우기 |
 | 탐색기 | `wip/explorer10` | 탐색기 화면 | `ff011a3` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
 | 집행현황 | `wip/budget-excel` | 집행현황 화면 + 팀 공유(공유 시험 [share-test.md](https://github.com/zeondas/gilog/blob/main/docs/qa/share-test.md) 1·2 됨, 3 기다림) | `83b4c11` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
 | 예산현황 | – | 예산현황 화면 | `fa58e52`(0.65.0에 들어감) | ✔1 대체하기 끝(0.65.0) · 엑셀 고침은 집행현황 세션이 함께 · 세션 안 열림 | – |
@@ -150,7 +150,8 @@
 
 ### 민원처리 (`wip/process-fix2`)
 
-### 캘린더 (`wip/calendar6`)
+### 캘린더 (코딩 때 `wip/calendar8`)
+- ✔1. (11-04 16:07 사용자 – 구글 앱은 테스트 상태 유지, 7일마다 다시 로그인) 캘린더 왼쪽 아래 구글 상자에 [다시 로그인] 단추(로그인이 풀렸을 때 + 풀리기 하루 전부터 "내일 구글 연동이 풀려요" 한 줄과 함께) – 설정 카드의 다시 로그인과 같은 동작·느린 단추 규칙(누르는 즉시 "로그인 기다리는 중…"). 마지막 로그인 날짜를 저장해 남은 날을 셈. 풀린 동안 기록에서 바뀐 것은 다시 로그인하면 한꺼번에 보냄(지금도 그렇게 됨).
 
 ### 탐색기 (`wip/explorer10`)
 - **B 큰 것·보통 11개 — 사용자가 고르면**([explorer-compat.md](https://github.com/zeondas/gilog/blob/main/docs/qa/explorer-compat.md)): Ctrl+휠 아이콘 크기·오른쪽 끌기 메뉴·열 고르기·빵부스러기 › 하위 목록·여러 폴더 우클릭·빈 곳 메뉴 보기/정렬·드라이브 우클릭·zip 들어가기·미리 보기 창 문서·주소 자동 완성·\\서버 주소.
