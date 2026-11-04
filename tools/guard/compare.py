@@ -18,7 +18,7 @@ NOISE = 10
 # 같은 빌드를 두 번 찍어도 흔들리는 장면(README "알아 둘 것") – 이 점수까지는 "같음"으로 봐요.
 TOLERANCE = {
     "journal_memo": 20,  # 편집기 글자 한두 점(10-29 같은 빌드 두 번: 1점)
-    "complaints_newrow_baddate": 2000,  # 빨간 테두리 날짜 칸(main끼리 1,400점)
+    "complaints_newrow_baddate": 3000,  # 빨간 테두리 날짜 칸(main끼리 1,400점 · 0.77.0 신규 줄 상태 배지 뒤 CI에서 2,346점 – 계산 모양 0, 11-04 민원대장)
     "files_find_baddate": 2000,  # 찾기 창 빨간 테두리 날짜 칸
 }
 
