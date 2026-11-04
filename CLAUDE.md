@@ -56,7 +56,7 @@
 | 업무연락처 | – | 업무연락처 화면 | – | 대기 비어 있음(QC 실패 0) | – |
 | 업무일지 | `wip/journal5` | 업무일지 화면 | `b29c64c` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
 | 할 일 | – | 할 일 화면 | – | 대기 비어 있음(QC 실패 0) · 세션 안 열림 | – |
-| 캘린더 | (코딩 때 `wip/calendar8`) | 캘린더·구글 연동 화면 | `c7e9db9`(0.75.0에 들어감) | **11-04 16:08 구글 양방향 결정 끝** – 대기 ✔1(다시 로그인 단추·알림) · ✔2(설정 연동 방향 + 양방향 ②③④ 1안) – 레퍼런스 [gcal-twoway.md](https://github.com/zeondas/gilog/blob/main/docs/qa/gcal-twoway.md) | "코딩하자" · 시안 TodayRing.dc.html 지우기 |
+| 캘린더 | (코딩 때 `wip/calendar8`) | 캘린더·구글 연동 화면 | `c7e9db9`(0.75.0에 들어감) | **11-04 16:08 구글 양방향 결정 끝** – 대기 ✔1(다시 로그인 단추) · ✔2(연동 방향 + 양방향) · 16:1x 단추 자리 시안 GoogleRelogin.dc.html(1안 구글 상자 안/2안 달력 위 띠) 물음 · TodayRing 판 지움 | 단추 자리 답 · "코딩하자" |
 | 탐색기 | `wip/explorer10` | 탐색기 화면 | `ff011a3` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
 | 집행현황 | `wip/budget-excel` | 집행현황 화면 + 팀 공유(공유 시험 [share-test.md](https://github.com/zeondas/gilog/blob/main/docs/qa/share-test.md) 1·2 됨, 3 기다림) | `83b4c11` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
 | 예산현황 | – | 예산현황 화면 | `fa58e52`(0.65.0에 들어감) | ✔1 대체하기 끝(0.65.0) · 엑셀 고침은 집행현황 세션이 함께 · 세션 안 열림 | – |
