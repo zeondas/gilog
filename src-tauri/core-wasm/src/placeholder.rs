@@ -79,6 +79,7 @@ pub const PLACEHOLDER: &[&str] = &[
     "fs_cancel",
     "fs_undo",
     "fs_clip_set",
+    "map_capture",
     "fs_clip_get",
     "fs_fast_status",
     "fs_fast_setup",
@@ -492,7 +493,7 @@ pub(crate) fn placeholder(s: &mut Session, cmd: &str, a: &Args) -> Option<Result
         }
 
         // ---------- 브라우저에서 부르지 않는 것 ----------
-        "open_twin" | "juso_http" | "google_listen" | "google_wait" | "open_google_login" | "google_http" => Err("io".into()),
+        "open_twin" | "juso_http" | "google_listen" | "google_wait" | "open_google_login" | "google_http" | "map_capture" => Err("io".into()),
         c if c.starts_with("fs_") && PLACEHOLDER.contains(&c) => Err("io".into()),
 
         _ => return None,
