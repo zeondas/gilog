@@ -56,7 +56,7 @@
 | 업무연락처 | – | 업무연락처 화면 | – | 대기 비어 있음(QC 실패 0) | – |
 | 업무일지 | `wip/journal5` | 업무일지 화면 | `b29c64c` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
 | 할 일 | – | 할 일 화면 | – | 대기 비어 있음(QC 실패 0) · 세션 안 열림 | – |
-| 캘린더 | `wip/calendar8` | 캘린더·구글 연동 화면 | `54f8e66` | **끝(검사 도는 중)** – ✔1 다시 로그인 · ✔2 연동 방향/양방향(`80427f3`) + ✔3 구글 상자 로그인/연동 구역·확인할 것 창 · ✔4 미니달력 사이드바(앞으로 7일 뺌)·한 번 = 그 주부터 5주·두 번 = 일 보기·[일][주][월] (`54f8e66`) · npm 464·지킴이 달라진 장면 12(캘린더 화면 – guard-allow)·새 장면 2·동작 통과 | 빌드 묶음 · 사용자 윈도우 시험(실제 구글 계정) |
+| 캘린더 | `wip/calendar8` | 캘린더·구글 연동 화면 | `2c6ba2d` | **끝(합치기 기다림)** – check: npm·지킴이 0~2 통과, 3갈래는 `complaints_newrow_baddate` 흔들림만(2346점, 이 가지와 무관 – 공통 칸 전달, 빌드 세션이 다시 돌리거나 허용) – ✔1 다시 로그인 · ✔2 연동 방향/양방향(`80427f3`) + ✔3 구글 상자 로그인/연동 구역·확인할 것 창 · ✔4 미니달력 사이드바(앞으로 7일 뺌)·한 번 = 그 주부터 5주·두 번 = 일 보기·[일][주][월] (`54f8e66`) · npm 464·지킴이 달라진 장면 12(캘린더 화면 – guard-allow)·새 장면 2·동작 통과 | 빌드 묶음 · 사용자 윈도우 시험(실제 구글 계정) |
 | 탐색기 | `wip/explorer10` | 탐색기 화면 | `ff011a3` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
 | 집행현황 | `wip/budget-excel` | 집행현황 화면 + 팀 공유(공유 시험 [share-test.md](https://github.com/zeondas/gilog/blob/main/docs/qa/share-test.md) 1·2 됨, 3 기다림) | `83b4c11` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
 | 예산현황 | – | 예산현황 화면 | `fa58e52`(0.65.0에 들어감) | ✔1 대체하기 끝(0.65.0) · 엑셀 고침은 집행현황 세션이 함께 · 세션 안 열림 | – |
@@ -156,7 +156,7 @@
 ### 민원처리 (`wip/process-fix2`)
 
 ### 캘린더 (`wip/calendar8`)
-- (✔1~✔4는 `wip/calendar8` `54f8e66`까지 코딩함 – 합치기 기다림, 시안 GoogleNotice·CalendarLayout 판 지움. 앞 ①②는 17:40 "1안으로 하자"를 모두 1안으로 읽음: 5주 뒤 ‹ ›·휠은 한 주씩 · 일 보기 0~24시 · 도움말 없음)
+- (✔1~✔4는 `wip/calendar8` `2c6ba2d`까지 코딩함 – 합치기 기다림, 시안 GoogleNotice·CalendarLayout 판 지움. 앞 ①②는 17:40 "1안으로 하자"를 모두 1안으로 읽음: 5주 뒤 ‹ ›·휠은 한 주씩 · 일 보기 0~24시 · 도움말 없음)
 
 ### 탐색기 (`wip/explorer10`)
 - **B 큰 것·보통 11개 — 사용자가 고르면**([explorer-compat.md](https://github.com/zeondas/gilog/blob/main/docs/qa/explorer-compat.md)): Ctrl+휠 아이콘 크기·오른쪽 끌기 메뉴·열 고르기·빵부스러기 › 하위 목록·여러 폴더 우클릭·빈 곳 메뉴 보기/정렬·드라이브 우클릭·zip 들어가기·미리 보기 창 문서·주소 자동 완성·\\서버 주소.
