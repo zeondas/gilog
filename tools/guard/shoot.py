@@ -391,6 +391,18 @@ async def s_calendar_notitle(p):
     await p.wait_for_timeout(300)
 
 
+async def s_calendar_roll(p):
+    # 미니달력 10/14 한 번 → 그 주가 첫 줄인 5주(11-04 캘린더 ✔4)
+    await p.locator('.cal-mini-d[aria-label="2026-10-14"]').click()
+    await p.wait_for_timeout(300)
+
+
+async def s_calendar_day(p):
+    # 미니달력 10/21 두 번 → 일 보기(11-04 캘린더 ✔4)
+    await p.locator('.cal-mini-d[aria-label="2026-10-21"]').dblclick()
+    await p.wait_for_timeout(400)
+
+
 async def s_calendar_event(p):
     await p.locator(".cal-ev", has_text="방호벽 협의").first.dblclick()
     await p.wait_for_timeout(300)
@@ -447,6 +459,8 @@ SCENES.update({
     "calendar_event_ask": ("캘린더", s_calendar_event_ask),
     "calendar_kinds": ("캘린더", s_calendar_kinds),
     "calendar_kindpicker": ("캘린더", s_calendar_kindpicker),
+    "calendar_roll": ("캘린더", s_calendar_roll),
+    "calendar_day": ("캘린더", s_calendar_day),
     "budget_menu": ("집행현황", s_budget_menu),
     "budget_confirm": ("집행현황", s_budget_confirm),
     "budgetstatus_menu": ("예산현황", s_budgetstatus_menu),

@@ -202,3 +202,26 @@ export function remoteToInput(r: GEvent, base: CalEvent | null, kinds: CalKind[]
 /** 양쪽에서 고쳤을 때 구글 쪽이 나중인지(같으면 기록 쪽) */
 export const remoteIsLater = (remoteUpdated: string | undefined, localAt: string | undefined): boolean =>
   !!remoteUpdated && Date.parse(remoteUpdated) > (localAt ? Date.parse(localAt) : 0);
+
+/** "2026-10-21" → "10/21" */
+const md = (d: string) => (d ? `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}` : "");
+
+/** 언제(알림 창 설명 줄): "10/21 10:00–11:00" · "10/22~10/23 종일" */
+function whenOf(x: EventInput): string {
+  const span = x.end && x.end !== x.date ? `${md(x.date)}~${md(x.end)}` : md(x.date);
+  return x.allDay ? `${span} 종일` : `${span} ${x.time}${x.endTime ? "–" + x.endTime : ""}`;
+}
+
+/** 두 모양에서 다른 칸을 "앞 → 뒤"로 적어요(✔3 확인할 것 창 – 양쪽에서 고친 일정이 어떻게 바뀌었는지). */
+export function diffText(from: EventInput, to: EventInput): string {
+  const out: string[] = [];
+  const t = (s: string) => s.trim() || NO_TITLE;
+  if (t(from.title) !== t(to.title)) out.push(`제목 ${t(from.title)} → ${t(to.title)}`);
+  if (whenOf(from) !== whenOf(to)) out.push(`${whenOf(from)} → ${whenOf(to)}`);
+  if (from.place.trim() !== to.place.trim()) out.push(`장소 ${from.place.trim() || "없음"} → ${to.place.trim() || "없음"}`);
+  if (from.repeat !== to.repeat || (from.repeat && from.until !== to.until)) out.push("반복 바뀜");
+  if (from.desc !== to.desc) out.push("설명 바뀜");
+  if (from.remind !== to.remind) out.push("알림 바뀜");
+  if (from.kind !== to.kind) out.push(`종류 ${from.kind} → ${to.kind}`);
+  return out.join(" · ");
+}

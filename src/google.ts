@@ -24,7 +24,7 @@ import { ANSWER_STATUS, isAnswered, loadSettings } from "./settingsStore";
 import { todayStr } from "./journal";
 import { complaintTitle } from "./tasks";
 import { stamp } from "./reminders";
-import { GEvent, inputOf, NO_TITLE, norm, remindMinutesOf, remoteIsLater, remoteToInput, RRULE, sameInput } from "./googleTwoWay";
+import { diffText, GEvent, inputOf, NO_TITLE, norm, remindMinutesOf, remoteIsLater, remoteToInput, RRULE, sameInput } from "./googleTwoWay";
 
 /** 캘린더는 "앱이 만든 캘린더만", 할 일은 구글 할 일 전체(앱이 만든 목록만 만져요 – 구글에 더 좁은 권한이 없어요). */
 const CAL_SCOPE = "https://www.googleapis.com/auth/calendar.app.created";
@@ -934,7 +934,9 @@ async function pullEvents(s: GState, cal: string): Promise<boolean> {
     const localChanged = fingerprint(mine) !== it.h;
     it.u = r.updated;
     if (localChanged && !remoteIsLater(r.updated, marks[k]?.at)) {
-      notes.push(`"${local.title}" – 양쪽에서 고쳐 나중에 고친 기록 쪽으로 맞췄어요`);
+      const rin = remoteToInput(r, local, cd.kinds, "");
+      const d = rin ? diffText(inputOf(local, cd.kinds), rin) : "";
+      notes.push(`"${local.title}" – 양쪽에서 고쳐 나중에 고친 기록 쪽으로 맞췄어요` + (d ? `\n구글에서 고친 것(버림): ${d}` : ""));
       continue; // 보낼 때 기록 내용으로 덮어요
     }
     const inp = remoteToInput(r, local, cd.kinds, "");
@@ -948,7 +950,10 @@ async function pullEvents(s: GState, cal: string): Promise<boolean> {
       const ev = await api.updateEvent(local.id, inp);
       it.h = fingerprint(eventBody(ev, cd.kinds));
       changed = true;
-      if (localChanged) notes.push(`"${local.title}" – 양쪽에서 고쳐 나중에 고친 구글 쪽으로 맞췄어요`);
+      if (localChanged) {
+        const d = diffText(inputOf(local, cd.kinds), inp);
+        notes.push(`"${local.title}" – 양쪽에서 고쳐 나중에 고친 구글 쪽으로 맞췄어요` + (d ? `\n${d}` : ""));
+      }
     }
   }
   // 기록에서도 지운 것은 더 묻지 않아요.
@@ -958,24 +963,51 @@ async function pullEvents(s: GState, cal: string): Promise<boolean> {
   return changed;
 }
 
-/** "구글에서 지워짐" 띠: remove면 기록에서도 지우고, 아니면 구글에 되살려요(다음 맞추기 때 다시 보내요). */
-export async function resolveGone(remove: boolean): Promise<void> {
+/** 확인할 것 창(✔3)에 보일 것: 구글에서 지운 일정(날짜·종류), 알림 말, 구글에만 있는 일정 */
+export type GChecks = {
+  gone: { key: string; title: string; date: string; time: string; kind: string }[];
+  notes: string[];
+  foreign: { id: string; title: string }[];
+};
+export async function googleChecks(): Promise<GChecks> {
+  const [s, cd] = await Promise.all([loadState(), api.calendarData().catch(() => null)]);
+  const byKey = new Map((cd?.events ?? []).map((e) => ["e" + e.id, e]));
+  const gone = Object.entries(s.gone ?? {})
+    .map(([key, v]) => {
+      const e = byKey.get(key);
+      const kind = cd?.kinds.find((k) => k.id === e?.kind)?.name ?? "";
+      return { key, title: e?.title || v.title || NO_TITLE, date: e?.date ?? "", time: e && !e.allDay ? e.time : "", kind };
+    })
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  return { gone, notes: s.notes ?? [], foreign: Object.entries(s.foreign ?? {}).map(([id, title]) => ({ id, title })) };
+}
+
+/** 로그인이 풀리기까지 남은 날(1~7, 모르면 0) */
+export function loginLeft(loginAt: number, now = Date.now()): number {
+  if (!loginAt) return 0;
+  return Math.max(0, LOGIN_DAYS - Math.floor((now - loginAt) / DAY));
+}
+
+/** "구글에서 지워짐": remove면 기록에서도 지우고, 아니면 구글에 되살려요(다음 맞추기 때 다시 보내요). keys가 없으면 전부. */
+export async function resolveGone(remove: boolean, keys?: string[]): Promise<void> {
   if (running) await running;
   const s = await loadState();
-  for (const k of Object.keys(s.gone ?? {})) {
+  for (const k of keys ?? Object.keys(s.gone ?? {})) {
+    if (!s.gone?.[k]) continue;
     if (remove) await api.deleteEvent(Number(k.slice(1))).catch(() => {});
     delete s.gone![k];
   }
   await putJson(K_STATE, s);
   publish(stateCounts(s));
+  if (remove) window.dispatchEvent(new Event(REMOTE_CHANGE));
   void syncGoogle();
 }
 
-/** 알림 말([확인])을 지워요. */
-export async function clearGoogleNotes(): Promise<void> {
+/** 알림 말([확인])을 지워요. at이 있으면 그 한 줄만. */
+export async function clearGoogleNotes(at?: number): Promise<void> {
   if (running) await running;
   const s = await loadState();
-  s.notes = [];
+  s.notes = at === undefined ? [] : (s.notes ?? []).filter((_, i) => i !== at);
   await putJson(K_STATE, s);
   publish(stateCounts(s));
 }

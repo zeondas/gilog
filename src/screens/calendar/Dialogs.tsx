@@ -14,7 +14,7 @@ import {
 } from "../../calendar";
 import { parseDate, todayStr } from "../../journal";
 import { DateInput } from "../../DateInput";
-import { clearGoogleNotes, exportNow, GStatus, loginPhase, onGoogleStatus, reloginGoogle, resolveGone, whenText } from "../../google";
+import { clearGoogleNotes, exportNow, GChecks, googleChecks, GStatus, loginLeft, loginPhase, onGoogleStatus, reloginGoogle, resolveGone, whenText } from "../../google";
 import { loadNotifyMode, saveNotifyMode, stamp, syncReminders } from "../../reminders";
 import { AskBand } from "../../AskBand";
 import { KindPicker, ColorButton } from "./Menu";
@@ -816,75 +816,197 @@ export function KindsDialog({
   );
 }
 
-// ---------- 구글 연동 상태 상자 (9단계, 시안: 캘린더 왼쪽 맨 위) ----------
+// ---------- 구글 연동 상태 상자 (캘린더 왼쪽 아래 – ✔3 시안 GoogleNotice.dc.html) ----------
 
+/** "2026-10-21" → "10/21(수)" */
+const mdw = (d: string) => (d ? `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}(${"일월화수목금토"[new Date(d + "T00:00").getDay()]})` : "");
+
+/**
+ * 위 로그인 구역(상태는 제목 줄 오른쪽 글자 – 배지 아님) · 아래 연동 구역([확인할 것 N건 보기 ›] · [지금 맞추기]).
+ * 알림·안내문은 상자에 늘어놓지 않고 [보기] 창으로 모아요(11-04 17:19 1안·17:25 2안 방향).
+ */
 export function GoogleBox() {
   const [g, setG] = useState<GStatus | null>(null);
+  const [checks, setChecks] = useState(false);
   const b = useBusy();
   useEffect(() => onGoogleStatus(setG), []);
   if (!g || (!g.connected && !g.lapsed)) return null;
-  // ✔1(11-04 16:24 1안 – 시안 GoogleRelogin.dc.html): 평소엔 단추 없이, 풀리기 하루 전(연보라)·풀렸을 때(붉은 상자)만 [다시 로그인].
   const phase = loginPhase(g);
   const verb = g.twoWay ? "맞추기" : "내보내기";
   const busyText = g.twoWay ? "맞추는 중…" : "내보내는 중…";
-  const relogin = (
-    <BusyButton className="btn btn-primary btn-xs g-login" small busy={b.is("login")} busyText="로그인 기다리는 중…" disabled={!!b.busy} onClick={() => void b.run("login", reloginGoogle)}>
-      다시 로그인
-    </BusyButton>
-  );
-  const at = !g.busy && g.lastOk && <span className="g-box-at">마지막 성공 {whenText(g.lastOk)}</span>;
+  const left = loginLeft(g.loginAt);
+  const loginState = phase === "off" ? "풀렸어요" : phase === "soon" ? "내일 풀려요" : left ? `${left}일 남음` : "";
+  const loginSub =
+    phase === "off"
+      ? "다시 로그인하면 밀린 것을 맞춰요"
+      : phase === "soon"
+        ? "지금 하면 7일 더 이어져요"
+        : (g.loginAt ? `${mdOf(g.loginAt)} 로그인 · ` : "") + "7일마다 다시 로그인";
+  const syncState = phase === "off" ? "멈춤" : g.busy ? busyText : g.lastOk ? `${whenText(g.lastOk)} ${g.twoWay ? "맞춤" : "보냄"}` : "";
+  const n = g.twoWay && phase !== "off" ? g.gone + g.notes.length + g.foreign : 0;
+  const dot = phase === "off" || (g.lastError && phase === "ok") ? " bad" : phase === "soon" ? " soon" : "";
   return (
     <div className={"g-box" + (phase === "off" ? " off" : phase === "soon" ? " soon" : "")}>
       <div className="g-box-head">
-        <span className={"g-dot" + (phase === "off" || g.lastError ? " bad" : phase === "soon" ? " soon" : "")} aria-hidden="true" />
-        <span>{phase === "off" ? "구글 연동이 풀렸어요" : phase === "soon" ? "내일 구글 연동이 풀려요" : g.lastError ? `구글 ${verb} 실패` : "구글 캘린더 연동됨"}</span>
+        <span className={"g-dot" + dot} aria-hidden="true" />
+        <span>구글 캘린더</span>
       </div>
-      {phase === "off" ? (
-        <span className="g-box-sub g-err">다시 로그인하면 그동안 바뀐 것을 한꺼번에 맞춰요</span>
-      ) : (
-        <span className={"g-box-sub" + (g.lastError && phase === "ok" ? " g-err" : "")}>
-          {g.busy ? busyText : phase === "soon" ? "지금 다시 로그인하면 7일 더 이어져요" : g.lastError || (g.twoWay ? "양방향" : "기록 → 구글 한 방향")}
-          {at}
-        </span>
-      )}
-      {g.twoWay && g.gone > 0 && phase !== "off" && (
-        <div className="g-box-band" role="status">
-          <span>구글에서 지운 일정 {g.gone}건 – 기록에서도 지울까요?</span>
-          <span className="g-box-btns">
-            <BusyButton className="btn btn-xs btn-danger" small busy={b.is("gone-del")} busyText="지우는 중…" disabled={!!b.busy} onClick={() => void b.run("gone-del", () => resolveGone(true))}>
-              지우기
-            </BusyButton>
-            <BusyButton className="btn btn-xs" small busy={b.is("gone-keep")} busyText="되살리는 중…" disabled={!!b.busy} onClick={() => void b.run("gone-keep", () => resolveGone(false))}>
-              구글에 되살리기
-            </BusyButton>
-          </span>
+      <div className="g-sec">
+        <div className="g-sec-head">
+          <span>로그인</span>
+          {loginState && <span className={"g-state" + (phase === "off" ? " off" : phase === "soon" ? " soon" : "")}>{loginState}</span>}
         </div>
-      )}
-      {g.twoWay && g.notes.length > 0 && phase !== "off" && (
-        // 양쪽에서 고친 일정 알림 – 한 줄만, 전부는 마우스를 올리면 보여요.
-        <div className="g-box-band g-box-line" role="status">
-          <span className="g-box-ell" title={g.notes.join("\n")}>
-            {g.notes.length === 1 ? g.notes[0] : `${g.notes[g.notes.length - 1]} 외 ${g.notes.length - 1}건`}
-          </span>
-          <button type="button" className="btn btn-xs" onClick={() => void clearGoogleNotes()}>
-            확인
+        <span className="g-box-sub">{loginSub}</span>
+        {phase !== "ok" && (
+          <BusyButton className="btn btn-primary btn-sm g-login g-full" small busy={b.is("login")} busyText="로그인 기다리는 중…" disabled={!!b.busy} onClick={() => void b.run("login", reloginGoogle)}>
+            다시 로그인
+          </BusyButton>
+        )}
+      </div>
+      <div className="g-sec">
+        <div className="g-sec-head">
+          <span>연동 · {g.twoWay ? "양방향" : "한 방향"}</span>
+          {syncState && <span className="g-state">{syncState}</span>}
+        </div>
+        {g.lastError && phase !== "off" && !g.busy && <span className="g-box-sub g-err">{g.lastError}</span>}
+        {n > 0 && (
+          <button type="button" className="g-checks" onClick={() => setChecks(true)}>
+            <span>
+              확인할 것 <b>{n}건</b>
+            </span>
+            <span className="g-checks-go">보기 ›</span>
           </button>
-        </div>
-      )}
-      {g.twoWay && g.foreign > 0 && phase !== "off" && (
-        <span className="g-box-sub g-box-ell" title="끝나는 날이 없는 반복, 매주 여러 요일 반복, 반복 가운데 한 번만 고친 것처럼 기록이 담을 수 없는 일정은 구글에만 두어요.">
-          구글에만 있는 일정 {g.foreign}건
-        </span>
-      )}
-      <span className="g-box-btns">
-        {phase !== "ok" && relogin}
+        )}
         {phase !== "off" && (
-          <BusyButton className="btn btn-xs" small busy={g.busy || b.is("export")} busyText={busyText} disabled={!!b.busy && !b.is("export")} onClick={() => void b.run("export", exportNow)}>
+          <BusyButton className="btn btn-sm g-full" small busy={g.busy || b.is("export")} busyText={busyText} disabled={!!b.busy && !b.is("export")} onClick={() => void b.run("export", exportNow)}>
             지금 {verb}
           </BusyButton>
         )}
-      </span>
+      </div>
       <BusyNote busy={!!b.busy || g.busy} late={b.late} flash={b.flash?.ok ? null : b.flash} />
+      {checks && <GoogleChecksDialog onClose={() => setChecks(false)} />}
+    </div>
+  );
+}
+
+/** 밀리초 → "10/19" */
+function mdOf(ms: number): string {
+  const d = new Date(ms);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+/** 확인할 것 창(✔3): 구글에서 지운 일정 · 양쪽에서 고친 일정 · 구글에만 있는 일정. 다 처리하면 닫혀요. */
+export function GoogleChecksDialog({ onClose }: { onClose: () => void }) {
+  const [c, setC] = useState<GChecks | null>(null);
+  const b = useBusy();
+  const reload = useCallback(() => {
+    googleChecks().then(setC, () => setC({ gone: [], notes: [], foreign: [] }));
+  }, []);
+  useEffect(() => {
+    reload();
+    return onGoogleStatus(() => reload());
+  }, [reload]);
+  const empty = c && !c.gone.length && !c.notes.length && !c.foreign.length;
+  useEffect(() => {
+    if (empty) onClose();
+  }, [empty, onClose]);
+  const act = (key: string, f: () => Promise<void>) => void b.run(key, f).then(reload);
+  return (
+    <div className="overlay" onMouseDown={overlayDown(onClose)}>
+      <div className="dialog g-chk-dlg" role="dialog" aria-modal="true" aria-label="구글 연동 확인할 것" onKeyDown={(e) => e.key === "Escape" && onClose()}>
+        <div className="dialog-head">
+          <span className="dialog-title">구글 연동 · 확인할 것</span>
+        </div>
+        <DialogX autoFocus onClick={onClose} />
+        <div className="dialog-body g-chk-body">
+          {!c && <p className="g-chk-note">읽는 중…</p>}
+          {c && c.gone.length > 0 && (
+            <section className="g-chk-sec">
+              <div className="g-chk-head">
+                <span>구글에서 지운 일정 {c.gone.length}건</span>
+                {c.gone.length > 1 && (
+                  <span className="g-chk-btns">
+                    <button type="button" className="btn btn-xs" disabled={!!b.busy} onClick={() => act("all-keep", () => resolveGone(false))}>
+                      모두 되살리기
+                    </button>
+                    <button type="button" className="btn btn-xs btn-danger" disabled={!!b.busy} onClick={() => act("all-del", () => resolveGone(true))}>
+                      모두 지우기
+                    </button>
+                  </span>
+                )}
+              </div>
+              <p className="g-chk-note">휴대폰·구글에서 지웠어요. 기록에서도 지울지 골라 주세요. [되살리기]는 구글에 다시 만들어요.</p>
+              {c.gone.map((x) => (
+                <div key={x.key} className="g-chk-row">
+                  <span className="g-chk-d">{mdw(x.date)}</span>
+                  <span className="g-chk-n">
+                    {x.title}
+                    <small>{[x.kind, x.time].filter(Boolean).join(" · ")}</small>
+                  </span>
+                  <span className="g-chk-btns">
+                    <button type="button" className="btn btn-xs" disabled={!!b.busy} onClick={() => act("keep" + x.key, () => resolveGone(false, [x.key]))}>
+                      되살리기
+                    </button>
+                    <button type="button" className="btn btn-xs btn-danger" disabled={!!b.busy} onClick={() => act("del" + x.key, () => resolveGone(true, [x.key]))}>
+                      지우기
+                    </button>
+                  </span>
+                </div>
+              ))}
+            </section>
+          )}
+          {c && c.notes.length > 0 && (
+            <section className="g-chk-sec">
+              <div className="g-chk-head">
+                <span>양쪽에서 고친 일정 {c.notes.length}건</span>
+                {c.notes.length > 1 && (
+                  <span className="g-chk-btns">
+                    <button type="button" className="btn btn-xs" disabled={!!b.busy} onClick={() => act("notes", () => clearGoogleNotes())}>
+                      모두 확인
+                    </button>
+                  </span>
+                )}
+              </div>
+              <p className="g-chk-note">나중에 고친 쪽으로 맞췄어요.</p>
+              {c.notes.map((t, i) => {
+                const [head, detail] = t.split("\n");
+                return (
+                  <div key={i + t} className="g-chk-row">
+                    <span className="g-chk-n">
+                      {head}
+                      {detail && <small>{detail}</small>}
+                    </span>
+                    <span className="g-chk-btns">
+                      <button type="button" className="btn btn-xs" disabled={!!b.busy} onClick={() => act("note" + i, () => clearGoogleNotes(i))}>
+                        확인
+                      </button>
+                    </span>
+                  </div>
+                );
+              })}
+            </section>
+          )}
+          {c && c.foreign.length > 0 && (
+            <section className="g-chk-sec">
+              <div className="g-chk-head">
+                <span>구글에만 있는 일정 {c.foreign.length}건</span>
+              </div>
+              <p className="g-chk-note">끝나는 날이 없는 반복, 매주 여러 요일 반복, 반복 가운데 한 번만 고친 것처럼 기록이 담을 수 없어 구글에만 둬요(기록 달력엔 안 보여요).</p>
+              {c.foreign.map((x) => (
+                <div key={x.id} className="g-chk-row">
+                  <span className="g-chk-n">{x.title}</span>
+                </div>
+              ))}
+            </section>
+          )}
+          <BusyNote busy={!!b.busy} late={b.late} flash={b.flash?.ok ? null : b.flash} />
+        </div>
+        <div className="dialog-foot">
+          <button type="button" className="btn btn-ctrl" onClick={onClose}>
+            닫기
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -130,6 +130,7 @@ function slotsOf(list: Occ[]): Slot[] {
 
 export function WeekView({
   start,
+  days: n = 7,
   occs,
   today,
   sel,
@@ -142,6 +143,8 @@ export function WeekView({
   actsOf,
 }: {
   start: string;
+  /** 7이면 주 보기, 1이면 일 보기(✔4) */
+  days?: number;
   occs: Occ[];
   today: string;
   sel: string;
@@ -153,9 +156,13 @@ export function WeekView({
   onNew: (d: string, time: string) => void;
   actsOf: (o: Occ) => ChipActs;
 }) {
-  const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
+  const days = Array.from({ length: n }, (_, i) => addDays(start, i));
   const top = occs.filter((o) => o.allDay || o.start !== o.end);
-  const { placed } = layoutWeek(top, start, 99);
+  // 일 보기는 그 주 배치에서 그날 칸만 잘라 써요(여러 날 일정은 한 칸으로).
+  const placed = layoutWeek(top.filter((o) => o.start <= days[n - 1] && o.end >= start), start, 99)
+    .placed.filter((p) => p.col < n)
+    .map((p) => (p.col + p.span > n ? { ...p, span: n - p.col, cutEnd: true } : p));
+  const cols = n === 7 ? undefined : `64px repeat(${n}, minmax(0, 1fr))`;
   const lanes = placed.reduce((n, p) => Math.max(n, p.lane + 1), 0);
   const scroller = useRef<HTMLDivElement>(null);
   /** 시간 칸 오른쪽 스크롤 막대 폭. 위 두 줄도 이만큼 비워 세로선을 맞춰요(0.8.2). */
@@ -189,8 +196,8 @@ export function WeekView({
     return ["cal-wday", d === today ? "today" : "", d === sel ? "sel" : "", dow === 0 || holidaysOf.has(d) ? "red" : dow === 6 ? "blue" : ""].filter(Boolean).join(" ") + rest(d);
   };
   return (
-    <div className="cal-wk">
-      <div className="cal-wk-head" style={{ paddingRight: bar }}>
+    <div className={n === 1 ? "cal-wk one" : "cal-wk"}>
+      <div className="cal-wk-head" style={{ paddingRight: bar, gridTemplateColumns: cols }}>
         <div className="cal-wk-gutter" />
         {days.map((d) => (
           <div key={d} className={dayCls(d)} onClick={() => onSel(d)} onDoubleClick={() => onNew(d, "")}>
@@ -200,7 +207,7 @@ export function WeekView({
           </div>
         ))}
       </div>
-      <div className="cal-wk-allday" style={{ gridTemplateRows: `repeat(${Math.max(1, lanes)}, 24px)`, paddingRight: bar }}>
+      <div className="cal-wk-allday" style={{ gridTemplateRows: `repeat(${Math.max(1, lanes)}, 24px)`, paddingRight: bar, gridTemplateColumns: cols }}>
         <div className="cal-wk-gutter cal-wk-alllabel" style={{ gridRow: `1 / span ${Math.max(1, lanes)}` }}>
           종일
         </div>
@@ -225,7 +232,7 @@ export function WeekView({
         ))}
       </div>
       <div className="cal-wk-scroll" ref={scroller}>
-        <div className="cal-wk-body" style={{ height: 24 * HOUR }}>
+        <div className="cal-wk-body" style={{ height: 24 * HOUR, gridTemplateColumns: cols }}>
           <div className="cal-wk-hours">
             {Array.from({ length: 24 }, (_, h) => (
               <span key={h} style={{ top: h * HOUR }}>
@@ -272,7 +279,7 @@ export function WeekView({
         <div
           className="cal-wk-today"
           aria-hidden="true"
-          style={{ left: `calc(64px + (100% - 64px - ${bar}px) * ${todayAt} / 7)`, width: `calc((100% - 64px - ${bar}px) / 7 + 1px)` }}
+          style={{ left: `calc(64px + (100% - 64px - ${bar}px) * ${todayAt} / ${n})`, width: `calc((100% - 64px - ${bar}px) / ${n} + 1px)` }}
         />
       )}
     </div>

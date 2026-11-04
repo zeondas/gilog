@@ -48,7 +48,7 @@ vi.mock("./api", () => {
   };
 });
 
-import { __test, loadGoogleStatus, onGoogleStatus, GStatus, resolveGone } from "./google";
+import { __test, clearGoogleNotes, googleChecks, loadGoogleStatus, onGoogleStatus, GStatus, resolveGone } from "./google";
 
 // ---------- 가짜 구글 ----------
 type REv = Record<string, unknown> & { id: string; status: string; updated: string; seq: number };
@@ -228,6 +228,30 @@ describe("양방향 맞추기", () => {
     await sync();
     expect(local("구글 둘째")).toBeTruthy();
     expect(st.notes.at(-1)).toContain("구글 쪽");
+    // ✔3 확인할 것 창: 무엇이 어떻게 바뀌었는지 둘째 줄, [확인]은 한 줄씩
+    expect(st.notes.at(-1)).toContain("\n제목 기록 둘째 → 구글 둘째");
+    expect(st.notes.at(-2)).toContain("구글에서 고친 것(버림): 제목 기록 제목 → 구글 제목");
+    await clearGoogleNotes(0);
+    expect(st.notes).toHaveLength(1);
+    expect((await googleChecks()).notes[0]).toContain("구글 쪽");
+  });
+
+  test("구글에서 지운 일정은 창에서 하나씩 고를 수 있어요(✔3)", async () => {
+    const add = (await import("./api")).api.addEvent;
+    await add({ ...(local("현장 점검")! as unknown as EventInput), kind: "업무", title: "둘째 일정" });
+    await sync();
+    tick();
+    googleEdit(remoteOf("현장 점검")!.id, { status: "cancelled" });
+    googleEdit(remoteOf("둘째 일정")!.id, { status: "cancelled" });
+    await sync();
+    const c = await googleChecks();
+    expect(c.gone.map((x) => x.title).sort()).toEqual(["둘째 일정", "현장 점검"]);
+    expect(c.gone[0].kind).toBe("업무");
+    const one = c.gone.find((x) => x.title === "둘째 일정")!;
+    await resolveGone(true, [one.key]);
+    expect(st.gone).toBe(1);
+    expect(local("둘째 일정")).toBeUndefined();
+    expect(local("현장 점검")).toBeTruthy();
   });
 
   test("로그인이 풀리면(7일) 상자에 '풀렸어요' 상태로 – 풀린 동안 기록에서 고친 것은 남아요", async () => {

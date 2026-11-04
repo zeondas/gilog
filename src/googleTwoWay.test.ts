@@ -2,7 +2,7 @@
 import { describe, expect, test } from "vitest";
 import type { CalEvent, CalKind } from "./api";
 import { eventBody, loginPhase, LOGIN_DAYS } from "./google";
-import { GEvent, inputOf, kst, norm, remoteIsLater, remoteToInput, repeatOf, sameInput, untilDate } from "./googleTwoWay";
+import { diffText, GEvent, inputOf, kst, norm, remoteIsLater, remoteToInput, repeatOf, sameInput, untilDate } from "./googleTwoWay";
 
 const kinds: CalKind[] = [
   { id: 1, name: "업무", color: 15, visible: true, system: "", ord: 0 },
@@ -134,5 +134,14 @@ describe("loginPhase – 테스트 상태 구글 로그인 7일(✔1)", () => {
   test("풀렸으면 'off', 연결을 끊었으면 상자 없음(ok)", () => {
     expect(loginPhase({ connected: false, lapsed: true, loginAt: at })).toBe("off");
     expect(loginPhase({ connected: false, lapsed: false, loginAt: 0 })).toBe("ok");
+  });
+});
+
+describe("diffText – 확인할 것 창의 바뀐 것 줄(✔3)", () => {
+  const base = { title: "주간 회의", kind: "회의", date: "2026-10-21", end: "", allDay: false, time: "10:00", endTime: "11:00", repeat: "" as const, until: "", place: "", desc: "", remind: -1, remindTime: "" };
+  test("시각과 제목", () => {
+    expect(diffText(base, { ...base, time: "10:30", endTime: "11:30" })).toBe("10/21 10:00–11:00 → 10/21 10:30–11:30");
+    expect(diffText(base, { ...base, title: "주간 회의(변경)", place: "3층" })).toBe("제목 주간 회의 → 주간 회의(변경) · 장소 없음 → 3층");
+    expect(diffText(base, base)).toBe("");
   });
 });
