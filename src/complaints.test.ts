@@ -1,7 +1,7 @@
 // 민원대장 규칙 시험 – 지금 동작을 고정해요(정리 2차 2026-10-26): 남은 날·걸린 날·검색(초성·번호)·유형 초성·필터.
 import { describe, expect, test } from "vitest";
 import type { Complaint } from "./api";
-import { addedType, COLUMNS, layoutCols, statusOnSave, revertStatus, daysBetween, daysLeft, daysTaken, ddayText, dueSoon, expandType, leftText, procOf, filterValues, isUrgent, matches, NO_FILTERS, passes, readStatusFilter, shortDate, shortIntake, takenText } from "./complaints";
+import { addedType, COLUMNS, layoutCols, statusOnSave, revertStatus, daysBetween, daysLeft, daysTaken, ddayText, dueSoon, doneBeforeReceived, expandType, leftText, procOf, filterValues, isUrgent, matches, NO_FILTERS, passes, readStatusFilter, shortDate, shortIntake, takenText } from "./complaints";
 
 const C = (o: Partial<Complaint>): Complaint => ({
   id: 1, no: 1, intake: "국민신문고", received: "2026-10-10", ctype: "포트홀", area: "조리읍", place: "봉일천리 113 일원",
@@ -74,6 +74,19 @@ describe("걸린 날", () => {
     expect(P({ due: "2026-10-20", status: "완료", done: "2026-10-08" })).toMatchObject({ text: "7일 걸림", tone: "soft", title: "마감일 2026-10-20 · 조치완료일 2026-10-08 · 접수부터 7일" });
     expect(P({ status: "불가", done: "2026-10-08" })?.text).toBe("7일 걸림");
     expect(P({ status: "완료", done: "" })?.text).toBe("답변완료");
+  });
+
+  test("날짜 확인 – 조치완료일이 접수일보다 앞(2026-11-05 사용자 3안, QC CM-40)", () => {
+    expect(doneBeforeReceived({ received: "2026-10-01", done: "2026-09-30" })).toBe(true);
+    expect(doneBeforeReceived({ received: "2026-10-01", done: "2026-10-01" })).toBe(false);
+    expect(doneBeforeReceived({ received: "2026-10-01", done: "" })).toBe(false);
+    expect(doneBeforeReceived({ received: "", done: "2026-09-30" })).toBe(false);
+    expect(doneBeforeReceived({ received: "2026-10-01", done: "9월 30일" })).toBe(false);
+    const P = (o: Partial<Complaint>) => procOf(C({ received: "2026-10-01", ...o }), "2026-10-15", 2);
+    for (const s of ["완료", "불가"]) expect(P({ status: s, done: "2026-09-28" })).toEqual({ text: "날짜 확인", tone: "warn", title: "접수일 2026-10-01 · 조치완료일 2026-09-28 – 조치완료일이 접수일보다 앞이에요" });
+    // 같은 날 완료는 0일 걸림 그대로, 완료 전 상태는 처리 칸 규칙 그대로
+    expect(P({ status: "완료", done: "2026-10-01" })?.text).toBe("0일 걸림");
+    expect(P({ status: "답변", done: "2026-09-28" })?.text).toBe("답변완료");
   });
 });
 

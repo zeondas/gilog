@@ -59,6 +59,12 @@ export function daysTaken(c: Pick<Complaint, "received" | "done">): number | nul
   return n < 0 ? null : n;
 }
 
+/** 조치완료일이 접수일보다 앞인지(2026-11-05 사용자 3안 – QC CM-40). 둘 다 읽을 수 있는 날짜일 때만 true예요. */
+export function doneBeforeReceived(c: { received?: string; done?: string }): boolean {
+  const ok = (d?: string) => !!d && /^\d{4}-\d{2}-\d{2}$/.test(d);
+  return ok(c.received) && ok(c.done) && c.done! < c.received!;
+}
+
 /**
  * 걸린 날 글자(2026-11-03 16:15·16:17 사용자 – 처리 칸 말로 풀기): 30일까지 "12일 걸림", 넘으면 달 "3달 걸림", 1년부터는 해 "2년 걸림".
  * 달·해는 달력으로 센 만큼(다 채우지 못한 달은 버림). 정확한 날 수는 마우스를 올리면 보여요.
@@ -77,7 +83,7 @@ export function leftText(n: number): string {
 }
 
 /** 처리 칸 글자 – tone: urgent(붉게) · due(굵게) · soft(흐리게) */
-export type Proc = { text: string; tone: "urgent" | "due" | "soft"; title?: string };
+export type Proc = { text: string; tone: "urgent" | "due" | "soft" | "warn"; title?: string };
 
 /**
  * 민원대장 "처리" 칸(2026-11-03 사용자 7판, 시안 ComplaintDates.dc.html): 상태에 따라 한 가지만 말로.
@@ -93,6 +99,8 @@ export function procOf(c: Pick<Complaint, "received" | "due" | "status" | "done"
     return n === null ? null : { text: leftText(n), tone: isUrgent(n, urgentDays) ? "urgent" : "due", title };
   }
   if (isClosed(c.status)) {
+    // 조치완료일이 접수일보다 앞이면 걸린 기간 대신 "날짜 확인"(주황) – 가져온 자료처럼 이미 들어간 것만 이렇게 보여요(2026-11-05 사용자 3안).
+    if (doneBeforeReceived(c)) return { text: "날짜 확인", tone: "warn", title: `접수일 ${c.received} · 조치완료일 ${c.done} – 조치완료일이 접수일보다 앞이에요` };
     const n = daysTaken(c);
     if (n !== null) return { text: takenText(c, n), tone: "soft", title: title ? `${title} · 접수부터 ${n}일` : undefined };
   }
