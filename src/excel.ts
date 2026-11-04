@@ -8,7 +8,7 @@ import { spacePlace } from "./paju";
 import type { Complaint, ComplaintInput, Contact, ContactInput, DayInfo, Entry, EntryInput, JournalLine, Project, ProjectGroup } from "./api";
 import { splitProjects } from "./projectNames";
 import { BKind, BLine, layout, linePrefix, parseLines, stringifyLines } from "./bullets";
-import { isMemo, normTime, parseDate, todayStr, whoNames } from "./journal";
+import { isMemo, isMemoEntry, normTime, parseDate, todayStr, whoNames } from "./journal";
 import { finalizePhone } from "./phone";
 
 export type SheetKind = "complaints" | "contacts" | "journal";
@@ -280,45 +280,100 @@ export function contactImports(sheet: ExcelSheet): ContactsImport {
 export const JOURNAL_HEADERS = ["연번", "날짜", "시각", "구분", "상대", "연락처", "사업", "내용"];
 export const JOURNAL_DAY_HEADERS = ["날짜", "출근", "교통", "날씨", "비고"];
 
-/** 메모 본문(편집기 HTML) → 글자. 문단·제목·인용은 한 줄씩, 글머리 목록은 □ ○ - 기호와 위계 띄어쓰기, 표는 칸을 " | "로 이어요. */
+/** 표 칸 안에서 줄을 바꾼 곳(왼쪽 Alt+Enter)은 이 글자로 이어 한 줄에 둬요 – 표 한 줄 = 엑셀 칸의 한 줄(QC CO-28) */
+export const CELL_BREAK = " / ";
+
+/**
+ * 메모 본문(편집기 HTML) → 글자. 문단·제목·인용은 한 줄씩, 글머리 목록은 □ ○ - 기호와 위계 띄어쓰기, 표는 줄마다 칸을 " | "로 이어요.
+ * 글자를 하나도 잃지 않게(QC CO-28): 문단 밖에 바로 적힌 글(표 뒤에 친 줄 등)·꾸밈 글자도 한 줄로 읽고,
+ * 표 칸 안 줄 바꿈은 CELL_BREAK로 이어 표 줄이 쪼개지지 않게, 목록 줄·문단 안에 든 표도 그 줄 뒤에 써요.
+ */
 export function memoText(html: string): string {
   if (!html) return "";
   const doc = new DOMParser().parseFromString(html, "text/html");
   const out: string[] = [];
-  const txt = (el: Element) => {
-    const c = el.cloneNode(true) as Element;
-    c.querySelectorAll("br").forEach((b) => b.replaceWith("\n"));
-    return (c.textContent ?? "").replace(/[ \t\u00a0]+/g, " ").trim();
+  const tidy = (s: string) => s.replace(/[ \t ]+/g, " ").trim();
+  const isEl = (n: Node): n is Element => n.nodeType === Node.ELEMENT_NODE;
+  const tagOf = (n: Node) => (isEl(n) ? n.tagName.toLowerCase() : "");
+  /** 꾸밈 글자 안의 글(줄 바꿈은 "\n"). 표·목록은 따로 써서 빼요. */
+  const inline = (n: Node): string => {
+    if (n.nodeType === Node.TEXT_NODE) return n.textContent ?? "";
+    const t = tagOf(n);
+    if (!t || t === "table" || t === "ul" || t === "ol") return "";
+    if (t === "br") return "\n";
+    return Array.from(n.childNodes).map(inline).join("");
   };
-  const walk = (parent: Element) => {
-    for (const el of Array.from(parent.children)) {
-      const tag = el.tagName.toLowerCase();
-      if (tag === "ul" || tag === "ol") {
-        Array.from(el.children).forEach((li, i) => {
-          const cl = li.classList;
-          const lv = cl.contains("lv2") ? 2 : cl.contains("lv1") ? 1 : 0;
-          const mark = tag === "ol" ? `${i + 1}. ` : cl.contains("nb") ? "" : cl.contains("k-sq") ? "□ " : cl.contains("k-da") ? "- " : "○ ";
-          out.push("  ".repeat(lv) + mark + txt(li));
-        });
-      } else if (tag === "table") {
-        el.querySelectorAll("tr").forEach((tr) => out.push(Array.from(tr.children).map((td) => txt(td)).join(" | ")));
-      } else if (tag === "div" && el.querySelector("p,ul,ol,table,h3,blockquote")) {
-        walk(el);
+  /** 표 칸 → 한 줄(칸 안 문단·목록·줄 바꿈은 CELL_BREAK로) */
+  const cellText = (td: Element) => {
+    const c = td.cloneNode(true) as Element;
+    c.querySelectorAll("br").forEach((b) => b.replaceWith("\n"));
+    c.querySelectorAll("p,li,div,h3,blockquote,tr").forEach((b) => b.append("\n"));
+    return (c.textContent ?? "").split("\n").map(tidy).filter(Boolean).join(CELL_BREAK);
+  };
+  const table = (el: Element, pad: string) => {
+    el.querySelectorAll("tr").forEach((tr) => {
+      if (tr.closest("table") !== el) return;
+      out.push(pad + Array.from(tr.children).map(cellText).join(" | "));
+    });
+  };
+  const list = (el: Element, ol: boolean, pad: string) => {
+    Array.from(el.children).forEach((li, i) => {
+      const cl = li.classList;
+      const lv = cl.contains("lv2") ? 2 : cl.contains("lv1") ? 1 : 0;
+      const mark = ol ? `${i + 1}. ` : cl.contains("nb") ? "" : cl.contains("k-sq") ? "□ " : cl.contains("k-da") ? "- " : "○ ";
+      const ind = pad + "  ".repeat(lv);
+      // 줄 글(항목 안 줄 바꿈은 같은 들여쓰기로 이어요) → 그 줄에 든 표·목록
+      const own = Array.from(li.childNodes).map(inline).join("").split("\n").map(tidy).filter(Boolean);
+      if (own.length) {
+        out.push(ind + mark + own[0]);
+        for (const more of own.slice(1)) out.push(ind + " ".repeat(mark.length) + more);
+      }
+      for (const ch of Array.from(li.children)) {
+        const t = tagOf(ch);
+        if (t === "table") table(ch, ind + "  ");
+        else if (t === "ul" || t === "ol") list(ch, t === "ol", ind + "  ");
+      }
+    });
+  };
+  /** 묶음(본문·문단·제목·인용·div) 안을 차례로: 글은 줄마다, 목록·표는 제 모양으로 */
+  const walk = (parent: Node, pad = "") => {
+    let buf = "";
+    const flush = () => {
+      for (const l of buf.split("\n")) {
+        const t = tidy(l);
+        if (t) out.push(pad + t);
+      }
+      buf = "";
+    };
+    for (const n of Array.from(parent.childNodes)) {
+      const t = tagOf(n);
+      if (t === "ul" || t === "ol") {
+        flush();
+        list(n as Element, t === "ol", pad);
+      } else if (t === "table") {
+        flush();
+        table(n as Element, pad);
+      } else if (["p", "div", "h3", "blockquote", "li"].includes(t)) {
+        flush();
+        walk(n, pad);
       } else {
-        const t = txt(el);
-        if (t) out.push(t);
+        buf += inline(n);
       }
     }
+    flush();
   };
   walk(doc.body);
   return out.join("\n").trim();
 }
 
-/** 기록 → 내용 칸 글자 */
+/** 기록 → 내용 칸 글자. 메모 카드는 본문, 말 카드는 "이름: 말" 줄이에요(구분을 비운 말 카드도 – QC CO-28). */
 export function entryContent(e: Pick<EntryInput, "kind" | "lines" | "body">): string {
-  if (isMemo(e.kind) || (!e.lines.length && e.body)) return memoText(e.body);
+  if (isMemoEntry(e) || (!e.lines.length && e.body)) return memoText(e.body);
   return e.lines.map((l) => `${l.me ? "나" : l.who || "상대"}: ${l.text}`).join("\n");
 }
+
+/** 기록 → 구분 칸 글자. 구분을 비우고 등록한 말 카드(저장은 "메모")는 비워서 써요 – 가져올 때 말 카드로 돌아와요(QC CO-28). */
+export const entryKind = (e: Pick<EntryInput, "kind" | "lines" | "body">) => (isMemo(e.kind) && !isMemoEntry(e) ? "" : e.kind);
 
 const keyOf = (date: string, time: string, kind: string, who: string, content: string) =>
   [date, time, kind.trim(), who.trim(), content.replace(/\r\n?/g, "\n").split("\n").map((x) => x.trim()).join("\n").trim()].join("\u0001");
@@ -327,7 +382,7 @@ export function journalRows(entries: Entry[], projects: Project[]): string[][] {
   const byId = new Map(projects.map((p) => [p.id, p.name]));
   return [...entries]
     .sort((a, b) => (a.date !== b.date ? (a.date < b.date ? -1 : 1) : a.time !== b.time ? (a.time < b.time ? -1 : 1) : a.id - b.id))
-    .map((e, i) => [String(i + 1), e.date, e.time, e.kind, e.who, e.contact, e.project !== null ? byId.get(e.project) ?? "" : "", entryContent(e)]);
+    .map((e, i) => [String(i + 1), e.date, e.time, entryKind(e), e.who, e.contact, e.project !== null ? byId.get(e.project) ?? "" : "", entryContent(e)]);
 }
 
 export function journalDayRows(days: DayInfo[]): string[][] {
@@ -411,8 +466,9 @@ export function journalImports(sheet: ExcelSheet, existing: Entry[], projects: P
       bad++;
       continue;
     }
-    const kind = get(r, "구분") || "메모";
+    // 구분이 빈 줄: 상대가 있으면 말 카드(구분을 비우고 등록한 카드 – 저장할 때 "메모"가 돼요), 없으면 메모(QC CO-28).
     const who = get(r, "상대");
+    const kind = get(r, "구분") || (who ? "" : "메모");
     const key = keyOf(date, time, kind, who, content);
     if (seen.has(key)) {
       dup++;

@@ -241,6 +241,12 @@ export function speakerColor(name: string): number {
 /** "메모" 구분은 말 줄 대신 편집기로 적어요. */
 export const isMemo = (kind: string) => kind.trim() === "메모";
 
+/**
+ * 메모 카드로 보이는 기록인지(화면 카드와 같은 기준). 구분을 비우고 등록한 말 카드는 저장할 때 구분이 "메모"가 되지만
+ * 본문 없이 말 줄만 있어 말 카드로 보여요(QC CO-28) – 엑셀 내보내기·가져오기도 이 기준을 따라요.
+ */
+export const isMemoEntry = (e: { kind: string; body: string; lines: unknown[] }) => isMemo(e.kind) && (!!e.body || !e.lines.length);
+
 /** HTML에서 글자만 꺼내요. */
 export function htmlText(html: string): string {
   if (!html) return "";
