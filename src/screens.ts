@@ -4,7 +4,7 @@ export const SCREENS = [
   { id: "explorer", name: "탐색기", side: "탐색기", step: 11, group: 0 },
   { id: "complaints", name: "민원대장", side: "민원대장", step: 6, group: 1 },
   // 민원 지도(2026-11-02 민원 지도 세션 ✔4): 민원대장과 별도 모듈 – 민원대장 자료의 위치·유형·상태·날짜만 읽어 지도에 점으로
-  { id: "map", name: "민원 지도", side: "민원 지도", step: 14, group: 1 },
+  { id: "map", name: "민원지도", side: "민원지도", step: 14, group: 1 },
   { id: "process", name: "민원처리", side: "민원처리", step: 10, group: 1 },
   // 예산 묶음(2026-10-18 사용자): 집행현황 · 예산현황(2026-10-19, 옛 이월사업)
   { id: "budget", name: "집행현황", side: "집행현황", step: 12, group: 4 },

@@ -154,6 +154,20 @@ describe("민원 지도 규칙", () => {
     expect(maxAbs).toBeLessThan(40000); // 걸친 고리의 시작점 – 파주 전체 원점이면 3만 m 넘어요
   });
 
+  it("카카오 위에선 도로 면을 안 만들고(map9 ✔5) 테두리는 그 분야 층(✔7)", () => {
+    const raw = gunzipSync(readFileSync("data/map/paju_layers.bin.gz"));
+    const l = parseLayers(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength));
+    const make = () => ({ n: 0, moveTo() { this.n++; }, lineTo() {}, closePath() {} });
+    const skip = new Set(["road"]);
+    expect(layerPaths(l, make, "road", skip).fills.map((f) => f.id)).toEqual(["plan", "zone"]);
+    expect(layerPaths(l, make, "road").fills.map((f) => f.id)).toEqual(["road", "plan", "zone"]);
+    const cx = (l.bounds[0] + l.bounds[2]) / 2, cy = (l.bounds[1] + l.bounds[3]) / 2;
+    const b: [number, number, number, number] = [cx - 3000, cy - 3000, cx + 3000, cy + 3000];
+    expect(layerPathsIn(l, make, "road", b, 0, 0, skip).fills.map((f) => f.id)).toEqual(["plan", "zone"]);
+    expect(layerPathsIn(l, make, "river", b, 0, 0, skip).lines.map((f) => f.id)).toEqual(["small", "loc", "nat"]);
+    expect(layerPathsIn(l, make, "park", b, 0, 0, skip).lines.map((f) => f.id)).toEqual(["park"]);
+  });
+
   it("하천·공원 자료(✔3): 국가 17 · 지방 541 · 소하천 252 · 공원 1,272", () => {
     const raw = gunzipSync(readFileSync("data/map/paju_layers.bin.gz"));
     const l = parseLayers(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength));

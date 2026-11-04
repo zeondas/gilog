@@ -612,7 +612,7 @@ export default function MapScreen({ onOpenComplaint, focusId = null, onFocused }
           </button>
           <SearchBox
             className="mp-sbox"
-            aria-label="민원 지도 검색"
+            aria-label="민원지도 검색"
             placeholder="주소·장소·민원유형 검색"
             value={sq}
             onChange={(e) => {

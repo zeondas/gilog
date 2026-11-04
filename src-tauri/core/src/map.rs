@@ -7,7 +7,7 @@
 //! - 지도 화면이 읽는 `complaints_map`은 위치·지역·민원유형·접수유형·상태·접수일·좌표만 돌려줘요.
 //!   민원인·연락처·내용·조치내용·메모는 읽지도 않아요(시험으로 고정).
 
-use rusqlite::params;
+use rusqlite::{params, OptionalExtension};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::io::Read;
@@ -138,7 +138,30 @@ fn code_of(name: &str) -> Option<u32> {
 
 /// 좌표를 다시 맞춰요: `only`가 있으면 그 민원만, 없으면 모두. 값이 달라진 줄만 고쳐 써요.
 pub(crate) fn refresh_geo(conn: &rusqlite::Connection, only: Option<i64>) -> Result<usize> {
-    let mut st = conn.prepare("SELECT id, place, geo_x, geo_y, geo_src FROM complaints WHERE ?1 IS NULL OR id = ?1")?;
+    refresh_rows(conn, "WHERE ?1 IS NULL OR id = ?1", only)
+}
+
+/// 아직 한 번도 안 찾은 민원만(`geo_src`가 빈 것 – 좌표 칸이 생기기 전 자료) 좌표를 맞춰요(map9 ✔6).
+fn refresh_pending(conn: &rusqlite::Connection) -> Result<usize> {
+    refresh_rows(conn, "WHERE ?1 IS NULL AND geo_src = ''", None)
+}
+
+/// 앱에 넣은 필지 표의 표지(크기 + FNV 해시) – 표가 바뀐 판을 설치하면 달라져 모든 민원 좌표를 다시 맞춰요(map9 ✔6).
+fn parcels_mark() -> &'static str {
+    static M: OnceLock<String> = OnceLock::new();
+    M.get_or_init(|| {
+        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+        for b in GZ {
+            h ^= *b as u64;
+            h = h.wrapping_mul(0x0100_0000_01b3);
+        }
+        format!("{}-{h:016x}", GZ.len())
+    })
+}
+const KV_GEO_MARK: &str = "map.geoMark";
+
+fn refresh_rows(conn: &rusqlite::Connection, filter: &str, only: Option<i64>) -> Result<usize> {
+    let mut st = conn.prepare(&format!("SELECT id, place, geo_x, geo_y, geo_src FROM complaints {filter}"))?;
     let rows: Vec<(i64, String, Option<f64>, Option<f64>, String)> = st
         .query_map(params![only], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)))?
         .collect::<rusqlite::Result<_>>()?;
@@ -177,10 +200,22 @@ pub struct MapComplaint {
 }
 
 impl Store {
-    /// 민원 지도 자료: 좌표를 맞춘 뒤(필지 표가 바뀌었거나 아직 안 찾은 것) 지도에 필요한 칸만 읽어요.
+    /// 민원 지도 자료: 좌표를 맞춘 뒤(필지 표가 바뀌었으면 모두, 아니면 아직 안 찾은 것만 – map9 ✔6) 지도에 필요한 칸만 읽어요.
+    /// 민원을 등록·고치기·가져오기 할 때는 그 자리에서 맞추니(complaints.rs), 화면을 열 때마다 모두 다시 찾을 까닭이 없어요.
     pub fn complaints_map(&mut self) -> Result<Vec<MapComplaint>> {
         let tx = self.conn.transaction()?;
-        refresh_geo(&tx, None)?;
+        let mark: Option<String> = tx
+            .query_row("SELECT value FROM kv WHERE key = ?1", params![KV_GEO_MARK], |r| r.get(0))
+            .optional()?;
+        if mark.as_deref() == Some(parcels_mark()) {
+            refresh_pending(&tx)?;
+        } else {
+            refresh_geo(&tx, None)?;
+            tx.execute(
+                "INSERT INTO kv (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                params![KV_GEO_MARK, parcels_mark()],
+            )?;
+        }
         tx.commit()?;
         let mut st = self.conn.prepare(
             "SELECT id, place, area, ctype, intake, status, received, geo_x, geo_y, geo_src
@@ -302,5 +337,28 @@ mod tests {
         s.import_complaints(&rows, true).unwrap();
         let src: String = s.conn.query_row("SELECT geo_src FROM complaints", [], |r| r.get(0)).unwrap();
         assert_ne!(src, "");
+    }
+
+    #[test]
+    fn map_open_refreshes_only_when_needed() {
+        let mut s = Store::memory("1234").unwrap();
+        let c = s.add_complaint(&input("금촌동 329-17")).unwrap();
+        s.complaints_map().unwrap();
+        let mark: String = s.conn.query_row("SELECT value FROM kv WHERE key = ?1", [KV_GEO_MARK], |r| r.get(0)).unwrap();
+        assert_eq!(mark, parcels_mark(), "처음 열면 표지를 남겨요");
+        // 표지가 같으면 이미 찾은 줄은 다시 안 찾아요(일부러 틀린 좌표를 넣어도 그대로)
+        s.conn.execute("UPDATE complaints SET geo_x = 1.0 WHERE id = ?1", [c.id]).unwrap();
+        s.complaints_map().unwrap();
+        let x: f64 = s.conn.query_row("SELECT geo_x FROM complaints WHERE id = ?1", [c.id], |r| r.get(0)).unwrap();
+        assert_eq!(x, 1.0);
+        // 아직 안 찾은 줄(geo_src 빈 것)은 찾아요
+        s.conn.execute("UPDATE complaints SET geo_x = NULL, geo_src = '' WHERE id = ?1", [c.id]).unwrap();
+        let v = s.complaints_map().unwrap();
+        assert!(v[0].x.is_some() && v[0].geo_src == "exact");
+        // 필지 표가 바뀌면(표지가 다르면) 모두 다시
+        s.conn.execute("UPDATE complaints SET geo_x = 1.0 WHERE id = ?1", [c.id]).unwrap();
+        s.set(KV_GEO_MARK, "옛 표").unwrap();
+        let v = s.complaints_map().unwrap();
+        assert!(v[0].x.unwrap() > 100_000.0, "다시 맞춰요");
     }
 }

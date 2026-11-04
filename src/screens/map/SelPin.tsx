@@ -1,6 +1,6 @@
 // 민원 지도 – 고른 닷이 일어서는 핀(11-03 ✔6, 캔버스 판 MapPin3 · MapPinRise 1안).
 // 고른 닷이 그 자리에서 1.5배로 커지며 위로 떠오르고 → 머리 밑에서 흰 다리가 내려와 땅에 꽂히고 → 구멍 + 흙 앞 가장자리 + 짧은 흔들림.
-// 발밑에 남색 고리가 두 번 퍼진 뒤 옅은 고리 하나가 남아요. 머리는 구멍을 지나지 않아요.
+// 발밑에 남색 고리가 한 번 퍼진 뒤 옅은 고리 하나가 남아요(map9 ✔4 – 전엔 두 번). 머리는 구멍을 지나지 않아요.
 // 지도 그림판과 따로 얹는 작은 그림이라 움직이는 동안 지도를 다시 그리지 않아요(자리는 MapCanvas가 style로만 옮겨요).
 import { forwardRef, useEffect, useRef } from "react";
 
@@ -10,7 +10,8 @@ const NAVY = "#1B2A5E";
 const HY = -27; // 끝 → 머리 가운데
 const SINK = 4; // 다리 끝이 땅에 박힌 깊이
 const DUR = 480;
-const ALL = 1450;
+const ALL = 1050;
+const REST = 700; // 옅은 고리가 나타나기 시작하는 때
 
 const clamp = (t: number) => Math.max(0, Math.min(1, t));
 const seg = (t: number, a: number, b: number) => clamp((t - a) / (b - a));
@@ -43,7 +44,6 @@ const SelPin = forwardRef<HTMLDivElement, Props>(function SelPin({ color, play }
   const tilt = useRef<SVGGElement>(null);
   const tilt2 = useRef<SVGGElement>(null);
   const r1 = useRef<SVGEllipseElement>(null);
-  const r2 = useRef<SVGEllipseElement>(null);
   const r3 = useRef<SVGEllipseElement>(null);
 
   useEffect(() => {
@@ -74,8 +74,7 @@ const SelPin = forwardRef<HTMLDivElement, Props>(function SelPin({ color, play }
       tilt.current?.setAttribute("transform", `rotate(${p.rot})`);
       tilt2.current?.setAttribute("transform", `rotate(${p.rot})`);
       ringAt(r1.current, ms, 240);
-      ringAt(r2.current, ms, 700);
-      r3.current?.setAttribute("opacity", String(0.5 * clamp((ms - 1150) / 300)));
+      r3.current?.setAttribute("opacity", String(0.5 * clamp((ms - REST) / 300)));
       if (ms < ALL) raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
@@ -94,7 +93,6 @@ const SelPin = forwardRef<HTMLDivElement, Props>(function SelPin({ color, play }
           </clipPath>
         </defs>
         <ellipse ref={r1} rx="16" ry="6.7" fill="none" stroke={NAVY} strokeWidth="2" opacity="0" />
-        <ellipse ref={r2} rx="16" ry="6.7" fill="none" stroke={NAVY} strokeWidth="2" opacity="0" />
         <ellipse ref={r3} rx="16" ry="6.7" fill="none" stroke={NAVY} strokeWidth="2" opacity="0" />
         <g ref={holeB} transform="scale(0)">
           <ellipse rx="9" ry="3.4" cy="0.4" fill="#8A6E50" fillOpacity="0.3" />

@@ -10,8 +10,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, type MapComplaint } from "../../api";
 import { statusColor } from "../../settingsStore";
-import { cardPlace, layerPaths, layerPathsIn, tracePath, type Feature, type Field, type Layers } from "./mapData";
-import { kakaoFailWhy, kakaoKey, loadKakao, tmForward, tmInverse, TILES_MS, type Kakao } from "./kakao";
+import { cardPlace, fillLayers, GRADES, layerPaths, layerPathsIn, outlined, tracePath, type Feature, type Field, type Layers } from "./mapData";
+import { closerFits, kakaoFailWhy, kakaoKey, loadKakao, tmForward, tmInverse, TILES_MS, type Kakao } from "./kakao";
 import { addPoint, finish, insideIds, summary, TOOLS, type Measure, type Pt, type Tool } from "./measure";
 import { drawBubble, drawDisc, drawRvHead, easeTo, leanOf, lookPan, RV_HINT, RV_SCALE } from "./rvPin";
 import SelPin from "./SelPin";
@@ -23,16 +23,30 @@ type Cluster = { sx: number; sy: number; pts: MapPoint[] };
 type Mode = "wait" | "kakao" | "dxf";
 
 /** [층] 상자(✔7): 겹쳐 보기 켜고 끄기 – 민원 닷·읍면동 경계는 처음 켜짐, 도로구역·도시계획시설은 처음 꺼짐 */
-export type Show = { dots: boolean; emd: boolean; zone: boolean; plan: boolean; legend: boolean };
-const SHOW0: Show = { dots: true, emd: true, zone: false, plan: false, legend: true };
+export type Show = { dots: boolean; emd: boolean; zone: boolean; plan: boolean; river: boolean; park: boolean; legend: boolean };
+const SHOW0: Show = { dots: true, emd: true, zone: false, plan: false, river: false, park: false, legend: true };
 const KV_SHOW = "map.show";
-const SHOW_ROWS: { key: keyof Show; name: string; base?: boolean }[] = [
-  { key: "dots", name: "민원 닷" },
-  { key: "emd", name: "읍면동 경계" },
-  { key: "zone", name: "도로구역", base: true },
-  { key: "plan", name: "도시계획시설(도로)", base: true },
-  { key: "legend", name: "범례" },
-];
+type ShowRow = { key: keyof Show; name: string; base?: boolean };
+/** 바탕 층은 설정 분야 것만(map9 ✔7, 사용자 11-04 "도로 담당이 하천·공원을 볼 까닭은 없어요") */
+const BASE_ROWS: Record<Field, ShowRow[]> = {
+  road: [
+    { key: "zone", name: "도로구역", base: true },
+    { key: "plan", name: "도시계획시설(도로)", base: true },
+  ],
+  river: [{ key: "river", name: "하천", base: true }],
+  park: [{ key: "park", name: "공원", base: true }],
+};
+export const showRows = (field: Field): ShowRow[] => [{ key: "dots", name: "민원 닷" }, { key: "emd", name: "읍면동 경계" }, ...BASE_ROWS[field], { key: "legend", name: "범례" }];
+/** 카카오 위에 그릴 바탕 층(켠 것만) – 하천은 등급 셋, 끈 등급은 renderBg의 off가 빼요 */
+export function kakaoOnly(field: Field, show: Show): Set<string> {
+  if (field === "river") return new Set(show.river ? GRADES.map((g) => g.key) : []);
+  if (field === "park") return new Set(show.park ? ["park"] : []);
+  return new Set([...(show.zone ? ["zone"] : []), ...(show.plan ? ["plan"] : [])]);
+}
+/** 카카오 위(·기다리는 동안)에선 바탕 도로 면을 그리지 않아요 → 만들지도 않아요(map9 ✔5 – 2만 8천 고리) */
+const KAKAO_SKIP = new Set(["road"]);
+/** 그리기 모양은 앱이 켜져 있는 동안 한 번만(map9 ✔6) – 지도 화면을 다시 열어도 그대로 써요. 자료(Layers)도 앞에서 한 번만 읽어요. */
+const pathCache = new Map<string, Paths>();
 
 /** 지도 색은 CSS 토큰(map.css `.mp` – 밝게/어둡게 따로, ✔6)에서 읽어요. 칠하는 층은 fillLayers의 color가 토큰 이름이에요. */
 type Palette = { get: (name: string) => string; key: string };
@@ -43,6 +57,8 @@ function paletteOf(el: Element): Palette {
   return { get: (n) => m.get(n) ?? n, key: [...m.values()].join(",") };
 }
 const ANIM_MS = 500;
+/** 파주시 보기 여백(map9 ✔3 – 전엔 28) */
+const FIT_PAD = 8;
 const HIT = 9;
 const DOUBLE_MS = 450; // 두 번 누르기로 보는 사이
 const RV_RADIUS = 50; // 로드뷰: 이 거리(m) 안 가장 가까운 사진
@@ -93,7 +109,7 @@ function pathOf(feats: Feature[], ox: number, oy: number, close = false): Path2D
 
 /** 배경 그림 한 장: 그 그림을 그린 보기(view)와 크기(CSS px). key = 자료 + 분야·꺼 둔 층·배경 방식(bg) */
 type Snap = { cv: HTMLCanvasElement; v: View; w: number; h: number; dpr: number; key: Layers; bg: string };
-type Paths = { key: Layers; field: Field; ox: number; oy: number; fills: { id: string; color: string; minScale?: number; p: Path2D }[]; lines: { id: string; color: string; p: Path2D }[]; emd: Path2D; outer: Path2D };
+type Paths = { key: Layers; field: Field; skip?: Set<string>; ox: number; oy: number; fills: { id: string; color: string; minScale?: number; p: Path2D }[]; lines: { id: string; color: string; minScale?: number; p: Path2D }[]; emd: Path2D; outer: Path2D };
 /** 배경 그리기 방식: 연속주제도 = 분야의 층 전부 · 카카오 = 켠 층(도로구역·도시계획시설)만 반투명으로 */
 /** kakao = 카카오 위 – 경계에 흰 테두리, 도로구역·도시계획시설 테두리, 파주 밖 흐림(✔3·✔4·✔5) */
 type BgOpt = { only: Set<string> | null; alpha: number; emd: boolean; emdW: number; kakao?: boolean };
@@ -108,7 +124,7 @@ function renderBg(ctx: CanvasRenderingContext2D, P0: Paths, off: Set<string>, v:
     const my = (h / s) * 0.6;
     const ox = Math.round(v.cx);
     const oy = Math.round(v.cy);
-    P = { ...P0, ...layerPathsIn(P0.key, () => new Path2D(), P0.field, [v.cx - mx, v.cy - my, v.cx + mx, v.cy + my], ox, oy) };
+    P = { ...P0, ...layerPathsIn(P0.key, () => new Path2D(), P0.field, [v.cx - mx, v.cy - my, v.cx + mx, v.cy + my], ox, oy, P0.skip) };
   }
   const { ox, oy } = P;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -125,8 +141,8 @@ function renderBg(ctx: CanvasRenderingContext2D, P0: Paths, off: Set<string>, v:
   // 층마다 테두리(✔5) – 카카오 위에서 옅은 면만으로는 어디까지인지 안 보여서
   if (o.kakao) {
     for (const f of P.lines) {
-      if (o.only && !o.only.has(f.id)) continue;
-      if (f.id === "plan" && s < 0.06) continue;
+      if (off.has(f.id) || (o.only && !o.only.has(f.id))) continue;
+      if (f.minScale && s < f.minScale) continue;
       ctx.strokeStyle = pal.get(f.color);
       ctx.lineWidth = 1.2 / s;
       ctx.stroke(f.p);
@@ -296,8 +312,9 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
   const [rvMsg, setRvMsg] = useState("");
   const [rvRatio, setRvRatio] = useState(0.5);
   const kakao = mode === "kakao";
-  const bgField: Field = kakao ? "road" : field;
-  const bgKey = [mode, bgField, [...off].sort().join(","), show.emd ? 1 : 0, show.zone ? 1 : 0, show.plan ? 1 : 0].join("|");
+  const bgField: Field = field; // map9 ✔7: 카카오 위에서도 설정 분야 층(전엔 늘 도로)
+  const bgSkip = mode === "dxf" ? undefined : KAKAO_SKIP;
+  const bgKey = [mode, bgField, [...off].sort().join(","), show.emd ? 1 : 0, show.zone ? 1 : 0, show.plan ? 1 : 0, show.river ? 1 : 0, show.park ? 1 : 0].join("|");
   const [hover, setHover] = useState<Cluster | null>(null);
   const [pinned, setPinned] = useState<Cluster | null>(null);
   const pinnedRef = useRef<Cluster | null>(null);
@@ -333,20 +350,30 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
     mode === "wait"
       ? { only: new Set(), alpha: 1, emd: show.emd, emdW: 1.4 }
       : kakao
-      ? { only: new Set([...(show.zone ? ["zone"] : []), ...(show.plan ? ["plan"] : [])]), alpha: 0.35, emd: show.emd, emdW: 1.6, kakao: true }
+      ? { only: kakaoOnly(bgField, show), alpha: 0.35, emd: show.emd, emdW: 1.6, kakao: true }
       : { only: null, alpha: 1, emd: show.emd, emdW: 0.9 };
 
   const pathsOf = (L: Layers): Paths => {
+    const ck = bgField + "|" + (bgSkip ? "k" : "d");
     let P = paths.current;
-    if (!P || P.key !== L || P.field !== bgField) {
-      P = { key: L, field: bgField, ...layerPaths(L, () => new Path2D(), bgField), lines: [] };
-      // 도로구역·도시계획시설 테두리(✔5): 닫은 선은 이 두 층만(고리 3천여 개 – 칠하는 층의 closePath 문제와 상관없어요)
-      const [ox, oy] = L.bounds;
-      P.lines = (["plan", "zone"] as const).map((id) => {
-        const p = new Path2D();
-        tracePath(p, L[id], ox, oy, true);
-        return { id, color: id === "plan" ? "--map-plan" : "--map-zone", p };
-      });
+    if (!P || P.key !== L || P.field !== bgField || P.skip !== bgSkip) {
+      const hit = pathCache.get(ck);
+      if (hit && hit.key === L) P = hit;
+      else {
+        P = { key: L, field: bgField, skip: bgSkip, ...layerPaths(L, () => new Path2D(), bgField, bgSkip), lines: [] };
+        // 층 테두리(✔5·map9 ✔7): 카카오 위에서만 그어요 – 닫은 선은 그 분야의 바탕 층만(도로 면 빼고)
+        if (bgSkip) {
+          const [ox, oy] = L.bounds;
+          P.lines = fillLayers(L, bgField)
+            .filter((l) => outlined(l.id))
+            .map((l) => {
+              const p = new Path2D();
+              tracePath(p, l.feats, ox, oy, true);
+              return { id: l.id, color: l.color, minScale: l.minScale, p };
+            });
+        }
+        pathCache.set(ck, P);
+      }
       paths.current = P;
     }
     return P;
@@ -358,15 +385,22 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
     const { w, h, dpr } = size.current;
     if (!w) return;
     const base = fit(layers.bounds, w, h);
-    const s = base.s * 2;
+    // 카카오 위에선 절반(한 배·한 변 2048점) – 움직이는 동안 잠깐 깔리는 그림이라 충분해요(map9 ✔5, 메모리 67MB → 17MB)
+    const onK = mode !== "dxf";
+    const s = base.s * (onK ? 1 : 2);
+    const cap = onK ? 2048 : 4096;
     const bw = (layers.bounds[2] - layers.bounds[0]) * s + 64;
     const bh = (layers.bounds[3] - layers.bounds[1]) * s + 64;
-    const k = Math.min(1, 4096 / (Math.max(bw, bh) * dpr)); // 한 변 4096점 안
+    const k = Math.min(1, cap / (Math.max(bw, bh) * dpr)); // 한 변 cap점 안
     const cw = bw * k;
     const ch = bh * k;
-    const cv = document.createElement("canvas");
-    cv.width = Math.round(cw * dpr);
-    cv.height = Math.round(ch * dpr);
+    // 그림판은 새로 만들지 않고 다시 써요(층을 켜고 끌 때마다 큰 그림판이 쌓이지 않게 – map9 ✔5)
+    const old = fullSnap.current?.cv;
+    const cv = old ?? document.createElement("canvas");
+    const pw = Math.round(cw * dpr);
+    const ph = Math.round(ch * dpr);
+    if (cv.width !== pw) cv.width = pw;
+    if (cv.height !== ph) cv.height = ph;
     const ctx = cv.getContext("2d");
     if (!ctx) return;
     const v = { cx: base.cx, cy: base.cy, s: s * k };
@@ -374,7 +408,7 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
     renderBg(ctx, pathsOf(layers), off, v, cw, ch, dpr, pal, bgOpt());
     fullSnap.current = { cv, v, w: cw, h: ch, dpr, key: layers, bg: bgKey + "|" + pal.key };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layers, bgKey]);
+  }, [layers, bgKey, mode]);
 
   /** 그림판 좌표 → 화면 자리 */
   const toScreen = (x: number, y: number, v: View, w: number, h: number): Pt => [(x - v.cx) * v.s + w / 2, (v.cy - y) * v.s + h / 2];
@@ -691,7 +725,27 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
     const k = kk.current;
     if (!m || !k) return;
     const lb = new k.maps.LatLngBounds(latLng(b[0], b[1]), latLng(b[2], b[3]));
-    m.setBounds(lb, 28, 28, 28, 28 + inset.current);
+    // map9 ✔3(사용자 11-04 "파주에 딱 맞게"): 여백 8px. 카카오 배율은 두 배씩이라, 한 단계 가까이에서
+    // 범위가 남는 자리보다 2% 안쪽으로만 넘치면 그 단계로 보여요(가장자리가 여백 몇 px에 걸칠 뿐이에요).
+    const pad = FIT_PAD;
+    const left = pad + inset.current; // 왼쪽 목록 패널이 지도 위에 떠 있으면 그만큼 더(위·오른쪽·아래·왼쪽 순서)
+    m.setBounds(lb, pad, pad, pad, left);
+    const { w, h } = size.current;
+    if (!w || !h) return;
+    const pr = m.getProjection();
+    const c0 = pr.coordsFromContainerPoint(new k.maps.Point(w / 2, h / 2));
+    const c1 = pr.coordsFromContainerPoint(new k.maps.Point(w / 2 + 200, h / 2));
+    const [x0] = tmForward(c0.getLat(), c0.getLng());
+    const [x1] = tmForward(c1.getLat(), c1.getLng());
+    const s = 200 / Math.max(1e-6, x1 - x0); // 지금 단계의 화면 점 / m
+    const level = m.getLevel();
+    if (!closerFits(b, s, w, h, pad, left) || level <= 1) return;
+    const s2 = s * 2;
+    // 왼쪽 여백이 더 크면 범위를 그만큼 오른쪽으로 – 지도 가운데는 범위 가운데보다 (왼쪽 - 오른쪽)/2 점 왼쪽
+    const cx = (b[0] + b[2]) / 2 - (left - pad) / 2 / s2;
+    const cy = (b[1] + b[3]) / 2;
+    m.setLevel(level - 1);
+    m.setCenter(latLng(cx, cy));
   };
 
   /** 카카오 → 연속주제도(못 불러옴) */
@@ -1274,7 +1328,7 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
           {layerPop && (
             <div className="mp-pop mp-layerpop" role="dialog" aria-label="층">
               <span className="mp-layerpop-cap">겹쳐 보기</span>
-              {SHOW_ROWS.map((r) => {
+              {showRows(field).map((r) => {
                 const always = !kakao && r.base; // 연속주제도에선 도로 층이 바탕이라 늘 보여요
                 return (
                   <label key={r.key} className="mp-check" title={always ? "연속주제도에선 늘 보여요" : undefined}>
@@ -1329,7 +1383,7 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
         className={cls}
         ref={wrapRef}
         tabIndex={0}
-        aria-label="민원 지도"
+        aria-label="민원지도"
         data-bg={mode}
         style={rv ? { flex: `0 0 ${(1 - rvRatio) * 100}%` } : undefined}
         onPointerDownCapture={onPointerDown}

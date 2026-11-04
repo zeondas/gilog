@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { kakaoHit, pickKey, tmForward, tmInverse } from "./kakao";
+import { closerFits, kakaoHit, pickKey, tmForward, tmInverse } from "./kakao";
 import { addPoint, finish, fmtArea, fmtLen, insideIds, polyArea, summary, walkTime, type Measure } from "./measure";
 
 // 기준값은 pyproj(EPSG:4326 → EPSG:5181)로 뽑았어요.
@@ -123,5 +123,20 @@ describe("로드뷰 핀(11-03 ✔11 네이버식)", () => {
     while (!easeTo(cur, { look: 1, lean: 8 }) && k < 50) k++;
     expect(cur).toEqual({ look: 1, lean: 8 });
     expect(k).toBeLessThan(20);
+  });
+});
+
+describe("파주시 보기 한 단계 가까이(map9 ✔3)", () => {
+  const b: [number, number, number, number] = [0, 0, 1000, 500];
+  it("두 배에서 남는 자리 안이면 가까이", () => {
+    // 남는 자리 1000-8-8 = 984 × 600-16 = 584, 두 배 = 2000×1000 · s 0.49 → 980×490
+    expect(closerFits(b, 0.49, 1000, 600, 8, 8)).toBe(true);
+  });
+  it("2% 안쪽 넘침은 받아요 · 그보다 많으면 그대로", () => {
+    expect(closerFits(b, 0.5, 1000, 600, 8, 8)).toBe(true); // 1000 / 984 = 1.6% 넘침
+    expect(closerFits(b, 0.51, 1000, 600, 8, 8)).toBe(false); // 3.7% 넘침
+  });
+  it("왼쪽 패널 폭만큼 남는 자리가 줄어요", () => {
+    expect(closerFits(b, 0.49, 1000, 600, 8, 300)).toBe(false);
   });
 });
