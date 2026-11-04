@@ -9,7 +9,7 @@ import { MemoEditor } from "../../screens/contacts/Dialogs";
 import { memoText, parseMemo } from "../../screens/contacts/parts";
 import { parseDate } from "../../journal";
 import { ListGroup, ListMerge } from "../settings/Table";
-import { DONE_STATUS } from "../../settingsStore";
+import { ANSWER_STATUS, DONE_STATUS, isClosed } from "../../settingsStore";
 import { statusOnSave } from "../../complaints";
 import { DateInput } from "../../DateInput";
 import { Lists, Draft, DateKey, Bad, PlaceStyle, placeText } from "./parts";
@@ -97,7 +97,7 @@ export function focusField(row: HTMLElement | null, name: string) {
 }
 
 /** 칸 묶음이 함께 쓰는 입력 상태. 날짜를 떠날 때 바꾸고, 저장할 때 검사해요. */
-export function useDraft(init: () => Draft) {
+export function useDraft(init: () => Draft, revertTo?: string) {
   const [d, setD] = useState<Draft>(init);
   const [bad, setBad] = useState<Bad>({});
   // 조치완료일을 손으로 적었는지 – 떠날 때 상태를 완료로(2026-10-25 사용자, 불가도 완료).
@@ -112,6 +112,11 @@ export function useDraft(init: () => Draft) {
   };
   const onDateBlur = (k: DateKey) => {
     const v = (d[k] ?? "").trim();
+    // 완료·불가 민원의 조치완료일을 지우고 떠나면 배지도 바로 완료 전 상태로(2026-11-04 민원대장 ✔1).
+    if (!v && k === "done" && doneTyped.current && isClosed(d.status)) {
+      set({ status: revertTo ?? ANSWER_STATUS });
+      return;
+    }
     if (!v && k !== "received") return;
     const p = parseDate(v);
     if (p && k === "done" && doneTyped.current) {
@@ -132,7 +137,7 @@ export function useDraft(init: () => Draft) {
     n.intake = n.intake.trim();
     n.ctype = n.ctype.trim();
     // 조치완료일을 적었으면 어느 길로 저장하든 완료(QC CM-17) – 날짜를 읽을 수 있을 때만.
-    n.status = statusOnSave(n.status.trim(), b.done ? "" : n.done ?? "", doneTyped.current);
+    n.status = b.done ? n.status.trim() : statusOnSave(n.status.trim(), n.done ?? "", doneTyped.current, revertTo);
     if (n.intake && !ok(n.intake, lists.intake, orig?.intake)) b.intake = true;
     // 민원유형은 목록에 없는 값도 받아요 – 등록·저장한 뒤 화면이 설정 목록에 더해요(QC CM-07, 2026-11-02 사용자 1안).
     if (!ok(n.status, lists.status, orig?.status)) b.status = true;

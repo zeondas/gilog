@@ -1,7 +1,7 @@
 // 민원대장 규칙 시험 – 지금 동작을 고정해요(정리 2차 2026-10-26): 남은 날·걸린 날·검색(초성·번호)·유형 초성·필터.
 import { describe, expect, test } from "vitest";
 import type { Complaint } from "./api";
-import { addedType, COLUMNS, layoutCols, statusOnSave, daysBetween, daysLeft, daysTaken, ddayText, dueSoon, expandType, leftText, procOf, filterValues, isUrgent, matches, NO_FILTERS, passes, readStatusFilter, shortDate, shortIntake, takenText } from "./complaints";
+import { addedType, COLUMNS, layoutCols, statusOnSave, revertStatus, daysBetween, daysLeft, daysTaken, ddayText, dueSoon, expandType, leftText, procOf, filterValues, isUrgent, matches, NO_FILTERS, passes, readStatusFilter, shortDate, shortIntake, takenText } from "./complaints";
 
 const C = (o: Partial<Complaint>): Complaint => ({
   id: 1, no: 1, intake: "국민신문고", received: "2026-10-10", ctype: "포트홀", area: "조리읍", place: "봉일천리 113 일원",
@@ -166,6 +166,21 @@ describe("statusOnSave", () => {
     expect(statusOnSave("접수", "2026-11-02", false)).toBe("접수");
     expect(statusOnSave("접수", "", true)).toBe("접수");
     expect(statusOnSave("진행", "  ", true)).toBe("진행");
+  });
+  test("완료·불가 민원의 조치완료일을 지우면 완료 전 상태로(민원대장 ✔1)", () => {
+    expect(statusOnSave("완료", "", true, "보류")).toBe("보류");
+    expect(statusOnSave("불가", "", true)).toBe("답변");
+    // 날짜 칸을 건드리지 않았으면 그대로(예전에 날짜 없이 완료된 민원)
+    expect(statusOnSave("완료", "", false, "보류")).toBe("완료");
+  });
+});
+
+describe("revertStatus – 조치완료일을 지울 때 되돌아갈 상태", () => {
+  test("고치기 전이 완료가 아니면 그 상태", () => expect(revertStatus({ status: "진행" })).toBe("진행"));
+  test("완료였으면 적어 둔 완료 전 상태", () => expect(revertStatus({ status: "완료", prev: "보류" })).toBe("보류"));
+  test("모르면 답변", () => {
+    expect(revertStatus({ status: "완료", prev: "" })).toBe("답변");
+    expect(revertStatus({ status: "불가" })).toBe("답변");
   });
 });
 
