@@ -173,6 +173,13 @@ export const COLUMNS: { key: ColKey; label: string; fixed?: boolean }[] = [
  */
 export const PLACE_SAMPLE = { full: "운정3동 동패동 1234", short: "동패동 1234" };
 
+/**
+ * 민원이 0건일 때 열 처음 폭에 쓰는 흔한 민원 한 건(QC 2회차 CM-44, 2026-11-04) – 0건이면 접수유형·민원유형·위치를 잴 글이 없어
+ * 머리 글자 폭만 받아 위치 열이 약 25% 좁아지고 내용 열이 넓어졌어요. 흔한 리 지역 위치(일원)·접수유형·민원유형으로 재
+ * 건이 있을 때와 같은 처음 폭이 되게 해요.
+ */
+export const EMPTY_SAMPLE = { intake: "국민신문고", ctype: "배수불량", area: "조리읍", place: "봉일천리 113 일원" };
+
 /** 표 폭을 아직 모를 때 내용·조치내용 처음 폭 */
 export const FLEX_MIN = 140;
 
