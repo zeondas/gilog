@@ -97,3 +97,16 @@ describe("내보내기 → 가져오기 왕복", () => {
     expect(r.entries[0].lines).toEqual([]);
   });
 });
+
+describe("연락처 칸 앞 0(QC CO-29 사용자 1안)", () => {
+  test.each([
+    ["1012345678", "010-1234-5678"],
+    ["319401234", "031-940-1234"],
+    ["010-2222-3333", "010-2222-3333"],
+    ["4321", "4321"],
+    ["kim@korea.kr", "kim@korea.kr"],
+  ])("%s → %s", (v, want) => {
+    const r = journalImports({ headers: JOURNAL_HEADERS, rows: [["", "2026-11-03", "09:00", "유선수신", "김", v, "", "김: 가"]] }, [], [], "");
+    expect(r.entries[0].contact).toBe(want);
+  });
+});

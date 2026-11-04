@@ -493,7 +493,8 @@ export function journalImports(sheet: ExcelSheet, existing: Entry[], projects: P
       time,
       kind,
       who: memo ? "" : who,
-      contact: memo ? "" : get(r, "연락처"),
+      // 연락처 칸도 업무연락처 무선·유선처럼 엑셀이 뗀 앞 0을 붙이고 번호 모양으로(QC CO-29 사용자 1안) – 화면 칸과 같은 finalizePhone
+      contact: memo ? "" : phoneCell(get(r, "연락처")),
       project: memo ? null : p?.id ?? null,
       lines,
       body: memo ? content.split("\n").filter((x) => x.trim()).map((x) => `<p>${esc(x.trim())}</p>`).join("") : "",
