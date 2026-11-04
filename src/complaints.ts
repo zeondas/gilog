@@ -3,15 +3,27 @@ import type { Complaint } from "./api";
 import { plainOf } from "./bullets";
 import { parseMemo } from "./screens/contacts/parts";
 import { initials, isChosung, koIndex, splitJamo } from "./journal";
-import { DONE_STATUS, isAnswered, isClosed } from "./settingsStore";
+import { ANSWER_STATUS, DONE_STATUS, isAnswered, isClosed } from "./settingsStore";
 import { workDaysBetween } from "./workdays";
 
 /**
  * 저장할 상태(QC CM-17, 2026-11-02 사용자 1안): 조치완료일을 손으로 적었으면 어느 길(Enter·Tab·바깥 누르기·[저장])로
  * 저장하든 "완료"예요. 칸을 떠날 때만 바꾸면 Tab·Enter 저장이 그보다 먼저 일어나 "접수"로 남았어요.
  */
-export function statusOnSave(status: string, done: string, doneTyped: boolean): string {
-  return doneTyped && done.trim() ? DONE_STATUS : status;
+export function statusOnSave(status: string, done: string, doneTyped: boolean, revertTo = ANSWER_STATUS): string {
+  if (!doneTyped) return status;
+  if (done.trim()) return DONE_STATUS;
+  // 완료·불가 민원의 조치완료일을 지웠으면 완료 전 상태로(2026-11-04 민원대장 ✔1).
+  return isClosed(status) ? revertTo : status;
+}
+
+/**
+ * 조치완료일을 지웠을 때 되돌아갈 상태(2026-11-04 민원대장 ✔1): 고치기 전이 완료·불가가 아니면 그 상태(이번에 완료로 바꿨다가 지운 것),
+ * 완료·불가였으면 앱이 적어 둔 완료 전 상태, 모르면 "답변".
+ */
+export function revertStatus(c: { status: string; prev?: string }): string {
+  if (!isClosed(c.status)) return c.status;
+  return c.prev && !isClosed(c.prev) ? c.prev : ANSWER_STATUS;
 }
 
 /**

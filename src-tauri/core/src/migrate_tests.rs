@@ -10,7 +10,7 @@
 use super::*;
 
 /// 버전마다 옛 파일 만들기 – 칸 번호 = 그 파일의 user_version.
-const OLD_FORMATS: &[fn(&Connection)] = &[v0_tables, v1_tables];
+const OLD_FORMATS: &[fn(&Connection)] = &[v0_tables, v1_tables, v2_tables];
 
 /// 버전 번호를 두기 전(0.35.0 무렵까지) 파일. `upgrade()`가 더하는 칸 14개가 없는 모양이에요:
 /// projects.alias·group_id, journal_entries.body, complaints.road·done, events.remind_time,
@@ -102,10 +102,27 @@ fn v1_tables(c: &Connection) {
     }
     c.execute_batch(tasks::SCHEMA).unwrap();
     c.execute_batch(bstatus::SCHEMA).unwrap();
+    // v3에서 더한 완료 전 상태 칸·규칙도 지워요(그 뒤 버전 것).
+    c.execute_batch("DROP TRIGGER IF EXISTS complaints_prev; ALTER TABLE complaints DROP COLUMN prev;").unwrap();
     for col in ["geo_x", "geo_y", "geo_src", "geo_at"] {
         c.execute_batch(&format!("ALTER TABLE complaints DROP COLUMN {col};")).unwrap();
     }
     c.execute_batch("INSERT INTO complaints (no, intake, received, ctype, area, place, status) VALUES (2, '방문', '2026-10-30', '배수', '금촌1동', '금촌동 329-17', '접수');").unwrap();
+}
+
+/// v2(0.68.0 ~ 0.77.0) 파일: v1에 민원 좌표 칸 4개를 더한 모양 – 완료 전 상태 칸(`prev`)과 그 규칙만 없어요(민원대장 ✔1, 2026-11-04).
+/// 완료로 바뀐 민원 하나와 진행 중 민원 하나를 넣어 둬요.
+fn v2_tables(c: &Connection) {
+    v1_tables(c);
+    c.execute_batch(
+        "ALTER TABLE complaints ADD COLUMN geo_x REAL;
+         ALTER TABLE complaints ADD COLUMN geo_y REAL;
+         ALTER TABLE complaints ADD COLUMN geo_src TEXT NOT NULL DEFAULT '';
+         ALTER TABLE complaints ADD COLUMN geo_at TEXT NOT NULL DEFAULT '';
+         INSERT INTO complaints (no, intake, received, place, status, done) VALUES (3, '전화', '2026-11-01', '금촌동 1', '완료', '2026-11-03');
+         INSERT INTO complaints (no, intake, received, place, status) VALUES (4, '전화', '2026-11-02', '금촌동 2', '진행');",
+    )
+    .unwrap();
 }
 
 
@@ -241,4 +258,18 @@ fn v1_file_gets_map_columns() {
     let v = s.complaints_map().unwrap();
     assert!(v.iter().any(|m| m.place == "금촌동 329-17" && m.x.is_some()));
     assert!(v.iter().any(|m| m.place == "봉일천리 113 일원" && m.geo_src == "series"));
+}
+
+#[test]
+fn v2_file_gets_prev_column() {
+    let tmp = tempfile::tempdir().unwrap();
+    make_old(tmp.path(), 2, v2_tables);
+    let s = Store::open(tmp.path(), "abcd1234").unwrap();
+    assert!(has_col(&s, "complaints", "prev"));
+    // 예전에 완료된 민원은 완료 전 상태를 몰라요(빈 칸) – 화면이 "답변"으로 되돌려요.
+    assert_eq!(one::<String>(&s, "SELECT prev FROM complaints WHERE place = '금촌동 1'"), "");
+    // 올린 뒤에 완료로 바꾸면 그 직전 상태(진행)를 적어 둬요.
+    let id = one::<i64>(&s, "SELECT id FROM complaints WHERE place = '금촌동 2'");
+    let c = s.set_complaint_status(id, "완료", Some("2026-11-04")).unwrap();
+    assert_eq!(c.prev, "진행");
 }

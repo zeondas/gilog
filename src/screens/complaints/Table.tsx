@@ -21,6 +21,7 @@ import {
   FILTER_KEYS,
   FilterKey,
   procOf,
+  revertStatus,
   shortDate,
   shortIntake,
 } from "../../complaints";
@@ -396,7 +397,8 @@ export function EditRow({
     due: c.due,
     status: c.status,
     done: c.done ?? "",
-  }));
+    // 조치완료일을 지우면 되돌아갈 상태(2026-11-04 민원대장 ✔1)
+  }), revertStatus(c));
   const [asking, setAsking] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const askRef = useRef<HTMLDivElement>(null);

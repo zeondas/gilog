@@ -80,6 +80,10 @@ pub struct Complaint {
     pub memo: String,
     /// 바꾸기 전 도로명주소(위치를 바꾼 민원만)
     pub road: String,
+    /// 완료 전 상태(2026-11-04 민원대장 ✔1): 완료·불가가 될 때 그 직전 상태를 표가 저절로 적어 둬요(`PREV_TRIGGER`).
+    /// 조치완료일을 지우면 화면이 이 상태로 되돌려요. 엑셀에는 나가지 않아요. 모르면 비어 있어요.
+    #[serde(default)]
+    pub prev: String,
 }
 
 pub(crate) const SCHEMA: &str = "
@@ -102,8 +106,19 @@ pub(crate) const SCHEMA: &str = "
         geo_x    REAL,
         geo_y    REAL,
         geo_src  TEXT NOT NULL DEFAULT '',
-        geo_at   TEXT NOT NULL DEFAULT ''
+        geo_at   TEXT NOT NULL DEFAULT '',
+        prev     TEXT NOT NULL DEFAULT ''
     );
+";
+
+/// 완료·불가가 될 때 그 직전 상태를 `prev`에 적어요(2026-11-04 민원대장 ✔1). 표가 하는 일이라 배지·조치완료일·민원처리·
+/// 구글 할 일·엑셀 덮어쓰기 어느 길로 바뀌어도 같아요. 완료 ↔ 불가끼리 바뀔 때는 그대로 둬요.
+pub(crate) const PREV_TRIGGER: &str = "
+    CREATE TRIGGER IF NOT EXISTS complaints_prev AFTER UPDATE OF status ON complaints
+    WHEN NEW.status IN ('완료', '불가') AND OLD.status NOT IN ('완료', '불가')
+    BEGIN
+        UPDATE complaints SET prev = OLD.status WHERE id = NEW.id;
+    END;
 ";
 
 /// 예전 자료 파일에 도로명주소 칸(road)을 더해요(2026-10-18 주소 변환).
@@ -137,6 +152,12 @@ pub(crate) fn upgrade(conn: &rusqlite::Connection) -> Result<()> {
             conn.execute_batch(&format!("ALTER TABLE complaints ADD COLUMN {col} {ty};"))?;
         }
     }
+    // 완료 전 상태 칸 + 적어 두는 규칙(2026-11-04 민원대장 ✔1, 자료 형식 v3)
+    let has: bool = conn.prepare("SELECT 1 FROM pragma_table_info('complaints') WHERE name = 'prev'")?.exists([])?;
+    if !has {
+        conn.execute_batch("ALTER TABLE complaints ADD COLUMN prev TEXT NOT NULL DEFAULT '';")?;
+    }
+    conn.execute_batch(PREV_TRIGGER)?;
     // 연번은 접수일 순서(2026-10-25 사용자 ①1안) – 예전 자료도 한 번 맞춰요.
     renumber(conn)?;
     Ok(())
@@ -185,7 +206,7 @@ fn order_lines_to_default(action: &str) -> Option<String> {
     changed.then(|| serde_json::Value::Array(items).to_string())
 }
 
-const COLS: &str = "id, no, intake, received, ctype, area, place, person, phone, body, action, due, status, memo, road, done";
+const COLS: &str = "id, no, intake, received, ctype, area, place, person, phone, body, action, due, status, memo, road, done, prev";
 
 fn bad(msg: &str) -> Error {
     Error::Invalid(msg.into())
@@ -289,6 +310,7 @@ fn row(r: &Row) -> rusqlite::Result<Complaint> {
         memo: r.get(13)?,
         road: r.get(14)?,
         done: r.get(15)?,
+        prev: r.get(16)?,
     })
 }
 
@@ -639,6 +661,50 @@ mod tests {
         // 지시 줄 모양이 아닌 □는 그대로(사용자가 일부러 친 □)
         assert_eq!(get(b.id), r#"[{"k":"sq","t":"현장 확인 지시(나중에)"},{"t":"도로시설물 1지구 지시(1지구-03 · 2)"}]"#);
         assert_eq!(get(c.id), r#"[{"k":"sq","t":"포트홀 보수"}]"#);
+    }
+
+    #[test]
+    fn prev_status_is_remembered_on_close() {
+        // 민원대장 ✔1(2026-11-04): 완료·불가가 될 때 직전 상태를 적어 둬요 – 어느 길로 바뀌든.
+        let d = tempfile::tempdir().unwrap();
+        let mut s = Store::create(d.path(), "1234").unwrap();
+        let c = s.add_complaint(&ComplaintInput { status: "진행".into(), ..input("가") }).unwrap();
+        assert_eq!(c.prev, "");
+        // 배지(상태만)
+        let c = s.set_complaint_status(c.id, "완료", Some("2026-11-04")).unwrap();
+        assert_eq!(c.prev, "진행");
+        // 완료 ↔ 불가끼리는 그대로
+        assert_eq!(s.set_complaint_status(c.id, "불가", None).unwrap().prev, "진행");
+        // 고치는 줄 저장(조치완료일 입력)
+        let c = s.add_complaint(&ComplaintInput { status: "보류".into(), ..input("나") }).unwrap();
+        let c = s.update_complaint(c.id, &ComplaintInput { status: "완료".into(), done: "2026-11-04".into(), ..input("나") }).unwrap();
+        assert_eq!(c.prev, "보류");
+        // 엑셀 덮어쓰기도
+        let c = s.add_complaint(&ComplaintInput { status: "답변".into(), place: "금촌동 9".into(), ..input("다") }).unwrap();
+        let row = ComplaintImport { input: ComplaintInput { status: "완료".into(), ..c_input(&c) }, memo: String::new() };
+        s.import_complaints(&[row], false).unwrap();
+        assert_eq!(s.complaint(c.id).unwrap().prev, "답변");
+        // 처음부터 완료로 등록한 민원은 몰라요
+        let c = s.add_complaint(&ComplaintInput { status: "완료".into(), done: "2026-11-04".into(), ..input("라") }).unwrap();
+        assert_eq!(c.prev, "");
+    }
+
+    fn c_input(c: &Complaint) -> ComplaintInput {
+        ComplaintInput {
+            intake: c.intake.clone(),
+            received: c.received.clone(),
+            ctype: c.ctype.clone(),
+            area: c.area.clone(),
+            place: c.place.clone(),
+            road: c.road.clone(),
+            person: c.person.clone(),
+            phone: c.phone.clone(),
+            body: c.body.clone(),
+            action: c.action.clone(),
+            due: c.due.clone(),
+            status: c.status.clone(),
+            done: c.done.clone(),
+        }
     }
 
     #[test]
