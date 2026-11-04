@@ -50,7 +50,7 @@
 | 버그 사냥 | main(문서만 – `docs/qa/bughunt-*.md`) | 예상 못 한 버그 찾기(결정 로그 11-01 20:49) – 1차 자료 저장(끝·0.66.0에 고침) · 2차 엑셀 가져오기(끝·✔로 옮김) | `ca18e22` | **2차 끝** · [bughunt-excel.md](https://github.com/zeondas/gilog/blob/main/docs/qa/bughunt-excel.md) 25건 · 3차 묶음은 날짜 규칙 추천 | 3차 프롬프트(엑셀 고침 빌드 뒤) |
 | 매뉴얼 | `wip/manual`·`wip/setup-guide`(문서만) | 매뉴얼(`docs/manual/`·`tools/manual/`) + 준비 안내서(`docs/setup/`) | `2f65080` / `b2b53ae` | **매뉴얼 v31 보냄** · 준비 안내서 초안(hwpx 4장, 그림 틀 10개 비움, 【확인 필요】 3) – 내력 [history.md 매뉴얼](https://github.com/zeondas/gilog/blob/main/docs/history.md#매뉴얼-현황판-줄-상태-칸-원문) | 사용자 한글 확인 · 안내서 【확인 필요】 답·캡처 11장 · 0.66.0 자료 안전 반영 |
 | 공통 | `wip/common-date` | core·공통 부품(자료 안전·엑셀 공통·ExcelMenu·ColHead 등 한 화면에 안 속하는 것) – 전엔 "자료 안전"·"버그수정" 세션 | `c779b9f` | **끝(합치기 기다림)** – check.yml 통과(지킴이 3갈래 `complaints_newrow_baddate` 커서 테두리 흔들림 한 번, 다시 돌려 통과) – 대기 "공통" ✔1 날짜 칸 숫자 개수로 읽기(결정 로그 11-04 17:42) · `parseDate` + 시험 · input.md "날짜 칸"에 원문 | 빌드 합치기 |
-| 민원대장 | `wip/complaints17` | 민원대장 화면 · **11-04 23:5x "코딩하자"** ✔1 0건일 때 열 폭(QC CM-44) | `d444cbc` | **끝(합치기 기다림)** – check 통과([run](https://github.com/zeondas/gilog/actions/runs/41853651187)) · 0건일 때 흔한 민원 한 건(`EMPTY_SAMPLE`)으로 재서 건 있을 때와 같은 폭(미리 보기 4건 vs 0건 11열 모두 같음) · npm 468·지킴이 민원대장 17장면 같음 · 0.78.0까지 내력 [history.md 0.78.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0780build-98--민원지도-캡처-배율--캘린더-구글-연동미니달력--민원대장-완료-전-상태) | 빌드 묶음 · CM-40(접수일보다 앞선 조치완료일) 표로 물음 |
+| 민원대장 | `wip/complaints17` | 민원대장 화면 · **11-04 23:5x "코딩하자"** ✔1 0건 열 폭(QC CM-44) · **11-05 07:41 "3안으로. 코딩하자"** CM-40 날짜 확인 | `8230b86` | **끝(합치기 기다림)** – check 통과([run](https://github.com/zeondas/gilog/actions/runs/41928848683), 업무일지 장면 1점 흔들림 다시 돌려 통과) · CM-44 `d444cbc` 0건이어도 같은 열 폭 · CM-40 `8230b86` 조치완료일이 접수일보다 앞이면 처리 칸 주황 "날짜 확인"(마우스 올리면 두 날짜), 입력·고치는 줄은 빨간 테두리로 저장 막음, 엑셀 가져오기는 그대로 · npm 469·지킴이 민원대장 15장면 같음 | 빌드 묶음 |
 | 민원지도 | `wip/map12` | 민원 지도 화면 – 민원대장과 별도 모듈, 민원대장 자료(위치·유형·상태·날짜만)를 읽어 지도에 점으로(결정 로그 11-02 14:25·16:11) | `36b64cd` | **끝(합치기 기다림 · check 통과 [run](https://github.com/zeondas/gilog/actions/runs/41853301211))** – ✔1 QC MP-07: 카카오 SDK를 못 받으면 한 번 더 받기(1.2초 뒤, 키 거절은 다시 안 받음) · 시험 2개 더함 · 0.78.0엔 캡처 배율·파주 넘침 6% | 빌드 0.79.0 · 사용자 윈도우 시험 · 행정동 경계·노선 자료(사용자) |
 | 민원처리 | `wip/process-fix2` | 민원처리 화면 | `669b0d7` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
 | 업무연락처 | – | 업무연락처 화면 | – | 대기 비어 있음(QC 실패 0) | – |
@@ -145,8 +145,7 @@
 ### 집행현황 (`src/budgetExcel.ts`·`budgetStatusImport.ts`·`budgetStatus.ts`·core `budget.rs`·`bstatus.rs` – `wip/budget-excel`, 예산현황 가져오기도 여기서)
 
 ### 민원대장 (`wip/complaints17` – 코딩 끝, 합치기 기다림)
-- (✔1 CM-44 0건 열 폭은 `wip/complaints17` `d444cbc`에 코딩함 – 합치기 기다림)
-- (참고 – QC 2회차 CM-40, 실패 아님) 조치완료일이 접수일보다 앞선 자료는 완료여도 "답변완료"로 보여요 – 그대로 둘지 사용자에게 물어요 – [qc-result-0.78.0.md](https://github.com/zeondas/gilog/blob/main/docs/qa/qc-result-0.78.0.md)
+- (✔1 CM-44 0건 열 폭 `d444cbc` · CM-40 3안 날짜 확인 `8230b86` – 둘 다 `wip/complaints17`에 코딩함, 합치기 기다림)
 
 ### 민원 지도 (`wip/map12` – map11은 0.78.0에 들어감)
 - (✔1 MP-07 코딩 끝 – `wip/map12` `36b64cd`, 11-05 00:1x: 카카오 SDK를 못 받으면 1.2초 뒤 한 번 더 받기, 그래도 안 되면 연속주제도)
