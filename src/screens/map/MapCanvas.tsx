@@ -8,7 +8,7 @@
 //   · 확대하면 화면 안 도형만(✔5) · 고른 민원 = 화면 쪽 selectedId 하나(✔10) → 일어서는 핀(SelPin.tsx, ✔6) · 닷 네 겹(✔9) · 로드뷰 핀 네이버식(✔11).
 // 11-03 ✔1~✔5(wip/map6): 그림판은 카카오 위(z 1) · 로드뷰 핀(rvPin.ts) · 카카오를 기다리는 동안에도 경계·닷 · 로드뷰를 열면 단추 줄은 로드뷰 × 아래 · 민원대장에서 받은 민원(focus).
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { api, type MapComplaint } from "../../api";
+import { api, inApp, type MapComplaint } from "../../api";
 import { statusColor } from "../../settingsStore";
 import { cardPlace, fillLayers, GRADES, layerPaths, layerPathsIn, outlined, tracePath, type Feature, type Field, type Layers } from "./mapData";
 import { closerFits, kakaoFailWhy, kakaoKey, loadKakao, tmForward, tmInverse, TILES_MS, type Kakao } from "./kakao";
@@ -191,7 +191,7 @@ function Icon({ d, size = 15 }: { d: string; size?: number }) {
 }
 /** 오른쪽 단추 그림(11-03 2판, 캔버스 판 MapRail2): 24칸 · 선 1.8 · 둥근 끝. on = 켜진 단추(보라 바탕) */
 /** on은 지금 모양이 같아도 받아 둬요(켜진 단추는 currentColor가 흰색) */
-function RailIcon({ k }: { k: Tool | "rv"; on?: boolean }) {
+function RailIcon({ k }: { k: Tool | "rv" | "cap"; on?: boolean }) {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       {k === "rv" && (
@@ -199,6 +199,13 @@ function RailIcon({ k }: { k: Tool | "rv"; on?: boolean }) {
         <>
           <path d="M12 21c-1.6-2.4-6.6-5.8-6.6-11a6.6 6.6 0 1 1 13.2 0c0 5.2-5 8.6-6.6 11z" />
           <path d="M7.8 12.6q4.2 2.6 8.4 0" strokeWidth="2.2" />
+        </>
+      )}
+      {k === "cap" && (
+        // 캡처(2026-11-04): 사진기
+        <>
+          <path d="M4 8h3.2l1.6-2.2h6.4L16.8 8H20v11H4z" />
+          <circle cx="12" cy="13.4" r="3.4" />
         </>
       )}
       {k === "dist" && (
@@ -1301,6 +1308,58 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
     const v = view.current;
     if (v) animateTo({ ...v, s: v.s * k }, dim.current, 200);
   };
+  // ---------- 캡처(2026-11-04 사용자 13:25·13:27·13:29) ----------
+  // 지금 화면을 찍어 클립보드에만(파일 없음). 떠 있는 것(검색창·패널·단추·카드·범례·안내·로드뷰 ×)은 찍는 동안만 숨기고,
+  // 로드뷰가 열렸으면 "로드뷰 있는 길" 파란 선을 잠깐 빼고 [지도 칸, 로드뷰 칸]을 나란히(왼쪽 위치도 · 오른쪽 현장 사진) 한 장으로.
+  const [capMsg, setCapMsg] = useState("");
+  const capBusy = useRef(false);
+  const capT = useRef<number | null>(null);
+  const flashCap = (msg: string) => {
+    setCapMsg(msg);
+    if (capT.current) clearTimeout(capT.current);
+    capT.current = window.setTimeout(() => setCapMsg(""), 2200);
+  };
+  const capture = async () => {
+    const box = boxRef.current;
+    const mapEl = wrapRef.current;
+    if (!box || !mapEl || capBusy.current) return;
+    if (!inApp) return flashCap("화면 복사는 앱에서만 돼요");
+    capBusy.current = true;
+    setLayerPop(false);
+    setHover(null);
+    setCapMsg("");
+    const m = kmap.current;
+    const k = kk.current;
+    const rvOn = !!rvObj.current;
+    if (rvOn && m && k) m.removeOverlayMapTypeId(k.maps.MapTypeId.ROADVIEW);
+    box.classList.add("mp-capturing");
+    try {
+      // 숨긴 것·빠진 선이 화면에 다시 그려질 때까지(두 장면 + 카카오 덧그림 지우기)
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      await new Promise((r) => setTimeout(r, rvOn ? 350 : 120));
+      // 테두리 1px 안쪽만
+      const inner = (el: Element): [number, number, number, number] => {
+        const b = el.getBoundingClientRect();
+        return [b.left + 1, b.top + 1, b.width - 2, b.height - 2];
+      };
+      const rects = [inner(mapEl)];
+      const rvEl = rvOn ? box.querySelector(".mp-rv") : null;
+      if (rvEl) rects.push(inner(rvEl));
+      await api.mapCapture(rects);
+      box.classList.remove("mp-capturing");
+      flashCap("지금 화면을 복사했어요");
+    } catch (e) {
+      box.classList.remove("mp-capturing");
+      flashCap(`화면을 복사하지 못했어요 (${e})`);
+    } finally {
+      if (rvOn && rvObj.current && kmap.current && kk.current) kmap.current.addOverlayMapTypeId(kk.current.maps.MapTypeId.ROADVIEW);
+      capBusy.current = false;
+    }
+  };
+  useEffect(() => () => {
+    if (capT.current) clearTimeout(capT.current);
+  }, []);
+
   const toggleRv = () => {
     if (rv) return closeRv();
     const v = view.current;
@@ -1351,6 +1410,11 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
             <RailIcon k={t.key} on={tool === t.key} />
           </button>
         ))}
+      </div>
+      <div className="mp-rgrp">
+        <button type="button" className="mp-btn" aria-label="캡처" title="캡처 – 지금 화면을 복사해요(한글에서 Ctrl+V)" onClick={() => void capture()}>
+          <RailIcon k="cap" />
+        </button>
       </div>
       <div className="mp-rgrp">
         <button type="button" className="mp-btn" aria-label="확대" title="확대" onClick={() => zoomBy(1.6)}>
@@ -1498,6 +1562,11 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
             {btns}
           </div>
         </>
+      )}
+      {capMsg && (
+        <div className="mp-captoast" role="status">
+          {capMsg}
+        </div>
       )}
     </div>
   );
