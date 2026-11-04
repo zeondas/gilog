@@ -50,18 +50,30 @@ export function dayLabel(date: string): string {
  * 읽을 수 없거나 없는 날이면 null이에요.
  */
 export function parseDate(v: string, year = new Date().getFullYear()): string | null {
-  const s = v.trim();
+  // 기호(- . /) 앞뒤 띄어쓰기와 끝에 붙은 기호는 떼요(공문식 "2026. 1. 1." – 2026-11-04 17:44 사용자).
+  const s = v
+    .trim()
+    .replace(/\s*([-./])\s*/g, "$1")
+    .replace(/[-./]+$/, "");
   let y = year;
   let m: number;
   let d: number;
   let r: RegExpExecArray | null;
-  if ((r = /^(\d{4})[-./](\d{1,2})[-./](\d{1,2})$/.exec(s)) || (r = /^(\d{4})(\d{2})(\d{2})$/.exec(s))) {
+  if ((r = /^(\d{4})[-./](\d{1,2})[-./](\d{1,2})$/.exec(s))) {
     [y, m, d] = [Number(r[1]), Number(r[2]), Number(r[3])];
-  } else if ((r = /^(\d{2})[-./](\d{1,2})[-./](\d{1,2})$/.exec(s)) || (r = /^(\d{2})(\d{2})(\d{2})$/.exec(s))) {
-    // 연도 앞 두 자리를 뺀 것(261015, 26-10-15)은 2000년대로 읽어요.
+  } else if ((r = /^(\d{2})[-./](\d{1,2})[-./](\d{1,2})$/.exec(s))) {
+    // 연도 앞 두 자리를 뺀 것(26-10-15)은 2000년대로 읽어요.
     [y, m, d] = [2000 + Number(r[1]), Number(r[2]), Number(r[3])];
-  } else if ((r = /^(\d{1,2})[-./](\d{1,2})$/.exec(s)) || (r = /^(\d{2})(\d{2})$/.exec(s))) {
+  } else if ((r = /^(\d{1,2})[-./](\d{1,2})$/.exec(s))) {
     [m, d] = [Number(r[1]), Number(r[2])];
+  } else if (/^[\d\-./]+$/.test(s)) {
+    // 그 밖에는 기호가 어디에 있든(없어도) 숫자만 모아 개수로 읽어요(2026-11-04 17:42 사용자):
+    // 4자리 = 월일(올해) · 6자리 = 연 두 자리 + 월일 · 8자리 = 연 네 자리 + 월일 – 26-1031·2610-31·2026-1031 → 2026-10-31
+    const n = s.replace(/[-./]/g, "");
+    if (n.length === 8) [y, m, d] = [Number(n.slice(0, 4)), Number(n.slice(4, 6)), Number(n.slice(6))];
+    else if (n.length === 6) [y, m, d] = [2000 + Number(n.slice(0, 2)), Number(n.slice(2, 4)), Number(n.slice(4))];
+    else if (n.length === 4) [m, d] = [Number(n.slice(0, 2)), Number(n.slice(2))];
+    else return null;
   } else return null;
   const t = new Date(y, m - 1, d);
   if (t.getFullYear() !== y || t.getMonth() !== m - 1 || t.getDate() !== d) return null;
