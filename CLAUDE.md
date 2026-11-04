@@ -37,7 +37,7 @@
 5. 사양서는 자기 절만, 시안 캔버스는 자기 판만 고쳐요(올리기 전에 canvas.json을 새로 읽어요).
 6. **빌드는 "빌드" 세션만** 해요. 기능 세션은 끝나면 상태를 "끝(합치기 기다림)"으로 바꾸고 멈춰요. 빌드 세션이 wip/* 가지를 main에 합치고 버전을 올려 빌드하고 설치 파일을 보내요. 사용자의 "통과"는 빌드 세션이 받아요. **빌드는 하루 2번 묶음(점심·퇴근 전), 기능 세션은 끝낼 때 자기 가지의 `check.yml`(검사만, wip/* push 때 저절로 돌아요) 통과를 확인한 뒤 "끝"으로 바꿔요**(공통 결정 로그 2026-10-20 21:18) — 확인: `gh run list -R zeondas/gilog --workflow check.yml --branch wip/<기능> -L 1`. 실패하면 커밋 댓글에 오류가 남아요. 빌드 세션 프롬프트 틀은 [docs/build-prompt.md](https://github.com/zeondas/gilog/blob/main/docs/build-prompt.md).
 7. 새 세션 인수인계 프롬프트 첫 줄은 "가지 이름 + 마지막 커밋 7자리 + 현황판 읽기"예요. **프롬프트 마지막 줄에 "답은 전부 한국어·해요체"를 꼭 넣어요**(10-28 사용자). **첫 답 전에 자기 화면 규칙 파일도 읽어요 – [docs/rules/structure.md](https://github.com/zeondas/gilog/blob/main/docs/rules/structure.md)의 그 화면 줄 · [docs/rules/input.md](https://github.com/zeondas/gilog/blob/main/docs/rules/input.md) · [docs/rules/workflow.md](https://github.com/zeondas/gilog/blob/main/docs/rules/workflow.md)**(11-01 지침 정리, 결정 로그 11-01 14:44).
-8. 작업 공간에서는 GitHub 가지를 지울 수 없어요(프록시가 막음). 다 쓴 가지는 현황판에 "지워도 됨"으로 적고 사용자가 https://github.com/zeondas/gilog/branches 에서 지워요. 지워도 됨 목록은 [history.md](https://github.com/zeondas/gilog/blob/main/docs/history.md) "지워도 되는 가지 목록(2026-11-01 옮김)", 아래는 마지막 옮김 뒤 새로 생긴 것만: `wip/bstatus-import`·`wip/bughunt`·`wip/excel-fix`·`wip/budget-excel`·`wip/complaints13`·`wip/process-fix2`·`wip/journal5`·`wip/calendar6`·`wip/explorer10`·`wip/settings6`·`wip/map`·`wip/map2`·`wip/map3`·`wip/map4`·`wip/map5`·`wip/complaints14`·`wip/map6`·`wip/map7`·`wip/calendar7`·`wip/map8`·`wip/map9`·`wip/complaints15`·`wip/map10`
+8. 작업 공간에서는 GitHub 가지를 지울 수 없어요(프록시가 막음). 다 쓴 가지는 현황판에 "지워도 됨"으로 적고 사용자가 https://github.com/zeondas/gilog/branches 에서 지워요. 지워도 됨 목록은 [history.md](https://github.com/zeondas/gilog/blob/main/docs/history.md) "지워도 되는 가지 목록(2026-11-01 옮김)", 아래는 마지막 옮김 뒤 새로 생긴 것만: `wip/bstatus-import`·`wip/bughunt`·`wip/excel-fix`·`wip/budget-excel`·`wip/complaints13`·`wip/process-fix2`·`wip/journal5`·`wip/calendar6`·`wip/explorer10`·`wip/settings6`·`wip/map`·`wip/map2`·`wip/map3`·`wip/map4`·`wip/map5`·`wip/complaints14`·`wip/map6`·`wip/map7`·`wip/calendar7`·`wip/map8`·`wip/map9`·`wip/complaints15`·`wip/map10`·`wip/map11`·`wip/calendar8`·`wip/complaints16`
 
 9. **사용자가 "코딩하자"(또는 "코딩 시작"·"고쳐")라고 하기 전에는 코드를 한 줄도 고치지 않아요**(2026-10-25 23:39 사용자 — 지시 없이 코딩에 들어간 세션이 있었어요). 승인·결정·시안·분석은 코딩이 아니에요. 승인된 건은 대기 목록에 "✔ N."로 적는 것까지가 끝이고, 그 답은 **"✔로 적었어요. "코딩하자"라고 하시면 시작해요."** 한 줄로 끝내요. 사용자 신고(버그) 수정도 같아요 — 원인·안을 보고하고 멈춰요. 스스로 "작아서 바로 해도 되겠다"고 판단하지 않아요. 이 규칙을 어기고 만든 커밋은 사용자가 되돌리라고 하면 가지째 버려요.
 10. **세션 이름은 역할 또는 화면 이름 하나로**(2026-11-02 10:19 사용자) – 고정 6(우두머리·빌드·QC·버그 사냥·매뉴얼·공통) + 화면 11(민원대장·민원지도·민원처리·업무연락처·업무일지·할 일·캘린더·탐색기·집행현황·예산현황·설정 – 민원지도는 11-02 14:26 더함, 11-04 10:57 사용자 – 이름을 붙여 "민원지도"). 작업 이름(자료 삭제·버그수정·지침 정리)으로 세션을 만들지 않아요. 사이드바 이름 = 현황판 "세션" 열 글자 그대로. 새 세션 프롬프트 첫 줄은 "이것은 ○○ 세션이에요"로 시작하고 사용자가 그 이름으로 바꿔요. 대화가 길어지면 같은 이름으로 새로 열고 옛 것은 "(옛)". 작업이 바뀌어도 세션은 그대로, 가지 이름과 "하는 일" 칸만 바뀌어요. 끝난 작업 줄은 두지 않고 세션 17줄만 둬요.
@@ -45,18 +45,18 @@
 | 세션 | 가지 | 하는 일 | 마지막 커밋 | 상태 | 기다리는 것 |
 | --- | --- | --- | --- | --- | --- |
 | 우두머리 | main(문서만) | 기획·공통 결정·현황판·세션 프롬프트 – 승인된 수정은 대기 목록 ✔로 쌓고 "코딩하자"로 한 번에 코딩 → 빌드 묶음(결정 로그 10-21 10:07), 결정은 표로. 답 끝 "코딩 완료" 칸은 기능 세션이 붙여요 | `f25b623` | **11-04 20:0x 빌드 0.78.0 프롬프트 보냄**(wip/map11 6c5309b + wip/calendar8 2c6ba2d + wip/complaints16 59ccf47 – 충돌 없음·grep 21/0 · 자료 형식 v3) | 빌드 0.78.0 → **QC 2회차 프롬프트** → 지도 모듈 정리 · 잔손질 길 ①② 답
-| 빌드 | main | wip/* 합치기·버전·빌드·설치 파일 | `d3c007b` 0.77.0(build-97) | **빌드 0.77.0(build-97) · main `d3c007b` · 넣은 것 2: 민원대장 날짜 칸 넘침 고침(`wip/complaints15`) · 민원지도 [캡처] 단추(`wip/map10`)** · 충돌 1(structure.md 두 줄 다 살림) · 설치 파일 13.2MB · 빌드 로그 "카카오 키 있음(32자)" · npm 438·core 170·core-wasm 5·앱 cargo check 통과 · 지킴이 117장면 중 28장면(민원대장 13·지도 15)만 달라짐 – 모두 guard-allow 안 · 동작 통과 · 걸린 시간 약 1시간 20분 – 내력 [history.md 0.77.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0770build-97--민원대장-날짜-칸-넘침--민원지도-캡처) | 사용자 윈도우 시험 기다림 |
+| 빌드 | main | wip/* 합치기·버전·빌드·설치 파일 | `6191c84` 0.78.0(build-98) | **빌드 0.78.0(build-98) · main `6191c84` · 넣은 것 3: 민원지도 캡처 배율(`wip/map11`) · 캘린더 ✔1~✔4(`wip/calendar8`) · 민원대장 완료 전 상태(`wip/complaints16`, 자료 형식 v3)** · 충돌 0 · 설치 파일 13.2MB · 빌드 로그 "카카오 키 있음(32자)" · npm 468·core 172(v2→v3 올리기 시험 포함)·core-wasm 5·앱 cargo check 통과 · 지킴이 119장면 중 캘린더 12장면만 달라짐(guard-allow)·새 장면 2 · 동작 통과 – 내력 [history.md 0.78.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0780build-98--민원지도-캡처-배율--캘린더-구글-연동미니달력--민원대장-완료-전-상태) | 사용자 윈도우 시험 기다림 |
 | QC | main(문서만 – `docs/qa/qc.md`·`qc-result-*.md`) | QC 목록 + 집 컴퓨터 실행(결정 로그 10-30 23:55) | `253b6f0` | **1차 끝(0.65.0, 195/288 – 통과 175·실패 14·보류 6)** → 실패는 각 화면 ✔로 옮김 · 결과 [qc-result-0.65.0.md](https://github.com/zeondas/gilog/blob/main/docs/qa/qc-result-0.65.0.md) | 2회차(0.66.0 – 못 한 93 + 자료 안전 항목) 프롬프트 |
 | 버그 사냥 | main(문서만 – `docs/qa/bughunt-*.md`) | 예상 못 한 버그 찾기(결정 로그 11-01 20:49) – 1차 자료 저장(끝·0.66.0에 고침) · 2차 엑셀 가져오기(끝·✔로 옮김) | `ca18e22` | **2차 끝** · [bughunt-excel.md](https://github.com/zeondas/gilog/blob/main/docs/qa/bughunt-excel.md) 25건 · 3차 묶음은 날짜 규칙 추천 | 3차 프롬프트(엑셀 고침 빌드 뒤) |
 | 매뉴얼 | `wip/manual`·`wip/setup-guide`(문서만) | 매뉴얼(`docs/manual/`·`tools/manual/`) + 준비 안내서(`docs/setup/`) | `2f65080` / `b2b53ae` | **매뉴얼 v31 보냄** · 준비 안내서 초안(hwpx 4장, 그림 틀 10개 비움, 【확인 필요】 3) – 내력 [history.md 매뉴얼](https://github.com/zeondas/gilog/blob/main/docs/history.md#매뉴얼-현황판-줄-상태-칸-원문) | 사용자 한글 확인 · 안내서 【확인 필요】 답·캡처 11장 · 0.66.0 자료 안전 반영 |
 | 공통 | `wip/excel-fix` | core·공통 부품(자료 안전·엑셀 공통·ExcelMenu·ColHead 등 한 화면에 안 속하는 것) – 전엔 "자료 안전"·"버그수정" 세션 | `0303090` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) · 11-03 날짜 "1105"=올해 검토: 이미 공통 규칙(모든 날짜 칸 `DateInput`→`parseDate`), 코딩 없음 | 사용자 윈도우 시험 · QC 2회차 |
-| 민원대장 | `wip/complaints16` | 민원대장 화면 · **11-04 17:48 "코딩하자"** ✔1 조치완료일 지우면 완료 전 상태로(자료 형식 v3 – 민원 칸 `prev` + 표 규칙) | `59ccf47` | **끝(합치기 기다림)** – check 통과([run](https://github.com/zeondas/gilog/actions/runs/41807662198)) · npm test 442·core 시험 통과(새 시험: 완료 전 상태·v2→v3 올리기), 지킴이 민원대장 장면 같음·동작 통과 · 흔들리는 `complaints_newrow_baddate` 허용 3000으로 | 빌드 묶음(자료 형식이 올라가 처음 열 때 백업 하나 생겨요) · 사용자 윈도우 시험 · 날짜 숫자 개수 규칙은 공통 ✔1 |
-| 민원지도 | `wip/map11` | 민원 지도 화면 – 민원대장과 별도 모듈, 민원대장 자료(위치·유형·상태·날짜만)를 읽어 지도에 점으로(결정 로그 11-02 14:25·16:11) | `6c5309b` | **끝(합치기 기다림 · check 통과 – 흔들리는 민원대장 장면 하나 다시 돌림)** – 15:05 신고 고침: 캡처 좌표에 화면 크기 배율(`devicePixelRatio`) · 파주시 보기 넘침 허용 6%(위아래 여백 0) · 캡처는 0.77.0, 8차는 0.76.0 | 사용자 윈도우 시험 · 행정동 경계·노선 자료(사용자) |
+| 민원대장 | (코딩 때 `wip/complaints16`) | 민원대장 화면 | `59ccf47` | **0.78.0(build-98)에 들어감** – ✔1 조치완료일 지우면 완료 전 상태로(자료 형식 v3 – 처음 열 때 `_before-v3` 백업) · 0.77.0 넘침 고침 – 내력 [history.md 0.78.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0780build-98--민원지도-캡처-배율--캘린더-구글-연동미니달력--민원대장-완료-전-상태) | 사용자 윈도우 시험 · 날짜 숫자 개수 규칙은 공통 ✔1 |
+| 민원지도 | (코딩 때 `wip/map11`) | 민원 지도 화면 – 민원대장과 별도 모듈, 민원대장 자료(위치·유형·상태·날짜만)를 읽어 지도에 점으로(결정 로그 11-02 14:25·16:11) | `6c5309b` | **0.78.0(build-98)에 들어감** – 캡처 좌표에 화면 크기 배율 · 파주시 보기 넘침 6% · 캡처는 0.77.0 – 내력 [history.md 0.78.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0780build-98--민원지도-캡처-배율--캘린더-구글-연동미니달력--민원대장-완료-전-상태) | 사용자 윈도우 시험 · 행정동 경계·노선 자료(사용자) |
 | 민원처리 | `wip/process-fix2` | 민원처리 화면 | `669b0d7` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
 | 업무연락처 | – | 업무연락처 화면 | – | 대기 비어 있음(QC 실패 0) | – |
 | 업무일지 | `wip/journal5` | 업무일지 화면 | `b29c64c` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
 | 할 일 | – | 할 일 화면 | – | 대기 비어 있음(QC 실패 0) · 세션 안 열림 | – |
-| 캘린더 | `wip/calendar8` | 캘린더·구글 연동 화면 | `2c6ba2d` | **끝(합치기 기다림)** – check: npm·지킴이 0~2 통과, 3갈래는 `complaints_newrow_baddate` 흔들림만(2346점, 이 가지와 무관 – 공통 칸 전달, 빌드 세션이 다시 돌리거나 허용) – ✔1 다시 로그인 · ✔2 연동 방향/양방향(`80427f3`) + ✔3 구글 상자 로그인/연동 구역·확인할 것 창 · ✔4 미니달력 사이드바(앞으로 7일 뺌)·한 번 = 그 주부터 5주·두 번 = 일 보기·[일][주][월] (`54f8e66`) · npm 464·지킴이 달라진 장면 12(캘린더 화면 – guard-allow)·새 장면 2·동작 통과 | 빌드 묶음 · 사용자 윈도우 시험(실제 구글 계정) |
+| 캘린더 | (코딩 때 `wip/calendar8`) | 캘린더·구글 연동 화면 | `2c6ba2d` | **0.78.0(build-98)에 들어감** – ✔1 다시 로그인 · ✔2 연동 방향(단방향/양방향) · ✔3 구글 상자 구역·확인할 것 창 · ✔4 미니달력 사이드바·5주·일 보기 – 내력 [history.md 0.78.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0780build-98--민원지도-캡처-배율--캘린더-구글-연동미니달력--민원대장-완료-전-상태) | 사용자 윈도우 시험(실제 구글 계정) |
 | 탐색기 | `wip/explorer10` | 탐색기 화면 | `ff011a3` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
 | 집행현황 | `wip/budget-excel` | 집행현황 화면 + 팀 공유(공유 시험 [share-test.md](https://github.com/zeondas/gilog/blob/main/docs/qa/share-test.md) 1·2 됨, 3 기다림) | `83b4c11` | **0.67.0(build-87)에 들어감** – 내력 [history.md 0.67.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0670build-87--엑셀-가져오기-고침--qc-1차-고침) | 사용자 윈도우 시험 · QC 2회차 |
 | 예산현황 | – | 예산현황 화면 | `fa58e52`(0.65.0에 들어감) | ✔1 대체하기 끝(0.65.0) · 엑셀 고침은 집행현황 세션이 함께 · 세션 안 열림 | – |
@@ -140,13 +140,11 @@
 
 ### 집행현황 (`src/budgetExcel.ts`·`budgetStatusImport.ts`·`budgetStatus.ts`·core `budget.rs`·`bstatus.rs` – `wip/budget-excel`, 예산현황 가져오기도 여기서)
 
-### 민원대장 (`wip/complaints16` – 코딩 끝, 합치기 기다림)
-- (✔1 완료 전 상태는 `wip/complaints16` `b24ecdc`에 코딩함)
+### 민원대장 (코딩 때 `wip/complaints16` – 0.78.0에 들어감)
 
-### 민원 지도 (코딩 때 `wip/map10` – 캡처는 0.77.0에, 8차는 0.76.0에 들어감)
+### 민원 지도 (코딩 때 `wip/map11` – 0.78.0에 들어감)
 - (8차 ✔1~✔8은 0.76.0에 들어감 – 원문 [history.md 0.76.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0760build-96--민원-지도-8차))
 - (우두머리 11-04 14:0x 처리) 세션 이름 "민원지도"로 – 규칙 10·세션 열·대기 칸 제목·structure.md 줄 고침. 매뉴얼 글은 매뉴얼 세션 몫(공통 칸에 전달)
-- (15:05 신고 → 16:04 "1안·코딩해줘" 코딩 끝 – `wip/map11`) 캡처 좌표에 화면 크기 배율까지(`devicePixelRatio`) · 파주시 보기 넘침 허용 6%·위아래 여백 0
 
 ### 민원지도 (옛 – 기다림·보류)
 - (8차는 0.76.0, 7차는 0.75.0, 6차는 0.74.0, 5차는 0.73.0, 4차는 0.72.0, 3차는 0.71.0, 2차는 0.70.0, 멈춤 고침은 0.69.0, 1차는 0.68.0에 들어감 – 원문 [history.md 0.76.0](https://github.com/zeondas/gilog/blob/main/docs/history.md#0760build-96--민원-지도-8차))
@@ -155,8 +153,7 @@
 
 ### 민원처리 (`wip/process-fix2`)
 
-### 캘린더 (`wip/calendar8`)
-- (✔1~✔4는 `wip/calendar8` `2c6ba2d`까지 코딩함 – 합치기 기다림, 시안 GoogleNotice·CalendarLayout 판 지움. 앞 ①②는 17:40 "1안으로 하자"를 모두 1안으로 읽음: 5주 뒤 ‹ ›·휠은 한 주씩 · 일 보기 0~24시 · 도움말 없음)
+### 캘린더 (코딩 때 `wip/calendar8` – 0.78.0에 들어감)
 
 ### 탐색기 (`wip/explorer10`)
 - **B 큰 것·보통 11개 — 사용자가 고르면**([explorer-compat.md](https://github.com/zeondas/gilog/blob/main/docs/qa/explorer-compat.md)): Ctrl+휠 아이콘 크기·오른쪽 끌기 메뉴·열 고르기·빵부스러기 › 하위 목록·여러 폴더 우클릭·빈 곳 메뉴 보기/정렬·드라이브 우클릭·zip 들어가기·미리 보기 창 문서·주소 자동 완성·\\서버 주소.
