@@ -1,7 +1,7 @@
 // 민원대장 규칙 시험 – 지금 동작을 고정해요(정리 2차 2026-10-26): 남은 날·걸린 날·검색(초성·번호)·유형 초성·필터.
 import { describe, expect, test } from "vitest";
 import type { Complaint } from "./api";
-import { COLUMNS, layoutCols, daysBetween, daysLeft, daysTaken, ddayText, dueSoon, expandType, filterValues, isUrgent, matches, NO_FILTERS, passes, readStatusFilter, shortDate, shortIntake, takenText } from "./complaints";
+import { addedType, COLUMNS, layoutCols, statusOnSave, revertStatus, daysBetween, daysLeft, daysTaken, ddayText, dueSoon, expandType, leftText, procOf, filterValues, isUrgent, matches, NO_FILTERS, passes, readStatusFilter, shortDate, shortIntake, takenText } from "./complaints";
 
 const C = (o: Partial<Complaint>): Complaint => ({
   id: 1, no: 1, intake: "국민신문고", received: "2026-10-10", ctype: "포트홀", area: "조리읍", place: "봉일천리 113 일원",
@@ -15,7 +15,8 @@ describe("남은 날", () => {
     expect(daysBetween("2026-12-31", "2027-01-01")).toBe(1);
   });
   test("daysLeft – 마감이 없거나 답변이 끝났으면 null", () => {
-    expect(daysLeft(C({ due: "2026-10-20" }), "2026-10-15")).toBe(5);
+    // 근무일(2026-10-30 사용자): 10-15(목) → 10-20(화) = 16·19·20일
+    expect(daysLeft(C({ due: "2026-10-20" }), "2026-10-15")).toBe(3);
     expect(daysLeft(C({ due: "" }), "2026-10-15")).toBeNull();
     // 결정 로그 10-25 20:13: "진행"도 답변이 끝난 상태
     for (const s of ["진행", "답변", "완료", "보류", "장기"]) expect(daysLeft(C({ due: "2026-10-20", status: s }), "2026-10-15")).toBeNull();
@@ -38,7 +39,8 @@ describe("남은 날", () => {
       C({ id: 4, no: 4, due: "2026-10-22", status: "답변" }),
       C({ id: 5, no: 0, due: "2026-10-22" }),
     ];
-    expect(dueSoon(list, "2026-10-15").map((c) => c.id)).toEqual([3, 5, 1]);
+    // 7근무일 안: 10-23(금)은 6근무일이라 들어와요(2026-10-30 근무일 셈)
+    expect(dueSoon(list, "2026-10-15").map((c) => c.id)).toEqual([3, 5, 1, 2]);
   });
 });
 
@@ -49,12 +51,30 @@ describe("걸린 날", () => {
     expect(daysTaken({ received: "2026-10-01", done: "" })).toBeNull();
   });
   test.each([
-    ["2026-10-01", "2026-10-13", 12, "12d"],
-    ["2026-01-01", "2026-01-31", 30, "30d"],
-    ["2026-01-15", "2026-03-14", 58, "1m"],
-    ["2026-01-15", "2026-03-15", 59, "2m"],
-    ["2025-01-15", "2027-02-01", 747, "2y"],
+    ["2026-10-01", "2026-10-13", 12, "12일 걸림"],
+    ["2026-01-01", "2026-01-31", 30, "30일 걸림"],
+    ["2026-01-15", "2026-03-14", 58, "1달 걸림"],
+    ["2026-01-15", "2026-03-15", 59, "2달 걸림"],
+    ["2025-11-20", "2026-10-30", 344, "11달 걸림"],
+    ["2025-01-15", "2027-02-01", 747, "2년 걸림"],
   ])("takenText %s~%s", (received, done, n, want) => expect(takenText({ received, done }, n)).toBe(want));
+  test("leftText", () => {
+    expect(leftText(3)).toBe("3일 남음");
+    expect(leftText(0)).toBe("오늘 마감");
+    expect(leftText(-2)).toBe("2일 지남");
+  });
+  test("procOf – 처리 칸(2026-11-03 7판)", () => {
+    const P = (o: Partial<Complaint>) => procOf(C({ received: "2026-10-01", ...o }), "2026-10-15", 2);
+    expect(P({ due: "2026-10-20" })).toMatchObject({ text: "3일 남음", tone: "due", title: "마감일 2026-10-20" });
+    expect(P({ due: "2026-10-16" })).toMatchObject({ text: "1일 남음", tone: "urgent" });
+    expect(P({ due: "2026-10-15" })).toMatchObject({ text: "오늘 마감", tone: "urgent" });
+    expect(P({ due: "2026-10-13" })).toMatchObject({ text: "2일 지남", tone: "urgent" });
+    expect(P({ due: "" })).toBeNull();
+    for (const s of ["진행", "답변", "보류", "장기"]) expect(P({ due: "2026-10-20", status: s })).toMatchObject({ text: "답변완료", tone: "soft" });
+    expect(P({ due: "2026-10-20", status: "완료", done: "2026-10-08" })).toMatchObject({ text: "7일 걸림", tone: "soft", title: "마감일 2026-10-20 · 조치완료일 2026-10-08 · 접수부터 7일" });
+    expect(P({ status: "불가", done: "2026-10-08" })?.text).toBe("7일 걸림");
+    expect(P({ status: "완료", done: "" })?.text).toBe("답변완료");
+  });
 });
 
 describe("검색", () => {
@@ -133,5 +153,47 @@ describe("layoutCols – 끈 열의 줄인 모양(2026-10-28 사용자 1안)", (
     expect(Math.abs(sum - avail)).toBeLessThanOrEqual(1);
     expect(b.init.body).toBe(a.init.body);
     expect(b.init.intake).toBe(a.init.intake);
+  });
+});
+
+// QC CM-17(2026-11-02 사용자 1안): 조치완료일을 적으면 어느 길로 저장하든 완료
+describe("statusOnSave", () => {
+  test("조치완료일을 손으로 적었으면 완료", () => {
+    expect(statusOnSave("접수", "2026-11-02", true)).toBe("완료");
+    expect(statusOnSave("진행", "2026-11-02", true)).toBe("완료");
+  });
+  test("적지 않았거나 비웠으면 그대로", () => {
+    expect(statusOnSave("접수", "2026-11-02", false)).toBe("접수");
+    expect(statusOnSave("접수", "", true)).toBe("접수");
+    expect(statusOnSave("진행", "  ", true)).toBe("진행");
+  });
+  test("완료·불가 민원의 조치완료일을 지우면 완료 전 상태로(민원대장 ✔1)", () => {
+    expect(statusOnSave("완료", "", true, "보류")).toBe("보류");
+    expect(statusOnSave("불가", "", true)).toBe("답변");
+    // 날짜 칸을 건드리지 않았으면 그대로(예전에 날짜 없이 완료된 민원)
+    expect(statusOnSave("완료", "", false, "보류")).toBe("완료");
+  });
+});
+
+describe("revertStatus – 조치완료일을 지울 때 되돌아갈 상태", () => {
+  test("고치기 전이 완료가 아니면 그 상태", () => expect(revertStatus({ status: "진행" })).toBe("진행"));
+  test("완료였으면 적어 둔 완료 전 상태", () => expect(revertStatus({ status: "완료", prev: "보류" })).toBe("보류"));
+  test("모르면 답변", () => {
+    expect(revertStatus({ status: "완료", prev: "" })).toBe("답변");
+    expect(revertStatus({ status: "불가" })).toBe("답변");
+  });
+});
+
+// QC CM-07(2026-11-02 사용자 1안): 목록에 없는 민원유형은 설정 목록 끝에 더해요
+describe("addedType", () => {
+  test("빈 목록에도 더해요", () => {
+    expect(addedType([], "포트홀")).toEqual(["포트홀"]);
+  });
+  test("없는 값은 끝에, 앞뒤 빈칸은 떼요", () => {
+    expect(addedType(["포트홀"], " 가로등 ")).toEqual(["포트홀", "가로등"]);
+  });
+  test("이미 있거나 비었으면 null", () => {
+    expect(addedType(["포트홀"], "포트홀")).toBeNull();
+    expect(addedType(["포트홀"], "  ")).toBeNull();
   });
 });

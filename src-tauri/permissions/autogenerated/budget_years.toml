@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-budget-years"
+description = "Enables the budget_years command without any pre-configured scope."
+commands.allow = ["budget_years"]
+
+[[permission]]
+identifier = "deny-budget-years"
+description = "Denies the budget_years command without any pre-configured scope."
+commands.deny = ["budget_years"]

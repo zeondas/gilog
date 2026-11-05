@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-make-order"
+description = "Enables the make_order command without any pre-configured scope."
+commands.allow = ["make_order"]
+
+[[permission]]
+identifier = "deny-make-order"
+description = "Denies the make_order command without any pre-configured scope."
+commands.deny = ["make_order"]

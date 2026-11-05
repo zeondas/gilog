@@ -202,10 +202,15 @@ export const VirtualList = forwardRef<VirtualHandle, Props>(function VirtualList
   rangeRef.current = range;
 
   // 그린 뒤: 시작 위치·범위를 맞추고(칠하기 전), 그린 줄을 재요.
+  // 맨 아래에 붙어 있다가 내용 높이가 바뀌었을 때만 다시 맨 아래로 – 키로 위 줄을 보이게 옮긴 것(높이 그대로)은
+  // 스크롤 알림이 오기 전이라 되돌리지 않아요(2026-10-29 탐색기 – End 뒤 ↑가 맨 아래로 튕기던 것).
+  const lastHeight = useRef(0);
   useLayoutEffect(() => {
     update();
     const sc = scrollParent(parentOf());
-    if (sc && atBottom.current && sc.scrollHeight - sc.scrollTop - sc.clientHeight > 1) sc.scrollTop = sc.scrollHeight;
+    if (!sc) return;
+    if (atBottom.current && sc.scrollHeight !== lastHeight.current && sc.scrollHeight - sc.scrollTop - sc.clientHeight > 1) sc.scrollTop = sc.scrollHeight;
+    lastHeight.current = sc.scrollHeight;
   });
 
   useLayoutEffect(() => {
@@ -267,8 +272,18 @@ export const VirtualList = forwardRef<VirtualHandle, Props>(function VirtualList
         const r = Math.floor(i / live.current.cols);
         const y = origin.current + live.current.top[r];
         const h = live.current.rowH[r];
+        // 위에 붙어 있는 머리 줄(scroll-padding-top)만큼은 가려지는 자리라 그 아래로 맞춰요(탐색기 `..` 고정 2026-10-29)
+        const pad = parseFloat(getComputedStyle(sc).scrollPaddingTop) || 0;
         const dest =
-          align === "center" ? y + h / 2 - sc.clientHeight / 2 : align === "start" ? y : y < sc.scrollTop ? y : y + h > sc.scrollTop + sc.clientHeight ? y + h - sc.clientHeight : sc.scrollTop;
+          align === "center"
+            ? y + h / 2 - sc.clientHeight / 2
+            : align === "start"
+              ? y - pad
+              : y < sc.scrollTop + pad
+                ? y - pad
+                : y + h > sc.scrollTop + sc.clientHeight
+                  ? y + h - sc.clientHeight
+                  : sc.scrollTop;
         sc.scrollTo({ top: Math.max(0, dest), behavior });
         // 도착하면(추정 높이로 셈한 자리라 조금 어긋날 수 있어요) 실제 줄로 한 번 더 맞춰요.
         // 스크롤이 멈추면(움직이기 시작한 뒤 4프레임 그대로) 줄 실제 자리를 보고 어긋났으면 다시 – 두 번까지.

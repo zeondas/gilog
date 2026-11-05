@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-fs-fast-status"
+description = "Enables the fs_fast_status command without any pre-configured scope."
+commands.allow = ["fs_fast_status"]
+
+[[permission]]
+identifier = "deny-fs-fast-status"
+description = "Denies the fs_fast_status command without any pre-configured scope."
+commands.deny = ["fs_fast_status"]

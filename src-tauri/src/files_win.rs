@@ -715,6 +715,130 @@ pub fn clip_get() -> Result<(Vec<String>, bool), String> {
     }
 }
 
+// ── 화면 찍어 클립보드에(민원지도 캡처, 2026-11-04 사용자 13:25) ─────────────
+// 카카오 지도 그림은 다른 곳 그림이라 앱 그림판으로는 합칠 수 없어서, 윈도우 화면에 보이는 그대로를 찍어요(BitBlt).
+// 클립보드에는 CF_DIB(한글·그림판·옛 프로그램)와 "PNG"(오피스 등) 두 꼴로 넣어요. 파일은 남기지 않아요.
+
+const CF_DIB: u32 = 8;
+
+/// 화면 좌표(물리 픽셀) 사각형 하나를 찍어 RGB(위에서 아래로) 점으로.
+unsafe fn grab_rgb(x: i32, y: i32, w: i32, h: i32) -> Result<Vec<u8>, String> {
+    use windows::Win32::Graphics::Gdi::{BitBlt, CreateCompatibleBitmap, GetDC, ReleaseDC, SelectObject, CAPTUREBLT, SRCCOPY};
+    unsafe {
+        let screen = GetDC(None);
+        if screen.is_invalid() {
+            return Err("screen_dc".into());
+        }
+        let mem = CreateCompatibleDC(Some(screen));
+        let bmp = CreateCompatibleBitmap(screen, w, h);
+        let old = SelectObject(mem, HGDIOBJ(bmp.0));
+        let blt = BitBlt(mem, 0, 0, w, h, Some(screen), x, y, SRCCOPY | CAPTUREBLT);
+        SelectObject(mem, old);
+        // 24비트, 위에서 아래로(biHeight 음수) – 줄마다 4바이트 맞춤
+        let stride = ((w * 3 + 3) & !3) as usize;
+        let mut bits = vec![0u8; stride * h as usize];
+        let mut bmi = BITMAPINFO {
+            bmiHeader: BITMAPINFOHEADER {
+                biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+                biWidth: w,
+                biHeight: -h,
+                biPlanes: 1,
+                biBitCount: 24,
+                biCompression: BI_RGB.0,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let n = GetDIBits(mem, bmp, 0, h as u32, Some(bits.as_mut_ptr() as *mut c_void), &mut bmi, DIB_RGB_COLORS);
+        let _ = DeleteObject(HGDIOBJ(bmp.0));
+        let _ = DeleteDC(mem);
+        ReleaseDC(None, screen);
+        blt.map_err(|e| format!("blt:{e}"))?;
+        if n == 0 {
+            return Err("dibits".into());
+        }
+        let (wu, hu) = (w as usize, h as usize);
+        let mut rgb = vec![0u8; wu * hu * 3];
+        for row in 0..hu {
+            let src = &bits[row * stride..][..wu * 3];
+            let dst = &mut rgb[row * wu * 3..][..wu * 3];
+            for (d, s) in dst.chunks_exact_mut(3).zip(src.chunks_exact(3)) {
+                d[0] = s[2];
+                d[1] = s[1];
+                d[2] = s[0];
+            }
+        }
+        Ok(rgb)
+    }
+}
+
+/// 화면 사각형(물리 픽셀) 여럿을 찍어 왼쪽부터 나란히(사이 흰 줄 `gap`) 한 장으로 붙여 클립보드에 그림으로 넣어요.
+/// 지도 모드는 지도 칸 하나, 로드뷰 모드는 [지도 칸, 로드뷰 칸] 둘(사용자 13:27 "왼쪽 위치도 · 오른쪽 로드뷰").
+pub fn copy_screen_rects(rects: &[(i32, i32, i32, i32)], gap: i32) -> Result<(), String> {
+    use windows::Win32::System::DataExchange::{CloseClipboard, EmptyClipboard, RegisterClipboardFormatW};
+    if rects.is_empty() || rects.iter().any(|r| r.2 <= 0 || r.3 <= 0 || r.2 > 16384 || r.3 > 16384) {
+        return Err("bad_rect".into());
+    }
+    let h = rects.iter().map(|r| r.3).max().unwrap_or(0) as usize;
+    let w = (rects.iter().map(|r| r.2).sum::<i32>() + gap.max(0) * (rects.len() as i32 - 1)) as usize;
+    let mut rgb = vec![255u8; w * h * 3]; // 흰 바탕(사이 줄·높이가 모자란 칸 아래)
+    let mut left = 0usize;
+    for r in rects {
+        let part = unsafe { grab_rgb(r.0, r.1, r.2, r.3)? };
+        let pw = r.2 as usize;
+        for row in 0..r.3 as usize {
+            rgb[(row * w + left) * 3..][..pw * 3].copy_from_slice(&part[row * pw * 3..][..pw * 3]);
+        }
+        left += pw + gap.max(0) as usize;
+    }
+    // CF_DIB: 머리(40바이트) + 24비트 아래에서 위로, BGR, 줄마다 4바이트 맞춤
+    let stride = (w * 3 + 3) & !3;
+    let head = BITMAPINFOHEADER {
+        biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+        biWidth: w as i32,
+        biHeight: h as i32,
+        biPlanes: 1,
+        biBitCount: 24,
+        biCompression: BI_RGB.0,
+        biSizeImage: (stride * h) as u32,
+        ..Default::default()
+    };
+    let head_bytes = unsafe { std::slice::from_raw_parts(&head as *const BITMAPINFOHEADER as *const u8, std::mem::size_of::<BITMAPINFOHEADER>()) };
+    let mut dib = Vec::with_capacity(head_bytes.len() + stride * h);
+    dib.extend_from_slice(head_bytes);
+    let mut line = vec![0u8; stride];
+    for row in (0..h).rev() {
+        for (d, s) in line.chunks_exact_mut(3).zip(rgb[row * w * 3..][..w * 3].chunks_exact(3)) {
+            d[0] = s[2];
+            d[1] = s[1];
+            d[2] = s[0];
+        }
+        dib.extend_from_slice(&line);
+    }
+    let mut png = Vec::new();
+    {
+        let mut enc = png::Encoder::new(&mut png, w as u32, h as u32);
+        enc.set_color(png::ColorType::Rgb);
+        enc.set_depth(png::BitDepth::Eight);
+        let mut wr = enc.write_header().map_err(|e| e.to_string())?;
+        wr.write_image_data(&rgb).map_err(|e| e.to_string())?;
+    }
+    unsafe {
+        clip_open()?;
+        let r = (|| -> Result<(), String> {
+            EmptyClipboard().map_err(|e| e.to_string())?;
+            clip_put(CF_DIB, &dib)?;
+            let pf = RegisterClipboardFormatW(windows::core::w!("PNG"));
+            if pf != 0 {
+                let _ = clip_put(pf, &png);
+            }
+            Ok(())
+        })();
+        let _ = CloseClipboard();
+        r
+    }
+}
+
 // ── 빠른 찾기 도우미 설치(관리자 허용 묻기) ─────────────────────────────
 // 설정 → 탐색기 [설치]: 설치 폴더의 gilog-search.exe install을 관리자로 돌리고 끝날 때까지 기다려요.
 // 사용자가 "아니요"를 누르면 "canceled".

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-excel-read"
+description = "Enables the excel_read command without any pre-configured scope."
+commands.allow = ["excel_read"]
+
+[[permission]]
+identifier = "deny-excel-read"
+description = "Denies the excel_read command without any pre-configured scope."
+commands.deny = ["excel_read"]

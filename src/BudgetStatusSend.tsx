@@ -13,7 +13,7 @@ import { api } from "./api";
 import { BudgetProject, KINDS, typing } from "./budget";
 import { defaultSetup, isCarryName, Manual, rowShares, Setup, SOURCES, splitOf } from "./budgetStatus";
 import { overlayDown } from "./useOutsideClose";
-import { contentWidth, useColHead } from "./ColHead";
+import { contentWidth, startColDrag, textPx, useColHead } from "./ColHead";
 import type { ColDef } from "./cols";
 
 const X = "M6 6l12 12M18 6L6 18";
@@ -63,15 +63,12 @@ export type SendTarget = {
 
 /** 처음 열 폭 – 첫 열(항목·공사)은 창 폭을 따라가요(창 안 표 ⑥2안, 손잡이 없음) */
 const COLS0 = { cmt: 112, src: 124, rest: 96 };
-/** 숫자 칸 글자 폭(입력 칸은 값 글자로) – 내용에 맞춤용 */
+/** 숫자 칸 내용 폭(입력 칸은 값 글자 + 칸 여백) – 내용에 맞춤용, 여유는 cols.ts가 더해요 */
 function cellWidth(el: HTMLElement): number {
   const inp = el.querySelector("input");
   if (!inp) return contentWidth(el);
-  const c = document.createElement("canvas").getContext("2d");
-  if (!c) return 0;
   const cs = getComputedStyle(inp);
-  c.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
-  return Math.ceil(c.measureText(inp.value || inp.placeholder || "").width) + parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + 4;
+  return Math.ceil(textPx(inp.value || inp.placeholder || "", `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`)) + parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
 }
 
 export function BudgetStatusSend({
@@ -133,11 +130,11 @@ export function BudgetStatusSend({
   const colh = useColHead({
     store: COLS_KEY,
     cols: colDefs,
-    // 두 표의 그 열(머리 글자 + 칸) 가운데 가장 넓은 것 + 칸 사이 여유 4
+    // 두 표의 그 열(머리 글자 + 칸) 가운데 가장 넓은 것(여유 4는 cols.ts가 더해요)
     measure: (id) => {
       const i = colIds.indexOf(id) + 1;
       const els = [...(dlgRef.current?.querySelectorAll<HTMLElement>(".bss2-tb > .bss2-tr:not(.bss2-addrow)") ?? [])].map((r) => r.children[i] as HTMLElement | undefined).filter((e): e is HTMLElement => !!e && r0(e));
-      return els.length ? Math.max(...els.map(cellWidth)) + 4 : null;
+      return els.length ? Math.max(...els.map(cellWidth)) : null;
     },
   });
   /** 열이 다 있는 줄의 칸만("공사가 없어요" 같은 한 칸 줄은 빼요) */
@@ -319,26 +316,18 @@ export function BudgetStatusSend({
   const width = wide ? Math.max(minW, Math.min(maxW, dragSize?.w ?? fitW ?? baseW)) : 560;
   const height = wide && dragSize?.h != null ? Math.min(dragSize.h, (typeof window !== "undefined" ? window.innerHeight : 900) - 32) : undefined;
   const startResize = (e: RMouseEvent, corner: boolean) => {
-    e.preventDefault();
     e.stopPropagation();
-    const x0 = e.clientX;
-    const y0 = e.clientY;
     const w0 = width;
     const h0 = dlgRef.current?.getBoundingClientRect().height ?? 600;
-    const grip = e.currentTarget as HTMLElement;
-    grip.classList.add("drag");
-    document.body.style.cursor = corner ? "nwse-resize" : "ew-resize";
-    // 창이 가운데에 있어 양쪽으로 함께 커지니 움직인 만큼의 두 배
-    const mv = (ev: MouseEvent) =>
-      setDragSize({ w: Math.round(w0 + 2 * (ev.clientX - x0)), h: corner ? Math.max(420, Math.round(h0 + 2 * (ev.clientY - y0))) : height ?? null });
-    const up = () => {
-      grip.classList.remove("drag");
-      document.body.style.cursor = "";
-      removeEventListener("mousemove", mv);
-      removeEventListener("mouseup", up);
-    };
-    addEventListener("mousemove", mv);
-    addEventListener("mouseup", up);
+    // 창이 가운데에 있어 양쪽으로 함께 커지니 움직인 만큼의 두 배(공통 끌기 – cols 최적화 8)
+    startColDrag(e, {
+      base: w0,
+      grip: e.currentTarget as HTMLElement,
+      cursor: corner ? "nwse-resize" : "ew-resize",
+      on: "window",
+      onMove: () => {},
+      onDelta: (dx, dy) => setDragSize({ w: Math.round(w0 + 2 * dx), h: corner ? Math.max(420, Math.round(h0 + 2 * dy)) : height ?? null }),
+    });
   };
 
   // ---------- 왼쪽: 사업 설정 ----------

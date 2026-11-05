@@ -1,6 +1,9 @@
-// 예산현황 목업 보기 자료 (브라우저 미리 보기 전용) — tools/align/seed.js와 같은 방식으로 window.__fake에 끼워 넣어요.
-// 집행현황 2025·2026 세부사업 + 시도57호선 설정(기간 2025~2027, 재원 시비·특조, 이월 사업 (명시이월) 시도57호선 도로정비, 다년도).
-(() => {
+// 예산현황 목업 보기 자료(브라우저 미리 보기 전용) – 집행현황 2025·2026 세부사업 + 시도57호선 설정
+// (기간 2025~2027, 재원 시비·특조, 이월 사업 (명시이월) 시도57호선 도로정비, 다년도).
+// 2026-10-30 ②-3 3차: 흉내 저장소에 바로 넣던 것을 앱과 같은 명령으로 채워요(tools/preview/core.ts가
+// 화면이 처음 부르기 전에 한 번 불러요). 지킴이 빌드(`npm run build:wasm` → `npx vite build -c tools/guard/vite.config.ts`)에서
+// 지킴이 seed 대신 이 파일을 넣으면(Playwright add_init_script) 예산현황 첫 화면이 이 자료로 떠요.
+window.__previewSeed = async (call) => {
   const R = (rows) => rows.map(([n, k, co, cmt, exp, st]) => ({ name: n, kind: k, co, cmt, exp, act: exp, stage: st || "완료", memo: "" }));
   const P = (name, budget, carry, rows) => ({ name, budget, carry, memo: "", items: [{ name, budget: null, memo: "", rows: R(rows) }] });
   const y2025 = [
@@ -22,31 +25,27 @@
   const setup57 = { sent: true, multi: true, from: 2025, to: 2027, sources: ["시비", "특조"], carry: "(명시이월) 시도57호선 도로정비", carrySrc: "특조", rows: { "2025:특조": { cur: 700000000, nm: 555343000 }, "2026:시비": { cur: 300000000 }, "2026:특조": { cur: 700000000, nm: 52433170 } }, split: {} };
   // 공사별 재원은 { 재원: 금액 }(계약금액을 나눈 것, 2026-10-20 사용자 — 표에 금액으로 적음). 실시설계용역은 일부러 덜 적어 "남은 금액" 보기
   const split57 = { 2025: { "시도57호선(오산리) 배수개선 공사": { "특조": 293378590 }, "실시설계용역": { "특조": 49500000 }, "관급자재(주철맨홀뚜껑)": { "특조": 7257170 } }, 2026: { "시도57호선(오산리) 배수개선 공사": { "시비": 100000000, "특조": 193378590 }, "관급(아스콘)": { "시비": 133787010 }, "관급(페인트)": { "시비": 1328650 }, "실시설계용역": { "특조": 30000000 } } };
-  const seed = (f) => {
-    f.password = "1234"; f.unlocked = true;
-    f.prefs = { ...f.prefs, askPassword: false, theme: "light", startScreen: "bstatus" };
-    f.values.set("bstatus:시도57호선 배수개선", JSON.stringify(setup57));
-    f.values.set("bstatus:파주여고 앞 방호벽 정비", JSON.stringify({ sent: true, multi: true, from: 2025, to: 2026, sources: ["시비"], carry: "(사고이월) 파주여고 앞 방호벽 정비", carrySrc: "", rows: { "2025:시비": { ns: 49050000 } } }));
-    // 단년도 사업은 "보낸" 것으로(주민참여만 안 보낸 보기 — 예산현황에 안 보여요)
-    for (const p of [...y2025, ...y2026]) {
-      if (p.carry || p.name.startsWith("시도57호선") || p.name.startsWith("파주여고") || p.name === "도로 유지관리(주민참여)") continue;
-      const k = "bstatus:" + p.name;
-      if (!f.values.has(k)) f.values.set(k, JSON.stringify({ sent: true, multi: false, from: p.year ?? 2026, to: p.year ?? 2026, sources: ["시비"], carry: "", carrySrc: "", rows: {} }));
-    }
-    // 잇지 않은 이월 세부사업 보기: (명시이월) 도로환경 정비(동부권)를 새 사업으로 보냄
-    f.values.set("bstatus:(명시이월) 도로환경 정비(동부권)", JSON.stringify({ sent: true, multi: false, from: 2026, to: 2026, sources: ["시비"], carry: "", carrySrc: "", rows: {} }));
-    setTimeout(() => {
-      const b = window.__budgetFake;
-      if (!b) return;
-      b.import(2025, y2025); b.import(2026, y2026);
-      for (const y of [2025, 2026]) {
-        const p = b.year(y).find((x) => x.name === "시도57호선 배수개선");
-        if (!p) continue;
-        for (const it of p.items) for (const r of it.rows) { const v = split57[y][r.name]; if (v != null) setup57.split[y + ":" + r.id] = v; }
-      }
-      f.values.set("bstatus:시도57호선 배수개선", JSON.stringify(setup57));
-    }, 0);
-  };
-  let v;
-  Object.defineProperty(window, "__fake", { configurable: true, get: () => v, set: (x) => { seed(x); v = x; } });
-})();
+
+  call("create_store", { password: "1234" });
+  call("set_prefs", { prefs: { ...call("get_prefs"), askPassword: false, theme: "light", startScreen: "bstatus" } });
+  call("import_budget", { year: 2025, projects: y2025 });
+  call("import_budget", { year: 2026, projects: y2026 });
+
+  // 공사 번호는 core가 매겨요 – 넣은 뒤 이름으로 찾아 재원 나눔을 붙여요
+  for (const y of [2025, 2026]) {
+    const p = call("budget_data", { year: y }).find((x) => x.name === "시도57호선 배수개선");
+    for (const it of p?.items ?? []) for (const r of it.rows) { const v = split57[y][r.name]; if (v != null) setup57.split[y + ":" + r.id] = v; }
+  }
+  const set = (name, setup) => call("bstatus_set", { name, setup: JSON.stringify(setup) });
+  set("시도57호선 배수개선", setup57);
+  set("파주여고 앞 방호벽 정비", { sent: true, multi: true, from: 2025, to: 2026, sources: ["시비"], carry: "(사고이월) 파주여고 앞 방호벽 정비", carrySrc: "", rows: { "2025:시비": { ns: 49050000 } } });
+  // 단년도 사업은 "보낸" 것으로(주민참여만 안 보낸 보기 — 예산현황에 안 보여요)
+  const done = new Set(["시도57호선 배수개선", "파주여고 앞 방호벽 정비"]);
+  for (const p of [...y2025, ...y2026]) {
+    if (p.carry || done.has(p.name) || p.name === "도로 유지관리(주민참여)") continue;
+    done.add(p.name);
+    set(p.name, { sent: true, multi: false, from: 2026, to: 2026, sources: ["시비"], carry: "", carrySrc: "", rows: {} });
+  }
+  // 잇지 않은 이월 세부사업 보기: (명시이월) 도로환경 정비(동부권)를 새 사업으로 보냄
+  set("(명시이월) 도로환경 정비(동부권)", { sent: true, multi: false, from: 2026, to: 2026, sources: ["시비"], carry: "", carrySrc: "", rows: {} });
+};

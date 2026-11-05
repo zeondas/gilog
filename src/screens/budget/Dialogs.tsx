@@ -8,6 +8,14 @@ import { memoToText } from "../../budget";
 import { FIELD_KO, Got, loadGot, Person, personColor, shortTime } from "../../budgetShare";
 import { useJamoGuard } from "../../koInput";
 import { findNames } from "../../paju";
+import { ReactNode } from "react";
+import { api } from "../../api";
+import { BudgetLevel, KINDS, STAGES } from "../../budget";
+import { useOutsideClose } from "../../useOutsideClose";
+import { isEmptyMemo, MemoEditor, sanitize } from "../../RichMemo";
+import { keepMine, takeTheirs } from "../../budgetShare";
+import { Form, KIND_CLASS, STAGE_CLASS } from "./parts";
+import type { useBudgetMenu } from "./Menu";
 
 /**
  * 집행현황 팀 공유 – "받은 것" 창(2026-10-26 사용자 1안 시안·①2안, 대기 목록 "집행현황" ✔1, 시안 캔버스 BudgetShare ⑦⑧).
@@ -362,4 +370,167 @@ export function SuggestInput({
         )}
     </>
   );
+}
+
+export function useBudgetPop(c: ReturnType<typeof useBudgetMenu>) {
+  const { findP, findItem, findRow, memoHtml, setPop, run, pop, menuBody, confirmBody, people, setOwner, cfs, personName, cfValue, form, setF, setStage, mi, importExcel, exportExcel, unit } = c;
+
+  const memoTarget = (level: BudgetLevel, id: number) =>
+    level === "project" ? findP(id) : level === "item" ? findItem(id)?.it : findRow(id)?.r;
+  const saveMemo = async (level: BudgetLevel, id: number) => {
+    const html = memoHtml.current;
+    const clean = isEmptyMemo(html) ? "" : sanitize(html);
+    setPop(null);
+    await run(() => api.setBudgetMemo(level, id, clean));
+  };
+  // 메모 창: 바깥 누르기 = 저장(목업과 같게), Esc = 취소
+  useOutsideClose(pop?.t === "memo", [], () => {
+    if (pop?.t === "memo") void saveMemo(pop.level, pop.id);
+  }, { ignore: ".bd-pop", capture: true });
+
+  function popBody(): ReactNode {
+    if (!pop) return null;
+    if (pop.t === "menu") return <div style={{ width: 250 }}>{menuBody(pop.level, pop.id)}</div>;
+    if (pop.t === "confirm") return confirmBody(pop.level, pop.id);
+    if (pop.t === "owner") {
+      const cur = findP(pop.id)?.owner ?? null;
+      const id = pop.id;
+      return (
+        <div className="bd-stlist bs-olist">
+          {people
+            .filter((x) => !x.gone)
+            .map((x) => (
+              <div key={x.no} className={"bd-mi" + (x.no === cur ? " cur" : "")} onClick={() => void setOwner(id, x.no)}>
+                <span className="bs-own" style={{ background: `var(--pj-${personColor(x.no)}-bg)`, color: `var(--pj-${personColor(x.no)}-fg)`, borderColor: `var(--pj-${personColor(x.no)}-line)` }}>
+                  {x.name}
+                </span>
+              </div>
+            ))}
+          {cur != null && (
+            <div className="bd-mi" onClick={() => void setOwner(id, null)}>
+              <span className="bs-own bs-oclear">비우기</span>
+            </div>
+          )}
+        </div>
+      );
+    }
+    if (pop.t === "cf") {
+      const c = cfs.find((x) => x.uid === pop.uid && x.field === pop.field);
+      if (!c) return null;
+      const who = personName(c.who) || "다른 사람";
+      return (
+        <div className="bs-cf">
+          <div className="bs-pt">
+            <b>{who} 님이 먼저 고쳤어요</b>
+            <span className="bs-mut">{shortTime(c.at)}</span>
+          </div>
+          <div className="bs-pr">
+            <span className="bs-mut">{who}</span>
+            <span className="bs-v">{cfValue(c.field, c.theirs)}</span>
+          </div>
+          <div className="bs-pr">
+            <span className="bs-mut">내 값</span>
+            <span className="bs-v">{cfValue(c.field, c.mine)}</span>
+          </div>
+          <div className="bs-pb">
+            <button
+              type="button"
+              className="btn btn-xs"
+              onClick={() => {
+                setPop(null);
+                void takeTheirs(c);
+              }}
+            >
+              {who} 값 그대로
+            </button>
+            <button
+              type="button"
+              className="btn-primary btn-xs"
+              onClick={() => {
+                setPop(null);
+                void keepMine(c);
+              }}
+            >
+              내 값으로
+            </button>
+          </div>
+        </div>
+      );
+    }
+    if (pop.t === "stage") {
+      const cur = pop.id === "form" ? (form as Extract<Form, { level: "row" }> | null)?.stage : findRow(pop.id)?.r.stage;
+      return (
+        <div className="bd-stlist">
+          {STAGES.map((s) => (
+            <div
+              key={s}
+              className={"bd-mi" + (s === cur ? " cur" : "")}
+              onClick={() => {
+                if (pop.id === "form") {
+                  setF({ stage: s });
+                  setPop(null);
+                } else void setStage(pop.id, s);
+              }}
+            >
+              <span className={"bd-chip " + STAGE_CLASS[s]}>{s}</span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    if (pop.t === "kind") {
+      const cur = (form as Extract<Form, { level: "row" }> | null)?.kind;
+      return (
+        <div className="bd-stlist">
+          {KINDS.map((k) => (
+            <div
+              key={k}
+              className={"bd-mi" + (k === cur ? " cur" : "")}
+              onClick={() => {
+                setF({ kind: k });
+                setPop(null);
+              }}
+            >
+              <span className={"bd-chip bd-kchip " + KIND_CLASS[k]}>{k}</span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    if (pop.t === "excel") {
+      return (
+        <div style={{ width: 200 }}>
+          {mi("가져오기", () => void importExcel())}
+          {mi("내보내기", () => void exportExcel(), { k: unit === 1 ? "원" : "천원" })}
+        </div>
+      );
+    }
+    const o = memoTarget(pop.level, pop.id);
+    if (!o) return null;
+    return (
+      <div className="bd-memopop">
+        <div className="bd-mh">{o.name}</div>
+        <MemoEditor
+          lite
+          initial={o.memo}
+          placeholder="면적·아스콘톤·착공일 등"
+          onChange={(h) => (memoHtml.current = h)}
+          onSubmit={() => void saveMemo(pop.level, pop.id)}
+          onCancel={() => setPop(null)}
+        />
+        <div className="bd-mrow">
+          <span className="bd-kh">Enter 같은 위계 · Shift+Enter 아래 · Ctrl+Enter 위 · Tab 저장</span>
+          <span className="bd-mbtns">
+            <button type="button" className="btn btn-xs" onClick={() => setPop(null)}>
+              취소
+            </button>
+            <button type="button" className="btn btn-xs bd-p" onClick={() => void saveMemo(pop.level, pop.id)}>
+              저장
+            </button>
+          </span>
+        </div>
+      </div>
+    );
+  }
+  return { ...c, memoTarget, saveMemo, popBody };
 }

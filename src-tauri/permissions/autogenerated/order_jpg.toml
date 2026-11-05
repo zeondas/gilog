@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-order-jpg"
+description = "Enables the order_jpg command without any pre-configured scope."
+commands.allow = ["order_jpg"]
+
+[[permission]]
+identifier = "deny-order-jpg"
+description = "Denies the order_jpg command without any pre-configured scope."
+commands.deny = ["order_jpg"]

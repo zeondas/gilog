@@ -1097,6 +1097,7 @@
   height: 36px;
   padding: 0 14px;
   box-sizing: border-box;
+  border-top: 1px solid var(--line-row);
   border-bottom: 1px solid var(--line-row);
   background: var(--surface-side);
   font-size: var(--fs-xs);
@@ -1105,6 +1106,12 @@
 
 .pr-doneband-t {
   font-weight: 700;
+}
+
+/* 띠 [보기]·[숨기기] 글자 12.5·600(시안 ProcessStatus) */
+.pr-doneband > .btn-xs {
+  font-size: var(--fs-sm);
+  font-weight: 600;
 }
 
 /* 아래 줄: 마지막 불러오기 결과 */

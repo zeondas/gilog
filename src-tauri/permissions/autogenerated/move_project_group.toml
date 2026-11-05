@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-move-project-group"
+description = "Enables the move_project_group command without any pre-configured scope."
+commands.allow = ["move_project_group"]
+
+[[permission]]
+identifier = "deny-move-project-group"
+description = "Denies the move_project_group command without any pre-configured scope."
+commands.deny = ["move_project_group"]

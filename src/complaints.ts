@@ -3,7 +3,38 @@ import type { Complaint } from "./api";
 import { plainOf } from "./bullets";
 import { parseMemo } from "./screens/contacts/parts";
 import { initials, isChosung, koIndex, splitJamo } from "./journal";
-import { isAnswered } from "./settingsStore";
+import { ANSWER_STATUS, DONE_STATUS, isAnswered, isClosed } from "./settingsStore";
+import { workDaysBetween } from "./workdays";
+
+/**
+ * 저장할 상태(QC CM-17, 2026-11-02 사용자 1안): 조치완료일을 손으로 적었으면 어느 길(Enter·Tab·바깥 누르기·[저장])로
+ * 저장하든 "완료"예요. 칸을 떠날 때만 바꾸면 Tab·Enter 저장이 그보다 먼저 일어나 "접수"로 남았어요.
+ */
+export function statusOnSave(status: string, done: string, doneTyped: boolean, revertTo = ANSWER_STATUS): string {
+  if (!doneTyped) return status;
+  if (done.trim()) return DONE_STATUS;
+  // 완료·불가 민원의 조치완료일을 지웠으면 완료 전 상태로(2026-11-04 민원대장 ✔1).
+  return isClosed(status) ? revertTo : status;
+}
+
+/**
+ * 조치완료일을 지웠을 때 되돌아갈 상태(2026-11-04 민원대장 ✔1): 고치기 전이 완료·불가가 아니면 그 상태(이번에 완료로 바꿨다가 지운 것),
+ * 완료·불가였으면 앱이 적어 둔 완료 전 상태, 모르면 "답변".
+ */
+export function revertStatus(c: { status: string; prev?: string }): string {
+  if (!isClosed(c.status)) return c.status;
+  return c.prev && !isClosed(c.prev) ? c.prev : ANSWER_STATUS;
+}
+
+/**
+ * 민원유형 목록에 없는 값이면 끝에 더한 새 목록, 이미 있거나 비었으면 null(QC CM-07, 2026-11-02 사용자 1안 –
+ * 목록이 비어 있어도 등록을 막지 않고 친 값을 설정 목록에 저절로 더해요).
+ */
+export function addedType(list: string[], ctype: string): string[] | null {
+  const v = ctype.trim();
+  if (!v || list.includes(v)) return null;
+  return [...list, v];
+}
 
 /** 2026-10-15 두 날짜 사이의 날 수 (to - from) */
 export function daysBetween(from: string, to: string): number {
@@ -14,10 +45,10 @@ export function daysBetween(from: string, to: string): number {
   return Math.round((d(to) - d(from)) / 86_400_000);
 }
 
-/** 남은 날. 마감이 없거나 완료면 null이에요. */
+/** 남은 날 – 근무일로(토·일·공휴일 빼고, 국민신문고와 같게 2026-10-30). 마감이 없거나 완료면 null이에요. */
 export function daysLeft(c: Pick<Complaint, "due" | "status">, today: string): number | null {
   if (!c.due || isAnswered(c.status)) return null;
-  return daysBetween(today, c.due);
+  return workDaysBetween(today, c.due);
 }
 
 /** 접수일부터 조치완료일까지 걸린 날(조치완료일 − 접수일). 둘 중 하나라도 없거나 거꾸로면 null이에요. */
@@ -29,15 +60,43 @@ export function daysTaken(c: Pick<Complaint, "received" | "done">): number | nul
 }
 
 /**
- * 걸린 날 글자(2026-10-19 사용자): 30일까지는 "12d", 넘으면 달 "3m", 1년부터는 해 "2y".
+ * 걸린 날 글자(2026-11-03 16:15·16:17 사용자 – 처리 칸 말로 풀기): 30일까지 "12일 걸림", 넘으면 달 "3달 걸림", 1년부터는 해 "2년 걸림".
  * 달·해는 달력으로 센 만큼(다 채우지 못한 달은 버림). 정확한 날 수는 마우스를 올리면 보여요.
  */
 export function takenText(c: Pick<Complaint, "received" | "done">, n: number): string {
-  if (n <= 30) return `${n}d`;
+  if (n <= 30) return `${n}일 걸림`;
   const [y1, m1, d1] = c.received.split("-").map(Number);
   const [y2, m2, d2] = c.done!.split("-").map(Number);
   const months = Math.max(1, (y2 - y1) * 12 + (m2 - m1) - (d2 < d1 ? 1 : 0));
-  return months < 12 ? `${months}m` : `${Math.floor(months / 12)}y`;
+  return months < 12 ? `${months}달 걸림` : `${Math.floor(months / 12)}년 걸림`;
+}
+
+/** 남은 날 글자: 3 → "3일 남음", 0 → "오늘 마감", -2 → "2일 지남"(근무일) */
+export function leftText(n: number): string {
+  return n > 0 ? `${n}일 남음` : n === 0 ? "오늘 마감" : `${-n}일 지남`;
+}
+
+/** 처리 칸 글자 – tone: urgent(붉게) · due(굵게) · soft(흐리게) */
+export type Proc = { text: string; tone: "urgent" | "due" | "soft"; title?: string };
+
+/**
+ * 민원대장 "처리" 칸(2026-11-03 사용자 7판, 시안 ComplaintDates.dc.html): 상태에 따라 한 가지만 말로.
+ * - 답변 전(접수): 마감까지 근무일 "N일 남음 · 오늘 마감 · N일 지남"(설정 임박 기준 안이면 붉게). 마감일이 없으면 빈 칸.
+ * - 완료·불가: 접수부터 걸린 날 "N일·N달·N년 걸림"(흐리게). 조치완료일이 없으면 "답변완료".
+ * - 그 밖의 답변한 상태(진행·답변·보류·장기): "답변완료"(흐리게).
+ * 마우스를 올리면 마감일·조치완료일 전체(title).
+ */
+export function procOf(c: Pick<Complaint, "received" | "due" | "status" | "done">, today: string, urgentDays: number): Proc | null {
+  const title = [c.due ? `마감일 ${c.due}` : "", c.done ? `조치완료일 ${c.done}` : ""].filter(Boolean).join(" · ") || undefined;
+  if (!isAnswered(c.status)) {
+    const n = daysLeft(c, today);
+    return n === null ? null : { text: leftText(n), tone: isUrgent(n, urgentDays) ? "urgent" : "due", title };
+  }
+  if (isClosed(c.status)) {
+    const n = daysTaken(c);
+    if (n !== null) return { text: takenText(c, n), tone: "soft", title: title ? `${title} · 접수부터 ${n}일` : undefined };
+  }
+  return { text: "답변완료", tone: "soft", title };
 }
 
 /** 3 → "D-3", 0 → "D-day", -2 → "D+2" */
@@ -87,26 +146,32 @@ export function expandType(v: string, options: string[]): string {
 
 export type ColKey =
   | "no" | "intake" | "received" | "ctype" | "place" | "person"
-  | "body" | "action" | "due" | "status" | "done" | "memo";
+  | "body" | "action" | "status" | "due" | "memo";
 
 /**
- * 사양서 순서 12열(2026-10-21 사용자 – 지역은 위치 칸에 합치고, 민원인·연락처는 "민원인" 한 칸).
- * 처음 폭은 `layoutCols`가 글 폭·창 폭으로 정해요(w는 예전 값 – 쓰지 않아요).
+ * 사양서 순서 11열(2026-10-21 사용자 – 지역은 위치 칸에 합치고, 민원인·연락처는 "민원인" 한 칸).
+ * 처음 폭은 `layoutCols`가 글 폭·창 폭으로 정해요.
  */
-export const COLUMNS: { key: ColKey; label: string; w: number | null; fixed?: boolean }[] = [
-  { key: "no", label: "연번", w: 52 },
-  { key: "intake", label: "접수유형", w: 92 },
-  { key: "received", label: "접수일", w: 96 },
-  { key: "ctype", label: "민원유형", w: 84 },
-  { key: "place", label: "위치", w: 140 },
-  { key: "person", label: "민원인", w: 120 },
-  { key: "body", label: "내용", w: null },
-  { key: "action", label: "조치내용", w: null },
-  { key: "due", label: "마감일", w: 130 },
-  { key: "status", label: "상태", w: 80 },
-  { key: "done", label: "조치완료일", w: 130 },
-  { key: "memo", label: "메모", w: 48 },
+export const COLUMNS: { key: ColKey; label: string; fixed?: boolean }[] = [
+  { key: "no", label: "연번" },
+  { key: "intake", label: "접수유형" },
+  { key: "received", label: "접수일" },
+  { key: "ctype", label: "민원유형" },
+  { key: "place", label: "위치" },
+  { key: "person", label: "민원인" },
+  { key: "body", label: "내용" },
+  { key: "action", label: "조치내용" },
+  // 상태 | 처리(2026-11-03 사용자 7판): 처리 칸 하나에 마감까지 남은 날·답변완료·걸린 날 – 조치완료일 열은 없어요(고치는 줄에서 적어요).
+  { key: "status", label: "상태" },
+  { key: "due", label: "처리" },
+  { key: "memo", label: "메모" },
 ];
+
+/**
+ * 위치 열 처음 폭의 바닥 – 흔한 위치 하나(설정 "위치 표기" 설명의 보기와 같아요). 민원이 0건이거나 짧은 위치뿐이어도
+ * 이만큼은 받아 신규 줄 "리·동 지번"이 잘리지 않아요(QC 추가-01, 2026-11-02).
+ */
+export const PLACE_SAMPLE = { full: "운정3동 동패동 1234", short: "동패동 1234" };
 
 /** 표 폭을 아직 모를 때 내용·조치내용 처음 폭 */
 export const FLEX_MIN = 140;
@@ -121,11 +186,12 @@ export const COL_SLACK = 28;
 /** 내용·조치내용이 이만큼(표 폭 비율) 못 받으면 하나씩 줄여요 */
 export const CONTENT_SHARE = 0.45;
 /** 칸 좌우 여백 합(styles/*.css .cm-c padding 0 10px) */
-const CELL_PAD = 20;
+/** 칸 여백(좌우 10씩) */
+export const CELL_PAD = 20;
 /** 다 줄여도 이보다 적으면 다른 열의 여유를 줄여요 */
 export const CONTENT_FLOOR = 0.4;
-/** 줄이는 순서(2026-10-21 사용자): 마감일 날짜 → 접수일 26-10-16 → 접수유형 두 글자 → 위치 읍면. 넓히면 거꾸로 풀려요. */
-export const SHORT_ORDER: ColKey[] = ["due", "received", "intake", "place"];
+/** 줄이는 순서(2026-10-21 사용자): 접수일 26-10-16 → 접수유형 두 글자 → 위치 읍면. 넓히면 거꾸로 풀려요(처리 칸은 줄이지 않아요 – 11-03 7판). */
+export const SHORT_ORDER: ColKey[] = ["received", "intake", "place"];
 /** 내용·조치내용 가장 좁은 폭 */
 export const CONTENT_MIN = 80;
 

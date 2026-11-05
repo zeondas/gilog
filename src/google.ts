@@ -1,5 +1,10 @@
 // 구글 캘린더 연동(9단계, 사양서 "구글 캘린더 연동").
-// - 기록 → 구글 한 방향이에요. 구글에서 고친 것은 다음 내보내기 때 기록 내용으로 덮어써요.
+// - 처음은 기록 → 구글 한 방향이에요. 구글에서 고친 것은 다음 내보내기 때 기록 내용으로 덮어써요.
+// - 설정에서 "양방향"을 고르면(2026-11-04 사용자, 대기 캘린더 ✔2) 구글 giLog 캘린더 안 **내 일정**만 서로 맞춰요 –
+//   구글에서 고친 것·새로 만든 것을 받아 오고, 구글에서 지운 것은 바로 지우지 않고 "구글에서 지워짐" 띠로 물어요,
+//   양쪽에서 고치면 나중에 고친 쪽(기록 쪽 고친 시각은 google.local에 적어 둬요). 민원·할 일 마감은 늘 한 방향이에요.
+//   받기는 3분마다·창을 다시 볼 때 "바뀐 것만"(구글 syncToken). 모양 바꾸기는 googleTwoWay.ts.
+// - 구글 앱이 "테스트" 상태라 로그인은 7일마다 풀려요(사용자 ✔1) – 로그인한 때를 적어 두고 풀리기 하루 전·풀렸을 때 캘린더 구글 상자에 [다시 로그인].
 // - 사용자 구글 계정에 "giLog" 캘린더를 하나 만들어 그 안에만 써요(권한 calendar.app.created – 다른 캘린더는 볼 수도 없어요).
 // - 내보내는 것 세 가지(내 일정·민원 마감·할 일 마감)는 설정에서 각각 켜고 꺼요. 끄면 구글에서 지워요.
 // - 민원인 이름·연락처·내용·조치내용·메모는 어떤 경우에도 내보내지 않아요(민원 마감은 접수유형·위치까지).
@@ -9,15 +14,17 @@
 //   google.client – 사용자가 고른 앱 정보 파일의 client_id·client_secret (저장소에는 넣지 않아요)
 //   google.token  – 로그인 정보(refresh token)
 //   google.state  – giLog 캘린더 id, 내보낸 일정 목록(우리 이름 → 구글 id·내용 지문), 마지막 성공·실패
-//   google.opts   – 세 가지 켜고 끄기
+//   google.opts   – 세 가지 켜고 끄기 + 연동 방향(twoWay)
+//   google.local  – 양방향: 내 일정마다 기록에서 마지막으로 고친 시각(양쪽에서 고쳤을 때 나중 쪽을 가려요)
 import { invoke } from "@tauri-apps/api/core";
-import { api, CalEvent, CalKind, changeHooks, Complaint, inApp, Repeat, Task, TaskList } from "./api";
+import { api, CalEvent, CalKind, changeHooks, Complaint, inApp, Task, TaskList } from "./api";
 import { linesToText, parseLines } from "./bullets";
 import { addDays, kindColor } from "./calendar";
 import { ANSWER_STATUS, isAnswered, loadSettings } from "./settingsStore";
 import { todayStr } from "./journal";
 import { complaintTitle } from "./tasks";
 import { stamp } from "./reminders";
+import { diffText, GEvent, inputOf, NO_TITLE, norm, remindMinutesOf, remoteIsLater, remoteToInput, RRULE, sameInput } from "./googleTwoWay";
 
 /** 캘린더는 "앱이 만든 캘린더만", 할 일은 구글 할 일 전체(앱이 만든 목록만 만져요 – 구글에 더 좁은 권한이 없어요). */
 const CAL_SCOPE = "https://www.googleapis.com/auth/calendar.app.created";
@@ -39,12 +46,17 @@ const K_CLIENT = "google.client";
 const K_TOKEN = "google.token";
 const K_STATE = "google.state";
 const K_OPTS = "google.opts";
+const K_LOCAL = "google.local";
+/** 테스트 상태 구글 앱의 로그인은 7일 뒤 풀려요. 풀리기 하루 전부터 알려요. */
+export const LOGIN_DAYS = 7;
+const DAY = 24 * 3600_000;
 
 export type GClient = { id: string; secret: string };
 /** scope는 구글이 허용한 권한 목록(0.9.4 전 로그인은 없어요 – 그때는 늘 할 일 권한까지 받았어요). */
-type GToken = { refresh: string; access: string; exp: number; scope?: string };
+type GToken = { refresh: string; access: string; exp: number; scope?: string; at?: number };
 const hasTasksScope = (t: GToken | null) => !!t && (t.scope === undefined || t.scope.includes(TASKS_SCOPE));
-type GItem = { id: string; h: string };
+/** u: 구글이 알려 준 마지막 고친 때(양방향 – 같으면 구글에서 안 고쳤어요), hold: 구글에서 기록이 못 담는 반복으로 바꿔 맞추기를 멈춤 */
+type GItem = { id: string; h: string; u?: string; hold?: boolean };
 /** 구글 할 일 하나: 마지막으로 보낸 완료 상태(done)를 기억해 구글에서 체크한 것을 알아봐요. prev는 민원의 완료 전 상태예요. */
 type TItem = { id: string; h: string; done: boolean; parent: string; list?: string; prev?: string };
 export type GState = {
@@ -59,11 +71,23 @@ export type GState = {
   lastError: string;
   /** 다음 맞추기는 전체를 다시 맞춰요(처음 연결·지금 내보내기) */
   full: boolean;
+  /** 양방향: 구글 "바뀐 것만 받기" 표 */
+  syncToken?: string;
+  /** 양방향: 구글에서 지운 내 일정(기록엔 남아 있고 사용자가 [지우기]/[구글에 되살리기]를 고를 때까지) */
+  gone?: Record<string, { title: string }>;
+  /** 양방향: 기록이 담을 수 없어 구글에만 둔 일정(구글 id → 제목) */
+  foreign?: Record<string, string>;
+  /** 양방향: 양쪽에서 고쳐 한쪽이 덮인 것 등 알릴 말(사용자가 [확인]하면 지워요) */
+  notes?: string[];
+  /** 로그인이 풀렸어요(7일) – 다시 로그인할 때까지 구글 상자를 보여요 */
+  lapsed?: boolean;
+  /** 풀리기 전 로그인이 받았던 권한(다시 로그인 때 같은 권한을 받아요) */
+  lastScope?: string;
 };
 /** gtasks: 할 일·민원 마감을 구글 할 일로 보내요(끄면 구글 캘린더의 종일 일정으로 보내요). */
-export type GOpts = { events: boolean; complaints: boolean; tasks: boolean; gtasks: boolean };
+export type GOpts = { events: boolean; complaints: boolean; tasks: boolean; gtasks: boolean; twoWay: boolean };
 
-export const DEFAULT_OPTS: GOpts = { events: true, complaints: true, tasks: true, gtasks: false };
+export const DEFAULT_OPTS: GOpts = { events: true, complaints: true, tasks: true, gtasks: false, twoWay: false };
 const EMPTY_STATE: GState = { calendarId: "", items: {}, listId: "", titems: {}, lastOk: "", lastError: "", full: true };
 
 // ---------- 저장 ----------
@@ -117,9 +141,20 @@ export type GStatus = {
   busy: boolean;
   lastOk: string;
   lastError: string;
+  /** 로그인한 때(밀리초, 0이면 모름 – 이 기능 전 로그인) */
+  loginAt: number;
+  /** 로그인이 풀렸어요 */
+  lapsed: boolean;
+  /** 양방향 */
+  twoWay: boolean;
+  /** 구글에서 지운 내 일정 수 */
+  gone: number;
+  /** 구글에만 있는 일정 수 */
+  foreign: number;
+  notes: string[];
 };
 
-let status: GStatus = { configured: false, connected: false, busy: false, lastOk: "", lastError: "" };
+let status: GStatus = { configured: false, connected: false, busy: false, lastOk: "", lastError: "", loginAt: 0, lapsed: false, twoWay: false, gone: 0, foreign: 0, notes: [] };
 const listeners = new Set<(s: GStatus) => void>();
 
 function publish(p: Partial<GStatus>) {
@@ -135,9 +170,21 @@ export function onGoogleStatus(f: (s: GStatus) => void): () => void {
 
 /** 저장한 것을 읽어 상태를 새로 맞춰요(잠금을 풀 때). */
 export async function loadGoogleStatus(): Promise<GStatus> {
-  const [c, t, s] = await Promise.all([getClient(), getJson<GToken>(K_TOKEN), loadState()]);
-  publish({ configured: !!c?.id, connected: !!t?.refresh, lastOk: s.lastOk, lastError: s.lastError });
+  const [c, t, s, o] = await Promise.all([getClient(), getJson<GToken>(K_TOKEN), loadState(), loadOpts()]);
+  publish({ configured: !!c?.id, connected: !!t?.refresh, lastOk: s.lastOk, lastError: s.lastError, loginAt: t?.at ?? 0, twoWay: o.twoWay, ...stateCounts(s) });
   return status;
+}
+
+const stateCounts = (s: GState) => ({ lapsed: !!s.lapsed, gone: Object.keys(s.gone ?? {}).length, foreign: Object.keys(s.foreign ?? {}).length, notes: s.notes ?? [] });
+
+/**
+ * 구글 상자에 보일 로그인 때(✔1): "off" 풀렸어요 · "soon" 내일 풀려요(6일째 – 7일이 지나도 붙어 있으면 테스트 상태가 아니에요) · "ok"
+ */
+export function loginPhase(g: Pick<GStatus, "connected" | "lapsed" | "loginAt">, now = Date.now()): "off" | "soon" | "ok" {
+  if (!g.connected) return g.lapsed ? "off" : "ok";
+  if (!g.loginAt) return "ok";
+  const age = now - g.loginAt;
+  return age >= (LOGIN_DAYS - 1) * DAY && age < LOGIN_DAYS * DAY ? "soon" : "ok";
 }
 
 /** "2026-10-16 09:12" → 오늘이면 "오늘 09:12", 아니면 "10/16 09:12" */
@@ -318,10 +365,11 @@ export async function connectGoogle(withTasks?: boolean, extraScopes: string[] =
     throw new Error(e instanceof Error && e.message === "offline" ? "구글에 연결하지 못했어요(인터넷 연결을 확인해 주세요)." : `로그인 정보를 받지 못했어요(${e instanceof Error ? e.message : e}).`);
   }
   if (!j.refresh_token) throw new Error("로그인 정보를 받지 못했어요. 다시 시도해 주세요.");
-  await putJson(K_TOKEN, { refresh: String(j.refresh_token), access: String(j.access_token ?? ""), exp: Date.now() + Number(j.expires_in ?? 3600) * 1000, scope: String(j.scope ?? [CAL_SCOPE, ...(wantTasks ? [TASKS_SCOPE] : []), ...extraScopes].join(" ")) });
+  const at = Date.now();
+  await putJson(K_TOKEN, { refresh: String(j.refresh_token), access: String(j.access_token ?? ""), exp: at + Number(j.expires_in ?? 3600) * 1000, scope: String(j.scope ?? [CAL_SCOPE, ...(wantTasks ? [TASKS_SCOPE] : []), ...extraScopes].join(" ")), at });
   const s = await loadState();
-  await putJson(K_STATE, { ...s, full: true, lastError: "" });
-  publish({ connected: true, lastError: "" });
+  await putJson(K_STATE, { ...s, full: true, lastError: "", lapsed: false });
+  publish({ connected: true, lastError: "", loginAt: at, lapsed: false });
   await syncGoogle();
 }
 
@@ -331,6 +379,17 @@ export async function connectGoogle(withTasks?: boolean, extraScopes: string[] =
 export async function hasGoogleScope(scope: string): Promise<boolean> {
   const t = await getJson<GToken>(K_TOKEN);
   return !!t?.refresh && !!t.scope?.includes(scope);
+}
+
+/**
+ * 다시 로그인(✔1 – 7일마다 풀려요): 풀리기 전 로그인이 받았던 권한(구글 할 일·집행현황 공유 시트 등)을 그대로 다시 받아요.
+ * 풀리기 전에 누르면 새 로그인으로 7일이 다시 시작돼요.
+ */
+export async function reloginGoogle(): Promise<void> {
+  const [t, s] = await Promise.all([getJson<GToken>(K_TOKEN), loadState()]);
+  const list = (t?.scope ?? s.lastScope ?? "").split(/\s+/).filter((x) => x.startsWith("https://"));
+  const extra = list.filter((x) => x !== CAL_SCOPE && x !== TASKS_SCOPE);
+  await connectGoogle(list.length ? list.includes(TASKS_SCOPE) : undefined, extra);
 }
 
 /** 쓸 수 있는 접근 열쇠 */
@@ -386,8 +445,8 @@ export async function disconnectGoogle(removeEvents: boolean): Promise<string> {
     await http("POST", "https://oauth2.googleapis.com/revoke", { "Content-Type": "application/x-www-form-urlencoded" }, form({ token: t.refresh })).catch(() => {});
   }
   await putJson(K_TOKEN, null);
-  await putJson(K_STATE, removeEvents ? { ...EMPTY_STATE } : { ...s, full: true, lastError: "" });
-  publish({ connected: false, lastError: "", lastOk: removeEvents ? "" : s.lastOk });
+  await putJson(K_STATE, removeEvents ? { ...EMPTY_STATE } : { ...s, full: true, lastError: "", lapsed: false });
+  publish({ connected: false, lastError: "", lastOk: removeEvents ? "" : s.lastOk, lapsed: false, loginAt: 0 });
   return warn;
 }
 
@@ -412,25 +471,8 @@ export function eventColorId(n: number): string {
   return GC_TO_EVENT[n] ?? "8";
 }
 
-const RRULE: Record<Exclude<Repeat, "">, string> = {
-  daily: "FREQ=DAILY",
-  weekdays: "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",
-  weekly: "FREQ=WEEKLY",
-  biweekly: "FREQ=WEEKLY;INTERVAL=2",
-  monthly: "FREQ=MONTHLY",
-  yearly: "FREQ=YEARLY",
-};
-
-/** 구글 일정 알림은 4주(40320분)까지예요. 종일 일정은 그날 0시 기준이라 알림 시각만큼 빼요. */
-function reminderMinutes(e: CalEvent): number | null {
-  if (e.remind < 0) return null;
-  let m = e.remind;
-  if (e.allDay) {
-    const [h, mi] = (e.remindTime || "09:00").split(":").map(Number);
-    m = e.remind - (h * 60 + mi);
-  }
-  return Math.min(40320, Math.max(0, m));
-}
+/** 구글 일정 알림은 4주(40320분)까지예요. 종일 일정은 그날 0시 기준이라 알림 시각만큼 빼요(googleTwoWay.ts). */
+const reminderMinutes = (e: CalEvent): number | null => remindMinutesOf(e.remind, e.allDay, e.remindTime);
 
 type GBody = Record<string, unknown>;
 
@@ -726,7 +768,7 @@ let fullAgain = false;
 function friendly(e: unknown): string {
   const m = e instanceof Error ? e.message : String(e);
   if (m === "offline") return "인터넷에 연결되지 않았어요. 연결되면 다시 보내요.";
-  if (m === "relogin") return "구글 로그인이 풀렸어요. 설정에서 다시 연결해 주세요.";
+  if (m === "relogin") return "구글 로그인이 풀렸어요. [다시 로그인]을 눌러 주세요.";
   if (m === "need_tasks_scope") return "구글 할 일 권한이 없어요. 설정에서 다시 로그인해 주세요.";
   if (m === "not_connected") return "";
   if (e instanceof GError && e.code === 403 && /insufficient|scope/i.test(m)) return "구글 할 일 권한이 없어요. 설정에서 다시 로그인해 주세요.";
@@ -764,6 +806,210 @@ async function listRemote(cal: string): Promise<{ id: string; key: string }[]> {
     if (!page) break;
   }
   return out;
+}
+
+// ---------- 양방향: 구글에서 받기 (대기 캘린더 ✔2) ----------
+
+type LocalMark = { h: string; at: string };
+
+/**
+ * 내 일정마다 기록에서 마지막으로 고친 시각을 적어 둬요(양쪽에서 고쳤을 때 나중 쪽을 가리려고).
+ * 일정 명령이 돌 때마다(로그인이 풀린 동안에도) 내용 지문이 바뀐 일정에 지금 시각을 적어요. 처음 적을 때는 시각을 비워요(옛 것).
+ */
+async function trackLocal(): Promise<Record<string, LocalMark>> {
+  const cd = await api.calendarData();
+  const prev = await getJson<Record<string, LocalMark>>(K_LOCAL);
+  const next: Record<string, LocalMark> = {};
+  const now = new Date().toISOString();
+  let changed = !prev;
+  for (const e of cd.events) {
+    const k = cd.kinds.find((x) => x.id === e.kind);
+    if (!k || k.system) continue;
+    const key = "e" + e.id;
+    const h = fingerprint(eventBody(e, cd.kinds));
+    const p = prev?.[key];
+    if (p && p.h === h) next[key] = p;
+    else {
+      next[key] = { h, at: prev ? now : "" };
+      changed = true;
+    }
+  }
+  if (prev && Object.keys(prev).some((k) => !next[k])) changed = true;
+  if (changed) await putJson(K_LOCAL, next);
+  return next;
+}
+
+/** 새로 받은 일정의 종류: 구글 색이 같은 내 종류, 없으면 첫 내 종류 */
+function kindForColor(colorId: string | undefined, kinds: CalKind[]): string {
+  const mine = kinds.filter((k) => !k.system);
+  return (colorId ? mine.find((k) => eventColorId(kindColor(k, kinds)) === colorId)?.name : undefined) ?? mine[0]?.name ?? "일정";
+}
+
+/** 구글 giLog 캘린더에서 바뀐 것만 읽어요(처음·표가 낡으면 410 → 전부). 다 읽은 뒤의 새 표도 돌려줘요. */
+async function readChanges(cal: string, token: string): Promise<{ items: GEvent[]; next: string }> {
+  const base = `/calendars/${encodeURIComponent(cal)}/events`;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const items: GEvent[] = [];
+    let page = "";
+    let next = "";
+    let stale = false;
+    for (let i = 0; i < 100; i++) {
+      const q = (token ? `?syncToken=${encodeURIComponent(token)}` : "?showDeleted=true") + "&maxResults=2500" + (page ? `&pageToken=${encodeURIComponent(page)}` : "");
+      const r = await gapi("GET", base + q);
+      if (r.status === 410) {
+        stale = true;
+        break;
+      }
+      items.push(...((r.json.items as GEvent[] | undefined) ?? []));
+      page = String(r.json.nextPageToken ?? "");
+      next = String(r.json.nextSyncToken ?? next);
+      if (!page) break;
+    }
+    if (!stale) return { items, next };
+    token = "";
+  }
+  return { items: [], next: "" };
+}
+
+/**
+ * 구글에서 고친 것·새로 만든 것을 기록에 넣고, 지운 것은 "구글에서 지워짐"으로 모아요. 기록에 넣은 것이 있으면 true.
+ * 민원·할 일 마감은 한 방향이라 받지 않아요(보낼 때 기록 내용으로 다시 맞춰요).
+ */
+async function pullEvents(s: GState, cal: string): Promise<boolean> {
+  const marks = await trackLocal();
+  const { items, next } = await readChanges(cal, s.syncToken ?? "");
+  const cd = await api.calendarData();
+  const byKey = new Map(cd.events.map((e) => ["e" + e.id, e]));
+  const byRemote = new Map(Object.entries(s.items).map(([k, v]) => [v.id, k]));
+  const gone = (s.gone ??= {});
+  const foreign = (s.foreign ??= {});
+  const notes: string[] = [];
+  let changed = false;
+  for (const r of items) {
+    if (!r.id) continue;
+    const mark = r.extendedProperties?.private?.gilog ?? "";
+    let k = byRemote.get(r.id) ?? "";
+    if (!k && mark.startsWith("e") && byKey.has(mark) && !s.items[mark]) k = mark; // 상태를 잃었어도 표시로 다시 이어요
+    if (k ? !k.startsWith("e") : /^[ct]/.test(mark)) continue; // 민원·할 일 마감은 한 방향
+    const cancelled = r.status === "cancelled";
+    if (r.recurringEventId) {
+      // 반복 가운데 한 번만 고친 것 – 기록은 담을 수 없어 구글에만 둬요(한 번 뺀 것은 알릴 제목이 없어 넘겨요).
+      if (cancelled) delete foreign[r.id];
+      else foreign[r.id] = r.summary?.trim() || NO_TITLE;
+      continue;
+    }
+    if (!k) {
+      // 구글에서 새로 만든 일정
+      if (cancelled) {
+        delete foreign[r.id];
+        continue;
+      }
+      const inp = remoteToInput(r, null, cd.kinds, kindForColor(r.colorId, cd.kinds));
+      if (!inp) {
+        foreign[r.id] = r.summary?.trim() || NO_TITLE;
+        continue;
+      }
+      delete foreign[r.id];
+      const ev = await api.addEvent(inp);
+      s.items["e" + ev.id] = { id: r.id, h: fingerprint(eventBody(ev, cd.kinds)), u: r.updated };
+      changed = true;
+      continue;
+    }
+    const it = s.items[k];
+    const local = byKey.get(k);
+    if (cancelled) {
+      // 구글에서 지웠어요 – 기록에서는 바로 지우지 않고 물어요(삭제는 묻기 규칙).
+      delete s.items[k];
+      if (local) gone[k] = { title: local.title };
+      continue;
+    }
+    if (!it || !local) continue; // 기록에서 지웠어요 → 보낼 때 구글에서도 지워요
+    const mine = eventBody(local, cd.kinds);
+    if (norm(r) === norm(mine)) {
+      it.u = r.updated;
+      it.hold = false;
+      continue;
+    }
+    if (it.u === r.updated) continue; // 기록에서 고친 것 – 보낼 때 맞춰요
+    const localChanged = fingerprint(mine) !== it.h;
+    it.u = r.updated;
+    if (localChanged && !remoteIsLater(r.updated, marks[k]?.at)) {
+      const rin = remoteToInput(r, local, cd.kinds, "");
+      const d = rin ? diffText(inputOf(local, cd.kinds), rin) : "";
+      notes.push(`"${local.title}" – 양쪽에서 고쳐 나중에 고친 기록 쪽으로 맞췄어요` + (d ? `\n구글에서 고친 것(버림): ${d}` : ""));
+      continue; // 보낼 때 기록 내용으로 덮어요
+    }
+    const inp = remoteToInput(r, local, cd.kinds, "");
+    if (!inp) {
+      it.hold = true;
+      notes.push(`"${local.title}" – 구글에서 바꾼 반복을 기록이 담을 수 없어 이 일정은 맞추기를 멈췄어요`);
+      continue;
+    }
+    it.hold = false;
+    if (!sameInput(inp, inputOf(local, cd.kinds))) {
+      const ev = await api.updateEvent(local.id, inp);
+      it.h = fingerprint(eventBody(ev, cd.kinds));
+      changed = true;
+      if (localChanged) {
+        const d = diffText(inputOf(local, cd.kinds), inp);
+        notes.push(`"${local.title}" – 양쪽에서 고쳐 나중에 고친 구글 쪽으로 맞췄어요` + (d ? `\n${d}` : ""));
+      }
+    }
+  }
+  // 기록에서도 지운 것은 더 묻지 않아요.
+  for (const k of Object.keys(gone)) if (!byKey.has(k)) delete gone[k];
+  if (notes.length) s.notes = [...(s.notes ?? []), ...notes].slice(-10);
+  s.syncToken = next;
+  return changed;
+}
+
+/** 확인할 것 창(✔3)에 보일 것: 구글에서 지운 일정(날짜·종류), 알림 말, 구글에만 있는 일정 */
+export type GChecks = {
+  gone: { key: string; title: string; date: string; time: string; kind: string }[];
+  notes: string[];
+  foreign: { id: string; title: string }[];
+};
+export async function googleChecks(): Promise<GChecks> {
+  const [s, cd] = await Promise.all([loadState(), api.calendarData().catch(() => null)]);
+  const byKey = new Map((cd?.events ?? []).map((e) => ["e" + e.id, e]));
+  const gone = Object.entries(s.gone ?? {})
+    .map(([key, v]) => {
+      const e = byKey.get(key);
+      const kind = cd?.kinds.find((k) => k.id === e?.kind)?.name ?? "";
+      return { key, title: e?.title || v.title || NO_TITLE, date: e?.date ?? "", time: e && !e.allDay ? e.time : "", kind };
+    })
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  return { gone, notes: s.notes ?? [], foreign: Object.entries(s.foreign ?? {}).map(([id, title]) => ({ id, title })) };
+}
+
+/** 로그인이 풀리기까지 남은 날(1~7, 모르면 0) */
+export function loginLeft(loginAt: number, now = Date.now()): number {
+  if (!loginAt) return 0;
+  return Math.max(0, LOGIN_DAYS - Math.floor((now - loginAt) / DAY));
+}
+
+/** "구글에서 지워짐": remove면 기록에서도 지우고, 아니면 구글에 되살려요(다음 맞추기 때 다시 보내요). keys가 없으면 전부. */
+export async function resolveGone(remove: boolean, keys?: string[]): Promise<void> {
+  if (running) await running;
+  const s = await loadState();
+  for (const k of keys ?? Object.keys(s.gone ?? {})) {
+    if (!s.gone?.[k]) continue;
+    if (remove) await api.deleteEvent(Number(k.slice(1))).catch(() => {});
+    delete s.gone![k];
+  }
+  await putJson(K_STATE, s);
+  publish(stateCounts(s));
+  if (remove) window.dispatchEvent(new Event(REMOTE_CHANGE));
+  void syncGoogle();
+}
+
+/** 알림 말([확인])을 지워요. at이 있으면 그 한 줄만. */
+export async function clearGoogleNotes(at?: number): Promise<void> {
+  if (running) await running;
+  const s = await loadState();
+  s.notes = at === undefined ? [] : (s.notes ?? []).filter((_, i) => i !== at);
+  await putJson(K_STATE, s);
+  publish(stateCounts(s));
 }
 
 async function runSync(forceFull: boolean): Promise<void> {
@@ -806,6 +1052,12 @@ async function runSync(forceFull: boolean): Promise<void> {
         taskErr = e;
       }
     }
+    const twoWay = opts.twoWay && opts.events;
+    if (twoWay) {
+      if (await pullEvents(s, cal)) window.dispatchEvent(new Event(REMOTE_CHANGE));
+      await save();
+    }
+    const gone = twoWay ? (s.gone ?? {}) : {};
     const [cd, complaints, td] = await Promise.all([api.calendarData(), api.complaints(), api.tasksData()]);
     const want = desired({ kinds: cd.kinds, events: cd.events, complaints, tasks: td.tasks }, opts);
     const base = `/calendars/${encodeURIComponent(cal)}/events`;
@@ -817,7 +1069,9 @@ async function runSync(forceFull: boolean): Promise<void> {
       for (const r of remote) {
         const k = known.get(r.id) ?? (r.key && want.has(r.key) && !s.items[r.key] ? r.key : "");
         if (k && want.has(k)) {
-          s.items[k] = { id: r.id, h: "" }; // 내용은 다시 보내요
+          s.items[k] = { ...s.items[k], id: r.id, h: "" }; // 내용은 다시 보내요
+        } else if (twoWay && !k && !/^[ct]/.test(r.key)) {
+          // 양방향: 구글에만 있는 일정(기록이 담을 수 없는 반복 등)은 두어요.
         } else {
           await gapi("DELETE", `${base}/${encodeURIComponent(r.id)}`);
           if (k) delete s.items[k];
@@ -829,20 +1083,22 @@ async function runSync(forceFull: boolean): Promise<void> {
 
     let n = 0;
     for (const [k, body] of want) {
+      if (gone[k]) continue; // 구글에서 지운 것 – 사용자가 고를 때까지 다시 만들지 않아요
       const h = fingerprint(body);
       const cur = s.items[k];
-      if (cur && cur.h === h) continue;
+      if (cur && (cur.h === h || (twoWay && cur.hold))) continue;
+      const u = (r: { json: Record<string, unknown> }) => String(r.json.updated ?? "");
       if (cur) {
         const r = await gapi("PUT", `${base}/${encodeURIComponent(cur.id)}`, body);
         if (r.status === 200) {
-          s.items[k] = { id: cur.id, h };
+          s.items[k] = { id: cur.id, h, u: u(r) };
         } else {
           const r2 = await gapi("POST", base, body);
-          s.items[k] = { id: String(r2.json.id), h };
+          s.items[k] = { id: String(r2.json.id), h, u: u(r2) };
         }
       } else {
         const r = await gapi("POST", base, body);
-        s.items[k] = { id: String(r.json.id), h };
+        s.items[k] = { id: String(r.json.id), h, u: u(r) };
       }
       if (++n % 10 === 0) await save();
     }
@@ -868,7 +1124,7 @@ async function runSync(forceFull: boolean): Promise<void> {
     s.lastOk = stamp();
     s.lastError = "";
     await save();
-    publish({ busy: false, lastOk: s.lastOk, lastError: "" });
+    publish({ busy: false, lastOk: s.lastOk, lastError: "", twoWay: opts.twoWay, ...stateCounts(s) });
   } catch (e) {
     const msg = friendly(e);
     s.lastError = msg;
@@ -876,8 +1132,12 @@ async function runSync(forceFull: boolean): Promise<void> {
     await save().catch(() => {});
     publish({ busy: false, lastError: msg });
     if (e instanceof Error && e.message === "relogin") {
+      // 7일이 지나 풀렸어요(테스트 상태 구글 앱) – 받았던 권한을 적어 두고 캘린더 구글 상자에 [다시 로그인]을 띄워요.
+      s.lapsed = true;
+      s.lastScope = t.scope ?? s.lastScope;
+      await save().catch(() => {});
       await putJson(K_TOKEN, null).catch(() => {});
-      publish({ connected: false });
+      publish({ connected: false, lapsed: true });
     }
   }
 }
@@ -921,6 +1181,19 @@ export async function exportNow(): Promise<void> {
 
 /** 켜고 끄기를 바꾸면 바로 맞춰요(끈 것은 구글에서 지워요). */
 export async function saveOpts(o: GOpts): Promise<void> {
+  const before = await loadOpts();
+  if (before.twoWay !== o.twoWay) {
+    // 연동 방향을 바꾸면 구글 "바뀐 것만 받기"를 처음부터 다시 해요. 한 방향으로 돌아가면 "지워짐"은 기록 쪽이 이겨 다시 보내요.
+    if (running) await running;
+    const s = await loadState();
+    s.syncToken = "";
+    if (!o.twoWay) {
+      s.gone = {};
+      s.foreign = {};
+    }
+    await putJson(K_STATE, s);
+    publish({ twoWay: o.twoWay, ...stateCounts(s) });
+  }
   await putJson(K_OPTS, o);
   void syncGoogle();
 }
@@ -939,8 +1212,25 @@ export function scheduleGoogleSync(): void {
 /** 구글로 나가는 것을 바꾸는 명령들이에요(보기·색 칸 숨기기 등은 빼요). */
 const CHANGES = /^(add_event|update_event|delete_event|set_cal_kind_color|delete_cal_kind|add_complaint|update_complaint|set_complaint_status|delete_complaint|import_complaints|replace_complaint_field|add_task|update_task|set_task_done|delete_task|delete_task_list|rename_task_list)$/;
 
+let trackTimer = 0;
+
 function onDataChange(cmd: string) {
-  if (CHANGES.test(cmd)) scheduleGoogleSync();
+  if (!CHANGES.test(cmd)) return;
+  scheduleGoogleSync();
+  // 양방향: 내 일정 고친 시각은 로그인이 풀린 동안에도 적어 둬요.
+  if (/_event$/.test(cmd) && status.twoWay) {
+    window.clearTimeout(trackTimer);
+    trackTimer = window.setTimeout(() => void trackLocal().catch(() => {}), 1_000);
+  }
+}
+
+let lastFocus = 0;
+
+/** 양방향: 창을 다시 볼 때 구글에서 바뀐 것을 받아요(1분에 한 번까지). */
+function onFocus() {
+  if (!status.connected || !status.twoWay || Date.now() - lastFocus < 60_000) return;
+  lastFocus = Date.now();
+  void syncGoogle();
 }
 
 let retry = 0;
@@ -949,12 +1239,17 @@ let retry = 0;
 export async function startGoogleSync(): Promise<void> {
   if (!inApp) return;
   changeHooks.add(onDataChange);
+  window.removeEventListener("focus", onFocus);
+  window.addEventListener("focus", onFocus);
   await loadGoogleStatus();
   if (status.connected) void syncGoogle();
   window.clearInterval(retry);
-  // 3분마다 구글에서 체크한 할 일을 받아 와요(실패했던 것도 이때 다시 보내요).
+  // 3분마다 구글에서 체크한 할 일·(양방향이면) 고친 일정을 받아 와요(실패했던 것도 이때 다시 보내요).
   retry = window.setInterval(() => {
     if (status.connected) void syncGoogle();
   }, 3 * 60_000);
 }
 
+
+/** 시험(google.sync.test.ts)에서만 써요 – 가짜 구글 서버로 맞추기 한 번. */
+export const __test = { runSync, trackLocal };

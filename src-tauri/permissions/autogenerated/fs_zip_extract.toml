@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-fs-zip-extract"
+description = "Enables the fs_zip_extract command without any pre-configured scope."
+commands.allow = ["fs_zip_extract"]
+
+[[permission]]
+identifier = "deny-fs-zip-extract"
+description = "Denies the fs_zip_extract command without any pre-configured scope."
+commands.deny = ["fs_zip_extract"]

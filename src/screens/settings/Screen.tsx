@@ -3,13 +3,16 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { BudgetShareRows } from "../../BudgetShareCard";
 import { ACCENTS, api, Complaint, DEFAULT_PREFS, errorText, Prefs, Status } from "../../api";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, Settings } from "../../settingsStore";
+import type { GateNote } from "../../Gate";
 import { isOn, Modules, onScreens, SCREENS, firstOn } from "../../screens";
 import Logo, { AppIcon } from "../../Logo";
 import { VERSION } from "../../version";
 import { setKeyMap } from "../../keys";
-import { ModulesCard, ModuleCard, KeysCard, GoogleRows, FilesRows, ListGroup, ListMerge, KindsGroup, PinRow, FolderRow, BackupRow, AddressRows, ProcessRows } from "./Table";
+import { ModulesCard, ModuleCard, KeysCard, GoogleRows, FilesRows, ListGroup, ListMerge, KindsGroup, PinRow, FolderRow, AutoBackupRow, BackupRow, AddressRows, ProcessRows } from "./Table";
 import { PasswordChange } from "./Dialogs";
+import { ClearCard } from "./Clear";
 import { Row, Toggle, X } from "./parts";
+import { MapRows } from "./MapRows";
 
 /** 화면 크기 단계(2026-10-21 화면 배율, 사용자 ② 1안) – 값은 prefs.fontSize 그대로, 13 = 100% */
 const SCREEN_SIZES: [number, string][] = [
@@ -25,7 +28,8 @@ type Props = {
   prefs: Prefs;
   onPrefs: (p: Prefs) => Promise<void>;
   status: Status;
-  onLocked: () => void;
+  /** 앱이 잠겼어요(자료 옮기기·백업 불러오기) – 잠금 화면 띠에 보일 안내를 함께 넘겨요(버그 사냥 17) */
+  onLocked: (note?: GateNote) => void;
   /** 모듈을 켜고 끄면 사이드바에 알려요. */
   onModules: (m: Modules) => void;
   /** 설정 닫기(× 단추) – 마지막으로 보던 화면으로 */
@@ -33,7 +37,7 @@ type Props = {
 };
 
 /** 설정이 있는 모듈만 "모듈별 설정"에 카드를 둬요(사이드바 순서). 없는 모듈(할 일·업무연락처)은 빼요 – 2026-10-18 사용자. 집행현황은 팀 공유(2026-10-20). */
-const SET_SCREENS = SCREENS.filter((sc) => (["explorer", "complaints", "process", "budget", "calendar", "journal"] as string[]).includes(sc.id));
+const SET_SCREENS = SCREENS.filter((sc) => (["explorer", "complaints", "map", "process", "budget", "calendar", "journal"] as string[]).includes(sc.id));
 
 export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onModules, onClose }: Props) {
   const [s, setS] = useState<Settings | null>(null);
@@ -384,6 +388,7 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
         )}
         <PasswordChange />
         <FolderRow folder={status.folder} onLocked={onLocked} setNote={setNote} />
+        <AutoBackupRow setNote={setNote} />
         <BackupRow onLocked={onLocked} setNote={setNote} />
       </section>
 
@@ -418,6 +423,8 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
               </Row>
               <AddressRows />
             </>
+          ) : sc.id === "map" ? (
+            <MapRows />
           ) : sc.id === "process" ? (
             <ProcessRows p={s.process} onChange={(process) => update({ ...s, process })} />
           ) : sc.id === "budget" ? (
@@ -439,6 +446,9 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
           )}
         </ModuleCard>
       ))}
+
+      {/* "자료 지우기"는 정보 바로 위(2026-10-30 설정 ✔1·13:29 사용자) – 스위치는 저장하지 않아 설정을 나가면 꺼져요 */}
+      <ClearCard setNote={setNote} />
 
       <h2 className="set-sec">정보</h2>
       <section className="card" aria-label="정보" data-k="정보 버전 개발자 이메일">

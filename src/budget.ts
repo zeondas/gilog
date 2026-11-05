@@ -27,6 +27,8 @@ export type View = "exp" | "act";
 export const VIEW_LABEL: Record<View, string> = { exp: "집행률", act: "시공량" };
 /** 합계 줄 비율 열 머리 글자 */
 export const RATE_LABEL: Record<View, string> = { exp: "집행률", act: "사용률" };
+/** 원인행위 열 이름(2026-10-28 21:58 사용자): 시공량 보기에서는 "계약금액" – 값·계산은 같아요 */
+export const CMT_LABEL: Record<View, string> = { exp: "원인행위", act: "계약금액" };
 /** 쓴 돈: 집행률 보기면 집행액, 시공량 보기면 시공량(사용량) */
 export const spent = (r: BudgetRow, v: View = "exp") => (v === "act" ? r.act : r.exp);
 export const balance = (r: BudgetRow, v: View = "exp") => r.cmt - spent(r, v);

@@ -603,83 +603,128 @@ impl Store {
     /// 그 해 안에서 세부사업 → 부기사업 → 공사를 차례로 이름으로 맞춰요(같은 이름이 여럿이면 앞에서부터 하나씩).
     /// 맞으면 파일 값으로 바꾸고(예산은 파일 칸이 비면 그대로, 메모는 파일 메모가 비면 그대로), 없으면 맨 아래에 더해요.
     /// 파일에 없는 것은 그대로 둬요. 돌려주는 값: (그 해 전체, 공사 덮어쓰기 수, 공사 새로 더하기 수).
-    pub fn import_budget(&mut self, year: i64, list: &[BudgetImportProject]) -> Result<(Vec<BudgetProject>, usize, usize)> {
-        let have = read_year(&self.conn, year)?;
+    /// replace(대체하기, 2026-10-30 사용자 ①1안): 그 해의 세부사업·부기사업·공사를 먼저 모두 지우고 파일 내용만 넣어요(같은 트랜잭션).
+    /// 다른 해는 그대로예요. 이름이 같은 줄은 지우기 전 uid·담당을 이어받아요(E-9·E-25 – 예산현황 split·uids가 끊기지 않게).
+    pub fn import_budget(&mut self, year: i64, list: &[BudgetImportProject], replace: bool) -> Result<(Vec<BudgetProject>, usize, usize)> {
         let tx = self.conn.transaction()?;
-        let mut ord: i64 = tx.query_row("SELECT COALESCE(MAX(ord), -1) + 1 FROM budget_projects WHERE year = ?1", params![year], |r| r.get(0))?;
-        let (mut upd, mut add) = (0usize, 0usize);
-        let mut used_p: Vec<i64> = Vec::new();
-        for p in list {
-            let pname = name_of(&p.name)?;
-            let old_p = have.iter().find(|x| x.name == pname && !used_p.contains(&x.id));
-            let pid = match old_p {
-                Some(op) => {
-                    used_p.push(op.id);
+        let (upd, add) = import_year(&tx, year, list, replace)?;
+        tx.commit()?;
+        Ok((self.budget_data(year)?, upd, add))
+    }
+
+    /// 여러 해를 한 트랜잭션으로 가져와요(E-18 – 계약현황 양식). 한 해라도 실패하면 모두 되돌려요.
+    /// 돌려주는 값: 해마다 (해, 그 해 전체).
+    pub fn import_budget_many(&mut self, years: &[BudgetImportYear]) -> Result<Vec<(i64, Vec<BudgetProject>)>> {
+        let tx = self.conn.transaction()?;
+        for y in years {
+            import_year(&tx, y.year, &y.projects, y.replace)?;
+        }
+        tx.commit()?;
+        years.iter().map(|y| Ok((y.year, self.budget_data(y.year)?))).collect()
+    }
+}
+
+/// 여러 해 가져오기의 한 해(import_budget_many)
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct BudgetImportYear {
+    pub year: i64,
+    pub projects: Vec<BudgetImportProject>,
+    pub replace: bool,
+}
+
+/// 같은 이름 줄 찾기(앞에서부터 하나씩) – 덮어쓰기 짝·대체하기 uid 이어받기가 함께 써요.
+fn take<'a, T>(list: &'a [T], used: &mut Vec<i64>, id: impl Fn(&T) -> i64, hit: impl Fn(&T) -> bool) -> Option<&'a T> {
+    let f = list.iter().find(|x| hit(x) && !used.contains(&id(x)))?;
+    used.push(id(f));
+    Some(f)
+}
+
+fn import_year(tx: &Transaction, year: i64, list: &[BudgetImportProject], replace: bool) -> Result<(usize, usize)> {
+    // 덮어쓰기는 맞춘 줄을 고치고, 대체하기는 지운 뒤 이름이 같은 줄의 uid만 이어받아 새로 넣어요.
+    let have = read_year(tx, year)?;
+    if replace {
+        tx.execute(
+            "DELETE FROM budget_rows WHERE item IN (SELECT i.id FROM budget_items i JOIN budget_projects p ON i.project = p.id WHERE p.year = ?1)",
+            params![year],
+        )?;
+        tx.execute("DELETE FROM budget_items WHERE project IN (SELECT id FROM budget_projects WHERE year = ?1)", params![year])?;
+        tx.execute("DELETE FROM budget_projects WHERE year = ?1", params![year])?;
+    }
+    let mut ord: i64 = tx.query_row("SELECT COALESCE(MAX(ord), -1) + 1 FROM budget_projects WHERE year = ?1", params![year], |r| r.get(0))?;
+    let (mut upd, mut add) = (0usize, 0usize);
+    let mut used_p: Vec<i64> = Vec::new();
+    for p in list {
+        let pname = name_of(&p.name)?;
+        let old_p = take(&have, &mut used_p, |x| x.id, |x| x.name == pname);
+        let pid = match old_p {
+            Some(op) if !replace => {
+                tx.execute(
+                    "UPDATE budget_projects SET budget = COALESCE(?2, budget), carry = ?3, memo = CASE WHEN ?4 = '' THEN memo ELSE ?4 END WHERE id = ?1",
+                    params![op.id, won_opt(p.budget)?, (p.carry || op.carry) as i64, p.memo.trim()],
+                )?;
+                op.id
+            }
+            _ => {
+                let (uid, owner) = old_p.map(|x| (x.uid.as_str(), x.owner)).unwrap_or(("", None));
+                tx.execute(
+                    "INSERT INTO budget_projects (year, ord, name, budget, carry, open, memo, owner, uid) VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, ?7, ?8)",
+                    params![year, ord, pname, won_opt(p.budget)?, p.carry as i64, p.memo.trim(), owner, uid],
+                )?;
+                ord += 1;
+                tx.last_insert_rowid()
+            }
+        };
+        let old_items: &[BudgetItem] = old_p.map(|x| x.items.as_slice()).unwrap_or(&[]);
+        let mut iord: i64 = tx.query_row("SELECT COALESCE(MAX(ord), -1) + 1 FROM budget_items WHERE project = ?1", params![pid], |r| r.get(0))?;
+        let mut used_i: Vec<i64> = Vec::new();
+        for it in &p.items {
+            let iname = name_of(&it.name)?;
+            let old_i = take(old_items, &mut used_i, |x| x.id, |x| x.name == iname);
+            let iid = match old_i {
+                Some(oi) if !replace => {
                     tx.execute(
-                        "UPDATE budget_projects SET budget = COALESCE(?2, budget), carry = ?3, memo = CASE WHEN ?4 = '' THEN memo ELSE ?4 END WHERE id = ?1",
-                        params![op.id, won_opt(p.budget)?, (p.carry || op.carry) as i64, p.memo.trim()],
+                        "UPDATE budget_items SET budget = COALESCE(?2, budget), memo = CASE WHEN ?3 = '' THEN memo ELSE ?3 END WHERE id = ?1",
+                        params![oi.id, won_opt(it.budget)?, it.memo.trim()],
                     )?;
-                    op.id
+                    oi.id
                 }
-                None => {
+                _ => {
+                    let uid = old_i.map(|x| x.uid.as_str()).unwrap_or("");
                     tx.execute(
-                        "INSERT INTO budget_projects (year, ord, name, budget, carry, open, memo) VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6)",
-                        params![year, ord, pname, won_opt(p.budget)?, p.carry as i64, p.memo.trim()],
+                        "INSERT INTO budget_items (project, ord, name, budget, open, memo, uid) VALUES (?1, ?2, ?3, ?4, 0, ?5, ?6)",
+                        params![pid, iord, iname, won_opt(it.budget)?, it.memo.trim(), uid],
                     )?;
-                    ord += 1;
+                    iord += 1;
                     tx.last_insert_rowid()
                 }
             };
-            let old_items: &[BudgetItem] = old_p.map(|x| x.items.as_slice()).unwrap_or(&[]);
-            let mut iord: i64 = tx.query_row("SELECT COALESCE(MAX(ord), -1) + 1 FROM budget_items WHERE project = ?1", params![pid], |r| r.get(0))?;
-            let mut used_i: Vec<i64> = Vec::new();
-            for it in &p.items {
-                let iname = name_of(&it.name)?;
-                let old_i = old_items.iter().find(|x| x.name == iname && !used_i.contains(&x.id));
-                let iid = match old_i {
-                    Some(oi) => {
-                        used_i.push(oi.id);
+            let old_rows: &[BudgetRow] = old_i.map(|x| x.rows.as_slice()).unwrap_or(&[]);
+            let mut rord: i64 = tx.query_row("SELECT COALESCE(MAX(ord), -1) + 1 FROM budget_rows WHERE item = ?1", params![iid], |r| r.get(0))?;
+            let mut used_r: Vec<i64> = Vec::new();
+            for r in &it.rows {
+                let c = clean_row(&r.input)?;
+                match take(old_rows, &mut used_r, |x| x.id, |x| x.name == c.name) {
+                    Some(or) if !replace => {
                         tx.execute(
-                            "UPDATE budget_items SET budget = COALESCE(?2, budget), memo = CASE WHEN ?3 = '' THEN memo ELSE ?3 END WHERE id = ?1",
-                            params![oi.id, won_opt(it.budget)?, it.memo.trim()],
+                            "UPDATE budget_rows SET kind = ?2, co = ?3, cmt = ?4, exp = ?5, act = ?6, stage = ?7, memo = CASE WHEN ?8 = '' THEN memo ELSE ?8 END WHERE id = ?1",
+                            params![or.id, c.kind, c.co, c.cmt, c.exp, c.act, c.stage, r.memo.trim()],
                         )?;
-                        oi.id
+                        upd += 1;
                     }
-                    None => {
-                        tx.execute(
-                            "INSERT INTO budget_items (project, ord, name, budget, open, memo) VALUES (?1, ?2, ?3, ?4, 0, ?5)",
-                            params![pid, iord, iname, won_opt(it.budget)?, it.memo.trim()],
-                        )?;
-                        iord += 1;
-                        tx.last_insert_rowid()
-                    }
-                };
-                let old_rows: &[BudgetRow] = old_i.map(|x| x.rows.as_slice()).unwrap_or(&[]);
-                let mut rord: i64 = tx.query_row("SELECT COALESCE(MAX(ord), -1) + 1 FROM budget_rows WHERE item = ?1", params![iid], |r| r.get(0))?;
-                let mut used_r: Vec<i64> = Vec::new();
-                for r in &it.rows {
-                    let c = clean_row(&r.input)?;
-                    match old_rows.iter().find(|x| x.name == c.name && !used_r.contains(&x.id)) {
-                        Some(or) => {
-                            used_r.push(or.id);
-                            tx.execute(
-                                "UPDATE budget_rows SET kind = ?2, co = ?3, cmt = ?4, exp = ?5, act = ?6, stage = ?7, memo = CASE WHEN ?8 = '' THEN memo ELSE ?8 END WHERE id = ?1",
-                                params![or.id, c.kind, c.co, c.cmt, c.exp, c.act, c.stage, r.memo.trim()],
-                            )?;
-                            upd += 1;
+                    or => {
+                        let id = insert_row(tx, iid, rord, &c, r.memo.trim())?;
+                        if let Some(or) = or {
+                            tx.execute("UPDATE budget_rows SET uid = ?2 WHERE id = ?1", params![id, or.uid])?;
                         }
-                        None => {
-                            insert_row(&tx, iid, rord, &c, r.memo.trim())?;
-                            rord += 1;
-                            add += 1;
-                        }
+                        rord += 1;
+                        add += 1;
                     }
                 }
             }
         }
-        tx.commit()?;
-        Ok((self.budget_data(year)?, upd, add))
     }
+    Ok((upd, add))
 }
 
 /// 팀 공유에서 받은 한 줄(세부사업·부기사업·공사). 없는 uid면 새로 넣고, 있으면 칸을 바꿔요.
@@ -972,7 +1017,7 @@ mod tests {
         assert_eq!(y[0].items[0].memo, "<ul><li>메모</li></ul>");
         let y = s.set_budget_open(BudgetLevel::Project, a, false, true).unwrap();
         assert!(y[0].open && !y[0].items[0].open);
-        s.import_budget(2025, &[BudgetImportProject { name: "(명시이월) 다".into(), carry: true, ..Default::default() }]).unwrap();
+        s.import_budget(2025, &[BudgetImportProject { name: "(명시이월) 다".into(), carry: true, ..Default::default() }], false).unwrap();
         // 복사: 이월·공사 빼고 이름·예산만
         let y = s.copy_budget_year(2025, 2026).unwrap();
         assert_eq!(y.len(), 1);
@@ -993,6 +1038,7 @@ mod tests {
                     }],
                     ..Default::default()
                 }, BudgetImportProject { name: "마".into(), ..Default::default() }],
+                false,
             )
             .unwrap();
         assert_eq!(n, 1);
@@ -1015,7 +1061,7 @@ mod tests {
                 ..Default::default()
             }]
         };
-        let (_, u, a) = s.import_budget(2026, &file(vec![r("가", "관급", "대원", 100, ""), r("나", "공사", "영진", 200, "")], Some(1_000_000_000))).unwrap();
+        let (_, u, a) = s.import_budget(2026, &file(vec![r("가", "관급", "대원", 100, ""), r("나", "공사", "영진", 200, "")], Some(1_000_000_000)), false).unwrap();
         assert_eq!((u, a), (0, 2));
         // 앱에서 더한 공사·메모
         let y = s.budget_data(2026).unwrap();
@@ -1024,7 +1070,7 @@ mod tests {
         let ga = y[0].items[0].rows[0].id;
         s.set_budget_memo(BudgetLevel::Row, ga, "<p>앱 메모</p>").unwrap();
         // 다시 가져오기: 가는 값이 바뀌고(메모 그대로), 다는 새로, 나·앱에서 더함은 그대로, 예산 칸이 비면 그대로
-        let (y, u, a) = s.import_budget(2026, &file(vec![r("가", "공사", "한양", 300, ""), r("다", "용역", "", 400, "")], None)).unwrap();
+        let (y, u, a) = s.import_budget(2026, &file(vec![r("가", "공사", "한양", 300, ""), r("다", "용역", "", 400, "")], None), false).unwrap();
         assert_eq!((u, a), (1, 1));
         assert_eq!(y.len(), 1);
         assert_eq!(y[0].budget, Some(1_000_000_000));
@@ -1033,8 +1079,88 @@ mod tests {
         assert_eq!(rows, [("가", "공사", "한양", 300), ("나", "공사", "영진", 200), ("앱에서 더함", "공사", "", 50), ("다", "용역", "", 400)]);
         assert_eq!(y[0].items[0].rows[0].memo, "<p>앱 메모</p>");
         // 같은 이름이 둘이면 앞에서부터 하나씩 맞춰요
-        let (y, u, a) = s.import_budget(2026, &file(vec![r("나", "공사", "", 10, ""), r("나", "공사", "", 20, "")], None)).unwrap();
+        let (y, u, a) = s.import_budget(2026, &file(vec![r("나", "공사", "", 10, ""), r("나", "공사", "", 20, "")], None), false).unwrap();
         assert_eq!((u, a), (1, 1));
         assert_eq!(y[0].items[0].rows.iter().filter(|x| x.name == "나").map(|x| x.cmt).collect::<Vec<_>>(), [10, 20]);
+    }
+
+    /// 2026-10-30 사용자 ①1안: 대체하기는 그 해만 지우고 파일 내용만 남겨요(다른 해는 그대로).
+    #[test]
+    fn import_replace_clears_only_that_year() {
+        let (_d, mut s) = store();
+        let one = |p: &str, r: &str| {
+            vec![BudgetImportProject {
+                name: p.into(),
+                items: vec![BudgetImportItem { name: "시도".into(), rows: vec![BudgetImportRow { input: row(r, 100), memo: "".into() }], ..Default::default() }],
+                ..Default::default()
+            }]
+        };
+        s.import_budget(2025, &one("지난해", "옛 공사"), false).unwrap();
+        s.import_budget(2026, &one("도로포장", "가"), false).unwrap();
+        let it = s.budget_data(2026).unwrap()[0].items[0].id;
+        s.save_budget_row(it, None, &row("앱에서 더함", 50)).unwrap();
+        let (y, u, a) = s.import_budget(2026, &one("배수", "새 공사"), true).unwrap();
+        assert_eq!((u, a), (0, 1));
+        assert_eq!(y.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(), ["배수"]);
+        assert_eq!(y[0].items[0].rows.iter().map(|r| r.name.as_str()).collect::<Vec<_>>(), ["새 공사"]);
+        let prev = s.budget_data(2025).unwrap();
+        assert_eq!((prev.len(), prev[0].items[0].rows[0].name.as_str()), (1, "옛 공사"));
+        // 빈 파일로 대체하면 그 해가 비어요
+        let (y, _, _) = s.import_budget(2026, &[], true).unwrap();
+        assert!(y.is_empty());
+    }
+
+    /// E-9·E-25: 같은 파일로 대체하기를 해도 세부사업·부기사업·공사 uid가 그대로(예산현황 split·uids가 이어져요). 새 이름은 새 uid.
+    #[test]
+    fn import_replace_keeps_uid_by_name() {
+        let (_d, mut s) = store();
+        let file = |rows: &[&str]| {
+            vec![BudgetImportProject {
+                name: "도로포장".into(),
+                items: vec![BudgetImportItem {
+                    name: "시도".into(),
+                    rows: rows.iter().map(|r| BudgetImportRow { input: row(r, 100), memo: "".into() }).collect(),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }]
+        };
+        let (a, _, _) = s.import_budget(2026, &file(&["가", "나", "나"]), false).unwrap();
+        s.set_budget_owner(a[0].id, Some(3)).unwrap();
+        let (b, u, n) = s.import_budget(2026, &file(&["나", "가", "나", "다"]), true).unwrap();
+        assert_eq!((u, n), (0, 4));
+        assert_eq!((b[0].uid.as_str(), b[0].owner), (a[0].uid.as_str(), Some(3)));
+        assert_eq!(b[0].items[0].uid, a[0].items[0].uid);
+        let (ar, br) = (&a[0].items[0].rows, &b[0].items[0].rows);
+        assert_eq!(br[0].uid, ar[1].uid, "첫 나 = 옛 첫 나");
+        assert_eq!(br[1].uid, ar[0].uid);
+        assert_eq!(br[2].uid, ar[2].uid, "둘째 나 = 옛 둘째 나");
+        assert!(br[3].uid.len() == 16 && ar.iter().all(|r| r.uid != br[3].uid), "새 이름은 새 uid");
+    }
+
+    /// E-18: 여러 해를 한 트랜잭션으로 – 뒤 해가 실패하면 앞 해도 들어가지 않아요.
+    #[test]
+    fn import_many_is_one_transaction() {
+        let (_d, mut s) = store();
+        let one = |r: &str, cmt: i64| {
+            vec![BudgetImportProject {
+                name: "시도57".into(),
+                items: vec![BudgetImportItem { name: "공사".into(), rows: vec![BudgetImportRow { input: row(r, cmt), memo: "".into() }], ..Default::default() }],
+                ..Default::default()
+            }]
+        };
+        let bad = s.import_budget_many(&[
+            BudgetImportYear { year: 2024, projects: one("가", 100), replace: false },
+            BudgetImportYear { year: 2025, projects: one("나", 101), replace: false },
+        ]);
+        assert!(bad.is_err());
+        assert!(s.budget_data(2024).unwrap().is_empty(), "앞 해도 되돌려요");
+        let ok = s
+            .import_budget_many(&[
+                BudgetImportYear { year: 2024, projects: one("가", 100), replace: false },
+                BudgetImportYear { year: 2025, projects: one("나", 110), replace: false },
+            ])
+            .unwrap();
+        assert_eq!(ok.iter().map(|(y, d)| (*y, d.len())).collect::<Vec<_>>(), [(2024, 1), (2025, 1)]);
     }
 }

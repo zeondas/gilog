@@ -9,6 +9,10 @@ import { koIndex } from "../../journal";
 import { useJamoGuard } from "../../koInput";
 import { SearchBox } from "../../SearchBox";
 import { FILTER_LABEL } from "./parts";
+import { keyOf } from "../../keys";
+
+/** 단축키 안내(설정 "키 설정"에서 바꾼 키) */
+const keyHint = (a: "app.map") => (keyOf(a) ? `단축키 ${keyOf(a)}` : undefined);
 
 /** 보기 줄 우클릭 메뉴(2026-10-21 사용자, 시안 ComplaintMenu.dc.html) – 공통 "떠 있는 메뉴" 모양.
  *  지우기는 메뉴가 그 자리에서 붉은 띠로 바뀌어요(업무일지 날짜 메뉴·민원처리와 같은 방식). */
@@ -21,6 +25,7 @@ export function RowMenu({
   person,
   onClose,
   onEdit,
+  onMap,
   onAsk,
   onDelete,
 }: {
@@ -34,6 +39,8 @@ export function RowMenu({
   person: string;
   onClose: () => void;
   onEdit: () => void;
+  /** 민원 지도에서 보기(2026-11-03 사용자 1안) – 지도 모듈을 끄면 없어요 */
+  onMap?: () => void;
   onAsk: () => void;
   onDelete: () => void;
 }) {
@@ -48,6 +55,11 @@ export function RowMenu({
           <button type="button" role="menuitem" className="dmenu-item" onClick={onEdit}>
             고치기
           </button>
+          {onMap && (
+            <button type="button" role="menuitem" className="dmenu-item" title={keyHint("app.map")} onClick={onMap}>
+              지도에서 보기
+            </button>
+          )}
           {/* 위치·민원인 복사는 우클릭으로(2026-10-25 사용자 ⑨1안 – 한 번 누르기 복사는 없앰). 위로·아래로 옮기기는 연번 자동이라 뺌(②1안). */}
           <button type="button" role="menuitem" className="dmenu-item" disabled={!place} onClick={() => (onClose(), void copyText(place))}>
             위치 복사

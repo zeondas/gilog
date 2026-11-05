@@ -406,6 +406,7 @@ export function ChoiceInput({
   allow,
   invalid,
   stayOnTab,
+  free,
   onChange,
   inputRef,
   placeholder,
@@ -419,15 +420,21 @@ export function ChoiceInput({
   allow?: string;
   invalid?: boolean;
   stayOnTab?: boolean;
+  /**
+   * 목록에 없는 값도 그대로 받아요(민원유형 – QC CM-07, 2026-11-02 사용자 1안).
+   * 후보는 보여 주되 ↑↓로 고른 것만 Tab·Enter로 확정하고, 떠날 때 저절로 채우지 않아요.
+   */
+  free?: boolean;
   onChange: (v: string) => void;
   inputRef?: Ref<HTMLInputElement>;
 }) {
   const [open, setOpen] = useState(false);
-  const [hi, setHi] = useState(0);
+  const start = free ? -1 : 0;
+  const [hi, setHi] = useState(start);
   const guard = useJamoGuard((v) => {
     onChange(v);
     setOpen(true);
-    setHi(0);
+    setHi(start);
   });
   guard.follow(value);
 
@@ -459,13 +466,13 @@ export function ChoiceInput({
         onCompositionEnd={guard.onCompositionEnd}
         onFocus={(e) => {
           e.currentTarget.select();
-          setHi(0);
+          setHi(start);
         }}
         onClick={() => setOpen(true)}
         onBlur={() => {
           setOpen(false);
-          // 하나뿐이면 떠날 때 채워요.
-          if (v && !all.includes(v) && opts.length === 1) pick(opts[0]);
+          // 하나뿐이면 떠날 때 채워요(자유 입력 칸은 친 그대로).
+          if (!free && v && !all.includes(v) && opts.length === 1) pick(opts[0]);
         }}
         onKeyDown={(e) => {
           guard.onKeyDown(e);
@@ -478,6 +485,11 @@ export function ChoiceInput({
             return;
           }
           if (moveKey(e, opts.length, hi, setHi)) return;
+          // 자유 입력 칸에서 아무것도 고르지 않았으면 친 그대로 두고 키는 원래 일(다음 칸·등록)을 해요.
+          if (free && hi < 0 && (e.key === "Tab" || e.key === "Enter")) {
+            setOpen(false);
+            return;
+          }
           if (e.key === "Tab" && !e.shiftKey) {
             if (stayOnTab) e.preventDefault();
             pick(opts[hi] ?? opts[0]);

@@ -7,6 +7,7 @@
 //! - 접수유형·민원유형·상태는 적은 글자 그대로 둬요. 설정 목록에서 지워도 기록의 값은 남아요.
 
 use rusqlite::{params, OptionalExtension, Row};
+use std::collections::{HashMap, VecDeque};
 use serde::{Deserialize, Serialize};
 
 use crate::journal::valid_date;
@@ -79,6 +80,10 @@ pub struct Complaint {
     pub memo: String,
     /// 바꾸기 전 도로명주소(위치를 바꾼 민원만)
     pub road: String,
+    /// 완료 전 상태(2026-11-04 민원대장 ✔1): 완료·불가가 될 때 그 직전 상태를 표가 저절로 적어 둬요(`PREV_TRIGGER`).
+    /// 조치완료일을 지우면 화면이 이 상태로 되돌려요. 엑셀에는 나가지 않아요. 모르면 비어 있어요.
+    #[serde(default)]
+    pub prev: String,
 }
 
 pub(crate) const SCHEMA: &str = "
@@ -97,8 +102,23 @@ pub(crate) const SCHEMA: &str = "
         due      TEXT NOT NULL DEFAULT '',
         status   TEXT NOT NULL DEFAULT '',
         memo     TEXT NOT NULL DEFAULT '',
-        road     TEXT NOT NULL DEFAULT ''
+        road     TEXT NOT NULL DEFAULT '',
+        geo_x    REAL,
+        geo_y    REAL,
+        geo_src  TEXT NOT NULL DEFAULT '',
+        geo_at   TEXT NOT NULL DEFAULT '',
+        prev     TEXT NOT NULL DEFAULT ''
     );
+";
+
+/// 완료·불가가 될 때 그 직전 상태를 `prev`에 적어요(2026-11-04 민원대장 ✔1). 표가 하는 일이라 배지·조치완료일·민원처리·
+/// 구글 할 일·엑셀 덮어쓰기 어느 길로 바뀌어도 같아요. 완료 ↔ 불가끼리 바뀔 때는 그대로 둬요.
+pub(crate) const PREV_TRIGGER: &str = "
+    CREATE TRIGGER IF NOT EXISTS complaints_prev AFTER UPDATE OF status ON complaints
+    WHEN NEW.status IN ('완료', '불가') AND OLD.status NOT IN ('완료', '불가')
+    BEGIN
+        UPDATE complaints SET prev = OLD.status WHERE id = NEW.id;
+    END;
 ";
 
 /// 예전 자료 파일에 도로명주소 칸(road)을 더해요(2026-10-18 주소 변환).
@@ -125,6 +145,19 @@ pub(crate) fn upgrade(conn: &rusqlite::Connection) -> Result<()> {
             conn.execute("UPDATE complaints SET action = ?1 WHERE id = ?2", rusqlite::params![fixed, id])?;
         }
     }
+    // 민원 지도 좌표 칸 4개(2026-11-02 민원 지도 ✔1, 자료 형식 v2): EPSG:5181 m · 찾은 단계 · 찾은 날.
+    for (col, ty) in [("geo_x", "REAL"), ("geo_y", "REAL"), ("geo_src", "TEXT NOT NULL DEFAULT ''"), ("geo_at", "TEXT NOT NULL DEFAULT ''")] {
+        let has: bool = conn.prepare("SELECT 1 FROM pragma_table_info('complaints') WHERE name = ?1")?.exists([col])?;
+        if !has {
+            conn.execute_batch(&format!("ALTER TABLE complaints ADD COLUMN {col} {ty};"))?;
+        }
+    }
+    // 완료 전 상태 칸 + 적어 두는 규칙(2026-11-04 민원대장 ✔1, 자료 형식 v3)
+    let has: bool = conn.prepare("SELECT 1 FROM pragma_table_info('complaints') WHERE name = 'prev'")?.exists([])?;
+    if !has {
+        conn.execute_batch("ALTER TABLE complaints ADD COLUMN prev TEXT NOT NULL DEFAULT '';")?;
+    }
+    conn.execute_batch(PREV_TRIGGER)?;
     // 연번은 접수일 순서(2026-10-25 사용자 ①1안) – 예전 자료도 한 번 맞춰요.
     renumber(conn)?;
     Ok(())
@@ -173,7 +206,7 @@ fn order_lines_to_default(action: &str) -> Option<String> {
     changed.then(|| serde_json::Value::Array(items).to_string())
 }
 
-const COLS: &str = "id, no, intake, received, ctype, area, place, person, phone, body, action, due, status, memo, road, done";
+const COLS: &str = "id, no, intake, received, ctype, area, place, person, phone, body, action, due, status, memo, road, done, prev";
 
 fn bad(msg: &str) -> Error {
     Error::Invalid(msg.into())
@@ -277,6 +310,7 @@ fn row(r: &Row) -> rusqlite::Result<Complaint> {
         memo: r.get(13)?,
         road: r.get(14)?,
         done: r.get(15)?,
+        prev: r.get(16)?,
     })
 }
 
@@ -324,6 +358,7 @@ impl Store {
             params![no, c.intake, c.received, c.ctype, c.area, c.place, c.person, c.phone, c.body, c.action, c.due, c.status, c.road, c.done],
         )?;
         let id = tx.last_insert_rowid();
+        crate::map::refresh_geo(&tx, Some(id))?;
         renumber(&tx)?;
         tx.commit()?;
         self.complaint(id)
@@ -342,6 +377,7 @@ impl Store {
         if n == 0 {
             return Err(Error::NotFound);
         }
+        crate::map::refresh_geo(&tx, Some(id))?;
         renumber(&tx)?;
         tx.commit()?;
         self.complaint(id)
@@ -412,41 +448,65 @@ impl Store {
     pub fn import_complaints(&mut self, rows: &[ComplaintImport], replace: bool) -> Result<(usize, usize)> {
         let tx = self.conn.transaction()?;
         if replace {
+            // 민원 번호가 1부터 다시 쓰여 민원처리 건이 엉뚱한 새 민원을 가리키지 않게 이어진 것을 먼저 끊어요
+            // (공통 ✔4, E-7 – 자료 지우기처럼 건은 남기고 잇기만 비워요).
+            tx.execute("UPDATE cases SET complaint = NULL WHERE complaint IS NOT NULL", [])?;
             tx.execute("DELETE FROM complaints", [])?;
+        }
+        // 덮어쓰기 짝: (접수일, 접수유형, 위치) → 아직 짝짓지 않은 기존 민원들(번호 순). 한 번 읽어 두고 줄마다 앞에서 하나씩
+        // 꺼내요 – 같은 열쇠가 여럿이어도 파일 순서대로 하나씩 짝짓고, 이번에 더한 민원은 이 표에 없어 짝이 되지 않아요
+        // (공통 ✔2, E-1·E-2). 줄마다 찾지 않아 10만 건 위 덮어쓰기도 빨라요(✔8, E-19).
+        let mut olds: HashMap<(String, String, String), VecDeque<(i64, String, String)>> = HashMap::new();
+        if !replace {
+            let mut st = tx.prepare("SELECT id, received, intake, place, person, phone FROM complaints ORDER BY id")?;
+            let it = st.query_map([], |r| {
+                Ok(((r.get::<_, String>(1)?, r.get::<_, String>(2)?, r.get::<_, String>(3)?), (r.get::<_, i64>(0)?, r.get::<_, String>(4)?, r.get::<_, String>(5)?)))
+            })?;
+            for x in it {
+                let (k, v) = x?;
+                olds.entry(k).or_default().push_back(v);
+            }
         }
         let mut no: i64 = tx.query_row("SELECT COALESCE(MAX(no), 0) FROM complaints", [], |r| r.get(0))?;
         let (mut updated, mut added) = (0, 0);
-        for r in rows {
-            let c = &r.input;
-            let t = |s: &str| s.trim().to_string();
-            let status = t(&c.status);
-            let status = if status.is_empty() { DEFAULT_STATUS.to_string() } else { status };
-            // 위치가 파주시 도로명주소면 지번으로 바꿔요(표에 꼭 맞을 때만, 후보가 필요하면 그대로).
-            let (area, place, road) = convert(&t(&c.area), &t(&c.place), &t(&c.road));
-            let (intake, received) = (t(&c.intake), t(&c.received));
-            let same: Option<i64> = if replace || (intake.is_empty() && received.is_empty() && place.is_empty()) {
-                None
-            } else {
-                tx.query_row(
-                    "SELECT id FROM complaints WHERE received = ?1 AND intake = ?2 AND place = ?3 ORDER BY id LIMIT 1",
-                    params![received, intake, place],
-                    |r| r.get(0),
-                )
-                .optional()?
-            };
-            if let Some(id) = same {
-                tx.execute(
-                    "UPDATE complaints SET intake = ?2, received = ?3, ctype = ?4, area = ?5, place = ?6, person = ?7, phone = ?8,
-                     body = ?9, action = ?10, due = ?11, status = ?12, memo = ?13, road = ?14, done = ?15 WHERE id = ?1",
-                    params![
+        {
+            let mut upd = tx.prepare(
+                "UPDATE complaints SET intake = ?2, received = ?3, ctype = ?4, area = ?5, place = ?6, person = ?7, phone = ?8,
+                 body = ?9, action = ?10, due = ?11, status = ?12, memo = ?13, road = ?14, done = ?15 WHERE id = ?1",
+            )?;
+            let mut ins = tx.prepare(
+                "INSERT INTO complaints (no, intake, received, ctype, area, place, person, phone, body, action, due, status, memo, road, done)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+            )?;
+            for r in rows {
+                let c = &r.input;
+                let t = |s: &str| s.trim().to_string();
+                let status = t(&c.status);
+                let status = if status.is_empty() { DEFAULT_STATUS.to_string() } else { status };
+                // 위치가 파주시 도로명주소면 지번으로 바꿔요(표에 꼭 맞을 때만, 후보가 필요하면 그대로).
+                let (area, place, road) = convert(&t(&c.area), &t(&c.place), &t(&c.road));
+                let (intake, received) = (t(&c.intake), t(&c.received));
+                let same = if replace || (intake.is_empty() && received.is_empty() && place.is_empty()) {
+                    None
+                } else {
+                    olds.get_mut(&(received.clone(), intake.clone(), place.clone())).and_then(|q| q.pop_front())
+                };
+                let (mut person, mut phone) = (t(&c.person), t(&c.phone));
+                if let Some((id, old_person, old_phone)) = same {
+                    // 옛 민원(민원인·연락처 칸이 따로)은 내보낼 때 "이름 연락처" 한 칸이 돼요 – 다시 가져와 같은 글자면
+                    // 칸을 나눈 그대로 둬요(공통 ✔2, E-22).
+                    if !old_phone.is_empty() && phone.is_empty() && person == format!("{old_person} {old_phone}").trim() {
+                        (person, phone) = (old_person, old_phone);
+                    }
+                    upd.execute(params![
                         id,
                         intake,
                         received,
                         t(&c.ctype),
                         area,
                         place,
-                        t(&c.person),
-                        t(&c.phone),
+                        person,
+                        phone,
                         lines(&c.body),
                         lines(&c.action),
                         t(&c.due),
@@ -454,24 +514,20 @@ impl Store {
                         r.memo.trim(),
                         road,
                         t(&c.done)
-                    ],
-                )?;
-                updated += 1;
-                continue;
-            }
-            no += 1;
-            tx.execute(
-                "INSERT INTO complaints (no, intake, received, ctype, area, place, person, phone, body, action, due, status, memo, road, done)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
-                params![
+                    ])?;
+                    updated += 1;
+                    continue;
+                }
+                no += 1;
+                ins.execute(params![
                     no,
                     intake,
                     received,
                     t(&c.ctype),
                     area,
                     place,
-                    t(&c.person),
-                    t(&c.phone),
+                    person,
+                    phone,
                     lines(&c.body),
                     lines(&c.action),
                     t(&c.due),
@@ -479,10 +535,11 @@ impl Store {
                     r.memo.trim(),
                     road,
                     t(&c.done)
-                ],
-            )?;
-            added += 1;
+                ])?;
+                added += 1;
+            }
         }
+        crate::map::refresh_geo(&tx, None)?;
         renumber(&tx)?;
         tx.commit()?;
         Ok((updated, added))
@@ -604,6 +661,50 @@ mod tests {
         // 지시 줄 모양이 아닌 □는 그대로(사용자가 일부러 친 □)
         assert_eq!(get(b.id), r#"[{"k":"sq","t":"현장 확인 지시(나중에)"},{"t":"도로시설물 1지구 지시(1지구-03 · 2)"}]"#);
         assert_eq!(get(c.id), r#"[{"k":"sq","t":"포트홀 보수"}]"#);
+    }
+
+    #[test]
+    fn prev_status_is_remembered_on_close() {
+        // 민원대장 ✔1(2026-11-04): 완료·불가가 될 때 직전 상태를 적어 둬요 – 어느 길로 바뀌든.
+        let d = tempfile::tempdir().unwrap();
+        let mut s = Store::create(d.path(), "1234").unwrap();
+        let c = s.add_complaint(&ComplaintInput { status: "진행".into(), ..input("가") }).unwrap();
+        assert_eq!(c.prev, "");
+        // 배지(상태만)
+        let c = s.set_complaint_status(c.id, "완료", Some("2026-11-04")).unwrap();
+        assert_eq!(c.prev, "진행");
+        // 완료 ↔ 불가끼리는 그대로
+        assert_eq!(s.set_complaint_status(c.id, "불가", None).unwrap().prev, "진행");
+        // 고치는 줄 저장(조치완료일 입력)
+        let c = s.add_complaint(&ComplaintInput { status: "보류".into(), ..input("나") }).unwrap();
+        let c = s.update_complaint(c.id, &ComplaintInput { status: "완료".into(), done: "2026-11-04".into(), ..input("나") }).unwrap();
+        assert_eq!(c.prev, "보류");
+        // 엑셀 덮어쓰기도
+        let c = s.add_complaint(&ComplaintInput { status: "답변".into(), place: "금촌동 9".into(), ..input("다") }).unwrap();
+        let row = ComplaintImport { input: ComplaintInput { status: "완료".into(), ..c_input(&c) }, memo: String::new() };
+        s.import_complaints(&[row], false).unwrap();
+        assert_eq!(s.complaint(c.id).unwrap().prev, "답변");
+        // 처음부터 완료로 등록한 민원은 몰라요
+        let c = s.add_complaint(&ComplaintInput { status: "완료".into(), done: "2026-11-04".into(), ..input("라") }).unwrap();
+        assert_eq!(c.prev, "");
+    }
+
+    fn c_input(c: &Complaint) -> ComplaintInput {
+        ComplaintInput {
+            intake: c.intake.clone(),
+            received: c.received.clone(),
+            ctype: c.ctype.clone(),
+            area: c.area.clone(),
+            place: c.place.clone(),
+            road: c.road.clone(),
+            person: c.person.clone(),
+            phone: c.phone.clone(),
+            body: c.body.clone(),
+            action: c.action.clone(),
+            due: c.due.clone(),
+            status: c.status.clone(),
+            done: c.done.clone(),
+        }
     }
 
     #[test]

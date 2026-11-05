@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-budget-share-apply"
+description = "Enables the budget_share_apply command without any pre-configured scope."
+commands.allow = ["budget_share_apply"]
+
+[[permission]]
+identifier = "deny-budget-share-apply"
+description = "Denies the budget_share_apply command without any pre-configured scope."
+commands.deny = ["budget_share_apply"]

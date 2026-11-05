@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-bstatus-list"
+description = "Enables the bstatus_list command without any pre-configured scope."
+commands.allow = ["bstatus_list"]
+
+[[permission]]
+identifier = "deny-bstatus-list"
+description = "Denies the bstatus_list command without any pre-configured scope."
+commands.deny = ["bstatus_list"]

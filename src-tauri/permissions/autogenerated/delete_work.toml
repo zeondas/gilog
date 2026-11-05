@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-delete-work"
+description = "Enables the delete_work command without any pre-configured scope."
+commands.allow = ["delete_work"]
+
+[[permission]]
+identifier = "deny-delete-work"
+description = "Denies the delete_work command without any pre-configured scope."
+commands.deny = ["delete_work"]

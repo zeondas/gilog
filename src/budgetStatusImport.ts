@@ -181,7 +181,13 @@ export type V3Plan = {
   /** 해 → 그 해에 만들 세부사업들(본사업·명시·사고). split은 만들고 나서 공사 uid로 적어요 */
   perYear: Record<number, { list: ImportProject[]; cells: { project: string; row: string; funds: Record<string, number> }[] }>;
   setup: Setup;
+  /** 확인 목록(E-18 – 1원 단위 금액을 십원으로 반올림한 줄 등) */
+  checks: string[];
 };
+
+/** 십원 반올림(집행현황은 십원 단위만 받아요 – core budget.rs) */
+const r10 = (v: number) => Math.round(v / 10) * 10;
+const won = (v: number) => v.toLocaleString("ko-KR");
 
 /** 배분 결과를 집행현황 가져오기 모양으로 정리해요. 집행현황에 이미 자료가 있는 해는 건너뛰어요(①1안). */
 export function planV3(parsed: V3Parsed, byYear: Record<number, BudgetProject[]>): V3Plan | string {
@@ -195,6 +201,7 @@ export function planV3(parsed: V3Parsed, byYear: Record<number, BudgetProject[]>
   const skipped = years.filter((y) => (byYear[y] ?? []).some((p) => p.name === parsed.name && p.items.some((it) => it.rows.length)));
   const mk = years.filter((y) => !skipped.includes(y));
   const perYear: V3Plan["perYear"] = {};
+  const checks: string[] = [];
   for (const y of mk) {
     const names = { 0: parsed.name, 1: `(명시이월) ${parsed.name}`, 2: `(사고이월) ${parsed.name}` } as Record<number, string>;
     const groups: Record<string, { name: string; carry: boolean; budget: number | null; rows: { row: string; kind: string; cmt: number; exp: number; done: boolean; funds: Record<string, number> }[] }> = {};
@@ -204,7 +211,21 @@ export function planV3(parsed: V3Parsed, byYear: Record<number, BudgetProject[]>
         const off = v.payYear - v.potYear;
         const pname = names[off];
         groups[pname] ??= { name: pname, carry: off > 0, budget: null, rows: [] };
-        groups[pname].rows.push({ row: c.name, kind: KIND[c.kind] ?? "일반", cmt: v.amount, exp: v.amount, done: c.done, funds: v.funds });
+        // 1원 단위 지급액은 십원으로 반올림하고 재원 몫도 합이 맞게(마지막 재원이 나머지) – E-18
+        const amt = r10(v.amount);
+        let funds = v.funds;
+        if (amt !== v.amount || Object.values(v.funds).some((f) => f % 10)) {
+          const ks = Object.keys(v.funds);
+          let rest = amt;
+          funds = {};
+          ks.forEach((k, i) => {
+            const f = i === ks.length - 1 ? rest : r10(v.funds[k]);
+            funds[k] = f;
+            rest -= f;
+          });
+          if (amt !== v.amount) checks.push(`${y}년 "${c.name}" 지급액 ${won(v.amount)}원을 ${won(amt)}원으로 반올림했어요(십원 단위)`);
+        }
+        groups[pname].rows.push({ row: c.name, kind: KIND[c.kind] ?? "일반", cmt: amt, exp: amt, done: c.done, funds });
       }
     }
     // 세부사업 예산: 본사업 = 그 해 본예산+추경 합(장부), 이월 사업 = 그 줄들 합(배분된 몫 — 이월 전액은 설정 체인이 보여 줘요)
@@ -215,7 +236,9 @@ export function planV3(parsed: V3Parsed, byYear: Record<number, BudgetProject[]>
     const list: ImportProject[] = [];
     const cells: V3Plan["perYear"][number]["cells"] = [];
     for (const g of Object.values(groups)) {
-      const budget = g.carry ? null : parsed.sources.reduce((s, f) => s + curOf(f), 0) || null;
+      const raw = g.carry ? 0 : parsed.sources.reduce((s, f) => s + curOf(f), 0);
+      const budget = raw ? r10(raw) : null;
+      if (budget !== null && budget !== raw) checks.push(`${y}년 "${g.name}" 예산 ${won(raw)}원을 ${won(budget)}원으로 반올림했어요(십원 단위)`);
       list.push({
         name: g.name,
         budget,
@@ -240,5 +263,5 @@ export function planV3(parsed: V3Parsed, byYear: Record<number, BudgetProject[]>
     sent: true,
     split: {},
   };
-  return { parsed, years: Object.keys(perYear).map(Number).sort(), skipped, perYear, setup };
+  return { parsed, years: Object.keys(perYear).map(Number).sort(), skipped, perYear, setup, checks };
 }

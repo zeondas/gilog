@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-bstatus-excel-write"
+description = "Enables the bstatus_excel_write command without any pre-configured scope."
+commands.allow = ["bstatus_excel_write"]
+
+[[permission]]
+identifier = "deny-bstatus-excel-write"
+description = "Denies the bstatus_excel_write command without any pre-configured scope."
+commands.deny = ["bstatus_excel_write"]

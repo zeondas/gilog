@@ -1,11 +1,17 @@
 // 민원처리(10단계) 화면의 규칙 함수예요. 사양서 "민원처리" 절, 시안 Process.dc.html.
 // 저장은 core/process.rs(표 works·cases), 파일 일은 src-tauri/src/process.rs가 해요.
 import type { Case } from "./api";
-import { DEFAULT_MAIL_BODY, DEFAULT_MAIL_SUBJECT } from "./settingsStore";
+import { ANSWER_STATUS, DEFAULT_MAIL_BODY, DEFAULT_MAIL_SUBJECT, isClosed } from "./settingsStore";
 
 export type { Case, Stage, Work } from "./api";
 
 export const PORTAL_URL = "https://gov.epeople.go.kr";
+
+/**
+ * 표에서 "완료 N건" 띠 아래로 숨기는 민원대장 상태: 답변·완료·불가(2026-10-30 사용자 ✔2 1안, 시안 ProcessStatus ②).
+ * 진행·보류·장기는 공사가 남을 수 있어 표에 남아요(`isAnswered`와 다름). 흐리게·고치기 막기는 완료·불가(`isClosed`)만.
+ */
+export const isHiddenStatus = (status: string) => status === ANSWER_STATUS || isClosed(status);
 
 /** 파일 경로에서 이름만 */
 export const fileName = (p: string) => p.split(/[\\/]/).pop() ?? p;
@@ -247,4 +253,13 @@ ${m.files.map((f) => `   - ${f}`).join("\n")}
 
 다른 메일을 열거나 지우지 않아요. 민원인 이름·연락처는 쓰지 않아요.
 `;
+}
+
+/** Claude 실행 파일 칸 값의 파일 이름이 claude·claude.exe인지(대소문자·앞뒤 빈칸 무시, 빈 값은 처음 값 "claude").
+ *  Rust `is_claude_name`(process/claude.rs)과 같은 규칙 – 설정 칸이 그 자리에서 알려요(QC ST-19). */
+export function isClaudeName(path: string): boolean {
+  const t = path.trim();
+  if (!t) return true;
+  const name = (t.split(/[\\/]/).pop() ?? "").toLowerCase();
+  return name === "claude.exe" || name === "claude";
 }

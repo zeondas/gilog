@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-update-journal-entry"
+description = "Enables the update_journal_entry command without any pre-configured scope."
+commands.allow = ["update_journal_entry"]
+
+[[permission]]
+identifier = "deny-update-journal-entry"
+description = "Denies the update_journal_entry command without any pre-configured scope."
+commands.deny = ["update_journal_entry"]

@@ -18,24 +18,20 @@ import {
   COLUMNS,
   ColKey,
   ColFilters,
-  daysLeft,
-  daysTaken,
-  takenText,
-  ddayText,
   FILTER_KEYS,
   FilterKey,
-  isUrgent,
+  procOf,
+  revertStatus,
   shortDate,
   shortIntake,
 } from "../../complaints";
 import { parseLines } from "../../bullets";
 import { BulletEditor, BulletView } from "../../BulletParts";
 import { copyText, Hl, parseMemo } from "../../screens/contacts/parts";
-import { parseDate, todayStr } from "../../journal";
+import { todayStr } from "../../journal";
 import { ChoiceInput, PlaceInput } from "../../PlaceInputs";
-import { isAnswered, isClosed, statusColor } from "../../settingsStore";
+import { isClosed, statusColor } from "../../settingsStore";
 import { AskBand } from "../../AskBand";
-import { DateInput } from "../../DateInput";
 import { DateField, focusField, useDraft } from "./Dialogs";
 import { FILTER_LABEL, Lists, Draft, DateKey, PlaceStyle, placeText, Bad } from "./parts";
 
@@ -50,8 +46,6 @@ export function HeadRow({
   open,
   onToggle,
   dropdown,
-  doneFolded,
-  onFoldDone,
 }: {
   /** 열 폭 공통 부품(헤더 열 조정 통일) – 손잡이·우클릭 메뉴·저장 */
   cols: ColHead;
@@ -59,8 +53,6 @@ export function HeadRow({
   open: FilterKey | null;
   onToggle: (k: FilterKey) => void;
   dropdown: ReactNode;
-  doneFolded: boolean;
-  onFoldDone: (v: boolean) => void;
 }) {
   return (
     <div
@@ -72,22 +64,8 @@ export function HeadRow({
         const fk = headFilter(col.key);
         const on = fk !== null && filters[fk] !== null;
         return (
-          <div role="columnheader" key={col.key} className={"cm-hcell" + (col.key === "no" ? " right" : "") + (fk || col.key === "done" ? " cm-hf" : "")}>
-            {col.key === "done" ? (
-              <button
-                type="button"
-                className={"cm-hbtn cm-fold" + (doneFolded ? " folded" : "")}
-                aria-expanded={!doneFolded}
-                aria-label={doneFolded ? "조치완료일 펼치기" : "조치완료일 접기"}
-                title={doneFolded ? "조치완료일 펼치기" : "조치완료일 접기"}
-                onClick={() => onFoldDone(!doneFolded)}
-              >
-                {!doneFolded && <span>{col.label}</span>}
-                <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
-                  <path d={doneFolded ? "M9 6l6 6-6 6" : "M15 6l-6 6 6 6"} />
-                </svg>
-              </button>
-            ) : fk ? (
+          <div role="columnheader" key={col.key} className={"cm-hcell" + (col.key === "no" ? " right" : "") + (fk ? " cm-hf" : "")}>
+            {fk ? (
               <button
                 type="button"
                 className={"cm-hbtn" + (on ? " on" : "")}
@@ -281,8 +259,8 @@ function Cells({
       )}
       {cell(
         "ctype",
-        // 민원유형도 접수유형처럼 목록에서 골라요(2026-10-25 사용자 ④1안 – 분류 관리에서 더하기).
-        <ChoiceInput name="ctype" label="민원유형" value={d.ctype} options={lists.ctype} allow={orig?.ctype} invalid={bad.ctype} onChange={(ctype) => set({ ctype })} />,
+        // 민원유형은 목록에서 고르거나 새로 쳐요 – 목록에 없는 값은 등록할 때 설정 목록에 저절로 더해요(QC CM-07, 2026-11-02 사용자 1안).
+        <ChoiceInput name="ctype" label="민원유형" value={d.ctype} options={lists.ctype} allow={orig?.ctype} invalid={bad.ctype} free onChange={(ctype) => set({ ctype })} />,
       )}
       {cell("place", <PlaceInput value={d.place} area={d.area} road={d.road} onChange={(place) => set({ place })} onArea={(area) => set({ area })} onRoad={(road) => set({ road })} />)}
       {cell(
@@ -295,36 +273,46 @@ function Cells({
         <BulletEditor name="body" label="내용" invalid={bad.body} placeholder="민원 내용" lines={parseLines(d.body)} onChange={(ls) => set({ body: JSON.stringify(ls) })} />,
       )}
       {cell("action", <BulletEditor name="action" label="조치내용" placeholder="조치내용" lines={parseLines(d.action)} onChange={(ls) => set({ action: JSON.stringify(ls) })} />)}
-      {cell(
-        "due",
-        <DateField
-          name="due"
-          label="마감일"
-          bad={bad.due}
-          value={d.due}
-          placeholder={short.has("due") ? "마감일" : "연-월-일"}
-          shortOf={short.has("due") ? (v) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? v.slice(5) : v) : undefined}
-          onChange={(due) => set({ due })}
-          onBlur={() => onDateBlur("due")}
-        />,
-      )}
-      {cell(
-        "status",
-        <ChoiceInput
-          name="status"
-          label="상태"
-          value={d.status}
-          options={lists.status}
-          allow={orig?.status}
-          invalid={bad.status}
-          stayOnTab
-          onChange={(status) =>
-            // 완료·불가를 고르면 비어 있는 조치완료일에 오늘, 다른 상태로 돌리면 비워요(배지와 같게).
-            set({ status, ...(isClosed(status) ? (d.done ? {} : { done: todayStr() }) : isClosed(d.status) ? { done: "" } : {}) })
-          }
-        />,
-      )}
-      {cell("done", <DateField name="done" label="조치완료일" bad={bad.done} value={d.done ?? ""} onChange={onDoneType} onBlur={() => onDateBlur("done")} />, "cm-c cm-done-in")}
+      {/* 상태(2026-11-04 사용자): 신규 줄은 늘 "접수"(흐린 배지, 눌리지 않음), 고치는 줄은 보기 줄과 같은 배지 콤보 – 고른 값은 저장할 때 함께 저장 */}
+      {orig
+        ? cell(
+            "status",
+            <StatusPick
+              status={d.status}
+              statuses={lists.status}
+              bg={statusColor(d.status)[0]}
+              fg={statusColor(d.status)[1]}
+              render={(x) => x}
+              onPick={(status) =>
+                // 완료·불가를 고르면 비어 있는 조치완료일에 오늘, 다른 상태로 돌리면 비워요(보기 줄 배지와 같게).
+                set({ status, ...(isClosed(status) ? (d.done ? {} : { done: todayStr() }) : isClosed(d.status) ? { done: "" } : {}) })
+              }
+            />,
+            "cm-c cm-status-in",
+          )
+        : cell(
+            "status",
+            <span className="cm-status cm-status-fixed" style={{ background: statusColor(d.status)[0], color: statusColor(d.status)[1] }} title="새 민원은 접수로 등록돼요">
+              {d.status}
+            </span>,
+            "cm-c cm-status-in",
+          )}
+      {/* 처리 칸(2026-11-04 사용자 1안): 이름은 입력칸 안 안내 글(빈 칸일 때만, 마우스를 올리면 이름) – 날짜 칸 폭 그대로라 처리 열을 좁혀도 칸 안.
+          신규 줄은 마감일만, 고치는 줄은 마감일·조치완료일 위아래로 메모 열까지 써요. */}
+      {orig
+        ? cell(
+            "due",
+            <>
+              <DateField name="due" label="마감일" placeholder="마감일" title="마감일" bad={bad.due} value={d.due} onChange={(due) => set({ due })} onBlur={() => onDateBlur("due")} />
+              <DateField name="done" label="조치완료일" placeholder="조치완료일" title="조치완료일" bad={bad.done} value={d.done ?? ""} onChange={onDoneType} onBlur={() => onDateBlur("done")} />
+            </>,
+            "cm-c cm-proc-in cm-proc-ed",
+          )
+        : cell(
+            "due",
+            <DateField name="due" label="마감일" placeholder="마감일" title="마감일" bad={bad.due} value={d.due} onChange={(due) => set({ due })} onBlur={() => onDateBlur("due")} />,
+            "cm-c cm-proc-in",
+          )}
     </>
   );
 }
@@ -349,8 +337,8 @@ export function NewRow({ lists, short, onAdd }: { lists: Lists; short: Set<ColKe
     const { input, first } = f.check(lists);
     if (!input) return focusField(rowRef.current, first!);
     if (await onAdd(input)) {
-      // 접수일은 그대로 두어 같은 날 여러 건을 잇달아 적기 쉽게 해요.
-      f.setD({ ...emptyDraft(lists), received: input.received });
+      // 등록하면 신규 줄을 처음 모양으로 – 접수일도 오늘로(QC CM-03, 사양 "접수일은 오늘로 채워져 있어요").
+      f.setD(emptyDraft(lists));
       firstRef.current?.focus();
     }
   }
@@ -385,7 +373,6 @@ export function EditRow({
   onCancel,
   onSave,
   onRemove,
-  onMemo,
 }: {
   vi?: number;
   c: Complaint;
@@ -394,7 +381,6 @@ export function EditRow({
   onCancel: () => void;
   onSave: (input: ComplaintInput) => void;
   onRemove: () => void;
-  onMemo: () => void;
 }) {
   const f = useDraft(() => ({
     intake: c.intake,
@@ -411,7 +397,8 @@ export function EditRow({
     due: c.due,
     status: c.status,
     done: c.done ?? "",
-  }));
+    // 조치완료일을 지우면 되돌아갈 상태(2026-11-04 민원대장 ✔1)
+  }), revertStatus(c));
   const [asking, setAsking] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const askRef = useRef<HTMLDivElement>(null);
@@ -462,8 +449,6 @@ export function EditRow({
     if (latest.current.asking && !isInside(e, askRef, trashRef)) setAsking(false);
   });
 
-  const hasMemo = parseMemo(c.memo).length > 0;
-
   return (
     <div
       ref={ref}
@@ -483,10 +468,8 @@ export function EditRow({
       <div role="cell" className="cm-c cm-no">
         {c.no}
       </div>
+      {/* 메모 단추는 빼고 처리 칸이 메모 열까지 써요(2026-11-03 사용자 7판) – 메모는 보기 줄 단추·우클릭으로. */}
       <Cells d={f.d} set={f.set} bad={f.bad} lists={lists} onDateBlur={f.onDateBlur} onDoneType={f.typeDone} orig={c} short={short} />
-      <div role="cell" className="cm-c cm-center">
-        <MemoButton has={hasMemo} memo={c.memo} onClick={onMemo} />
-      </div>
       <div className="cm-edit-foot">
         {asking ? (
           <AskBand bandRef={askRef} className="cm-ask" label="민원 지우기 확인" text={<>{c.no}번 민원을 지울까요? 메모도 함께 지워져요.</>} onNo={() => setAsking(false)} onYes={onRemove} />
@@ -525,15 +508,12 @@ export function ViewRow({
   selected,
   statuses,
   short,
-  doneFolded,
   placeStyle,
   onSelect,
   onMenu,
   onEdit,
   onMemo,
   onStatus,
-  onDone,
-  onDue,
 }: {
   vi?: number;
   c: Complaint;
@@ -546,8 +526,6 @@ export function ViewRow({
   statuses: string[];
   /** 폭이 모자라 줄인 모양으로 보이는 열 */
   short: Set<ColKey>;
-  /** 조치완료일 열을 접어 둠 */
-  doneFolded: boolean;
   placeStyle: PlaceStyle;
   onSelect: () => void;
   /** 줄 우클릭 – 메뉴를 열 자리 */
@@ -556,11 +534,8 @@ export function ViewRow({
   onEdit: () => void;
   onMemo: () => void;
   onStatus: (status: string) => void;
-  onDone: (done: string) => void;
-  onDue: (due: string) => void;
 }) {
-  const n = daysLeft(c, today);
-  const taken = daysTaken(c);
+  const proc = procOf(c, today, urgentDays);
   const [bg, fg] = statusColor(c.status);
   const hasMemo = parseMemo(c.memo).length > 0;
   const t = (s: string): ReactNode => <Hl text={s} q={q} />;
@@ -581,7 +556,7 @@ export function ViewRow({
       data-vi={vi}
       aria-selected={selected}
       className={"cm-row cm-view" + (alt ? " alt" : "") + (flash ? " flash" : "") + (selected ? " sel" : "") + (isClosed(c.status) ? " done" : "")}
-      title="두 번 눌러 고치기 · 위치·민원인은 눌러서 복사 · 우클릭 메뉴: 고치기·복사·지우기"
+      title="두 번 눌러 고치기 · 위치·민원인은 눌러서 복사 · 우클릭 메뉴: 고치기·지도에서 보기·복사·지우기"
       onClick={onSelect}
       onContextMenu={(e) => {
         // 글을 골라 두고 우클릭하면 복사 메뉴(앱 공통 – main.tsx)를 그대로 둬요.
@@ -632,32 +607,12 @@ export function ViewRow({
       <div role="cell" className="cm-c cm-multi">
         <Bullets text={c.action} q={q} />
       </div>
-      <div role="cell" className={"cm-c cm-num cm-due" + (short.has("due") ? " cm-due-short" : "")}>
-        {/* 줄인 모양이면 날짜는 숨기고 D-day만(마우스를 올리면 날짜, 두 번 누르면 날짜 칸 – 2026-10-21 사용자). 답변 끝난 민원은 D-day가 없어 날짜를 그대로 보여요. */}
-        {c.due && isAnswered(c.status) ? (
-          // 답변 끝난 민원은 날짜 대신 흐린 체크만 – 마우스를 올리면 마감일(2026-10-26 18:55 사용자 1안)
-          <span className="cm-due-done" title={`${c.due.slice(5)} 마감 · 답변 끝남`} aria-label={`${c.due} 마감 · 답변 끝남`}>
-            <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
-              <path d="M3 7.4l2.6 2.6L11 4.6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </span>
-        ) : (
-          !(short.has("due") && n !== null) && <span>{t(short.has("due") ? shortDate(c.due) : c.due)}</span>
-        )}
-        {n !== null &&
-          (short.has("due") ? (
-            <DuePick c={c} text={ddayText(n)} urgent={isUrgent(n, urgentDays)} onSave={onDue} />
-          ) : (
-            <span className={"cm-dday" + (isUrgent(n, urgentDays) ? " urgent" : "")}>{ddayText(n)}</span>
-          ))}
-      </div>
       <div role="cell" className="cm-c">
         <StatusPick status={c.status} statuses={statuses} bg={bg} fg={fg} render={t} onPick={onStatus} />
       </div>
-      <div role="cell" className="cm-c cm-num cm-due cm-done-c">
-        <span className="cm-done-d">{t(c.done ?? "")}</span>
-        {/* 접은 열은 칸을 두 번 누르면 작은 날짜 칸(빈 칸은 마우스를 올리면 "+" – 2026-10-25 사용자 ⑥1안) */}
-        {(taken !== null || (doneFolded && !c.done)) && <TakenPick c={c} taken={taken} onSave={onDone} />}
+      {/* 처리 칸(2026-11-03 사용자 7판): 상태에 따라 한 가지만 말로 – 마우스를 올리면 마감일·조치완료일 전체 */}
+      <div role="cell" className="cm-c cm-proc" title={proc?.title}>
+        {proc && <span className={"cm-proc-t " + proc.tone}>{t(proc.text)}</span>}
       </div>
       <div role="cell" className="cm-c cm-center">
         <span onDoubleClick={(e) => e.stopPropagation()}>
@@ -804,189 +759,6 @@ function StatusPick({
               </span>
             );
           })}
-        </span>
-      )}
-    </span>
-  );
-}
-
-/**
- * 마감일을 줄여 D-day만 보일 때(2026-10-21 사용자): 마우스를 올리면 날짜, 두 번 누르면 마감일 칸이 떠요.
- * Enter·Tab·바깥 누르기 저장, Esc 그대로. 비우면 마감일을 지워요. 날짜 칸 규칙(parseDate).
- */
-function DuePick({ c, text, urgent, onSave }: { c: Complaint; text: string; urgent: boolean; onSave: (due: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const [v, setV] = useState("");
-  const [bad, setBad] = useState(false);
-  const box = useRef<HTMLSpanElement>(null);
-  const input = useRef<HTMLInputElement>(null);
-  const live = useRef({ v, c });
-  live.current = { v, c };
-
-  function commit(): boolean {
-    const { v: raw, c: cur } = live.current;
-    const d = raw.trim() ? parseDate(raw) : "";
-    if (d === null) {
-      setBad(true);
-      return false;
-    }
-    setOpen(false);
-    if (d !== cur.due) onSave(d);
-    return true;
-  }
-
-  useEffect(() => {
-    if (!open) return;
-    input.current?.focus();
-    input.current?.select();
-  }, [open]);
-  useOutsideClose(open, [box], () => {
-    if (!commit()) setOpen(false);
-  });
-
-  return (
-    <span ref={box} className="cm-tpick" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
-      <button
-        type="button"
-        className={"cm-dday cm-taken-btn cm-due-btn" + (urgent ? " urgent" : "")}
-        title={`마감일 ${c.due} – 두 번 눌러서 고치기`}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        onDoubleClick={() => {
-          setV(c.due);
-          setBad(false);
-          setOpen(true);
-        }}
-      >
-        {text}
-      </button>
-      {open && (
-        <span className="cm-tpick-pop" role="dialog" aria-label="마감일 고치기">
-          <span className="cm-tpick-label">마감일</span>
-          <DateInput
-            inputRef={input}
-            label="마감일"
-            invalid={bad}
-            value={v}
-            onChange={(x) => {
-              setV(x);
-              setBad(false);
-            }}
-            onKeyDown={(e) => {
-              if (e.nativeEvent.isComposing) return;
-              if (e.key === "Enter" || e.key === "Tab") {
-                e.preventDefault();
-                e.stopPropagation();
-                commit();
-              } else if (e.key === "Escape") {
-                e.preventDefault();
-                e.stopPropagation();
-                setOpen(false);
-              }
-            }}
-          />
-        </span>
-      )}
-    </span>
-  );
-}
-
-/**
- * 걸린 날 "4d"를 누르면 조치완료일을 고치는 작은 칸(2026-10-19 사용자 – 열을 접어 둔 채로도 고쳐요).
- * Enter·바깥 누르기 저장, Esc 그대로. 날짜 칸 규칙(parseDate)과 같고, 읽을 수 없거나 접수일보다 앞이면 빨간 테두리.
- */
-function TakenPick({ c, taken, onSave }: { c: Complaint; taken: number | null; onSave: (done: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const [v, setV] = useState("");
-  const [bad, setBad] = useState(false);
-  const box = useRef<HTMLSpanElement>(null);
-  const input = useRef<HTMLInputElement>(null);
-  const live = useRef({ v, c });
-  live.current = { v, c };
-
-  // 저장하면 true, 못 읽으면 false(칸은 열어 둬요).
-  function commit(): boolean {
-    const { v: raw, c: cur } = live.current;
-    const d = parseDate(raw);
-    if (!d || d < cur.received) {
-      setBad(true);
-      return false;
-    }
-    setOpen(false);
-    if (d !== cur.done) onSave(d);
-    return true;
-  }
-
-  useEffect(() => {
-    if (!open) return;
-    input.current?.focus();
-    input.current?.select();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-  useOutsideClose(open, [box], () => {
-    if (!commit()) setOpen(false);
-  });
-
-  return (
-    <span ref={box} className="cm-tpick" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
-      {taken === null ? (
-        // 접은 열의 빈 칸: 마우스를 올리면 "+", 두 번 누르면 조치완료일 칸(2026-10-25 사용자 ⑥1안)
-        <button
-          type="button"
-          className="cm-done-add"
-          title="두 번 눌러서 조치완료일 적기"
-          aria-label="조치완료일 적기"
-          aria-haspopup="dialog"
-          aria-expanded={open}
-          onDoubleClick={() => {
-            setV(todayStr());
-            setBad(false);
-            setOpen(true);
-          }}
-        >
-          <span aria-hidden="true">+</span>
-        </button>
-      ) : (
-        <button
-          type="button"
-          className="cm-dday cm-taken cm-taken-btn"
-          title={`조치완료일 ${c.done} · 접수부터 ${taken}일 – 눌러서 고치기`}
-          aria-haspopup="dialog"
-          aria-expanded={open}
-          onClick={() => {
-            setV(c.done ?? "");
-            setBad(false);
-            setOpen(!open);
-          }}
-        >
-          {takenText(c, taken)}
-        </button>
-      )}
-      {open && (
-        <span className="cm-tpick-pop" role="dialog" aria-label="조치완료일 고치기">
-          <span className="cm-tpick-label">조치완료일</span>
-          <DateInput
-            inputRef={input}
-            label="조치완료일"
-            invalid={bad}
-            value={v}
-            onChange={(x) => {
-              setV(x);
-              setBad(false);
-            }}
-            onKeyDown={(e) => {
-              if (e.nativeEvent.isComposing) return;
-              if (e.key === "Enter" || e.key === "Tab") {
-                e.preventDefault();
-                e.stopPropagation();
-                commit();
-              } else if (e.key === "Escape") {
-                e.preventDefault();
-                e.stopPropagation();
-                setOpen(false);
-              }
-            }}
-          />
         </span>
       )}
     </span>

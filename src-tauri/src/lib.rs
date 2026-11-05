@@ -11,6 +11,7 @@ mod process;
 mod window;
 mod files;
 mod files_text;
+mod guard;
 mod hello;
 #[cfg(windows)]
 mod files_win;
@@ -30,6 +31,8 @@ use tauri::{AppHandle, Manager, State};
 /// 열려 있는 자료 파일을 들고 있어요. None이면 잠긴 상태예요.
 pub(crate) struct AppState {
     pub(crate) store: Mutex<Option<Store>>,
+    /// 마지막 자동 백업이 실패했으면 그 까닭(잠금 풀 때 띠 – 버그 사냥 20). 성공하면 비워요.
+    pub(crate) backup_fail: Mutex<Option<String>>,
 }
 
 pub(crate) fn code(e: gilog_core::Error) -> String {
@@ -96,15 +99,22 @@ fn prefs_path(app: &AppHandle) -> Result<PathBuf, String> {
 
 pub(crate) fn read_prefs(app: &AppHandle) -> Result<Prefs, String> {
     let path = prefs_path(app)?;
-    match fs::read_to_string(&path) {
-        Ok(text) => Ok(serde_json::from_str(&text).unwrap_or_default()),
-        Err(_) => Ok(Prefs::default()),
+    parse_prefs(fs::read_to_string(&path))
+}
+
+/// 파일이 없으면(처음 켬) 기본값, 있는데 읽거나 풀 수 없으면 "prefs_bad"예요.
+/// 조용히 기본값으로 가면 자료 폴더를 옮겨 둔 사람이 "새로 만들기"로 잘못 갈 수 있어요(평가 위험 4).
+fn parse_prefs(read: std::io::Result<String>) -> Result<Prefs, String> {
+    match read {
+        Ok(text) => serde_json::from_str(&text).map_err(|_| "prefs_bad".to_string()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Prefs::default()),
+        Err(_) => Err("prefs_bad".into()),
     }
 }
 
 pub(crate) fn write_prefs(app: &AppHandle, prefs: &Prefs) -> Result<(), String> {
     let text = serde_json::to_string_pretty(prefs).map_err(io)?;
-    fs::write(prefs_path(app)?, text).map_err(io)
+    gilog_core::write_atomic(&prefs_path(app)?, text.as_bytes()).map_err(io)
 }
 
 /// 자료를 두는 폴더예요. 기본은 문서\giLog
@@ -113,7 +123,11 @@ pub(crate) fn data_dir(app: &AppHandle) -> Result<PathBuf, String> {
     if !prefs.data_dir.is_empty() {
         return Ok(PathBuf::from(prefs.data_dir));
     }
-    // 시험용 두 번째 기록(--profile B)은 문서\giLog-B
+    default_data_dir(app)
+}
+
+/// 기본 자료 폴더 – 시험용 두 번째 기록(--profile B)은 문서\giLog-B
+pub(crate) fn default_data_dir(app: &AppHandle) -> Result<PathBuf, String> {
     app.path().document_dir().map(|d| d.join(format!("giLog{}", profile::suffix()))).map_err(io)
 }
 
@@ -236,6 +250,7 @@ fn auto_unlock(app: AppHandle, state: State<AppState>) -> Result<bool, String> {
     let dir = data_dir(&app)?;
     match Store::open_with_key_hex(&dir, &key) {
         Ok(store) => {
+            daily_backup(&store, &state);
             *state.store.lock().map_err(io)? = Some(store);
             Ok(true)
         }
@@ -255,8 +270,21 @@ fn create_store(app: AppHandle, state: State<AppState>, password: String) -> Res
 fn unlock(app: AppHandle, state: State<AppState>, password: String) -> Result<(), String> {
     let dir = data_dir(&app)?;
     let store = Store::open(&dir, &password).map_err(code)?;
+    daily_backup(&store, &state);
     *state.store.lock().map_err(io)? = Some(store);
     Ok(())
+}
+
+/// 잠금을 풀 때 그날 첫 자동 백업을 해요. 실패해도 여는 것은 막지 않고, 실패한 까닭을 `backup_fail`에 기억해요
+/// (`backup_info`가 화면에 알려요 – 버그 사냥 20).
+pub(crate) fn daily_backup(store: &Store, state: &AppState) {
+    let r = store.auto_backup();
+    if let Err(e) = &r {
+        eprintln!("auto backup: {e}");
+    }
+    if let Ok(mut f) = state.backup_fail.lock() {
+        *f = r.err().map(|e| e.code().to_string());
+    }
 }
 
 #[tauri::command]
@@ -288,6 +316,10 @@ fn get_value(state: State<AppState>, key: String) -> Result<Option<String>, Stri
 fn set_value(state: State<AppState>, key: String, value: String) -> Result<(), String> {
     let guard = state.store.lock().map_err(io)?;
     let store = guard.as_ref().ok_or_else(|| "locked".to_string())?;
+    // 설정 저장이 민원처리의 Claude 실행 파일 자리를 바꾸면 막아요 – 그건 `set_process_exe`로만(②-2 ✔2)
+    if key == "settings" && !process::settings_keep_exe(store.get("settings").map_err(code)?.as_deref(), &value) {
+        return Err(guard::DENIED.into());
+    }
     store.set(&key, &value).map_err(code)
 }
 
@@ -459,6 +491,31 @@ fn clear_journal(state: State<AppState>) -> Result<usize, String> {
     with_store(&state, |s| s.clear_journal())
 }
 
+/// 업무일지 엑셀 가져오기를 한 트랜잭션으로(공통 ✔3, E-5·E-24) – (덮은 수, 더한 수, 그대로 둔 수)
+#[tauri::command]
+fn import_journal(state: State<AppState>, rows: Vec<gilog_core::JournalImportRow>, days: Vec<DayInfo>, replace: Option<bool>) -> Result<(usize, usize, usize), String> {
+    with_store(&state, |s| s.import_journal(&rows, &days, replace.unwrap_or(false)))
+}
+
+// ---------- 자료 지우기(설정 ✔1, 2026-10-30) ----------
+// 화면마다 지금 건수, 그리고 지우기(지우기 전 backup\gilog_날짜_before-clear.gilogbak을 남기고 한 트랜잭션).
+
+#[tauri::command]
+fn clear_counts(state: State<AppState>, year: i64) -> Result<gilog_core::ClearCounts, String> {
+    with_store(&state, |s| s.clear_counts(year))
+}
+
+#[tauri::command]
+fn clear_data(state: State<AppState>, what: String, year: Option<i64>) -> Result<gilog_core::Cleared, String> {
+    with_store(&state, |s| s.clear(gilog_core::ClearWhat::parse(&what, year)?))
+}
+
+/// 엑셀 "대체하기" 전 백업(공통 ✔1, E-6) – 공통 가져오기 창(ImportSteps)이 모든 화면에서 불러요. 백업 파일 경로(미리 보기는 없음).
+#[tauri::command]
+fn backup_before_replace(state: State<AppState>) -> Result<Option<String>, String> {
+    with_store(&state, |s| Ok(s.backup_before_replace()?.map(|p| p.to_string_lossy().to_string())))
+}
+
 #[tauri::command]
 fn set_journal_day(state: State<AppState>, day: DayInfo) -> Result<DayInfo, String> {
     with_store(&state, |s| s.set_day(&day))
@@ -470,6 +527,44 @@ fn set_journal_day(state: State<AppState>, day: DayInfo) -> Result<DayInfo, Stri
 #[tauri::command]
 fn complaints(state: State<AppState>) -> Result<Vec<Complaint>, String> {
     with_store(&state, |s| s.complaints())
+}
+
+// 민원 지도(2026-11-02): 위치·지역·유형·상태·날짜·좌표만 – 이름·연락처·내용은 돌려주지 않아요.
+// async라 창을 그리는 줄(메인 스레드)이 아니라 뒤에서 돌아요 – 필지 표 풀기·좌표 맞추기 동안 창이 멈추지 않게(0.68.0 멈춤 ③).
+#[tauri::command]
+async fn complaints_map(state: State<'_, AppState>) -> Result<Vec<gilog_core::MapComplaint>, String> {
+    with_store(&state, |s| s.complaints_map())
+}
+
+#[tauri::command]
+async fn map_parcel_stats() -> (usize, usize) {
+    gilog_core::parcel_stats()
+}
+
+// 민원 지도 주소 검색(✔5): 지번 글 → 좌표(EPSG:5181 m). 앱에 넣은 필지 표만 읽어요 – 밖으로 안 나가요.
+#[tauri::command]
+async fn map_geocode(place: String) -> Option<(f64, f64)> {
+    gilog_core::geocode(&place).map(|(x, y, _)| (x, y))
+}
+
+// 민원지도 캡처(2026-11-04 사용자 13:25): 지도 칸(로드뷰면 지도·로드뷰 두 칸, 창 안 CSS px [x, y, w, h])을
+// 화면에서 찍어 나란히 붙여 클립보드에 그림으로 – 파일은 안 남겨요.
+#[tauri::command]
+/// `dpr` = 화면의 devicePixelRatio(윈도우 배율 × 설정 화면 크기 배율) – CSS px → 화면 점(map11, 사용자 15:05: 화면 크기 배율이 빠져 칸이 밀렸어요).
+async fn map_capture(window: tauri::Window, rects: Vec<[f64; 4]>, dpr: f64) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        let s = if dpr.is_finite() && dpr > 0.1 { dpr } else { window.scale_factor().map_err(|e| e.to_string())? };
+        let p = window.inner_position().map_err(|e| e.to_string())?;
+        let px = |v: f64| (v * s).round() as i32;
+        let r: Vec<(i32, i32, i32, i32)> = rects.iter().map(|q| (p.x + px(q[0]), p.y + px(q[1]), px(q[2]), px(q[3]))).collect();
+        files_win::copy_screen_rects(&r, px(2.0))
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (window, rects, dpr);
+        Err("windows_only".into())
+    }
 }
 
 #[tauri::command]
@@ -513,8 +608,9 @@ fn delete_complaint(state: State<AppState>, id: i64) -> Result<(), String> {
 // 파일 경로는 화면이 윈도우 열기·저장 창(dialog 플러그인)으로 받아 와요. 칸 맞추기·머릿기호 글자는 화면 쪽(src/excel.ts)이 해요.
 
 #[tauri::command]
-fn excel_write(path: String, kind: SheetKind, data: ExcelExport) -> Result<(), String> {
-    gilog_core::excel::write_xlsx(std::path::Path::new(&path), kind, &data).map_err(code)
+fn excel_write(app: AppHandle, path: String, kind: SheetKind, data: ExcelExport) -> Result<(), String> {
+    let path = guard::export_to(&path, &guard::protected(&app))?;
+    gilog_core::excel::write_xlsx(&path, kind, &data).map_err(code)
 }
 
 #[tauri::command]
@@ -588,7 +684,9 @@ fn delete_task(state: State<AppState>, id: i64) -> Result<usize, String> {
 // ---------- 백업과 저장 위치 ----------
 
 #[tauri::command]
-fn export_backup(state: State<AppState>, path: String) -> Result<(), String> {
+fn export_backup(app: AppHandle, state: State<AppState>, path: String) -> Result<(), String> {
+    // 백업 파일을 자료 폴더 안(자동 백업 자리 포함)에 덮어쓰지 않게(②-2 ✔1)
+    let path = guard::export_to(&path, &guard::protected(&app))?.to_string_lossy().to_string();
     let guard = state.store.lock().map_err(io)?;
     let store = guard.as_ref().ok_or_else(|| "locked".to_string())?;
     store.export_backup(&PathBuf::from(path)).map_err(code)
@@ -597,9 +695,14 @@ fn export_backup(state: State<AppState>, path: String) -> Result<(), String> {
 /// 백업을 불러오면 지금 자료가 백업 내용으로 바뀌고 앱이 잠겨요. 백업의 암호로 다시 열어야 해요.
 #[tauri::command]
 fn import_backup(app: AppHandle, state: State<AppState>, path: String, password: String) -> Result<(), String> {
+    guard::plain(&path)?;
     let dir = data_dir(&app)?;
     let mut guard = state.store.lock().map_err(io)?;
+    // 잠그기 전에 백업 파일이 온전하고 비밀번호가 맞는지 먼저 봐요 – 틀리면 앱이 열린 채로 알려요(버그 사냥 17).
+    gilog_core::check_backup(&dir, &PathBuf::from(&path), &password).map_err(code)?;
     *guard = None;
+    // 불러오기 전에 지금 자료를 backup\…_before-import로 남겨요(②-2 ✔5)
+    gilog_core::snapshot_before_import(&dir).map_err(code)?;
     gilog_core::restore_backup(&dir, &PathBuf::from(path), &password).map_err(code)?;
     // 맡겨 둔 열쇠는 이제 맞지 않아요.
     keyring_delete();
@@ -610,6 +713,71 @@ fn import_backup(app: AppHandle, state: State<AppState>, path: String, password:
     hello::turn_off(&app)
 }
 
+/// 화면의 `BackupInfo`(api.ts)와 같은 이름이어야 해요 – `latestPath`(QC LK-09: `latest_path`로 보내서 되살리기 단추가 늘 숨었어요).
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BackupInfo {
+    /// 자동 백업 폴더
+    folder: String,
+    /// 자동 백업(하루 하나) 개수
+    count: usize,
+    /// 가장 최근 것의 날짜(YYYY-MM-DD)와 경로
+    latest: Option<String>,
+    latest_path: Option<String>,
+    /// 오늘 날짜(YYYY-MM-DD, 이 PC 시각) – 화면이 "며칠째"를 셀 때 써요
+    today: String,
+    /// 이번에 잠금을 풀 때 자동 백업이 실패했으면 그 오류 이름(버그 사냥 20)
+    fail: Option<String>,
+}
+
+/// 자동 백업 상태 – 잠겨 있어도 읽어요(잠금 화면 "백업으로 되살리기", 설정 줄, 잠금 푼 뒤 백업 실패 띠).
+#[tauri::command]
+fn backup_info(app: AppHandle, state: State<AppState>) -> Result<BackupInfo, String> {
+    let dir = data_dir(&app)?;
+    let list = gilog_core::daily_backups(&dir);
+    // "최근"은 이름 날짜가 오늘이거나 그 전인 것 중 가장 늦은 것(시계가 앞섰던 때의 미래 날짜 파일은 빼요 – 버그 사냥 8)
+    let last = gilog_core::latest_backup(&dir);
+    let fail = state.backup_fail.lock().map_err(io)?.clone();
+    Ok(BackupInfo {
+        folder: dir.join(gilog_core::BACKUP_DIR).to_string_lossy().to_string(),
+        count: list.len(),
+        latest: last.as_ref().map(|(d, _)| d.clone()),
+        latest_path: last.as_ref().map(|(_, p)| p.to_string_lossy().to_string()),
+        today: gilog_core::today_local(),
+        fail,
+    })
+}
+
+/// 자동 백업 폴더를 윈도우 탐색기로 열어요(없으면 만들어요).
+#[tauri::command]
+fn open_backup_folder(app: AppHandle) -> Result<(), String> {
+    let folder = data_dir(&app)?.join(gilog_core::BACKUP_DIR);
+    fs::create_dir_all(&folder).map_err(io)?;
+    process::open_path(folder.to_string_lossy().to_string())
+}
+
+/// 잠금 화면에서 손상된 자료를 백업으로 되살리고 바로 열어요.
+/// 손상된 파일은 `gilog_손상_날짜.db`로 옆에 남기고, 되살린 뒤는 "백업 불러오기"처럼 맡긴 열쇠·PIN을 꺼요.
+#[tauri::command]
+fn restore_and_open(app: AppHandle, state: State<AppState>, path: String, password: String) -> Result<(), String> {
+    guard::plain(&path)?;
+    let dir = data_dir(&app)?;
+    let mut guard = state.store.lock().map_err(io)?;
+    *guard = None;
+    if gilog_core::exists(&dir) {
+        gilog_core::keep_corrupt(&dir).map_err(code)?;
+    }
+    gilog_core::restore_backup(&dir, &PathBuf::from(path), &password).map_err(code)?;
+    keyring_delete();
+    let mut prefs = read_prefs(&app)?;
+    prefs.ask_password = true;
+    write_prefs(&app, &prefs)?;
+    let _ = hello::turn_off(&app);
+    let store = Store::open(&dir, &password).map_err(code)?;
+    *guard = Some(store);
+    Ok(())
+}
+
 /// 자료 폴더를 옮겨요. 옮긴 뒤 앱이 잠겨요.
 #[tauri::command]
 fn move_data(app: AppHandle, state: State<AppState>, folder: String) -> Result<(), String> {
@@ -618,12 +786,22 @@ fn move_data(app: AppHandle, state: State<AppState>, folder: String) -> Result<(
     if to == from {
         return Ok(());
     }
+    // 옮길 곳이 지금 자료 폴더 안·앱 설정 폴더·윈도우 폴더면 막아요(②-2 ✔1)
+    guard::export_to(&folder, &guard::protected(&app))?;
+    // 옮길 곳에 이미 자료가 있으면 잠그기 전에 알려요 – 앱이 열린 채로 남아요(버그 사냥 17).
+    // 잠근 뒤 복사가 실패하면 화면이 잠금 화면으로 가서 그 까닭을 띠로 보여요(settings `FolderRow`).
+    if gilog_core::exists(&to) {
+        return Err(code(gilog_core::Error::AlreadyExists));
+    }
     let mut guard = state.store.lock().map_err(io)?;
     *guard = None;
-    gilog_core::move_data(&from, &to).map_err(code)?;
+    // 복사 → 설정에 새 자리 적기 → 옛 자리 지우기 순서예요. 그 사이 꺼져도 설정이 가리키는 쪽에 자료가 온전히 있어요(버그 사냥 16).
+    gilog_core::copy_data(&from, &to).map_err(code)?;
     let mut prefs = read_prefs(&app)?;
     prefs.data_dir = folder;
-    write_prefs(&app, &prefs)
+    write_prefs(&app, &prefs)?;
+    gilog_core::remove_moved(&from);
+    Ok(())
 }
 
 /// 이번 실행이 시험용 두 번째 기록이면 그 이름("B"), 아니면 null
@@ -654,7 +832,7 @@ pub fn run() {
     builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::Builder::new().app_name(autostart::NAME).args([autostart::ARG]).build())
-        .manage(AppState { store: Mutex::new(None) })
+        .manage(AppState { store: Mutex::new(None), backup_fail: Mutex::new(None) })
         .manage(calendar::Reminders::default())
         .manage(files::Watch::default())
         .manage(process::ClaudeRun::default())
@@ -699,6 +877,9 @@ pub fn run() {
             export_backup,
             import_backup,
             move_data,
+            backup_info,
+            open_backup_folder,
+            restore_and_open,
             contacts_data,
             add_contact,
             update_contact,
@@ -721,7 +902,15 @@ pub fn run() {
             set_journal_day,
             delete_journal_day,
             clear_journal,
+            import_journal,
+            clear_counts,
+            clear_data,
+            backup_before_replace,
             complaints,
+            complaints_map,
+            map_parcel_stats,
+            map_geocode,
+            map_capture,
             add_complaint,
             update_complaint,
             replace_complaint_field,
@@ -779,6 +968,7 @@ pub fn run() {
             budget::delete_budget,
             budget::copy_budget_year,
             budget::import_budget,
+            budget::import_budget_many,
             budget::budget_excel_write,
             budget::budget_excel_read,
             budget::budget_years,
@@ -787,6 +977,7 @@ pub fn run() {
             budget::budget_share_clear,
             bstatus::bstatus_list,
             bstatus::bstatus_set,
+            bstatus::bstatus_set_many,
             bstatus::bstatus_excel_write,
             process::process_data,
             process::save_work,
@@ -797,6 +988,7 @@ pub fn run() {
             process::make_order,
             process::order_jpg,
             process::send_order,
+            process::set_process_exe,
             process::check_sent,
             process::order_mailed,
             process::open_path,
@@ -844,4 +1036,22 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("기록을 시작하지 못했어요");
+}
+
+#[cfg(test)]
+mod prefs_tests {
+    use super::*;
+
+    #[test]
+    fn missing_prefs_is_default_but_broken_is_an_error() {
+        let missing = Err(std::io::Error::from(std::io::ErrorKind::NotFound));
+        assert_eq!(parse_prefs(missing).ok().map(|p| p.theme), Some("system".to_string()));
+        assert_eq!(parse_prefs(Ok("{\"dataDir\": \"D:/기록\"".into())).err().as_deref(), Some("prefs_bad"));
+        assert_eq!(parse_prefs(Ok(String::new())).err().as_deref(), Some("prefs_bad"));
+        let denied = Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
+        assert_eq!(parse_prefs(denied).err().as_deref(), Some("prefs_bad"));
+        let p = parse_prefs(Ok("{\"dataDir\": \"D:/기록\"}".into())).unwrap();
+        assert_eq!(p.data_dir, "D:/기록");
+        assert_eq!(p.close_action, "tray");
+    }
 }

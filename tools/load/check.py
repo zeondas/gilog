@@ -23,21 +23,30 @@ def main(site):
     port = serve(site)
     with sync_playwright() as p:
         b = p.chromium.launch()
-        ctx, page = open_page(b, port, start="calendar")
+        # 연번 300 민원을 가장 오래 지난 마감으로 – 화면이 자료를 처음 읽기 전에 넣어요(seed 뒤에 실제 명령으로).
+        # 상태는 "접수"(10-25 ⑦1안부터 챙길 일은 접수만 – 전엔 "진행"이라 이 항목이 늘 실패했어요).
+        # 2026-10-30 ②-3 3차: 전엔 흉내 저장소 객체를 화면이 읽은 뒤 고쳤지만, 지금은 화면이 받은 자료가 사본이라 처음부터 넣어요.
+        deep = """(() => { const seed = window.__previewSeed; window.__previewSeed = async (call) => { await seed(call);
+          const c = call('complaints').find((x) => x.no === 300);
+          call('update_complaint', { id: c.id, complaint: { ...c, status: '접수', due: '2020-01-01', done: '' } }); }; })();"""
+        ctx, page = open_page(b, port, start="calendar", extra=deep)
         errors = []
         page.on("pageerror", lambda e: errors.append(str(e)))
         main_sel = ".main"
 
-        # 1. 깊은 줄로 가기: 연번 300 민원을 가장 오래 지난 마감으로
-        page.evaluate("() => { const c = window.__fake.complaints.find((x) => x.no === 300); c.status = '진행'; c.due = '2020-01-01'; c.done = ''; }")
+        # 1. 깊은 줄로 가기: 연번 300 민원(위에서 가장 오래 지난 마감으로 넣음)
         go(page, "업무일지")
         page.wait_for_timeout(800)
         page.evaluate("() => document.querySelector('.jn-due-item').click()")
-        page.wait_for_timeout(2000)  # 칠하기는 2.4초 동안
-        r = page.evaluate("""() => { const el = document.querySelector('[data-cid="300"]'); const sc = document.querySelector('.main');
+        # 칠하기는 2.4초 동안, 가운데로 오는 데는 약 2.5초(줄 높이를 재며 다가가요) – 칠함은 1.5초, 자리는 3.5초에 봐요
+        where = """() => { const el = document.querySelector('[data-cid="300"]'); const sc = document.querySelector('.main');
           if (!el) return null; const a = el.getBoundingClientRect(), s = sc.getBoundingClientRect();
-          return { flash: el.classList.contains('flash'), off: Math.round(a.top + a.height / 2 - (s.top + sc.clientHeight / 2)) }; }""")
-        check("챙길 일 → 연번 300 줄로 가서 칠함(가운데)", r and r["flash"] and abs(r["off"]) < 40, str(r))
+          return { flash: el.classList.contains('flash'), off: Math.round(a.top + a.height / 2 - (s.top + sc.clientHeight / 2)) }; }"""
+        page.wait_for_timeout(1500)
+        r1 = page.evaluate(where)
+        page.wait_for_timeout(2000)
+        r = page.evaluate(where)
+        check("챙길 일 → 연번 300 줄로 가서 칠함(가운데)", r1 and r1["flash"] and r and abs(r["off"]) < 40, f"{r1} → {r}")
 
         # 2. End / Home
         page.evaluate("() => document.querySelector('[data-cid=\"300\"]').focus()")

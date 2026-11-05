@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-budget-owner"
+description = "Enables the set_budget_owner command without any pre-configured scope."
+commands.allow = ["set_budget_owner"]
+
+[[permission]]
+identifier = "deny-set-budget-owner"
+description = "Denies the set_budget_owner command without any pre-configured scope."
+commands.deny = ["set_budget_owner"]

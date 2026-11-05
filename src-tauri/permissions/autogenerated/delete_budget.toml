@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-delete-budget"
+description = "Enables the delete_budget command without any pre-configured scope."
+commands.allow = ["delete_budget"]
+
+[[permission]]
+identifier = "deny-delete-budget"
+description = "Denies the delete_budget command without any pre-configured scope."
+commands.deny = ["delete_budget"]

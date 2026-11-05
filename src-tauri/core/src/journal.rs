@@ -69,6 +69,16 @@ pub struct DayInfo {
     pub note: String,
 }
 
+/// 엑셀 가져오기 한 줄(공통 ✔3): 기록 + 덮을 기존 기록 번호(`same`) + 같은 글자라 그대로 둘지(`keep`).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct JournalImportRow {
+    #[serde(flatten)]
+    pub entry: EntryInput,
+    pub same: Option<i64>,
+    pub keep: bool,
+}
+
 /// 업무일지 화면이 처음에 한 번 받는 자료예요. 검색이 모든 날짜를 보기 때문에 전부 보내요.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -313,29 +323,85 @@ impl Store {
 
     /// 날짜의 머리 줄을 저장해요. 모두 비우면 그 줄을 지워요.
     pub fn set_day(&self, day: &DayInfo) -> Result<DayInfo> {
-        let t = |s: &str| s.trim().to_string();
-        let d = DayInfo {
-            date: t(&day.date),
-            arrive: t(&day.arrive),
-            transport: t(&day.transport),
-            weather: t(&day.weather),
-            note: t(&day.note),
-        };
-        if !valid_date(&d.date) {
-            return Err(bad("날짜가 맞지 않아요"));
-        }
-        if d.arrive.is_empty() && d.transport.is_empty() && d.weather.is_empty() && d.note.is_empty() {
-            self.conn.execute("DELETE FROM journal_days WHERE date = ?1", params![d.date])?;
-        } else {
-            self.conn.execute(
-                "INSERT INTO journal_days (date, arrive, transport, weather, note) VALUES (?1, ?2, ?3, ?4, ?5)
-                 ON CONFLICT(date) DO UPDATE SET arrive = excluded.arrive, transport = excluded.transport,
-                     weather = excluded.weather, note = excluded.note",
-                params![d.date, d.arrive, d.transport, d.weather, d.note],
-            )?;
-        }
-        Ok(d)
+        put_day(&self.conn, day)
     }
+
+    /// 엑셀 가져오기 한 번을 한 트랜잭션으로(공통 ✔3, E-5·E-24): 대체하기면 기록·머리 줄을 지우고, 줄마다 `same`이 있으면
+    /// 그 기록을 덮고(`keep`이면 글자가 같아 건드리지 않음 – ✔2, E-4) 없으면 더한 뒤 날짜별 머리 줄을 넣어요.
+    /// 한 줄이라도 틀리면(말 없는 기록 등) 아무것도 바뀌지 않아요. (덮은 수, 더한 수, 그대로 둔 수)를 돌려줘요.
+    pub fn import_journal(&mut self, rows: &[JournalImportRow], days: &[DayInfo], replace: bool) -> Result<(usize, usize, usize)> {
+        let tx = self.conn.transaction()?;
+        if replace {
+            tx.execute("DELETE FROM journal_entries", [])?;
+            tx.execute("DELETE FROM journal_days", [])?;
+        }
+        let (mut updated, mut added, mut kept) = (0, 0, 0);
+        for (i, r) in rows.iter().enumerate() {
+            let at = |e: Error| match e {
+                Error::Invalid(m) => Error::Invalid(format!("{}번째 기록: {m}", i + 1)),
+                x => x,
+            };
+            let same = if replace { None } else { r.same };
+            if same.is_some() && r.keep {
+                kept += 1;
+                continue;
+            }
+            let e = clean(&r.entry).map_err(at)?;
+            let project = match e.project {
+                Some(id) => tx.query_row("SELECT id FROM projects WHERE id = ?1", params![id], |x| x.get::<_, i64>(0)).optional()?,
+                None => None,
+            };
+            let lines = serde_json::to_string(&e.lines).map_err(|x| bad(&x.to_string()))?;
+            if let Some(id) = same {
+                let n = tx.execute(
+                    "UPDATE journal_entries SET date = ?2, time = ?3, kind = ?4, who = ?5, contact = ?6, project_id = ?7, lines = ?8, body = ?9
+                     WHERE id = ?1",
+                    params![id, e.date, e.time, e.kind, e.who, e.contact, project, lines, e.body],
+                )?;
+                if n == 1 {
+                    updated += 1;
+                    continue;
+                }
+            }
+            tx.execute(
+                "INSERT INTO journal_entries (date, time, kind, who, contact, project_id, lines, body)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                params![e.date, e.time, e.kind, e.who, e.contact, project, lines, e.body],
+            )?;
+            added += 1;
+        }
+        for d in days {
+            put_day(&tx, d)?;
+        }
+        tx.commit()?;
+        Ok((updated, added, kept))
+    }
+}
+
+/// 날짜의 머리 줄을 저장해요(트랜잭션 안에서도 써요). 모두 비우면 그 줄을 지워요.
+fn put_day(conn: &rusqlite::Connection, day: &DayInfo) -> Result<DayInfo> {
+    let t = |s: &str| s.trim().to_string();
+    let d = DayInfo {
+        date: t(&day.date),
+        arrive: t(&day.arrive),
+        transport: t(&day.transport),
+        weather: t(&day.weather),
+        note: t(&day.note),
+    };
+    if !valid_date(&d.date) {
+        return Err(bad("날짜가 맞지 않아요"));
+    }
+    if d.arrive.is_empty() && d.transport.is_empty() && d.weather.is_empty() && d.note.is_empty() {
+        conn.execute("DELETE FROM journal_days WHERE date = ?1", params![d.date])?;
+    } else {
+        conn.execute(
+            "INSERT INTO journal_days (date, arrive, transport, weather, note) VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(date) DO UPDATE SET arrive = excluded.arrive, transport = excluded.transport,
+                 weather = excluded.weather, note = excluded.note",
+            params![d.date, d.arrive, d.transport, d.weather, d.note],
+        )?;
+    }
+    Ok(d)
 }
 
 #[cfg(test)]

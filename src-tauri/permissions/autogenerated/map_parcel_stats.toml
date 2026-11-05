@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-map-parcel-stats"
+description = "Enables the map_parcel_stats command without any pre-configured scope."
+commands.allow = ["map_parcel_stats"]
+
+[[permission]]
+identifier = "deny-map-parcel-stats"
+description = "Denies the map_parcel_stats command without any pre-configured scope."
+commands.deny = ["map_parcel_stats"]

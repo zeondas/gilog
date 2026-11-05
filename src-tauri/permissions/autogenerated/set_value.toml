@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-value"
+description = "Enables the set_value command without any pre-configured scope."
+commands.allow = ["set_value"]
+
+[[permission]]
+identifier = "deny-set-value"
+description = "Denies the set_value command without any pre-configured scope."
+commands.deny = ["set_value"]

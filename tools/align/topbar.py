@@ -1,6 +1,6 @@
 # 머리 줄 전수조사 (상단 정리 세션, 2026-10-19)
 #   python3 topbar.py <폴더> [1|1.25] [light|dark]
-# 미리 보기 띄우기는 README census.py 절과 같아요(__fake 빌드 → 5175).
+# 미리 보기 띄우기는 README "쓰는 법" 절과 같아요(WASM 미리 보기 빌드 → 5175).
 # 화면마다 머리 줄(y 0~80)을 잘라 <폴더>/<n>.png, 요소 목록을 <폴더>/topbar.json에 적고,
 # 모두 세로로 이은 <폴더>/all.png를 만들어요.
 import asyncio, io, json, os, sys

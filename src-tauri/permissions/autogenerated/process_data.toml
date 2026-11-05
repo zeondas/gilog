@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-process-data"
+description = "Enables the process_data command without any pre-configured scope."
+commands.allow = ["process_data"]
+
+[[permission]]
+identifier = "deny-process-data"
+description = "Denies the process_data command without any pre-configured scope."
+commands.deny = ["process_data"]

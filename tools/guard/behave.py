@@ -120,6 +120,22 @@ async def c_settings_esc(p):
     assert not await shown(p, ".list-ask"), "Esc로 띠가 안 접힘"
 
 
+async def c_settings_clear(p):
+    # 자료 지우기(2026-10-30 설정 ✔1): 띠는 취소에 커서·Esc·바깥 누르기로 접히고 지우지 않아요.
+    await shoot.nav(p, "설정")
+    await shoot.s_settings_clear_ask(p)
+    band = "[data-clear='budget'] .ask-band"
+    assert await shown(p, band), "띠 안 열림"
+    assert await p.evaluate("() => document.activeElement?.textContent === '취소'"), "취소에 커서가 없음"
+    await p.keyboard.press("Escape")
+    await p.wait_for_timeout(250)
+    assert not await shown(p, band), "Esc로 띠가 안 접힘"
+    await p.locator("[data-clear='budget'] .clr-btn").click()
+    await press_out(p, (1500, 60))
+    assert not await shown(p, band), "바깥 눌러도 띠가 남음"
+    assert "지울 것 없음" not in (await p.locator("[data-clear='budget']").inner_text()), "띠를 접었는데 지워짐"
+
+
 async def c_dialog(p):
     await shoot.nav(p, "캘린더")
     await shoot.s_calendar_kinds(p)
@@ -345,8 +361,10 @@ async def c_complaints_dbl(p):
     await shoot.s_complaints_dbl(p)
     edit = p.locator(".cm-edit")
     assert await edit.count() == 1, "두 번 눌렀는데 고치기 줄이 안 열림"
-    for n in ("intake", "place", "person", "due", "status"):
+    for n in ("intake", "place", "person", "due", "done"):
         assert await edit.locator(f"input[name={n}]").count() == 1, f"줄 전체가 아님 – {n} 칸 없음"
+    # 상태는 배지 콤보(2026-11-04 사용자 1안)
+    assert await edit.locator(".cm-status-btn").count() == 1, "줄 전체가 아님 – 상태 배지 없음"
     await p.keyboard.press("Escape")
     await p.wait_for_timeout(250)
     assert await p.locator(".cm-edit").count() == 0, "Esc로 안 닫힘"
@@ -368,6 +386,24 @@ async def c_files_dialog(p):
     await shoot.s_files_delete(p)
     await p.wait_for_timeout(250)
     assert await shown(p, ".dialog"), "지우기 창 안 열림"
+    await press_out(p, (20, 880))
+    assert not await shown(p, ".dialog"), "바탕을 눌렀는데 안 닫힘"
+
+
+async def c_files_runask(p):
+    """실행할까요?(2026-10-29 명령 경로 검사): 실행 파일 두 번 누르기 → 창, [실행]에 커서, Esc·바깥으로 닫힘."""
+    await shoot.nav(p, "탐색기")
+    await shoot.s_files_runask(p)
+    await p.wait_for_timeout(250)
+    assert await shown(p, ".dialog"), "실행할까요 창 안 열림"
+    f = await p.evaluate("() => document.activeElement && document.activeElement.textContent")
+    assert f == "실행", f"커서가 실행에 없음({f})"
+    await p.keyboard.press("Escape")
+    await p.wait_for_timeout(250)
+    assert not await shown(p, ".dialog"), "Esc로 안 닫힘"
+    await p.locator("[id^=fx-row-0-]", has_text="단가표 보기.exe").first.dblclick()
+    await p.wait_for_timeout(250)
+    assert await shown(p, ".dialog"), "다시 열리지 않음"
     await press_out(p, (20, 880))
     assert not await shown(p, ".dialog"), "바탕을 눌렀는데 안 닫힘"
 
@@ -480,11 +516,13 @@ CASES = {
     "contacts_pjmenu_esc": c_pjmenu_esc,
     "settings_esc": c_settings_esc,
     "settings_band": c_settings_band,
+    "settings_clear": c_settings_clear,
     "calendar_dialog": c_dialog,
     "calendar_notitle_quick": c_calendar_notitle_quick,
     "calendar_notitle_outside": c_calendar_notitle_outside,
     "calendar_blank_close": c_calendar_blank_close,
     "files_dialog": c_files_dialog,
+    "files_runask": c_files_runask,
     "journal_save": c_journal_save,
     "tasks_add_save": c_tasks_add,
     "tasks_check": c_tasks_check,

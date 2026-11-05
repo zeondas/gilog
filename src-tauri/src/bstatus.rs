@@ -19,7 +19,14 @@ pub fn bstatus_set(state: State<AppState>, name: String, setup: String) -> Resul
     with_store(&state, |s| s.bstatus_set(&name, &setup))
 }
 
+/// 여러 설정을 한 트랜잭션으로(엑셀 가져오기 대체하기, 2026-10-30 ✔1) – clear면 표를 비우고 넣어요
 #[tauri::command]
-pub fn bstatus_excel_write(path: String, data: BStatusExport) -> Result<(), String> {
-    gilog_core::bstatus::write_bstatus_xlsx(std::path::Path::new(&path), &data).map_err(code)
+pub fn bstatus_set_many(state: State<AppState>, list: Vec<BStatusSetup>, clear: bool) -> Result<(), String> {
+    with_store(&state, |s| s.bstatus_set_many(&list, clear))
+}
+
+#[tauri::command]
+pub fn bstatus_excel_write(app: tauri::AppHandle, path: String, data: BStatusExport) -> Result<(), String> {
+    let path = crate::guard::export_to(&path, &crate::guard::protected(&app))?;
+    gilog_core::bstatus::write_bstatus_xlsx(&path, &data).map_err(code)
 }

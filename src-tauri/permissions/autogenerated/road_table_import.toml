@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-road-table-import"
+description = "Enables the road_table_import command without any pre-configured scope."
+commands.allow = ["road_table_import"]
+
+[[permission]]
+identifier = "deny-road-table-import"
+description = "Denies the road_table_import command without any pre-configured scope."
+commands.deny = ["road_table_import"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-fs-properties"
+description = "Enables the fs_properties command without any pre-configured scope."
+commands.allow = ["fs_properties"]
+
+[[permission]]
+identifier = "deny-fs-properties"
+description = "Denies the fs_properties command without any pre-configured scope."
+commands.deny = ["fs_properties"]

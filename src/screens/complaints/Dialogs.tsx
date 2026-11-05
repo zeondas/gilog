@@ -9,9 +9,10 @@ import { MemoEditor } from "../../screens/contacts/Dialogs";
 import { memoText, parseMemo } from "../../screens/contacts/parts";
 import { parseDate } from "../../journal";
 import { ListGroup, ListMerge } from "../settings/Table";
-import { DONE_STATUS } from "../../settingsStore";
+import { ANSWER_STATUS, DONE_STATUS, isClosed } from "../../settingsStore";
+import { statusOnSave } from "../../complaints";
 import { DateInput } from "../../DateInput";
-import { Lists, Draft, DateKey, Bad } from "./parts";
+import { Lists, Draft, DateKey, Bad, PlaceStyle, placeText } from "./parts";
 
 /** 날짜 칸을 떠날 때 "1016" 같은 것을 2026-10-16으로 바꿔요. 읽을 수 없으면 빨간 테두리예요. */
 function normDates(d: Draft): { d: Draft; bad: Bad } {
@@ -37,6 +38,7 @@ export function DateField({
   placeholder = "연-월-일",
   shortOf,
   selectAll,
+  title,
   onChange,
   onBlur,
 }: {
@@ -50,6 +52,8 @@ export function DateField({
   selectAll?: boolean;
   onChange: (v: string) => void;
   onBlur: () => void;
+  /** 마우스를 올리면 보이는 이름(안내 글만 있는 칸 – 민원대장 처리 칸) */
+  title?: string;
 }) {
   // 마우스로 눌러 들어오면 떼는 순간 커서가 놓이며 고른 것이 풀려요 – 들어온 뒤 첫 떼기는 막아요.
   const justIn = useRef(false);
@@ -60,6 +64,7 @@ export function DateField({
       label={label}
       invalid={bad}
       placeholder={placeholder}
+      title={title}
       shortOf={shortOf}
       value={value}
       onChange={onChange}
@@ -92,7 +97,7 @@ export function focusField(row: HTMLElement | null, name: string) {
 }
 
 /** 칸 묶음이 함께 쓰는 입력 상태. 날짜를 떠날 때 바꾸고, 저장할 때 검사해요. */
-export function useDraft(init: () => Draft) {
+export function useDraft(init: () => Draft, revertTo?: string) {
   const [d, setD] = useState<Draft>(init);
   const [bad, setBad] = useState<Bad>({});
   // 조치완료일을 손으로 적었는지 – 떠날 때 상태를 완료로(2026-10-25 사용자, 불가도 완료).
@@ -107,6 +112,11 @@ export function useDraft(init: () => Draft) {
   };
   const onDateBlur = (k: DateKey) => {
     const v = (d[k] ?? "").trim();
+    // 완료·불가 민원의 조치완료일을 지우고 떠나면 배지도 바로 완료 전 상태로(2026-11-04 민원대장 ✔1).
+    if (!v && k === "done" && doneTyped.current && isClosed(d.status)) {
+      set({ status: revertTo ?? ANSWER_STATUS });
+      return;
+    }
     if (!v && k !== "received") return;
     const p = parseDate(v);
     if (p && k === "done" && doneTyped.current) {
@@ -125,11 +135,11 @@ export function useDraft(init: () => Draft) {
     // 접수유형·상태는 목록에 있는 값만 받아요(고치는 줄은 고치기 전 값도). 접수유형은 비워도 돼요.
     const ok = (v: string, list: string[], was?: string) => list.includes(v.trim()) || (!!was && v.trim() === was);
     n.intake = n.intake.trim();
-    n.status = n.status.trim();
     n.ctype = n.ctype.trim();
+    // 조치완료일을 적었으면 어느 길로 저장하든 완료(QC CM-17) – 날짜를 읽을 수 있을 때만.
+    n.status = b.done ? n.status.trim() : statusOnSave(n.status.trim(), n.done ?? "", doneTyped.current, revertTo);
     if (n.intake && !ok(n.intake, lists.intake, orig?.intake)) b.intake = true;
-    // 민원유형도 목록에서 골라요(2026-10-25 사용자 ④1안). 비워도 돼요.
-    if (n.ctype && !ok(n.ctype, lists.ctype, orig?.ctype)) b.ctype = true;
+    // 민원유형은 목록에 없는 값도 받아요 – 등록·저장한 뒤 화면이 설정 목록에 더해요(QC CM-07, 2026-11-02 사용자 1안).
     if (!ok(n.status, lists.status, orig?.status)) b.status = true;
     setD(n);
     setBad(b);
@@ -138,6 +148,7 @@ export function useDraft(init: () => Draft) {
     // 아무 칸 하나만 적어도 등록(2026-10-25 사용자) – 처음부터 채워지는 접수일·상태는 세지 않아요.
     const filled = [n.intake, n.ctype, n.area, n.place, n.person, n.due, n.done ?? ""].some((v) => v.trim()) || !!plainOf(n.body).trim() || !!plainOf(n.action).trim();
     if (!filled) return { input: null, first: "intake" };
+    doneTyped.current = false;
     return { input: { ...n, person: n.person.trim(), phone: "", body: stringifyLines(parseLines(n.body)), action: stringifyLines(parseLines(n.action)) } };
   };
   return { d, setD, bad, setBad, set, onDateBlur, check, typeDone };
@@ -145,10 +156,11 @@ export function useDraft(init: () => Draft) {
 
 // ---------- 메모 창 ----------
 
-export function MemoDialog({ c, onClose, onSave }: { c: Complaint; onClose: () => void; onSave: (memo: string) => void }) {
+export function MemoDialog({ c, placeStyle, onClose, onSave }: { c: Complaint; placeStyle: PlaceStyle; onClose: () => void; onSave: (memo: string) => void }) {
   const box = useRef<HTMLDivElement>(null);
   const save = useRef<(() => void) | null>(null);
-  const who = [`${c.no}번`, [c.area, c.place].filter(Boolean).join(" ")].filter(Boolean).join(" · ");
+  // 메모 머리 위치도 표 칸과 같은 "위치 표기" 설정(법정동/행정동)을 따라요(QC CM-34).
+  const who = [`${c.no}번`, placeText(c.area, c.place, placeStyle)].filter(Boolean).join(" · ");
   return (
     <div className="overlay">
       <div ref={box} className="dialog cm-memo-dialog" role="dialog" aria-modal="true" aria-label="메모 편집">

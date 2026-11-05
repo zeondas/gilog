@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-google-listen"
+description = "Enables the google_listen command without any pre-configured scope."
+commands.allow = ["google_listen"]
+
+[[permission]]
+identifier = "deny-google-listen"
+description = "Denies the google_listen command without any pre-configured scope."
+commands.deny = ["google_listen"]

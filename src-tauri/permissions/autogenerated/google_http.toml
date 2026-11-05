@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-google-http"
+description = "Enables the google_http command without any pre-configured scope."
+commands.allow = ["google_http"]
+
+[[permission]]
+identifier = "deny-google-http"
+description = "Denies the google_http command without any pre-configured scope."
+commands.deny = ["google_http"]

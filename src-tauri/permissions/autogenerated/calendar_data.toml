@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-calendar-data"
+description = "Enables the calendar_data command without any pre-configured scope."
+commands.allow = ["calendar_data"]
+
+[[permission]]
+identifier = "deny-calendar-data"
+description = "Denies the calendar_data command without any pre-configured scope."
+commands.deny = ["calendar_data"]

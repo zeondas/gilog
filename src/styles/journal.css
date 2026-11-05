@@ -46,8 +46,9 @@
   gap: var(--space-4);
 }
 
-/* 월 달력 */
+/* 월 달력 – 챙길 일 목록이 길어도 눌려 5번째 주·10~12월이 잘리지 않게 제 높이를 지켜요, 넘치면 열(.jn-left)이 스크롤(QC JN-17) */
 .jcal {
+  flex: none;
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background: var(--surface);
@@ -986,8 +987,16 @@
   margin: 0;
 }
 
+/* 다음 30일을 이어 그리는 표시(보이지 않고 자리도 차지하지 않아요 – 위 gap만큼 끌어올려요). */
+.jsearch-more {
+  height: 0;
+  margin-top: calc(-1 * var(--space-3));
+}
+
 /* 챙길 일 (왼쪽 열 달력 아래) */
 .jn-aside {
+  /* 달력처럼 눌리지 않게 – 길면 오른쪽 열 전체가 스크롤(QC JN-17) */
+  flex: none;
   display: flex;
   flex-direction: column;
   border: 1px solid var(--line);

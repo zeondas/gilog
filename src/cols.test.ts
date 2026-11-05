@@ -56,15 +56,17 @@ describe("옛 저장값은 버려요", () => {
 });
 
 describe("내용에 맞춤", () => {
-  it("한 열: 내용 폭을 올림, 가장 좁게 아래로는 안 감", () => {
-    expect(fitPx(num, 87.2)).toBe(88);
+  it("한 열: 내용 폭을 올림 + 여유(숫자 4·글자 열 16), 가장 좁게 아래로는 안 감", () => {
+    expect(fitPx(num, 87.2)).toBe(92);
+    expect(fitPx(name, 400)).toBe(416);
+    expect(fitPx({ ...num, roomy: true }, 87.2)).toBe(104);
     expect(fitPx(num, 12)).toBe(40);
     expect(fitPx(name, 90)).toBe(168);
   });
   it("모든 열: 고정 열·잴 수 없는 열(숨은 열)은 빼요", () => {
     const m: Record<string, number | null> = { name: 250, bud: 95, rate: 200, act: null };
     const act: ColDef = { id: "act", init: 112 };
-    expect(fitAllPx([name, num, fixed, act], { act: 150 }, (id) => m[id])).toEqual({ name: 250, bud: 95, act: 150 });
+    expect(fitAllPx([name, num, fixed, act], { act: 150 }, (id) => m[id])).toEqual({ name: 266, bud: 99, act: 150 });
   });
 });
 

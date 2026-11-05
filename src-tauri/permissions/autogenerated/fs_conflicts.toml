@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-fs-conflicts"
+description = "Enables the fs_conflicts command without any pre-configured scope."
+commands.allow = ["fs_conflicts"]
+
+[[permission]]
+identifier = "deny-fs-conflicts"
+description = "Denies the fs_conflicts command without any pre-configured scope."
+commands.deny = ["fs_conflicts"]

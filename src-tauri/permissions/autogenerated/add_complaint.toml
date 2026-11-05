@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-add-complaint"
+description = "Enables the add_complaint command without any pre-configured scope."
+commands.allow = ["add_complaint"]
+
+[[permission]]
+identifier = "deny-add-complaint"
+description = "Denies the add_complaint command without any pre-configured scope."
+commands.deny = ["add_complaint"]

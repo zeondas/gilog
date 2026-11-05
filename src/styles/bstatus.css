@@ -227,3 +227,5 @@
 .bss2-other { flex: 1; min-width: 0; }
 .bss2-add { height: 28px; padding: 0 10px; flex: none; }
 .bss2-help + .bss2-help { margin-top: -4px; }
+/* 예산현황 시트 가져오기 – 파일의 해가 보는 해와 다를 때 고르기(E-11) */
+.bs-xl-year { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 6px; color: var(--text); }

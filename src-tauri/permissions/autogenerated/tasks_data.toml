@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-tasks-data"
+description = "Enables the tasks_data command without any pre-configured scope."
+commands.allow = ["tasks_data"]
+
+[[permission]]
+identifier = "deny-tasks-data"
+description = "Denies the tasks_data command without any pre-configured scope."
+commands.deny = ["tasks_data"]

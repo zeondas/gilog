@@ -133,7 +133,8 @@ async def s_complaints_dbl(p):
 
 async def s_complaints_edit_ask(p):
     await s_complaints_edit(p)
-    await p.get_by_role("button", name="2번 민원 지우기").first.click()
+    # 연번은 core가 접수일 순으로 매겨요(0.59.0 – 배수불량은 3번) – 번호와 상관없이 고치는 줄의 지우기 단추
+    await p.locator("button.cm-del").first.click()
 
 
 async def s_complaints_cats_merge(p):
@@ -246,6 +247,17 @@ async def s_files_delete(p):
     await p.keyboard.press("Delete")
 
 
+# 실행할까요?(2026-10-29 명령 경로 검사 ✔1) – 실행 파일을 두 번 누르면 뜨는 창
+async def s_files_runask(p):
+    await p.locator(".fx-crumbs").first.click(position={"x": 400, "y": 10})
+    i = p.locator(".fx-path-in").first
+    await i.fill("D:\\공사\\2026 도로포장 연간단가")
+    await i.press("Enter")
+    await p.wait_for_timeout(500)
+    await p.locator("[id^=fx-row-0-]", has_text="단가표 보기.exe").first.dblclick()
+    await p.wait_for_timeout(300)
+
+
 async def s_process_rowmenu(p):
     await p.locator(".pr-more").first.click()
 
@@ -307,11 +319,50 @@ async def s_complaints_import_replace(p):
     await p.locator(".xl-pk", has_text="대체하기").first.click()
 
 
+async def s_budgetstatus_import(p):
+    # 예산현황 엑셀 가져오기 – 방식 고르기 창(2026-10-30 ✔1, 공통 ImportSteps). 미리 보기는 먼저 내보낸 파일만 읽어서 내보내기부터 해요.
+    await p.locator(".xl-btn").first.click()
+    await p.locator(".bd-mi", has_text="내보내기").first.click()
+    await p.wait_for_timeout(300)
+    # 내보내기 알림 띠(2.2초)가 사라진 뒤 가져와요 – 기준·내 가지를 차례로 여는 styles.py에서 띠가 한쪽에만 남아 흔들렸어요(2026-11-02 집행현황 세션)
+    await p.locator(".bd-toast").wait_for(state="detached", timeout=4000)
+    await p.locator(".xl-btn").first.click()
+    await p.locator(".bd-mi", has_text="가져오기").first.click()
+    await p.wait_for_timeout(400)
+
+
+async def s_budgetstatus_import_merge(p):
+    await s_budgetstatus_import(p)
+    await p.locator(".xl-pk", has_text="덮어쓰기").first.click()
+
+
+async def s_budgetstatus_import_replace(p):
+    await s_budgetstatus_import(p)
+    await p.locator(".xl-pk", has_text="대체하기").first.click()
+
+
 async def s_settings_calendar(p):
     # 설정 "캘린더" 카드 안 구글 연동 묶음(2026-10-25 공통 ✔3)
     await p.locator("section[aria-label='캘린더']").first.scroll_into_view_if_needed()
     await p.wait_for_timeout(200)
 
+
+
+async def s_settings_clear(p):
+    # 설정 "자료 지우기"(2026-10-30 설정 ✔1, 정보 카드 바로 위) – 스위치를 켠 모습
+    card = p.locator("section[aria-label='자료 지우기']").first
+    await card.locator("[role=switch]").click()
+    await p.wait_for_timeout(300)
+    await p.evaluate("() => document.querySelector(\"section[aria-label='자료 지우기']\").scrollIntoView({ block: 'end' })")
+    await p.wait_for_timeout(200)
+
+
+async def s_settings_clear_ask(p):
+    # 집행현황 줄의 "정말 지울까요?" 띠
+    await s_settings_clear(p)
+    await p.locator("[data-clear='budget'] .clr-btn").click()
+    await p.evaluate("() => document.querySelector(\"section[aria-label='자료 지우기']\").scrollIntoView({ block: 'end' })")
+    await p.wait_for_timeout(200)
 
 
 # ---------- 매뉴얼 장면(2026-10-26 매뉴얼 세션 – 창이 열린 모습) ----------
@@ -338,6 +389,23 @@ async def s_calendar_notitle(p):
     await t.fill("14")
     await p.locator(".cal-add").first.click()
     await p.wait_for_timeout(300)
+
+
+async def s_calendar_roll(p):
+    # 미니달력 10/14 한 번 → 그 주가 첫 줄인 5주(11-04 캘린더 ✔4)
+    d = p.locator('.cal-mini-d[aria-label="2026-10-14"]')
+    await d.wait_for(timeout=15000)
+    await d.click()
+    await p.wait_for_timeout(300)
+
+
+async def s_calendar_day(p):
+    # 미니달력 10/21 두 번 → 일 보기(11-04 캘린더 ✔4)
+    d = p.locator('.cal-mini-d[aria-label="2026-10-21"]')
+    await d.wait_for(timeout=15000)
+    await d.dblclick()
+    await p.locator(".cal-wk.one").wait_for(timeout=15000)
+    await p.wait_for_timeout(400)
 
 
 async def s_calendar_event(p):
@@ -396,6 +464,8 @@ SCENES.update({
     "calendar_event_ask": ("캘린더", s_calendar_event_ask),
     "calendar_kinds": ("캘린더", s_calendar_kinds),
     "calendar_kindpicker": ("캘린더", s_calendar_kindpicker),
+    "calendar_roll": ("캘린더", s_calendar_roll),
+    "calendar_day": ("캘린더", s_calendar_day),
     "budget_menu": ("집행현황", s_budget_menu),
     "budget_confirm": ("집행현황", s_budget_confirm),
     "budgetstatus_menu": ("예산현황", s_budgetstatus_menu),
@@ -406,6 +476,7 @@ SCENES.update({
     "files_four": ("탐색기", s_files_four),
     "files_colmenu": ("탐색기", s_files_colmenu),
     "files_delete": ("탐색기", s_files_delete),
+    "files_runask": ("탐색기", s_files_runask),
     "process_rowmenu": ("민원처리", s_process_rowmenu),
     "process_ask": ("민원처리", s_process_ask),
     "process_works_ask": ("민원처리", s_process_works_ask),
@@ -418,6 +489,9 @@ SCENES.update({
     "complaints_import_replace": ("민원대장", s_complaints_import_replace),
     "process_works": ("민원처리", s_process_works),
     "budgetstatus_settings": ("예산현황", s_budgetstatus_settings),
+    "budgetstatus_import": ("예산현황", s_budgetstatus_import),
+    "budgetstatus_import_merge": ("예산현황", s_budgetstatus_import_merge),
+    "budgetstatus_import_replace": ("예산현황", s_budgetstatus_import_replace),
     "calendar_event": ("캘린더", s_calendar_event),
     "calendar_new": ("캘린더", s_calendar_new),
     "calendar_notitle": ("캘린더", s_calendar_notitle),
@@ -426,6 +500,147 @@ SCENES.update({
     "files_viewmenu": ("탐색기", s_files_viewmenu),
     "settings_files": ("설정", s_settings_files),
     "settings_calendar": ("설정", s_settings_calendar),
+    "settings_clear": ("설정", s_settings_clear),
+    "settings_clear_ask": ("설정", s_settings_clear_ask),
+})
+
+
+# 민원 지도(2026-11-02 민원 지도 세션) – SCREENS 목록에는 넣지 않아요(넣으면 뒤 장면 번호가 밀려 기준과 짝이 어긋나요).
+# 11-03 ✔2(map5): 머리 줄 없이 지도 위 검색창·거르기 배지, 민원현황 패널은 처음 열림이라 목록 장면은 그대로 눌러요. 지킴이 빌드엔 카카오 키가 없어 늘 연속주제도(data-bg="dxf").
+async def list_tab(p):
+    await p.wait_for_timeout(100)
+
+
+async def s_map_region(p):
+    await list_tab(p)
+    await p.locator(".mp-reg", has_text="조리읍").first.dblclick()
+    await p.wait_for_timeout(900)
+
+
+async def s_map_period(p):
+    await p.locator(".mp-fbtn", has_text="기간").first.click()
+
+
+async def s_map_regions(p):
+    await list_tab(p)
+    await p.locator(".mp-regbtn").first.click()
+
+
+# ✔1·✔3(11-02 23:2x): 닷카드 · 하천·공원 분야(설정 값을 바꾸고 다른 화면에 갔다 와서 다시 열어요)
+async def s_map_card(p):
+    await p.wait_for_timeout(400)
+    xy = await p.locator(".mp-map").first.get_attribute("data-dot")
+    x, y = (int(v) for v in xy.split(","))
+    box = await p.locator(".mp-map").first.bounding_box()
+    await p.mouse.click(box["x"] + x, box["y"] + y)
+    await p.wait_for_timeout(300)
+
+
+async def s_map_focus(p):
+    # 11-03 ✔5: 민원대장 "지도에서 보기"로 받은 민원 – 처음 거르기(완료는 꺼짐)에 걸리는 완료 민원을 골라 거르기가 풀리고 닷카드가 열리는지
+    await nav(p, "할 일")
+    cid = await p.evaluate("""async () => {
+        const l = await window.__preview.call('complaints_map');
+        const c = l.find((c) => c.x != null && c.status === '완료') || l.find((c) => c.x != null);
+        return c.id;
+    }""")
+    await p.evaluate("(id) => window.__openMap(id)", cid)
+    await p.wait_for_timeout(2600)  # 핀이 일어서는 움직임(1.45초)이 끝난 뒤에 찍어요(map8 – 0.74.0 빌드에서 흔들림)
+
+
+async def field_to(p, field):
+    await p.evaluate("(f) => window.__preview.call('set_value', { key: 'map.field', value: f })", field)
+    await nav(p, "할 일")
+    await nav(p, "민원지도")
+    await p.wait_for_timeout(600)
+
+
+async def s_map_river(p):
+    await field_to(p, "river")
+    await list_tab(p)
+    await p.locator(".mp-reg", has_text="하천 밖").first.click()
+
+
+async def s_map_rivers(p):
+    await field_to(p, "river")
+    await list_tab(p)
+    await p.locator(".mp-regbtn").first.click()
+
+
+async def s_map_park(p):
+    await field_to(p, "park")
+
+
+# 11-03 ✔5·✔6·✔7·✔11: 주소 검색(지번 – 앱 안 필지 표) · [층] 상자 · 거리 재기 · 사이드바 접기
+async def s_map_search(p):
+    await p.locator(".mp-sbar input").first.fill("봉일천리 113")
+    await p.locator(".mp-sbar input").first.press("Enter")
+    await p.wait_for_timeout(900)
+
+
+async def s_map_searchcm(p):
+    await p.locator(".mp-sbar input").first.fill("포트홀")
+    await p.wait_for_timeout(400)
+
+
+async def s_map_layers(p):
+    await p.locator(".mp-btn[aria-label='층']").first.click()
+
+
+async def s_map_measure(p):
+    # 11-03 2판: 재기 묶음을 풀어 세 단추(거리 재기·면적 재기·반경 재기) – 옛 빌드(기준)는 펼침 상자
+    if await p.locator(".mp-btn[aria-label='거리 재기']").count():
+        await p.locator(".mp-btn[aria-label='거리 재기']").first.click()
+    else:
+        await p.locator(".mp-btn[aria-label='재기']").first.click()
+        await p.locator(".mp-fly button[aria-label='거리']").first.click()
+    box = await p.locator(".mp-map").first.bounding_box()
+    cx, cy = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+    for dx, dy in ((-160, 40), (-20, -60)):
+        await p.mouse.click(cx + dx, cy + dy)
+        await p.wait_for_timeout(500)
+    await p.mouse.click(cx + 120, cy + 20)
+    await p.wait_for_timeout(100)
+    await p.mouse.click(cx + 120, cy + 20)  # 두 번 누르기로 끝
+    await p.wait_for_timeout(300)
+
+
+async def s_map_typefind(p):
+    # 11-03 2판: 민원유형 상자 – 첫 줄 찾기 칸(초성) + ×, 폭 216
+    await p.locator(".mp-pill", has_text="민원유형").first.click()
+    await p.wait_for_timeout(200)
+    if await p.locator(".mp-typepop input").count():
+        await p.locator(".mp-typepop input").first.fill("ㅍ")
+        await p.wait_for_timeout(200)
+
+
+async def s_map_fold(p):
+    await p.locator(".mp-hamb").first.click()
+    await p.wait_for_timeout(300)
+
+
+async def s_map_legend(p):
+    await p.locator(".mp-lg-fold").first.click()
+    await p.wait_for_timeout(200)
+
+
+SCENES.update({
+    "map_card": ("민원지도", s_map_card),
+    "map_river": ("민원지도", s_map_river),
+    "map_rivers": ("민원지도", s_map_rivers),
+    "map_park": ("민원지도", s_map_park),
+    "map": ("민원지도", None),
+    "map_region": ("민원지도", s_map_region),
+    "map_period": ("민원지도", s_map_period),
+    "map_regions": ("민원지도", s_map_regions),
+    "map_search": ("민원지도", s_map_search),
+    "map_layers": ("민원지도", s_map_layers),
+    "map_measure": ("민원지도", s_map_measure),
+    "map_fold": ("민원지도", s_map_fold),
+    "map_searchcm": ("민원지도", s_map_searchcm),
+    "map_legend": ("민원지도", s_map_legend),
+    "map_focus": ("민원지도", s_map_focus),
+    "map_typefind": ("민원지도", s_map_typefind),
 })
 
 

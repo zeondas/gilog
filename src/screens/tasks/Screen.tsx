@@ -14,6 +14,7 @@ import { SearchBox } from "../../SearchBox";
 import { ItemRow, ListPanel } from "./Table";
 import { ListMenu } from "./Menu";
 import { AddForm } from "./Dialogs";
+import { useHolidays } from "../../workdays";
 
 
 /** 체크 움직임 시간(ms) – styles/*.css `.td-check.pop`의 td-check-pop과 같게 */
@@ -34,6 +35,8 @@ export default function TasksScreen({ urgentDays, focusId, onFocused, onOpenComp
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [statuses, setStatuses] = useState<string[]>(DEFAULT_SETTINGS.status);
   const [today, setToday] = useState(todayStr());
+  // 공휴일 목록이 바뀌면 남은 날(근무일)을 다시 세요.
+  useHolidays();
   const [q, setQ] = useState("");
   const [note, setNote] = useState("");
   /** 골라 둔(한 번 누른) 항목. 세부정보가 펼쳐져요. */
@@ -60,16 +63,26 @@ export default function TasksScreen({ urgentDays, focusId, onFocused, onOpenComp
   useEffect(() => () => window.clearTimeout(justTimer.current), []);
 
   useEffect(() => {
-    api.tasksData().then(setData, (e) => setNote(errorText(e)));
-    api.complaints().then(setComplaints, () => {});
-    loadSettings().then((s) => setStatuses(s.status), () => {});
+    // 열 때 읽기 셋을 모아 한 번에 그려요(2026-10-30 속도 ① – 민원대장과 같은 방식). 하나가 실패해도 나머지는 지금처럼.
+    let alive = true;
+    const ok = <T,>(p: Promise<T>) => p.then((v) => ({ v }), (e: unknown) => ({ e }));
+    void Promise.all([ok(api.tasksData()), ok(api.complaints()), ok(loadSettings())]).then(([d, cs, s]) => {
+      if (!alive) return;
+      if ("v" in cs) setComplaints(cs.v);
+      if ("v" in s) setStatuses(s.v.status);
+      if ("v" in d) setData(d.v);
+      else setNote(errorText(d.e));
+    });
     // 구글 할 일에서 체크한 것이 들어오면 다시 읽어요.
     const reload = () => {
       api.tasksData().then(setData, () => {});
       api.complaints().then(setComplaints, () => {});
     };
     window.addEventListener(REMOTE_CHANGE, reload);
-    return () => window.removeEventListener(REMOTE_CHANGE, reload);
+    return () => {
+      alive = false;
+      window.removeEventListener(REMOTE_CHANGE, reload);
+    };
   }, []);
 
   // 자정을 넘기면 "오늘"을 바꿔요(마감 배지).

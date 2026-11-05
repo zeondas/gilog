@@ -19,11 +19,16 @@ export type ColDef = {
   max?: number;
   /** 열 제목(손잡이 이름표) */
   label?: string;
+  /** 맞춤 여유를 넓게(16) – 없으면 글자 열(text)만 넓게. 예산현황 사업기간처럼 글자 열이 아니어도 넓게 둘 때 */
+  roomy?: boolean;
 };
 
 export type ColPx = Record<string, number>;
 
 export const COL_MIN_PX = 40;
+/** 내용에 맞춤 여유(2026-10-29 사용자 ① 2안): 숫자·짧은 열 4, 글자 열(이름·사업명·사업기간·위치·공사명) 16 – 칸 여백 뒤에 더해요 */
+export const FIT_GAP = 4;
+export const FIT_GAP_ROOMY = 16;
 /** 저장값으로 받는 가장 넓은 폭(망가진 값 거르기) */
 const COL_MAX_PX = 4000;
 
@@ -42,9 +47,14 @@ export function widthOf(c: ColDef, saved: ColPx): number {
   return c.max != null ? Math.max(minOf(c), Math.min(c.max, w)) : w;
 }
 
-/** 내용 폭(칸 여백 포함)으로 맞춘 폭 */
+/** 맞춤 여유 */
+export function fitGap(c: ColDef): number {
+  return (c.roomy ?? c.text) ? FIT_GAP_ROOMY : FIT_GAP;
+}
+
+/** 내용 폭(칸 여백 포함)으로 맞춘 폭 = 내용 + 여유(fitGap) */
 export function fitPx(c: ColDef, content: number): number {
-  const w = Math.max(minOf(c), Math.ceil(content));
+  const w = Math.max(minOf(c), Math.ceil(content) + fitGap(c));
   return c.max != null ? Math.max(minOf(c), Math.min(c.max, w)) : w;
 }
 

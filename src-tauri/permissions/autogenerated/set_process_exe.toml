@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-process-exe"
+description = "Enables the set_process_exe command without any pre-configured scope."
+commands.allow = ["set_process_exe"]
+
+[[permission]]
+identifier = "deny-set-process-exe"
+description = "Denies the set_process_exe command without any pre-configured scope."
+commands.deny = ["set_process_exe"]

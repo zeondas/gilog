@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-fs-explorer"
+description = "Enables the fs_explorer command without any pre-configured scope."
+commands.allow = ["fs_explorer"]
+
+[[permission]]
+identifier = "deny-fs-explorer"
+description = "Denies the fs_explorer command without any pre-configured scope."
+commands.deny = ["fs_explorer"]

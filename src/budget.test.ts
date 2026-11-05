@@ -3,7 +3,8 @@
 // 합계 줄 비율 = Σ쓴 돈 ÷ 예산 · 가용액 = 예산 − Σ(완료·타절이면 집행액, 아니면 원인행위) – 보기와 상관없음
 // 숫자는 사용자가 준 2026 집행현황 실무 엑셀에서 가져왔어요(엑셀 손수식과 같은 값이 나와야 해요).
 import { describe, expect, test } from "vitest";
-import { balance, BudgetRow, rowRate, spent, sums, tied } from "./budget";
+import { balance, BudgetRow, CMT_LABEL, rowRate, spent, sums, tied } from "./budget";
+import { cellNum, parseBudgetBook, toWon } from "./budgetExcel";
 
 let id = 0;
 const R = (stage: string, cmt: number, exp: number, act = exp): BudgetRow => ({ id: ++id, uid: "r" + id, name: "공사" + id, kind: "공사", co: "", cmt, exp, act, stage, memo: "" });
@@ -118,5 +119,69 @@ describe("합계 줄", () => {
   test("예산 0·없음이면 비율 없음", () => {
     expect(sums(0, [R("추진", 1, 1)]).rate).toBeNull();
     expect(sums(null, [R("추진", 1, 1)], "act").rate).toBeNull();
+  });
+});
+
+// 시공량 보기 열 이름(2026-10-28 21:58 사용자): 원인행위 열을 "계약금액"으로 보여요 – 그 이름으로 내보낸 엑셀도 다시 가져와요
+
+describe("원인행위 · 계약금액 열 이름", () => {
+  test("집행률 보기는 원인행위, 시공량 보기는 계약금액", () => {
+    expect(CMT_LABEL.exp).toBe("원인행위");
+    expect(CMT_LABEL.act).toBe("계약금액");
+  });
+  const book = (cmtHead: string) => [
+    {
+      name: "2026",
+      rows: [
+        ["2026 집행현황"],
+        ["기준일 2026-10-28 · 단위 원 · 보기 시공량"],
+        ["세부사업", "구분", "업체(하도)", "예산", cmtHead, "집행액", "시공량(사용량)", "잔액", "사용률", "가용액", "단계", "메모", "줄"],
+        ["도로포장", "", "", "100000", "", "", "", "", "", "", "", "", "세부사업"],
+        ["단가계약", "공사", "대원", "", "80000", "30000", "50000", "", "", "", "추진", "", "공사"],
+      ],
+    },
+  ];
+  for (const h of ["원인행위", "계약금액"]) {
+    test(`"${h}" 머리 엑셀을 가져와요`, () => {
+      const r = parseBudgetBook(book(h), 2026);
+      expect(r).not.toBeNull();
+      const row = r!.projects[0].items[0].rows[0];
+      expect(row.cmt).toBe(80000);
+      expect(row.act).toBe(50000);
+    });
+  }
+});
+
+// 버그 사냥 2차 E-16·E-17(집행현황 ✔4): 금액 칸 읽기 넓히기 + 못 읽은·반올림한 금액은 확인 목록에
+describe("금액 칸 읽기(toWon)", () => {
+  test("전각·₩·괄호·△ 음수", () => {
+    expect(toWon("１,０００", 1)).toBe(1000);
+    expect(toWon("₩1,234,560", 1)).toBe(1_234_560);
+    expect(toWon("(1,230)", 1)).toBe(-1230);
+    expect(toWon("△500", 1)).toBe(-500);
+    expect(toWon("1,234.5", 1000)).toBe(1_234_500);
+    expect(toWon("", 1)).toBeNull();
+    expect(toWon("1.5억", 1)).toBeNull();
+    expect(cellNum("1.5억")).toBeNaN();
+  });
+  test("못 읽은 금액·1원 자리 반올림은 확인 목록에 남아요", () => {
+    const r = parseBudgetBook(
+      [
+        {
+          name: "2026",
+          rows: [
+            ["2026 집행현황"],
+            ["단위 원"],
+            ["세부사업", "구분", "업체(하도)", "예산", "원인행위", "집행액", "시공량(사용량)", "단계", "메모", "줄"],
+            ["도로포장", "", "", "100000", "", "", "", "", "", "세부사업"],
+            ["가", "공사", "", "", "1,234,567", "1.5억", "", "추진", "", "공사"],
+          ],
+        },
+      ],
+      2026,
+    )!;
+    const row = r.projects[0].items[0].rows[0];
+    expect([row.cmt, row.exp]).toEqual([1_234_570, 0]);
+    expect(r.checks).toEqual(["5행: 원인행위 1,234,567원을 1,234,570원으로 반올림했어요(십원 단위)", '5행: 집행액 "1.5억"를 읽지 못했어요(비워 넣었어요)']);
   });
 });

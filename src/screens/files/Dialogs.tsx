@@ -148,6 +148,38 @@ export function DeleteDialog({ items, permanent, onYes, onNo }: { items: FsEntry
   );
 }
 
+/** 실행할까요? – 실행 파일(exe·bat 등)을 열 때(품질 보완 ② ✔1, 지울까요와 같은 모양). Enter 실행 · Esc·바깥 취소 */
+export function RunAsk({ path, onYes, onNo }: { path: string; onYes: () => void; onNo: () => void }) {
+  const yes = useRef<HTMLButtonElement>(null);
+  useEffect(() => yes.current?.focus(), []);
+  const name = path.split(/[\\/]/).pop() || path;
+  return (
+    <Overlay onClose={onNo} width={460} label="실행 확인">
+      <div
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            onNo();
+          }
+        }}
+      >
+        <div className="dialog-head">
+          <span className="dialog-title">실행할까요?</span>
+          <span className="fx-sub">{name} · 프로그램이 실행돼요</span>
+        </div>
+        <div className="dialog-foot fx-gap">
+          <button type="button" className="btn btn-ctrl" onClick={onNo}>
+            취소
+          </button>
+          <button type="button" ref={yes} className="btn btn-ctrl btn-danger" onClick={onYes}>
+            실행
+          </button>
+        </div>
+      </div>
+    </Overlay>
+  );
+}
+
 /** F5·F6 확인(2026-10-20 사용자 1안 – 새로 고침하려다 복사되는 일 막기). Enter 확인 · Esc 취소 */
 export function TransferAsk({ items, op, dest, onYes, onNo }: { items: { name: string }[]; op: "copy" | "move"; dest: string; onYes: () => void; onNo: () => void }) {
   const yes = useRef<HTMLButtonElement>(null);

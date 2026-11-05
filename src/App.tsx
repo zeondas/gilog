@@ -1,15 +1,18 @@
 import { CSSProperties, Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { api, applyAccent, DEFAULT_PREFS, errorText, inApp, Prefs, Reminder, Status } from "./api";
+import { api, applyAccent, changeHooks, DEFAULT_PREFS, errorText, inApp, Prefs, Reminder, Status } from "./api";
 import { measureBullets } from "./bullets";
 import CalendarScreen, { EventFocus } from "./screens/calendar/Screen";
 import ComplaintsScreen from "./screens/complaints/Screen";
+import MapScreen from "./screens/map/Screen";
 import ContactsScreen from "./screens/contacts/Screen";
 import ProcessScreen from "./screens/process/Screen";
 import BudgetScreen from "./screens/budget/Screen";
 import BudgetStatusScreen from "./screens/bstatus/Screen";
 import FilesScreen from "./screens/files/Screen";
-import Gate from "./Gate";
+import Gate, { GateNote } from "./Gate";
+import { backupWarnText } from "./backupWarn";
+import { X } from "./screens/settings/parts";
 import Logo, { AppIcon } from "./Logo";
 import { NavIcon, NavIconName } from "./Icons";
 import { VERSION } from "./version";
@@ -17,6 +20,7 @@ import JournalScreen from "./screens/journal/Screen";
 import SettingsScreen from "./screens/settings/Screen";
 import TasksScreen from "./screens/tasks/Screen";
 import { applyNotifyMode, refreshHolidaysDaily, syncReminders } from "./reminders";
+import { setHolidays } from "./workdays";
 import { startGoogleSync } from "./google";
 import { minWidthOf } from "./viewport";
 import { firstOn, isOn, Modules, onScreens, SCREENS, SETTINGS, ScreenId } from "./screens";
@@ -45,6 +49,13 @@ export default function App() {
     setFocusComplaint(id);
     setCurrent("complaints");
   }, []);
+  // 민원대장 "지도에서 보기"(우클릭·단축키)로 고른 민원. 민원 지도가 그 점으로 가면 비워요(민원대장 ✔1 · 민원 지도 ✔5, 2026-11-03).
+  const [focusMap, setFocusMap] = useState<number | null>(null);
+  const clearMapFocus = useCallback(() => setFocusMap(null), []);
+  const openMap = useCallback((id: number) => {
+    setFocusMap(id);
+    setCurrent("map");
+  }, []);
   // 업무일지 "챙길 일"에서 누른 할 일. 할 일 목록이 그 항목으로 가면 비워요.
   const [focusTask, setFocusTask] = useState<number | null>(null);
   const clearTask = useCallback(() => setFocusTask(null), []);
@@ -66,6 +77,10 @@ export default function App() {
       off.then((f) => f());
     };
   }, []);
+  // 브라우저 미리 보기 시험용(모양 지킴이 map_focus 장면 – 민원 지도 ✔5): window.__openMap(민원 id)
+  useEffect(() => {
+    if (!inApp) (window as unknown as { __openMap?: (id: number) => void }).__openMap = openMap;
+  }, [openMap]);
 
   const refresh = useCallback(() => {
     api.status().then(setStatus, (e) => setFatal(errorText(e)));
@@ -158,6 +173,31 @@ export default function App() {
   // 자동 잠금: 마우스나 키보드 입력이 없으면 잠가요.
   const unlocked = status?.unlocked ?? false;
 
+  // 설정에서 자료 옮기기·백업 불러오기로 잠겼을 때 잠금 화면 띠에 보일 안내(버그 사냥 17). 열리면 비워요.
+  const [lockNote, setLockNote] = useState<GateNote | null>(null);
+  const lockedFromSettings = useCallback(
+    (note?: GateNote) => {
+      setLockNote(note ?? null);
+      refresh();
+    },
+    [refresh],
+  );
+  // 잠금을 풀 때 자동 백업이 2일 넘게 안 되고 있으면 앱 위 띠 한 줄(버그 사냥 20). ×로 닫으면 다음 잠금 풀기까지 안 떠요.
+  const [backupWarn, setBackupWarn] = useState("");
+  useEffect(() => {
+    if (!unlocked) return;
+    setLockNote(null);
+    let alive = true;
+    api.backupInfo().then(
+      (info) => alive && setBackupWarn(backupWarnText(info)),
+      () => {},
+    );
+    return () => {
+      alive = false;
+      setBackupWarn("");
+    };
+  }, [unlocked]);
+
   // 열려 있는 동안: 일정 알림 목록을 앱에 보내고(30분마다 다시), 공휴일을 하루에 한 번 받아요.
   useEffect(() => {
     if (!unlocked) return;
@@ -171,13 +211,23 @@ export default function App() {
       setCurrent((c) => (c && c !== SETTINGS.id && !isOn(s.modules, c) ? firstOn(s.modules) : c));
     }, () => {});
     syncReminders();
+    // 남은 날(근무일) 셈에 쓰는 공휴일 – 열 때 읽고, 공휴일을 새로 받으면 다시 읽어요.
+    const loadHolidays = () => api.calendarData().then((d) => setHolidays(d.holidays), () => {});
+    loadHolidays();
+    const onHolidays = (cmd: string) => {
+      if (cmd === "refresh_holidays" || cmd === "save_holidays") loadHolidays();
+    };
+    changeHooks.add(onHolidays);
     refreshHolidaysDaily();
     startGoogleSync();
     const t = window.setInterval(() => {
       syncReminders();
       refreshHolidaysDaily();
     }, 30 * 60 * 1000);
-    return () => window.clearInterval(t);
+    return () => {
+      window.clearInterval(t);
+      changeHooks.delete(onHolidays);
+    };
   }, [unlocked]);
   useEffect(() => {
     if (!unlocked || !prefs.autoLock) return;
@@ -238,7 +288,7 @@ export default function App() {
   if (fatal) return <div className="gate"><p className="gate-error">{fatal}</p></div>;
   if (!status || current === null) return <div className="gate" />;
   if (!status.unlocked) {
-    return <Gate mode={status.exists ? "unlock" : "setup"} folder={status.folder} onOpen={refresh} />;
+    return <Gate mode={status.exists ? "unlock" : "setup"} folder={status.folder} onOpen={refresh} note={lockNote} />;
   }
 
   const screen = [...SCREENS, SETTINGS].find((s) => s.id === current) ?? SCREENS[0];
@@ -278,11 +328,11 @@ export default function App() {
         </div>
       </nav>
       <main
-        className={(current === "explorer" || current === "budget" || current === "bstatus" ? "main main-fill" : "main") + (minWidthOf(current) ? " vp" : "")}
+        className={(current === "explorer" || current === "budget" || current === "bstatus" || current === "map" ? "main main-fill" : "main") + (minWidthOf(current) ? " vp" : "")}
         style={minWidthOf(current) ? ({ "--vp-min": `${minWidthOf(current)}px` } as CSSProperties) : undefined}
       >
         {current === SETTINGS.id ? (
-          <SettingsScreen prefs={prefs} onPrefs={savePrefs} status={status} onLocked={refresh} onModules={changeModules} onClose={closeSettings} />
+          <SettingsScreen prefs={prefs} onPrefs={savePrefs} status={status} onLocked={lockedFromSettings} onModules={changeModules} onClose={closeSettings} />
         ) : current === "explorer" ? (
           <FilesScreen />
         ) : current === "contacts" ? (
@@ -290,7 +340,9 @@ export default function App() {
         ) : current === "journal" ? (
           <JournalScreen urgentDays={prefs.urgentDays} onOpenComplaint={openComplaint} onOpenTask={openTask} />
         ) : current === "complaints" ? (
-          <ComplaintsScreen urgentDays={prefs.urgentDays} focusId={focusComplaint} onFocused={clearFocus} />
+          <ComplaintsScreen urgentDays={prefs.urgentDays} focusId={focusComplaint} onFocused={clearFocus} onOpenMap={isOn(modules, "map") ? openMap : undefined} />
+        ) : current === "map" ? (
+          <MapScreen onOpenComplaint={openComplaint} focusId={focusMap} onFocused={clearMapFocus} />
         ) : current === "budget" ? (
           <BudgetScreen />
         ) : current === "bstatus" ? (
@@ -313,6 +365,14 @@ export default function App() {
           </>
         )}
       </main>
+      {backupWarn && (
+        <div className="backup-warn" role="alert">
+          <span>{backupWarn}</span>
+          <button type="button" className="backup-warn-x" aria-label="닫기" title="닫기" onClick={() => setBackupWarn("")}>
+            <X />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

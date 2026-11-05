@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-fs-rename-many"
+description = "Enables the fs_rename_many command without any pre-configured scope."
+commands.allow = ["fs_rename_many"]
+
+[[permission]]
+identifier = "deny-fs-rename-many"
+description = "Denies the fs_rename_many command without any pre-configured scope."
+commands.deny = ["fs_rename_many"]

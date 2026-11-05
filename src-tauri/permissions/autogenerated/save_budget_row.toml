@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-save-budget-row"
+description = "Enables the save_budget_row command without any pre-configured scope."
+commands.allow = ["save_budget_row"]
+
+[[permission]]
+identifier = "deny-save-budget-row"
+description = "Denies the save_budget_row command without any pre-configured scope."
+commands.deny = ["save_budget_row"]

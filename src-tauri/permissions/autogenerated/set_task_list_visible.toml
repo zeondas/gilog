@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-task-list-visible"
+description = "Enables the set_task_list_visible command without any pre-configured scope."
+commands.allow = ["set_task_list_visible"]
+
+[[permission]]
+identifier = "deny-set-task-list-visible"
+description = "Denies the set_task_list_visible command without any pre-configured scope."
+commands.deny = ["set_task_list_visible"]

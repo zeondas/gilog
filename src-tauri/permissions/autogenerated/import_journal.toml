@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-import-journal"
+description = "Enables the import_journal command without any pre-configured scope."
+commands.allow = ["import_journal"]
+
+[[permission]]
+identifier = "deny-import-journal"
+description = "Denies the import_journal command without any pre-configured scope."
+commands.deny = ["import_journal"]

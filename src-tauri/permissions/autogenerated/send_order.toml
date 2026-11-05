@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-send-order"
+description = "Enables the send_order command without any pre-configured scope."
+commands.allow = ["send_order"]
+
+[[permission]]
+identifier = "deny-send-order"
+description = "Denies the send_order command without any pre-configured scope."
+commands.deny = ["send_order"]

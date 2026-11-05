@@ -2,6 +2,7 @@
 import type { Complaint, Task } from "./api";
 import { BLine, parseLines, plainOf } from "./bullets";
 import { daysBetween } from "./complaints";
+import { workDaysBetween } from "./workdays";
 import { isAnswered } from "./settingsStore";
 
 /** 답변이 끝난 민원을 "완료됨"에 남겨 두는 기간이에요(마감일 기준). 그보다 오래된 것은 카드에서 빠져요. */
@@ -133,7 +134,8 @@ const WEEK = ["일", "월", "화", "수", "목", "금", "토"];
 export function dueBadge(due: string, today: string, urgentDays: number): { date: string; dday: string; tone: "today" | "urgent" | "soon" | "" } {
   const [y, m, d] = due.split("-").map(Number);
   const w = WEEK[new Date(y, m - 1, d).getDay()];
-  const n = daysBetween(today, due);
+  // 남은 날은 근무일로(토·일·공휴일 빼고 – 2026-10-30 사용자, 민원과 같은 규칙)
+  const n = workDaysBetween(today, due);
   const dday = n === 0 ? "오늘" : n > 0 ? `D-${n}` : `D+${-n}`;
   const tone = n === 0 ? "today" : n <= urgentDays ? "urgent" : n <= urgentDays + 1 ? "soon" : "";
   return { date: `${m}/${d}(${w})`, dday, tone };
@@ -142,6 +144,6 @@ export function dueBadge(due: string, today: string, urgentDays: number): { date
 /** 업무일지 "챙길 일": 마감이 within일 안이거나 지난, 완료가 아닌 할 일 (하위 항목 포함). 마감이 빠른 것이 위예요. */
 export function tasksDueSoon(tasks: Task[], today: string, within = 7): Task[] {
   return tasks
-    .filter((t) => !t.done && t.due && daysBetween(today, t.due) <= within)
+    .filter((t) => !t.done && t.due && workDaysBetween(today, t.due) <= within)
     .sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : a.id - b.id));
 }

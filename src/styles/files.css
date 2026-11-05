@@ -1271,3 +1271,8 @@ select.input.fx-set-date { width: 190px; }
 /* ✔5 열 제목 끌기 – 놓을 자리 세로 줄 */
 .fx-hdr > .fx-col[data-drag="1"] { background: var(--surface-band); color: var(--ink); }
 .fx-col-drop { position: absolute; top: 3px; bottom: 3px; width: 2px; border-radius: 1px; background: var(--accent); pointer-events: none; z-index: 3; }
+/* `..` 줄 고정(2026-10-29 탐색기 ✔1 – 자세히 보기만): 열 머리 바로 아래 붙어 내려도 남고, 파일 줄은 그 아래로 지나가요.
+   키보드로 올라갈 때 고른 줄이 그 밑에 가려지지 않게 위 여백을 머리 둘(28 + 28)만큼. */
+.fx-rows > .fx-uprow { position: sticky; top: 28px; z-index: 1; background: var(--surface); }
+.fx-rows > .fx-uprow:hover { background: var(--row-alt); }
+.fx-list:has(> .fx-rows > .fx-uprow) { scroll-padding-top: 56px; }

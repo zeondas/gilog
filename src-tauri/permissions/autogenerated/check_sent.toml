@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-check-sent"
+description = "Enables the check_sent command without any pre-configured scope."
+commands.allow = ["check_sent"]
+
+[[permission]]
+identifier = "deny-check-sent"
+description = "Denies the check_sent command without any pre-configured scope."
+commands.deny = ["check_sent"]

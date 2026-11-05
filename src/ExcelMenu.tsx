@@ -3,10 +3,11 @@
 // 가져오기(2026-10-25 사용자 ②3안, 공통 ✔5, 그림 docs/qa/common/excel_import2.png): 파일을 고르면 "어떻게 가져올까요?" 창에서
 // 덮어쓰기(같은 것은 파일 내용으로 덮고 새 것은 더함 – 파일에 없는 것은 그대로) / 대체하기(지금 자료를 모두 지우고 파일 내용만)를 고르고,
 // 다음 창에서 건수를 보고 한 번 더 눌러요. 대체하기는 붉은 띠 + 붉은 단추. "같은 것"의 기준은 화면마다 preview가 정해요.
+import { BusyButton } from "./BusyButton";
 import { DialogX } from "./DialogX";
 import { useEffect, useRef, useState } from "react";
 import { api, errorText, inApp } from "./api";
-import { ExcelExport, ExcelSheet, SHEET_TITLE, SheetKind, defaultName } from "./excel";
+import { ExcelExport, ExcelSheet, SHEET_TITLE, SheetKind, defaultName, importNotes } from "./excel";
 import { todayStr } from "./journal";
 import { overlayDown, useOutsideClose } from "./useOutsideClose";
 
@@ -145,7 +146,9 @@ export function ExcelMenu<T>({
     try {
       const sheet = await api.excelRead(path, kind);
       remember(path);
-      setAsk({ path, rows: parse(sheet), note: note ? note(sheet) : "", step: "pick" });
+      // 화면이 주는 말 + 모든 화면 공통 말(숨긴 줄·못 읽은 날짜 – 공통 ✔5·✔6)
+      const notes = [note ? note(sheet) : "", ...importNotes(kind, sheet)].filter(Boolean);
+      setAsk({ path, rows: parse(sheet), note: notes.join(" · "), step: "pick" });
     } catch (e) {
       setToast(e === "invalid" ? `${title} 양식이 아니에요` : e === "io" ? "파일을 열지 못했어요." : errorText(e));
     }
@@ -219,8 +222,8 @@ export function ExcelMenu<T>({
   );
 }
 
-/** 가져오기 창 안쪽: ① 방식 고르기 → ② 덮어쓰기 확인 / 대체하기 확인(붉은 띠) */
-function ImportSteps({
+/** 가져오기 창 안쪽: ① 방식 고르기 → ② 덮어쓰기 확인 / 대체하기 확인(붉은 띠). 집행현황·예산현황 가져오기 창도 써요(2026-10-30 ✔1). */
+export function ImportSteps({
   title,
   noun,
   n,
@@ -232,12 +235,21 @@ function ImportSteps({
   onStep,
   onCancel,
   onGo,
+  warn,
+  heading,
+  band,
 }: {
   title: string;
   noun: string;
   n: number;
   path: string;
-  note: string;
+  note: React.ReactNode;
+  /** 대체하기 확인 창 붉은 띠 아래 한 줄(집행현황 팀 공유 안내) */
+  warn?: React.ReactNode;
+  /** 고르기 창 제목을 바꿀 때(집행현황: "2026년 집행현황 – 공사 N건을 …") */
+  heading?: string;
+  /** 대체하기 확인 붉은 띠 글을 바꿀 때(예산현황: 지우는 것이 세부사업이 아니라 직접 적은 값) */
+  band?: string;
   step: "pick" | ImportMode;
   stats: { same: number; total: number } | null;
   busy: boolean;
@@ -246,6 +258,23 @@ function ImportSteps({
   onGo: () => void;
 }) {
   const pickRef = useRef<HTMLDivElement>(null);
+  // 대체하기 전 백업(공통 ✔1, E-6): 모든 화면이 이 창을 쓰니 여기서 한 번 남겨요. 실패하면 대체하지 않아요.
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+  const replaceGo = async () => {
+    if (busy || saving) return;
+    setSaving(true);
+    setErr("");
+    try {
+      await api.backupBeforeReplace();
+    } catch (e) {
+      setSaving(false);
+      setErr(`대체하기 전 백업을 남기지 못해 멈췄어요 · ${errorText(e)}`);
+      return;
+    }
+    setSaving(false);
+    onGo();
+  };
   const won = (x: number) => x.toLocaleString();
   if (!n) {
     return (
@@ -276,7 +305,11 @@ function ImportSteps({
       <>
         <div className="xl-ask-body">
           <h2 className="xl-ask-title">
-            {title} {won(n)}건을 어떻게 가져올까요?
+            {heading ?? (
+              <>
+                {title} {won(n)}건을 어떻게 가져올까요?
+              </>
+            )}
           </h2>
           {note && <div className="xl-ask-note">{note}</div>}
           <div className="xl-pick" ref={pickRef} onKeyDown={arrows}>
@@ -302,7 +335,7 @@ function ImportSteps({
           <div className="xl-ask-path">{path}</div>
         </div>
         <div className="xl-ask-foot">
-          <button type="button" className="btn btn-ctrl btn-text" onClick={onCancel}>
+          <button type="button" className="btn btn-ctrl btn-text" disabled={busy} onClick={onCancel}>
             취소
           </button>
         </div>
@@ -348,9 +381,9 @@ function ImportSteps({
           <button type="button" className="btn btn-ctrl btn-text" onClick={onCancel}>
             취소
           </button>
-          <button type="button" className="btn-primary btn-ctrl" autoFocus disabled={busy} onClick={onGo}>
+          <BusyButton className="btn-primary btn-ctrl" autoFocus busy={busy} busyText="가져오는 중…" onClick={onGo}>
             가져오기
-          </button>
+          </BusyButton>
         </div>
       </>
     );
@@ -366,19 +399,25 @@ function ImportSteps({
         </div>
         {(stats?.total ?? 1) > 0 && (
           <div className="ask-band xl-band" role="alert">
-            <span>{stats ? `지금 ${noun} ${won(stats.total)}건이 모두 지워져요.` : `지금 ${josa(title, "이", "가")} 모두 지워져요.`} 되돌릴 수 없어요.</span>
+            <span>{band ?? (stats ? `지금 ${noun} ${won(stats.total)}건이 모두 지워져요.` : `지금 ${josa(title, "이", "가")} 모두 지워져요.`)} 되돌릴 수 없어요.</span>
+          </div>
+        )}
+        {warn && <div className="xl-ask-note">{warn}</div>}
+        {err && (
+          <div className="xl-ask-note" role="alert">
+            {err}
           </div>
         )}
         <div className="xl-ask-path">{path}</div>
       </div>
       <div className="xl-ask-foot">
         {back}
-        <button type="button" className="btn btn-ctrl btn-text" autoFocus onClick={onCancel}>
+        <button type="button" className="btn btn-ctrl btn-text" autoFocus disabled={busy || saving} onClick={onCancel}>
           취소
         </button>
-        <button type="button" className="btn btn-ctrl btn-text btn-danger" disabled={busy} onClick={onGo}>
+        <BusyButton className="btn btn-ctrl btn-text btn-danger" busy={busy || saving} busyText={saving ? "백업하는 중…" : "가져오는 중…"} onClick={replaceGo}>
           지우고 대체하기
-        </button>
+        </BusyButton>
       </div>
     </>
   );

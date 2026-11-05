@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-fs-icons"
+description = "Enables the fs_icons command without any pre-configured scope."
+commands.allow = ["fs_icons"]
+
+[[permission]]
+identifier = "deny-fs-icons"
+description = "Denies the fs_icons command without any pre-configured scope."
+commands.deny = ["fs_icons"]

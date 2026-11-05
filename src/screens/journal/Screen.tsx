@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, changeHooks, Complaint, ContactsData, DayInfo, Entry, EntryInput, errorText, JournalData, Task, TaskList, TasksData } from "../../api";
 import { firstLineOf } from "../../bullets";
-import { daysBetween, daysLeft, ddayText, dueSoon, isUrgent } from "../../complaints";
+import { daysLeft, ddayText, dueSoon, isUrgent } from "../../complaints";
 import { tasksDueSoon } from "../../tasks";
+import { useHolidays, workDaysBetween } from "../../workdays";
 import { dayTitle, sortEntries, todayStr } from "../../journal";
 import { ExcelMenu } from "../../ExcelMenu";
 import { journalDayRows, journalImports, journalRows } from "../../excel";
@@ -15,6 +16,9 @@ import { NewCard, EditCard, PrintDialog } from "./Dialogs";
 import { Ctx, CardCols } from "./parts";
 
 // ---------- 화면 ----------
+
+/** 검색 칸에 치고 이만큼 쉬면 찾아요(ms). */
+const SEARCH_WAIT = 150;
 
 export default function JournalScreen({
   urgentDays = 2,
@@ -30,8 +34,20 @@ export default function JournalScreen({
   const [myName, setMyName] = useState(DEFAULT_SETTINGS.myName);
   const [kinds, setKinds] = useState<Kind[]>(DEFAULT_SETTINGS.kinds);
   const [today, setToday] = useState(todayStr());
+  // 공휴일 목록이 바뀌면 남은 날(근무일)을 다시 세요.
+  useHolidays();
   const [day, setDay] = useState(today);
   const [q, setQ] = useState("");
+  // 찾는 말은 치는 동안 0.15초 기다렸다 바꿔요(2026-10-30 속도 ② – 글자마다 전체를 다시 찾지 않게). 지우면 바로.
+  const [sq, setSq] = useState("");
+  useEffect(() => {
+    if (!q.trim()) {
+      setSq(q);
+      return;
+    }
+    const t = window.setTimeout(() => setSq(q), SEARCH_WAIT);
+    return () => window.clearTimeout(t);
+  }, [q]);
   const [onlyHits, setOnlyHits] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   // 한 번 누른 카드(골라 둔 카드). 두 번 누르거나 Enter를 누르면 고쳐요(0.6.2, 모든 화면 같은 규칙).
@@ -42,6 +58,8 @@ export default function JournalScreen({
   const [tasks, setTasks] = useState<TasksData>({ lists: [], tasks: [] });
   /** 기록을 등록·고치기·지울 때마다 하나씩 늘어요 – 카드 두 단을 다시 나누는 신호 */
   const [tick, setTick] = useState(0);
+  /** 엑셀 가져오기가 끝날 때마다 하나씩 늘어요 – 보고 있는 날 머리 줄을 다시 그리는 신호(QC JN-01) */
+  const [imported, setImported] = useState(0);
   /** 공휴일(캘린더가 받아 둔 것) – 달력의 빨간 날 */
   const [holidays, setHolidays] = useState<Set<string>>(new Set());
   /** 인쇄 기간 창 */
@@ -158,6 +176,7 @@ export default function JournalScreen({
   const go = useCallback((date: string) => {
     setDay(date);
     setQ("");
+    setSq("");
     setEditId(null);
     setMenuId(null);
   }, []);
@@ -197,7 +216,7 @@ export default function JournalScreen({
     );
   }
 
-  const query = q.trim().toLowerCase();
+  const query = sq.trim().toLowerCase();
   const entries = data.entries.filter((e) => e.date === day);
   const info = data.days.find((d) => d.date === day) ?? { date: day, arrive: "", transport: "", weather: "", note: "" };
   const counts = new Map<string, number>();
@@ -213,7 +232,7 @@ export default function JournalScreen({
               오늘
             </button>
           )}
-          <SearchBox className="jn-search" aria-label="일지 검색" placeholder="사람, 내용으로 전체 일지 검색" value={q} onChange={(e) => setQ(e.target.value)} onClear={() => setQ("")} />
+          <SearchBox className="jn-search" aria-label="일지 검색" placeholder="사람, 내용으로 전체 일지 검색" value={q} onChange={(e) => setQ(e.target.value)} onClear={() => { setQ(""); setSq(""); }} />
           <ExcelMenu
             kind="journal"
             total={data.entries.length}
@@ -228,19 +247,15 @@ export default function JournalScreen({
             // 덮어쓰기의 "같은 기록" = 날짜 + 시각 + 상대(2026-10-25 사용자 ②3안, 공통 ✔5)
             preview={([r]) => ({ same: r ? r.same.filter((x) => x !== null).length : 0, total: data.entries.length })}
             onImport={async ([r], mode) => {
-              // 대체하기: 기록·날짜 머리 줄을 한 번에 모두 지운 뒤 넣어요.
-              if (mode === "replace") await api.clearJournal();
-              let n = 0;
-              for (const [i, e] of r.entries.entries()) {
-                const id = mode === "merge" ? r.same[i] : null;
-                if (id !== null) await api.updateEntry(id, e);
-                else await api.addEntry(e);
-                n++;
-              }
-              // 날짜별 머리 줄: 파일에 적힌 날은 파일 값으로(덮어쓰기·대체하기 모두).
-              for (const d of r.days) await api.setDay(d);
+              // 한 번에 넣어요(공통 ✔3): 대체하기는 지우기까지 함께, 한 줄이라도 틀리면 아무것도 바뀌지 않아요.
+              // 날짜별 머리 줄은 파일에 적힌 날만 파일 값으로(덮어쓰기·대체하기 모두).
+              const merge = mode === "merge";
+              const rows = r.entries.map((e, i) => ({ ...e, same: merge ? r.same[i] : null, keep: merge && r.keep[i] }));
+              const [u, a, k] = await api.importJournal(rows, r.days, !merge);
               setData(await api.journalData());
-              return n;
+              // 보고 있는 날 머리 줄은 날짜가 바뀔 때만 새로 그려서, 가져온 값이 안 보였어요(QC JN-01).
+              setImported((x) => x + 1);
+              return k ? { n: u + a + k, note: `글자가 같은 메모 ${k}건은 그대로 뒀어요` } : u + a;
             }}
           />
           <button type="button" className="btn btn-ctrl btn-text jn-print" onClick={() => setPrintOpen(true)}>
@@ -265,13 +280,13 @@ export default function JournalScreen({
           />
         )}
 
-        <DayHead key={day} info={info} onSave={saveDay} />
+        <DayHead key={`${day}|${imported}`} info={info} onSave={saveDay} />
 
         {note && <p className="note" role="status">{note}</p>}
 
         {query ? (
           <div className="jn-scroll" key="search">
-            <SearchResults entries={data.entries} q={query} raw={q.trim()} onlyHits={onlyHits} ctx={ctx} onToggle={() => setOnlyHits(!onlyHits)} onClose={() => setQ("")} onGo={go} />
+            <SearchResults entries={data.entries} q={query} raw={sq.trim()} onlyHits={onlyHits} ctx={ctx} onToggle={() => setOnlyHits(!onlyHits)} onClose={() => { setQ(""); setSq(""); }} onGo={go} />
           </div>
         ) : (
           <>
@@ -404,7 +419,7 @@ function DueList({
           );
         }
         const task = t!;
-        const n = daysBetween(today, task.due);
+        const n = workDaysBetween(today, task.due);
         const listName = lists.find((l) => l.id === task.list)?.name ?? "";
         return (
           <button key={"t" + task.id} type="button" className="jn-due-item" title="할 일 목록에서 보기" onClick={() => onOpenTask?.(task.id)}>

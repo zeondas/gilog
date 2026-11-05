@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-fs-lnk-target"
+description = "Enables the fs_lnk_target command without any pre-configured scope."
+commands.allow = ["fs_lnk_target"]
+
+[[permission]]
+identifier = "deny-fs-lnk-target"
+description = "Denies the fs_lnk_target command without any pre-configured scope."
+commands.deny = ["fs_lnk_target"]

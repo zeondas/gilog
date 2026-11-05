@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-fs-cancel"
+description = "Enables the fs_cancel command without any pre-configured scope."
+commands.allow = ["fs_cancel"]
+
+[[permission]]
+identifier = "deny-fs-cancel"
+description = "Denies the fs_cancel command without any pre-configured scope."
+commands.deny = ["fs_cancel"]

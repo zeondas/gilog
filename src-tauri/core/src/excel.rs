@@ -124,6 +124,9 @@ pub struct ExcelSheet {
     /// 업무일지: 둘째 시트 "날짜별"(없으면 비어요)
     #[serde(default)]
     pub extra: Vec<ExcelSheet>,
+    /// 읽은 줄 중 엑셀에서 숨긴 줄 수(그대로 넣고 묻는 창에 알려요 – 공통 ✔5, E-23)
+    #[serde(default)]
+    pub hidden: usize,
 }
 
 const GRAY: u32 = 0x808080;
@@ -140,14 +143,24 @@ fn xerr(e: XlsxError) -> Error {
 
 /// 내보내기: 양식(README) 그대로 써요.
 pub fn write_xlsx(path: &Path, kind: SheetKind, data: &ExcelExport) -> Result<()> {
+    let mut wb = build_xlsx(kind, data)?;
+    wb.save(path).map_err(xerr)?;
+    Ok(())
+}
+
+/// 파일 대신 바이트로 써요(브라우저 미리 보기의 가짜 드라이브). 내용은 `write_xlsx`와 같아요.
+pub fn xlsx_bytes(kind: SheetKind, data: &ExcelExport) -> Result<Vec<u8>> {
+    build_xlsx(kind, data)?.save_to_buffer().map_err(xerr)
+}
+
+fn build_xlsx(kind: SheetKind, data: &ExcelExport) -> Result<Workbook> {
     let mut wb = Workbook::new();
     write_sheet(&mut wb, kind, &data.rows, data)?;
     // 업무일지는 같은 파일에 둘째 시트 "날짜별"을 더해요.
     if kind == SheetKind::Journal {
         write_sheet(&mut wb, SheetKind::JournalDays, &data.days, data)?;
     }
-    wb.save(path).map_err(xerr)?;
-    Ok(())
+    Ok(wb)
 }
 
 fn write_sheet(wb: &mut Workbook, kind: SheetKind, rows: &[Vec<String>], data: &ExcelExport) -> Result<()> {
@@ -191,7 +204,7 @@ fn write_sheet(wb: &mut Workbook, kind: SheetKind, rows: &[Vec<String>], data: &
     let center = cell.clone().set_align(FormatAlign::Center);
     let left = cell.clone().set_align(FormatAlign::Left);
     let number = center.clone().set_num_format("0_);[Red]\\(0\\)");
-    let link = center.clone().set_font_size(11).set_font_color(Color::Theme(10, 0)).set_underline(FormatUnderline::Single);
+    let link = center.clone().set_font_size(11).set_font_color(Color::RGB(0x0563C1)).set_underline(FormatUnderline::Single);
 
     // 열 폭: README 값은 파일에 적힌 폭(엑셀이 칸 여백 5px를 더해 적은 값)이라, 엑셀 화면 폭으로 바꿔 넣어 같은 값이 적히게 해요.
     for (i, (_, w, _)) in cols.iter().enumerate() {
@@ -316,14 +329,23 @@ pub(crate) fn text_of(d: &Data) -> String {
         }
         Data::Bool(b) => if *b { "TRUE" } else { "FALSE" }.to_string(),
         Data::DateTime(dt) => {
-            if dt.is_datetime() {
+            let v = dt.as_f64();
+            if dt.is_datetime() && (0.0..1.0).contains(&v) {
+                // 날짜 없는 시간 칸(9:30 = 0.395…)은 "09:30"(공통 ✔5, E-12 – 전엔 1899-12-31)
+                let m = (v * 1440.0).round() as i64 % 1440;
+                format!("{:02}:{:02}", m / 60, m % 60)
+            } else if dt.is_datetime() {
+                // 날짜 + 시간은 날짜만
                 let (y, m, dd, ..) = dt.to_ymd_hms_milli();
                 format!("{y}-{}-{}", two(m), two(dd))
             } else {
-                dt.as_f64().to_string()
+                v.to_string()
             }
         }
-        Data::DateTimeIso(s) => s.chars().take(10).collect(),
+        Data::DateTimeIso(s) => match s.strip_prefix('T') {
+            Some(t) => t.chars().take(5).collect(),
+            None => s.chars().take(10).collect(),
+        },
         Data::DurationIso(s) => s.clone(),
         Data::Error(_) => String::new(),
     }
@@ -338,23 +360,43 @@ pub fn norm_header(s: &str) -> String {
 /// 양식이 아니면(열 제목 줄을 못 찾으면) Invalid예요.
 pub fn read_xlsx(path: &Path, kind: SheetKind) -> Result<ExcelSheet> {
     let mut wb = open_workbook_auto(path).map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
-    let mut sheet = read_kind(&mut wb, kind)?;
+    // 숨긴 줄은 calamine이 알려 주지 않아 시트 파일을 따로 봐요(xlsx·xlsm만, 못 읽으면 0건).
+    let bytes = std::fs::read(path).unwrap_or_default();
+    read_book(&mut wb, kind, &bytes)
+}
+
+/// 바이트에서 읽어요(브라우저 미리 보기의 가짜 드라이브). 규칙은 `read_xlsx`와 같아요.
+pub fn read_xlsx_bytes(bytes: &[u8], kind: SheetKind) -> Result<ExcelSheet> {
+    let mut wb = calamine::open_workbook_auto_from_rs(std::io::Cursor::new(bytes))
+        .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
+    read_book(&mut wb, kind, bytes)
+}
+
+fn read_book<RS: std::io::Read + std::io::Seek>(wb: &mut calamine::Sheets<RS>, kind: SheetKind, bytes: &[u8]) -> Result<ExcelSheet> {
+    let mut sheet = read_kind(wb, kind, bytes)?;
     // 업무일지는 둘째 시트 "날짜별"도 함께 읽어요(없으면 그냥 비워요).
     if kind == SheetKind::Journal {
-        if let Ok(days) = read_kind(&mut wb, SheetKind::JournalDays) {
+        if let Ok(days) = read_kind(wb, SheetKind::JournalDays, bytes) {
             sheet.extra.push(days);
         }
     }
     Ok(sheet)
 }
 
-fn read_kind<RS: std::io::Read + std::io::Seek>(wb: &mut calamine::Sheets<RS>, kind: SheetKind) -> Result<ExcelSheet> {
+fn read_kind<RS: std::io::Read + std::io::Seek>(wb: &mut calamine::Sheets<RS>, kind: SheetKind, bytes: &[u8]) -> Result<ExcelSheet> {
     let mut names = wb.sheet_names();
     // 같은 이름 시트를 먼저 봐요.
     names.sort_by_key(|n| if norm_header(n) == kind.title() { 0 } else { 1 });
     for name in names {
         let Ok(range) = wb.worksheet_range(&name) else { continue };
-        let rows: Vec<Vec<String>> = range.rows().map(|r| r.iter().map(text_of).collect()).collect();
+        let (r0, c0) = range.start().unwrap_or((0, 0));
+        let mut rows: Vec<Vec<String>> = range.rows().map(|r| r.iter().map(text_of).collect()).collect();
+        // 병합 칸은 모든 칸에 위 칸(왼쪽 위) 값을 채워요(공통 ✔5, E-14 – 전엔 둘째 줄부터 빈 칸).
+        if let calamine::Sheets::Xlsx(x) = &mut *wb {
+            if let Ok(merges) = x.merge_cells_by_sheet_name(&name) {
+                fill_merged(&mut rows, (r0, c0), &merges);
+            }
+        }
         // 열 제목 줄: 처음 10줄 안에서 꼭 있어야 하는 칸이 모두 있는 줄(양식은 3행)
         let Some(hi) = rows.iter().take(10).position(|r| {
             let hs: Vec<String> = r.iter().map(|x| norm_header(x)).collect();
@@ -362,15 +404,96 @@ fn read_kind<RS: std::io::Read + std::io::Seek>(wb: &mut calamine::Sheets<RS>, k
         }) else {
             continue;
         };
+        let hide = hidden_rows(bytes, &name);
         let headers: Vec<String> = rows[hi].iter().map(|x| norm_header(x)).collect();
+        let mut hidden = 0;
         let body = rows
             .into_iter()
+            .enumerate()
             .skip(hi + 1)
-            .filter(|r| r.iter().any(|x| !x.trim().is_empty()))
+            .filter(|(_, r)| r.iter().any(|x| !x.trim().is_empty()))
+            .map(|(i, r)| {
+                // 엑셀 행 번호는 1부터
+                if hide.contains(&(r0 + i as u32 + 1)) {
+                    hidden += 1;
+                }
+                r
+            })
             .collect();
-        return Ok(ExcelSheet { headers, rows: body, extra: vec![] });
+        return Ok(ExcelSheet { headers, rows: body, extra: vec![], hidden });
     }
     Err(Error::Invalid(format!("{} 양식이 아니에요", kind.title())))
+}
+
+/// 병합 범위(절대 위치)를 읽은 칸 글자(`start`부터)에 채워요. 왼쪽 위 칸이 비었으면 그대로 둬요.
+fn fill_merged(rows: &mut Vec<Vec<String>>, start: (u32, u32), merges: &[calamine::Dimensions]) {
+    for m in merges {
+        let (Some(top), Some(left)) = (m.start.0.checked_sub(start.0), m.start.1.checked_sub(start.1)) else { continue };
+        let (top, left) = (top as usize, left as usize);
+        let (bottom, right) = ((m.end.0 - start.0) as usize, (m.end.1.saturating_sub(start.1)) as usize);
+        let v = rows.get(top).and_then(|r| r.get(left)).cloned().unwrap_or_default();
+        if v.is_empty() {
+            continue;
+        }
+        // 한 시트에 병합이 아주 크게 잡혀도(열 전체 등) 읽은 범위 밖으로는 늘리지 않아요.
+        for r in top..=bottom.min(rows.len().saturating_sub(1)) {
+            let row = &mut rows[r];
+            if row.len() <= right {
+                row.resize(right + 1, String::new());
+            }
+            for c in left..=right {
+                if row[c].is_empty() {
+                    row[c] = v.clone();
+                }
+            }
+        }
+    }
+}
+
+/// xlsx 안 시트 파일에서 숨긴 줄(`<row r="5" hidden="1">`)의 행 번호(1부터)를 모아요. xlsx가 아니거나 못 읽으면 비어요.
+fn hidden_rows(bytes: &[u8], sheet: &str) -> std::collections::HashSet<u32> {
+    use std::io::Read as _;
+    let mut out = std::collections::HashSet::new();
+    let Ok(mut z) = zip::ZipArchive::new(std::io::Cursor::new(bytes)) else { return out };
+    let mut read = |n: &str| -> Option<String> {
+        let mut f = z.by_name(n).ok()?;
+        let mut s = String::new();
+        f.read_to_string(&mut s).ok()?;
+        Some(s)
+    };
+    let (Some(wb), Some(rels)) = (read("xl/workbook.xml"), read("xl/_rels/workbook.xml.rels")) else { return out };
+    let Some(rid) = tags(&wb, "<sheet ").find(|t| attr(t, " name=").as_deref() == Some(sheet)).and_then(|t| attr(t, ":id=")) else { return out };
+    let Some(target) = tags(&rels, "<Relationship ").find(|t| attr(t, " Id=").as_deref() == Some(rid.as_str())).and_then(|t| attr(t, " Target=")) else { return out };
+    let path = match target.strip_prefix('/') {
+        Some(p) => p.to_string(),
+        None => format!("xl/{target}"),
+    };
+    let Some(xml) = read(&path) else { return out };
+    for t in tags(&xml, "<row ") {
+        if matches!(attr(t, " hidden=").as_deref(), Some("1") | Some("true")) {
+            if let Some(r) = attr(t, " r=").and_then(|x| x.parse::<u32>().ok()) {
+                out.insert(r);
+            }
+        }
+    }
+    out
+}
+
+/// `open`으로 시작하는 태그들(여는 꺾쇠부터 닫는 꺾쇠까지)
+fn tags<'a>(xml: &'a str, open: &'a str) -> impl Iterator<Item = &'a str> + 'a {
+    xml.match_indices(open).filter_map(move |(i, _)| xml[i..].find('>').map(|j| &xml[i..i + j]))
+}
+
+/// 태그 안 `key"값"`(key는 ` name=`처럼 앞 빈칸·= 포함)의 값, XML 글자 풀어서
+fn attr(tag: &str, key: &str) -> Option<String> {
+    let i = tag.find(key)? + key.len();
+    let q = tag[i..].chars().next()?;
+    if q != '"' && q != '\'' {
+        return None;
+    }
+    let rest = &tag[i + 1..];
+    let v = &rest[..rest.find(q)?];
+    Some(v.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&apos;", "'").replace("&amp;", "&"))
 }
 
 #[cfg(test)]
@@ -504,5 +627,26 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// 바이트 쓰기·읽기(미리 보기)가 파일 쓰기·읽기와 같은 결과를 내요.
+    #[test]
+    fn bytes_same_as_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let rows = vec![complaint_row("1", "○ 도로 파손\n  - 깊이 5cm"), complaint_row("2", "○ 한 줄")];
+        let day: Vec<String> = ["2026-10-19", "08:40", "자가용", "맑음", ""].iter().map(|s| s.to_string()).collect();
+        let cases = [
+            (SheetKind::Complaints, ExcelExport { rows, intake: vec!["전화".into()], status: vec!["접수".into()], ..Default::default() }),
+            (SheetKind::Journal, ExcelExport { rows: vec![vec!["1".into(), "2026-10-19".into(), "09:10".into()]], days: vec![day], ..Default::default() }),
+            (SheetKind::Contacts, ExcelExport::default()),
+        ];
+        for (kind, data) in cases {
+            let path = dir.path().join("x.xlsx");
+            write_xlsx(&path, kind, &data).unwrap();
+            let from_file = read_xlsx(&path, kind).unwrap();
+            assert_eq!(read_xlsx_bytes(&xlsx_bytes(kind, &data).unwrap(), kind).unwrap(), from_file);
+            assert_eq!(read_xlsx_bytes(&std::fs::read(&path).unwrap(), kind).unwrap(), from_file);
+        }
+        assert!(read_xlsx_bytes(b"not a workbook", SheetKind::Complaints).is_err());
     }
 }
