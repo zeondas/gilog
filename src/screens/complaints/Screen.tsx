@@ -29,6 +29,7 @@ import {
   shortIntake,
   addedType,
   PLACE_SAMPLE,
+  EMPTY_SAMPLE,
 } from "../../complaints";
 import { parseLines } from "../../bullets";
 import { isAppKey } from "../../keys";
@@ -608,15 +609,17 @@ function useColNeeds(list: Complaint[] | null, today: string, urgentDays: number
       // 처리 칸 글(굵기는 styles/complaints.css .cm-proc-t – 남은 날 700, 흐린 글 400)
       const proc = max(all.map((c) => procOf(c, today, urgentDays)).map((p) => (p ? nw(p.text, p.tone === "soft" ? 400 : 700) : 0)));
       const date = nw("2026-10-16");
+      // 0건(자료 지우기 뒤)이면 흔한 민원 한 건으로 재요 – 건이 있을 때와 같은 처음 폭(QC 2회차 CM-44 · 1차 추가-01).
+      const rows: Pick<Complaint, "intake" | "ctype" | "area" | "place">[] = all.length ? all : [EMPTY_SAMPLE];
       const out: Partial<Record<ColKey, ColNeed>> = {
         no: at("no", { full: max(all.map((c) => nw(String(c.no)))) }),
-        intake: at("intake", { full: p90(all.map((c) => tw(c.intake, 500))), short: max(all.map((c) => tw(shortIntake(c.intake), 500))) }),
+        intake: at("intake", { full: p90(rows.map((c) => tw(c.intake, 500))), short: max(rows.map((c) => tw(shortIntake(c.intake), 500))) }),
         received: at("received", { full: date, short: nw("26-10-16") }),
-        ctype: at("ctype", { full: p90(all.map((c) => tw(c.ctype))) }),
-        // 보기 글자 폭이 바닥이에요 – 0건(자료 지우기 뒤)이어도 신규 줄 "리·동 지번"이 잘리지 않고 건이 있을 때와 같은 처음 폭(QC 추가-01).
+        ctype: at("ctype", { full: p90(rows.map((c) => tw(c.ctype))) }),
+        // 보기 글자 폭이 바닥이에요 – 0건이어도 신규 줄 "리·동 지번"이 잘리지 않아요(QC 추가-01).
         place: at("place", {
-          full: max([tw(PLACE_SAMPLE.full), ...all.map((c) => tw(placeText(c.area, c.place, placeStyle)))]),
-          short: max([tw(PLACE_SAMPLE.short), ...all.map((c) => tw(c.place))]),
+          full: max([tw(PLACE_SAMPLE.full), ...rows.map((c) => tw(placeText(c.area, c.place, placeStyle)))]),
+          short: max([tw(PLACE_SAMPLE.short), ...rows.map((c) => tw(c.place))]),
         }),
         person: at("person", { full: tw(PHONE_SAMPLE), more: p90(all.map((c) => tw([c.person, c.phone].filter(Boolean).join(" ")))) }),
         status: at("status", { full: STATUS_BADGE }),

@@ -10,7 +10,7 @@ import { memoText, parseMemo } from "../../screens/contacts/parts";
 import { parseDate } from "../../journal";
 import { ListGroup, ListMerge } from "../settings/Table";
 import { ANSWER_STATUS, DONE_STATUS, isClosed } from "../../settingsStore";
-import { statusOnSave } from "../../complaints";
+import { doneBeforeReceived, statusOnSave } from "../../complaints";
 import { DateInput } from "../../DateInput";
 import { Lists, Draft, DateKey, Bad, PlaceStyle, placeText } from "./parts";
 
@@ -23,6 +23,8 @@ function normDates(d: Draft): { d: Draft; bad: Bad } {
   if (due === null) bad.due = true;
   const done = (d.done ?? "").trim() ? parseDate(d.done ?? "") : "";
   if (done === null) bad.done = true;
+  // 조치완료일이 접수일보다 앞이면 빨간 테두리로 막아요(2026-11-05 사용자 3안 – QC CM-40).
+  else if (doneBeforeReceived({ received: r ?? "", done })) bad.done = true;
   return { d: { ...d, received: r ?? d.received, due: due ?? d.due, done: done ?? d.done }, bad };
 }
 
@@ -124,6 +126,14 @@ export function useDraft(init: () => Draft, revertTo?: string) {
       set({ done: p, status: DONE_STATUS });
     } else if (p) set({ [k]: p });
     else setBad((b) => ({ ...b, [k]: true }));
+    // 조치완료일이 접수일보다 앞이면 조치완료일 칸을 빨갛게(접수일을 고쳐 바로잡으면 풀려요) – 2026-11-05 사용자 3안.
+    if (p && (k === "done" || k === "received")) {
+      const received = k === "received" ? p : parseDate(d.received) ?? "";
+      const doneRaw = k === "done" ? p : (d.done ?? "").trim();
+      const done = doneRaw ? parseDate(doneRaw) : "";
+      if (done && doneBeforeReceived({ received, done })) setBad((b) => ({ ...b, done: true }));
+      else if (k === "received" && done) setBad((b) => { const n = { ...b }; delete n.done; return n; });
+    }
   };
   const typeDone = (done: string) => {
     doneTyped.current = true;

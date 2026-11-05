@@ -787,6 +787,9 @@
 .cm-proc-t.urgent { font-weight: 700; color: var(--st-work-fg); }
 .cm-proc-t.urgent { color: var(--urgent); }
 .cm-proc-t.soft { color: var(--muted); }
+/* 조치완료일이 접수일보다 앞(2026-11-05 사용자 3안 – QC CM-40): 주황 "날짜 확인", 마우스를 올리면 두 날짜 */
+.cm-proc-t.warn,
+.cm-view.done > .cm-c .cm-proc-t.warn { font-weight: 700; color: var(--share-wait); cursor: help; }
 /* 입력 줄(2026-11-04 사용자 1안): 날짜 입력칸은 "0000-00-00"에 맞춘 87px(열이 좁으면 칸 폭까지 줄어요), 이름은 칸 안 안내 글.
    고치는 줄은 마감일·조치완료일 위아래로 메모 열까지 – 왼쪽에 붙여 좁아도 상태 칸 밑으로 숨지 않아요. */
 .cm-proc-in input { width: 100%; max-width: 87px; padding-left: 5px; font-variant-numeric: tabular-nums; }
