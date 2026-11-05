@@ -1,0 +1,69 @@
+{
+ "scene": "map_card",
+ "feats": [
+  {
+   "label": "가",
+   "name": "검색창",
+   "sel": ".mp-sbar",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "나",
+   "name": "거르기 배지",
+   "sel": ".mp-filters",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "다",
+   "name": "민원현황 패널",
+   "sel": ".mp-subhead",
+   "side": "왼쪽",
+   "hint": ""
+  },
+  {
+   "label": "라",
+   "name": "민원 점",
+   "sel": ".mp-card",
+   "side": "아래",
+   "hint": ""
+  },
+  {
+   "label": "마",
+   "name": "로드뷰",
+   "sel": "button.mp-btn[aria-label=\"로드뷰\"]",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "바",
+   "name": "층",
+   "sel": "button.mp-btn[aria-label=\"층\"]",
+   "side": "위",
+   "hint": ""
+  },
+  {
+   "label": "사",
+   "name": "재기",
+   "sel": ".mp-rgrp[aria-label=\"재기\"]",
+   "side": "아래",
+   "hint": ""
+  },
+  {
+   "label": "아",
+   "name": "캡처",
+   "sel": "button.mp-btn[aria-label=\"캡처\"]",
+   "side": "아래",
+   "hint": ""
+  },
+  {
+   "label": "자",
+   "name": "확대·파주시 보기",
+   "sel": "button.mp-btn[aria-label=\"가운데로\"]",
+   "side": "아래",
+   "hint": ""
+  }
+ ],
+ "figs": []
+}

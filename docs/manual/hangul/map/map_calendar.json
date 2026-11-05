@@ -5,21 +5,21 @@
    "label": "가",
    "name": "종류 목록",
    "sel": "button.cal-kind >> nth=0",
-   "side": "위",
+   "side": "왼쪽",
    "hint": ""
   },
   {
    "label": "나",
-   "name": "앞으로 7일",
-   "sel": "div.cal-upcoming",
-   "side": "아래",
+   "name": "미니달력",
+   "sel": ".cal-mini",
+   "side": "왼쪽",
    "hint": ""
   },
   {
    "label": "다",
-   "name": "구글 연동 상태",
+   "name": "구글 캘린더 상자",
    "sel": "div.g-box",
-   "side": "아래",
+   "side": "왼쪽",
    "hint": ""
   },
   {
@@ -38,7 +38,7 @@
   },
   {
    "label": "바",
-   "name": "월·주 보기",
+   "name": "일·주·월 보기",
    "sel": "div.cal-views",
    "side": "위",
    "hint": ""
