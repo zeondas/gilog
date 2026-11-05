@@ -113,7 +113,13 @@ async function serverSays(key: string): Promise<string> {
   }
 }
 
-/** SDK(services 포함)를 불러요. 키가 없거나 실패·시간 넘김이면 null(까닭은 kakaoFailWhy). */
+/** SDK를 못 받았을 때 다시 받기 전에 기다리는 시간(map12 ✔1 – QC 2회차 MP-07: 처음 한 번 못 받고, 다시 하면 됐어요) */
+export const RETRY_MS = 1200;
+/** 처음 + 다시 받기 한 번 = 두 번까지 받아 봐요 */
+export const LOAD_TRIES = 2;
+
+/** SDK(services 포함)를 불러요. 받기에 실패하거나 시간을 넘기면 한 번 더 받아 보고(map12 ✔1),
+ *  그래도 안 되면 null(까닭은 kakaoFailWhy). 키가 거절된 것(파일은 받았는데 지도가 없음)은 다시 받지 않아요. */
 export function loadKakao(key: string): Promise<Kakao | null> {
   if (!key) return Promise.resolve(null);
   if (loading && loadedKey === key) return loading;
@@ -125,6 +131,8 @@ export function loadKakao(key: string): Promise<Kakao | null> {
       return resolve(w.kakao);
     }
     let done = false;
+    let t = 0;
+    let sc: HTMLScriptElement | null = null;
     const finish = (k: Kakao | null, why = "") => {
       if (done) return;
       done = true;
@@ -140,23 +148,39 @@ export function loadKakao(key: string): Promise<Kakao | null> {
       }
       resolve(k);
     };
-    const t = window.setTimeout(
-      () => finish(null, w.kakao?.maps ? "카카오 지도 파일을 받지 못했어요(보안 허용 목록·인터넷)" : "카카오 응답이 늦어요(6초 넘음)"),
-      LOAD_MS,
-    );
-    const sc = document.createElement("script");
-    sc.src = sdkUrl(key);
-    sc.async = true;
-    sc.onerror = () => finish(null, "카카오 SDK를 받지 못했어요(인터넷·키 거절)");
-    sc.onload = () => {
-      if (!w.kakao?.maps?.load) return finish(null, "카카오가 키를 받아 주지 않았어요(키·도메인 확인)");
-      try {
-        w.kakao.maps.load(() => finish(w.kakao));
-      } catch {
-        finish(null, "카카오 지도를 여는 중 오류가 났어요");
-      }
+    const attempt = (n: number) => {
+      if (done) return;
+      // 받기 실패·시간 넘김 – 남은 번이 있으면 앞 파일을 치우고 잠깐 뒤 다시 받아요
+      let got = false; // 파일은 받았음 – 그 뒤 늦는 것(지도 열기)은 다시 받아도 소용없어요
+      const fail = (why: string) => {
+        if (done) return;
+        clearTimeout(t);
+        if (n < LOAD_TRIES && !got) {
+          sc?.remove();
+          sc = null;
+          window.setTimeout(() => attempt(n + 1), RETRY_MS);
+        } else finish(null, why);
+      };
+      t = window.setTimeout(
+        () => fail(w.kakao?.maps ? "카카오 지도 파일을 받지 못했어요(보안 허용 목록·인터넷)" : "카카오 응답이 늦어요(6초 넘음)"),
+        LOAD_MS,
+      );
+      sc = document.createElement("script");
+      sc.src = sdkUrl(key);
+      sc.async = true;
+      sc.onerror = () => fail(n > 1 ? "카카오 SDK를 두 번 받지 못했어요(인터넷·키 거절)" : "카카오 SDK를 받지 못했어요(인터넷·키 거절)");
+      sc.onload = () => {
+        got = true;
+        if (!w.kakao?.maps?.load) return finish(null, "카카오가 키를 받아 주지 않았어요(키·도메인 확인)");
+        try {
+          w.kakao.maps.load(() => finish(w.kakao));
+        } catch {
+          finish(null, "카카오 지도를 여는 중 오류가 났어요");
+        }
+      };
+      document.head.appendChild(sc);
     };
-    document.head.appendChild(sc);
+    attempt(1);
   });
   return loading;
 }

@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { closerFits, kakaoHit, pickKey, tmForward, tmInverse } from "./kakao";
+import { describe, expect, it, vi } from "vitest";
+import { closerFits, kakaoFailWhy, kakaoHit, loadKakao, LOAD_MS, LOAD_TRIES, pickKey, RETRY_MS, tmForward, tmInverse } from "./kakao";
 import { addPoint, finish, fmtArea, fmtLen, insideIds, polyArea, summary, walkTime, type Measure } from "./measure";
 
 // 기준값은 pyproj(EPSG:4326 → EPSG:5181)로 뽑았어요.
@@ -140,5 +140,57 @@ describe("파주시 보기 한 단계 가까이(map9 ✔3 · map11 6%)", () => {
   });
   it("왼쪽 패널 폭만큼 남는 자리가 줄어요", () => {
     expect(closerFits(b, 0.49, 1000, 600, 8, 300)).toBe(false);
+  });
+});
+
+describe("카카오 SDK 다시 받기(map12 ✔1 – QC MP-07)", () => {
+  it("처음 못 받으면 한 번 더 받아 보고, 두 번째에 받으면 지도를 열어요", async () => {
+    vi.useFakeTimers();
+    const w = window as any;
+    delete w.kakao;
+    const tries: HTMLScriptElement[] = [];
+    const removed: HTMLScriptElement[] = [];
+    const spy = vi.spyOn(document.head, "appendChild").mockImplementation(((el: Node) => {
+      const sc = el as HTMLScriptElement;
+      tries.push(sc); // 정말 붙이면 시험 환경이 인터넷으로 받으려 해서 붙이지 않아요
+      sc.remove = () => void removed.push(sc);
+      if (tries.length === 1) setTimeout(() => sc.onerror?.(new Event("error")), 10);
+      else
+        setTimeout(() => {
+          w.kakao = { maps: { load: (cb: () => void) => cb(), LatLng: function () {} } };
+          sc.onload?.(new Event("load"));
+        }, 10);
+      return sc;
+    }) as typeof document.head.appendChild);
+    const p = loadKakao("k-retry-1");
+    await vi.advanceTimersByTimeAsync(10 + RETRY_MS + 20);
+    const k = await p;
+    expect(tries).toHaveLength(2);
+    expect(k).toBe(w.kakao);
+    expect(removed).toEqual([tries[0]]); // 실패한 파일은 치워요
+    spy.mockRestore();
+    delete w.kakao;
+    vi.useRealTimers();
+  });
+  it("두 번 다 못 받으면 연속주제도로(까닭 안내)", async () => {
+    vi.useFakeTimers();
+    const w = window as any;
+    delete w.kakao;
+    let n = 0;
+    const spy = vi.spyOn(document.head, "appendChild").mockImplementation(((el: Node) => {
+      const sc = el as HTMLScriptElement;
+      n++;
+      setTimeout(() => sc.onerror?.(new Event("error")), 10);
+      return sc;
+    }) as typeof document.head.appendChild);
+    const f = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("off"));
+    const p = loadKakao("k-retry-2");
+    await vi.advanceTimersByTimeAsync(10 + RETRY_MS + 20 + LOAD_MS);
+    expect(await p).toBeNull();
+    expect(n).toBe(LOAD_TRIES);
+    expect(kakaoFailWhy()).toContain("두 번");
+    spy.mockRestore();
+    f.mockRestore();
+    vi.useRealTimers();
   });
 });
