@@ -1,0 +1,14 @@
+# 3년치 실제 자료 파일 만들기(2026-11-07 결정 로그 11-07 07:41 ②) – 앱 코드가 아니라 재기 도구예요.
+# 앱과 같은 core(src-tauri/core)로 암호화 파일 gilog.db·gilog.key.json을 써요(자료 형식은 core의 SCHEMA_VERSION 그대로).
+[package]
+name = "gilog-load-make-db"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+gilog-core = { path = "../../../src-tauri/core" }
+serde_json = "1"
+serde = "1"
+
+[workspace]
