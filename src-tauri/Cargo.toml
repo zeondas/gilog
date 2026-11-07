@@ -35,7 +35,7 @@ lopdf = { version = "0.36", default-features = false }
 
 # 입력 칸에 들어갈 때 한글 입력기를 한글 상태로 바꾸는 데 써요.
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_UI_Input_Ime", "Win32_UI_WindowsAndMessaging", "Win32_System_Registry", "Win32_UI_Shell", "Win32_UI_HiDpi"] }
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_UI_Input_Ime", "Win32_UI_WindowsAndMessaging", "Win32_System_Registry", "Win32_UI_Shell", "Win32_UI_HiDpi", "Win32_System_Diagnostics_ToolHelp", "Win32_System_ProcessStatus", "Win32_System_Threading"] }
 # 일정 알림을 윈도우 알림으로 띄우고, 누르면 그 일정을 열어요.
 tauri-winrt-notification = "0.7"
 # 탐색기: 윈도우 우클릭 메뉴(셸 메뉴)·윈도우 아이콘·드라이브 목록 / 잠금: 윈도우 PIN(Hello) 확인·DPAPI 보관

@@ -13,6 +13,7 @@ mod files;
 mod files_text;
 mod guard;
 mod hello;
+mod perf;
 #[cfg(windows)]
 mod files_win;
 
@@ -906,6 +907,8 @@ pub fn run() {
             clear_counts,
             clear_data,
             backup_before_replace,
+            perf::perf_memory,
+            perf::perf_save,
             complaints,
             complaints_map,
             map_parcel_stats,
