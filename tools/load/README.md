@@ -8,6 +8,10 @@
 - `measure.py` — Playwright로 화면 전환·스크롤 fps·민원대장 "전체"로 거르기 풀기·검색을 재요(1600×900, 5번 중간값). `--shots 폴더`면 민원대장·업무연락처·할 일을 밝게·어둡게, 100%·125%로 찍어요.
 - `report.py` — 결과.json을 기준(전환 0.2초·검색 0.3초·거르기 0.2초·60fps)과 견준 표로 적어요. 기준을 넘어도 끝 값 0(숫자만).
 - `check.py` — 보이는 만큼만 그리기 동작 확인(그 줄로 가기·End/Home·PageDown 포커스·고치는 줄 유지·열 폭 끌기·연락처 800장).
+- `places.json` — 필지 표(`data/map/paju_parcels.bin.gz`)에 실제로 있는 파주 지번 960곳(16개 리·동 × 60)과 읍면동. seed.js·make_db의 민원 위치라 민원지도에서 1,500건 모두 좌표를 찾아요(2026-11-07).
+- `measure.py` 2026-11-07 더함 — 민원지도(첫 열기·두 번째·끌기/휠 fps·거르기 배지·검색·점 카드·로드뷰), 캘린더(전환·월 넘기기·미니달력·확인할 것 창·구글 바뀐 것 계산), 첫 화면(JS 받기·읽고 실행·업무일지까지 – Performance API). `--only map,calendar,first,base`로 묶음만. 결과 json의 `_정보`에 배경 모드·좌표 찾은 수·민원지도/구글 코드 크기 몫.
+- `vite.config.ts` 2026-11-07 더함(이 빌드에서만) — `google.ts` 끝에 `window.__loadGoogleFns`, JS 덩어리 앞뒤 `performance.mark`, 모듈 크기 `load-modules.json`.
+- `make_db/` — 3년치 **실제 자료 파일**(0.79.0 자료 형식 v3, 암호 test)을 core로 써요: `CARGO_TARGET_DIR=src-tauri/core/target cargo run --release --manifest-path tools/load/make_db/Cargo.toml -- <빈 폴더>`. `-- --bench <폴더>`는 복사본으로 열기·지도 자료 첫 읽기를 재요. 윈도우 시험은 [docs/loadtest.md](../../docs/loadtest.md) "윈도우(사용자 시험)" A·B.
 
 ## 미리 보기 = WASM core (2026-10-30 품질 보완 ②-3)
 

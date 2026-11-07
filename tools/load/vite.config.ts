@@ -18,10 +18,46 @@ function filesSeedHook(): Plugin {
   };
 }
 
+// 2026-11-07 민원지도·캘린더·첫 화면 재기(결정 로그 11-07 07:41) – 이 빌드에서만:
+// · google.ts 끝에 `window.__loadGoogleFns = { desired, desiredTasks, fingerprint }` – 구글 "바뀐 것 찾기" 계산을 네트워크 없이 재요.
+// · 들어가는 JS 덩어리 맨 앞·맨 끝에 performance.mark("gilog-js-start"/"gilog-js-end") – 받은 뒤 읽기·실행 시간을 Performance API로 재요.
+// · 모듈마다 크기를 `load-modules.json`으로 – 민원지도·구글 코드를 나눠 읽으면 얼마나 줄지 어림하는 데 써요.
+function googleHook(): Plugin {
+  return {
+    name: "gilog-load-google",
+    transform(code, id) {
+      if (!id.replace(/\\/g, "/").endsWith("/src/google.ts")) return null;
+      return code + "\n;window.__loadGoogleFns = { desired, desiredTasks, fingerprint };\n";
+    },
+  };
+}
+
+function moduleSizes(): Plugin {
+  return {
+    name: "gilog-load-module-sizes",
+    generateBundle(_, bundle) {
+      const out: Record<string, Record<string, number>> = {};
+      for (const c of Object.values(bundle)) {
+        if (c.type !== "chunk") continue;
+        out[c.fileName] = Object.fromEntries(Object.entries(c.modules).map(([id, m]) => [id.replace(/\\/g, "/").replace(/^.*?\/(src|node_modules)\//, "$1/"), m.renderedLength]));
+      }
+      this.emitFile({ type: "asset", fileName: "load-modules.json", source: JSON.stringify(out) });
+    },
+  };
+}
+
 export default mergeConfig(
   base,
   defineConfig({
     root: new URL("../..", import.meta.url).pathname,
-    plugins: [previewCore(), filesSeedHook()],
+    plugins: [previewCore(), filesSeedHook(), googleHook(), moduleSizes()],
+    build: {
+      rollupOptions: {
+        output: {
+          banner: (c) => (c.isEntry ? 'performance.mark("gilog-js-start");' : ""),
+          footer: (c) => (c.isEntry ? 'performance.mark("gilog-js-end");' : ""),
+        },
+      },
+    },
   }),
 );

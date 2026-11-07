@@ -2,7 +2,8 @@
 
   python3 tools/load/report.py 결과.json [요약.md]
 
-기준(docs/loadtest.md, 사용자 1안): 화면 전환 0.2초 · 검색 0.3초 · 거르기 0.2초 · 스크롤 60fps(59 이상이면 통과로 봐요).
+기준(docs/loadtest.md, 사용자 1안): 첫 화면 1초 · 화면 전환 0.2초 · 검색 0.3초 · 거르기 0.2초 · 스크롤·끌기 60fps(59 이상이면 통과로 봐요).
+민원지도·캘린더 안의 누르기(첫 열기·카드·배지·넘기기·미니달력·창)도 0.2초(2026-11-07). core·WASM·KB·"값만"은 기준 없이 값만.
 기준을 넘어도 실패로 만들지 않아요(끝 값은 늘 0) – 숫자만 적고, 고치는 건 각 화면 세션 몫이에요.
 GITHUB_STEP_SUMMARY가 있으면 거기에도 붙여요.
 """
@@ -13,6 +14,19 @@ import sys
 
 def limit(name):
     """(기준 값, 단위, 높을수록 좋은지) – 기준 없는 항목은 None"""
+    if "값만" in name or "core" in name or "KB" in name or "WASM" in name or name.startswith("DOM") or "가장 긴 프레임" in name:
+        return None
+    if name.endswith("fps"):
+        return 59, "fps", True
+    if name.startswith("첫 화면 · 업무일지 보일 때까지"):
+        return 1000, "ms", False
+    if name.startswith("첫 화면"):
+        return None
+    # 화면 안에서 누르고 바로 바뀌어야 하는 것(지도 첫 열기·카드·배지, 캘린더 넘기기·미니달력·창)도 전환 기준 0.2초(10-18)
+    if name.startswith("민원지도 ·") or name.startswith("캘린더 ·"):
+        if "구글" in name:
+            return None
+        return 200, "ms", False
     if name.startswith("전환"):
         return 200, "ms", False
     if name.startswith("검색"):
@@ -29,6 +43,7 @@ def main():
     out = sys.argv[2] if len(sys.argv) > 2 else None
     data = json.load(open(src, encoding="utf-8"))
     rows, over = [], []
+    info = data.pop("_정보", None)
     for name, v in data.items():
         m = v["median"]
         lim = limit(name)
@@ -52,6 +67,7 @@ def main():
             "",
             ("기준을 넘는 항목: " + ", ".join(over) + " – 실패로 만들지 않아요(각 화면 대기 목록 몫)") if over else "모두 기준 안이에요.",
             "",
+            *([("정보: " + json.dumps(info, ensure_ascii=False)), ""] if info else []),
         ]
     )
     print(text)

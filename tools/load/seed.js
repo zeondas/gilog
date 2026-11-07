@@ -1,4 +1,4 @@
-// 3년치 시험 자료(2023-10-18~2026-10-17, 브라우저 미리 보기 전용).
+// 3년치 시험 자료(2023-10-18~2026-10-17, 브라우저 미리 보기 전용). 같은 양·같은 규칙의 실제 자료 파일은 make_db(3년치 v3 파일).
 // docs/loadtest.md 5줄과 같은 비율(평일 하루 업무일지 8 · 민원 2 · 할 일 3 · 일정 2) — 개수는 사용자 지시(2026-10-21):
 // 민원 1,500건 · 연락처 800명 · 할 일 6,000건. 업무일지·일정도 같은 비율로 넣어요(메모리·첫 화면이 실제와 비슷하게).
 // 2026-10-30 ②-3 3차: 흉내 저장소에 값을 직접 넣던 것을 지킴이 seed처럼 앱과 같은 명령으로 채워요(tools/preview/core.ts가
@@ -18,6 +18,7 @@ window.__previewSeed = async (call) => {
 
   const AREAS = { "조리읍": ["봉일천리", "등원리", "뇌조리", "오산리"], "문산읍": ["문산리", "선유리", "당동리"], "법원읍": ["법원리", "대능리", "갈곡리"], "파주읍": ["파주리", "연풍리", "봉암리"], "광탄면": ["신산리", "용미리", "마장리"], "탄현면": ["법흥리", "성동리", "금승리"], "월롱면": ["위전리", "영태리"], "적성면": ["마지리", "구읍리"] };
   const AREA_KEYS = Object.keys(AREAS);
+  const PLACES = window.__loadPlaces || [];
   const SUR = "김이박최정강조윤장임한오서신권황안송류홍";
   const GIV = ["민수", "영희", "정호", "지훈", "수진", "현우", "은지", "성민", "미경", "상훈", "다은", "준영", "혜진", "동욱", "선영"];
   const name = () => SUR[int(0, SUR.length - 1)] + pick(GIV);
@@ -52,10 +53,12 @@ window.__previewSeed = async (call) => {
     const received = at(i, N.complaints);
     const old = i < N.complaints - 60;
     const status = old ? (rnd() < 0.9 ? "완료" : pick(["불가", "보류", "장기"])) : pick(["접수", "진행", "답변", "진행"]);
-    const area = pick(AREA_KEYS);
+    // 위치는 필지 표에 있는 실제 파주 지번(places.json – measure.py가 넣어요, 2026-11-07 민원지도 부하)이라 지도에서 좌표가 찾아져요.
+    // 목록이 없으면(옛 도구) 무작위 리 + 번지.
+    const [area, place] = PLACES.length ? PLACES[(i * 7919) % PLACES.length] : (() => { const a = pick(AREA_KEYS); return [a, `${pick(AREAS[a])} ${int(1, 999)} 일원`]; })();
     const intake = pick(INTAKE);
     return {
-      intake, received, ctype: pick(CTYPE), area, place: `${pick(AREAS[area])} ${int(1, 999)}${rnd() < 0.5 ? "-" + int(1, 30) : ""} 일원`,
+      intake, received, ctype: pick(CTYPE), area, place,
       person: name(), phone: phone(), body: lines(WHAT, 3, 5), action: lines(ACT, old ? 3 : 1, old ? 5 : 3),
       due: intake === "국민신문고" || rnd() < 0.5 ? addDays(received, 14) : "", status,
       done: status === "완료" || status === "불가" ? addDays(received, int(2, 20)) : "", road: "", memo: rnd() < 0.3 ? lines(MORE, 2, 2) : "",
@@ -98,4 +101,15 @@ window.__previewSeed = async (call) => {
     call("add_event", { event: { title, kind, date, end: date, allDay, time: allDay ? "" : time, endTime: allDay ? "" : endTime, repeat, until, place: "", desc: "", remind: -1, remindTime: "" } });
   for (const date of days) for (let k = 0; k < 2; k++) ev(pick(TT), pick(EK), date, rnd() < 0.3, "10:00", "11:00", "", "");
   for (let k = 0; k < 10; k++) ev("주간회의 " + k, "회의 · 협의", "2024-01-0" + ((k % 5) + 1), false, "09:00", "10:00", "weekly", "2027-12-31");
+
+  // 캘린더 재기(2026-11-07)만: 구글에 로그인한 양방향 상태 + "확인할 것" 40건(구글에서 지운 일정 30 · 알림 말 4 · 구글에만 있는 일정 6).
+  // 미리 보기는 구글로 나가지 않아요(google_http 자리 표시자 – 맞추기는 바로 실패해 오류 글만 보여요).
+  if (window.__loadGoogle) {
+    const evs = call("calendar_data").events.filter((e) => !e.system).slice(0, 30);
+    const gone = Object.fromEntries(evs.map((e) => ["e" + e.id, { title: e.title }]));
+    const foreign = Object.fromEntries(Array.from({ length: 6 }, (_, k) => ["g" + k, "구글에서 만든 일정 " + k]));
+    call("set_value", { key: "google.token", value: JSON.stringify({ refresh: "load", access: "", exp: 0, scope: "", at: Date.now() }) });
+    call("set_value", { key: "google.opts", value: JSON.stringify({ events: true, complaints: true, tasks: true, gtasks: false, twoWay: true }) });
+    call("set_value", { key: "google.state", value: JSON.stringify({ gone, foreign, notes: ["알림 1", "알림 2", "알림 3", "알림 4"], lastOk: "", lastError: "" }) });
+  }
 };
