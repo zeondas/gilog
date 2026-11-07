@@ -15,6 +15,7 @@ import { closerFits, kakaoFailWhy, kakaoKey, loadKakao, tmForward, tmInverse, TI
 import { addPoint, finish, insideIds, summary, TOOLS, type Measure, type Pt, type Tool } from "./measure";
 import { drawBubble, drawDisc, drawRvHead, easeTo, leanOf, lookPan, RV_HINT, RV_SCALE } from "./rvPin";
 import SelPin from "./SelPin";
+import { perfRoadview } from "../../perfLog";
 
 export type MapPoint = { c: MapComplaint; x: number; y: number; color: string };
 export type Pin = { x: number; y: number; label: string };
@@ -1364,7 +1365,10 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
   const toggleRv = () => {
     if (rv) return closeRv();
     const v = view.current;
-    if (v) openRv(v.cx, v.cy); // 처음엔 지도 가운데에서 가장 가까운 로드뷰
+    if (v) {
+      perfRoadview(); // 재기 기록(공통 ✔1) – 켰을 때만
+      openRv(v.cx, v.cy); // 처음엔 지도 가운데에서 가장 가까운 로드뷰
+    }
   };
 
   // 오른쪽 단추 줄(11-03 ✔5) – 로드뷰를 열면 로드뷰 × 아래 같은 세로줄로 옮겨요(✔4: 캡처할 때 오른쪽 끝만 빼면 "왼쪽 위치도 · 오른쪽 현장 사진")
@@ -1540,6 +1544,7 @@ export default function MapCanvas({ layers, field, off, points, region, regionFe
                 type="button"
                 className="btn btn-ctrl btn-xs mp-card-rv"
                 onClick={() => {
+                  perfRoadview();
                   openRv(card.pts[0].x, card.pts[0].y);
                   setPinned(null);
                   setHover(null);

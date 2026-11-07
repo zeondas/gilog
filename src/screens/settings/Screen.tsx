@@ -11,6 +11,7 @@ import { setKeyMap } from "../../keys";
 import { ModulesCard, ModuleCard, KeysCard, GoogleRows, FilesRows, ListGroup, ListMerge, KindsGroup, PinRow, FolderRow, AutoBackupRow, BackupRow, AddressRows, ProcessRows } from "./Table";
 import { PasswordChange } from "./Dialogs";
 import { ClearCard } from "./Clear";
+import { PerfCard } from "./Perf";
 import { Row, Toggle, X } from "./parts";
 import { MapRows } from "./MapRows";
 
@@ -446,6 +447,9 @@ export default function SettingsScreen({ prefs, onPrefs, status, onLocked, onMod
           )}
         </ModuleCard>
       ))}
+
+      {/* "재기 기록"은 자료 지우기 바로 위(2026-11-07 공통 ✔1) – 켜야만 재요 */}
+      <PerfCard />
 
       {/* "자료 지우기"는 정보 바로 위(2026-10-30 설정 ✔1·13:29 사용자) – 스위치는 저장하지 않아 설정을 나가면 꺼져요 */}
       <ClearCard setNote={setNote} />

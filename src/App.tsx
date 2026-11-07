@@ -26,6 +26,7 @@ import { minWidthOf } from "./viewport";
 import { firstOn, isOn, Modules, onScreens, SCREENS, SETTINGS, ScreenId } from "./screens";
 import { loadSettings } from "./settingsStore";
 import { isLockKey, setKeyMap } from "./keys";
+import { perfOn, perfSwitch, perfUnlockShown, recordMemory } from "./perfLog";
 
 /** 화면 글자 크기 기준(13px). 설정 "화면 크기"는 창 배율로 바뀌어요. */
 const BASE_FS = 13;
@@ -183,6 +184,33 @@ export default function App() {
     [refresh],
   );
   // 잠금을 풀 때 자동 백업이 2일 넘게 안 되고 있으면 앱 위 띠 한 줄(버그 사냥 20). ×로 닫으면 다음 잠금 풀기까지 안 떠요.
+  // 재기 기록(공통 ✔1, 2026-11-07 – 설정에서 켰을 때만): 잠금 풀린 첫 화면 · 켠 뒤 10분 메모리 · 화면을 한 번씩 돈 뒤 메모리
+  const perfSeen = useRef(new Set<string>());
+  const perfRound = useRef(false);
+  useEffect(() => {
+    if (!unlocked || current === null) return;
+    perfSeen.current = new Set([current]);
+    perfRound.current = false;
+    const first = [...SCREENS, SETTINGS].find((x) => x.id === current);
+    perfUnlockShown(first?.side ?? current, current);
+    if (!perfOn()) return;
+    const t = window.setTimeout(() => void recordMemory("메모리 · 잠금 풀고 10분 뒤"), 10 * 60 * 1000);
+    return () => window.clearTimeout(t);
+    // 잠금이 풀릴 때 한 번만(그때의 첫 화면)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unlocked]);
+  const perfNav = (id: ScreenId, label: string) => {
+    if (!perfOn() || id === current || id === SETTINGS.id) return;
+    perfSwitch(id, label, () => {
+      perfSeen.current.add(id);
+      if (perfRound.current) return;
+      if (onScreens(modulesRef.current).every((x) => perfSeen.current.has(x.id))) {
+        perfRound.current = true;
+        void recordMemory("메모리 · 화면을 한 번씩 돈 뒤");
+      }
+    });
+  };
+
   const [backupWarn, setBackupWarn] = useState("");
   useEffect(() => {
     if (!unlocked) return;
@@ -278,7 +306,11 @@ export default function App() {
       className="side-item"
       title={collapsed ? label : undefined}
       aria-current={current === id ? "page" : undefined}
-      onClick={() => (id === SETTINGS.id && current === SETTINGS.id ? closeSettings() : setCurrent(id))}
+      onClick={() => {
+        perfNav(id, label);
+        if (id === SETTINGS.id && current === SETTINGS.id) closeSettings();
+        else setCurrent(id);
+      }}
     >
       <NavIcon name={id as NavIconName} size={collapsed ? 18 : 16} />
       {!collapsed && <span>{label}</span>}

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-perf-memory"
+description = "Enables the perf_memory command without any pre-configured scope."
+commands.allow = ["perf_memory"]
+
+[[permission]]
+identifier = "deny-perf-memory"
+description = "Denies the perf_memory command without any pre-configured scope."
+commands.deny = ["perf_memory"]

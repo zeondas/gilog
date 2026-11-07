@@ -573,3 +573,71 @@
   font-weight: 500;
   opacity: 0.85;
 }
+
+/* ---------- 설정 · 재기 기록 카드 (2026-11-07 공통 ✔1, 자료 지우기 바로 위) ---------- */
+.perf-card .mod-head > svg {
+  flex: none;
+  color: var(--muted);
+}
+
+.perf-card > .row:last-child {
+  border-bottom: 0;
+}
+
+.perf-body {
+  padding: 4px 16px 12px;
+}
+
+.perf-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.perf-table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.perf-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--line-row);
+}
+
+.perf-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 기준을 넘은 줄 – 채움으로(결정 로그 11-03 18:01) */
+.perf-table tr.perf-over td {
+  background: var(--danger-wash);
+  color: var(--danger);
+}
+
+.perf-empty {
+  margin: 8px 0;
+}
+
+.perf-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.perf-foot > .muted {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.perf-btns {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}

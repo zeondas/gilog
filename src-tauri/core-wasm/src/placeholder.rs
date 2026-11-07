@@ -80,6 +80,8 @@ pub const PLACEHOLDER: &[&str] = &[
     "fs_undo",
     "fs_clip_set",
     "map_capture",
+    "perf_memory",
+    "perf_save",
     "fs_clip_get",
     "fs_fast_status",
     "fs_fast_setup",
@@ -491,6 +493,9 @@ pub(crate) fn placeholder(s: &mut Session, cmd: &str, a: &Args) -> Option<Result
             }
             Ok(s.ph.run.status())
         }
+
+        // 재기 기록(공통 ✔1): 미리 보기엔 프로세스 메모리·설정 폴더가 없어요 – 값 없음
+        "perf_memory" | "perf_save" => Ok(Value::Null),
 
         // ---------- 브라우저에서 부르지 않는 것 ----------
         "open_twin" | "juso_http" | "google_listen" | "google_wait" | "open_google_login" | "google_http" | "map_capture" => Err("io".into()),
