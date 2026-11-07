@@ -2,7 +2,7 @@
 // 설정 "재기 기록"을 켰을 때만 재요 – 꺼 두면 아무 일도 하지 않아요(처음 꺼짐).
 // - 켜짐·값은 이 컴퓨터의 앱 저장소(localStorage)에 둬요: 잠금 풀기 전에도 켜졌는지 알아야 해서(자료 파일은 잠겨 있어요).
 // - 값은 숫자만(ms·MB) – 민원 내용·이름·연락처는 없어요. 바뀔 때마다 설정 폴더 `load-log.json`으로도 써요(`perf_save`).
-// - 재는 법(docs/loadtest.md, tools/load/measure.py와 같게): 누른 순간 → 화면 바뀜이 멈춘 뒤 첫 그림까지.
+// - 재는 법(docs/loadtest.md, tools/load/measure.py와 같게): 누른 순간 → 화면 바뀜이 멈춘 뒤 첫 그림까지(설정 카드에 최근 5번 가운데 값).
 import { api } from "./api";
 import { VERSION } from "./version";
 
