@@ -1,5 +1,5 @@
 //! 재기 기록(공통 ✔1, 2026-11-07 사용자 1안 – 초시계 대신 앱이 스스로 재요). 설정에서 켰을 때만 화면이 불러요.
-//! - `perf_memory`: 기Log 프로세스와 그 아래 프로세스(WebView2 – msedgewebview2 여럿)의 작업 집합(Working Set) 합(바이트).
+//! - `perf_memory`: 기록 프로세스와 그 아래 프로세스(WebView2 – msedgewebview2 여럿)의 작업 집합(Working Set) 합(바이트).
 //!   작업 관리자 "메모리" 칸(개인 작업 집합)보다 조금 커요 – 공유 메모리까지 세서, 250MB 기준엔 넉넉한 쪽으로 재요.
 //! - `perf_save`: 재기 값(숫자만 – 민원인 정보 없음)을 설정 폴더(prefs.json 옆) `load-log.json`으로 써요.
 use tauri::AppHandle;

@@ -481,7 +481,7 @@ export const api = {
   clearData: (what: ClearWhat, year: number | null = null) => call<Cleared>("clear_data", { what, year }),
   /** 엑셀 "대체하기" 전 백업 backup\gilog_날짜_before-replace.gilogbak(공통 ✔1, E-6) – 경로, 미리 보기는 null */
   backupBeforeReplace: () => call<string | null>("backup_before_replace"),
-  /** 재기 기록(공통 ✔1): 기Log + WebView2 프로세스 작업 집합 합(바이트, 윈도우만 – 아니면 null) */
+  /** 재기 기록(공통 ✔1): 기록 + WebView2 프로세스 작업 집합 합(바이트, 윈도우만 – 아니면 null) */
   perfMemory: () => call<number | null>("perf_memory"),
   /** 재기 기록을 설정 폴더 load-log.json으로(숫자만) – 쓴 경로 */
   perfSave: (text: string) => call<string | null>("perf_save", { text }),

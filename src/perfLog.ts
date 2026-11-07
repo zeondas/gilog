@@ -115,7 +115,7 @@ function scheduleSave(): void {
   saveTimer = window.setTimeout(() => {
     const l = perfLog();
     const items = Object.fromEntries(Object.entries(l).map(([k, v]) => [k, { median5: recentMedian(v), n: v.length, runs: v }]));
-    const text = JSON.stringify({ app: VERSION, at: new Date().toISOString(), note: "기Log 재기 기록 – 숫자만(ms·MB)", items }, null, 1);
+    const text = JSON.stringify({ app: VERSION, at: new Date().toISOString(), note: "기록 재기 기록 – 숫자만(ms·MB)", items }, null, 1);
     api
       .perfSave(text)
       .then((p) => {
@@ -165,7 +165,7 @@ export function perfTime(name: string, opt: { from?: number; until?: string; don
   requestAnimationFrame(tick);
 }
 
-/** 기Log + WebView2 프로세스 메모리(MB) – 윈도우 앱에서만 값이 있어요. */
+/** 기록 + WebView2 프로세스 메모리(MB) – 윈도우 앱에서만 값이 있어요. */
 export async function recordMemory(name: string): Promise<number | null> {
   if (!perfOn()) return null;
   const b = await api.perfMemory().catch(() => null);
